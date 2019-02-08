@@ -38,7 +38,7 @@ trait Context {
     values.lift(index).flatMap(_.get(name).map(_.typ))
   }
 
-  def declarationTypes(index: Int): Map[String, Value] = {
+  def declarationTypes(index: Int): Option[Map[String, Value]] = {
     val values = (layers.flatMap {
       case DeclarationLayer(typ) => Some(typ)
       case _ => None
@@ -67,7 +67,7 @@ trait ContextBuilder extends Context {
         case Some(_) =>
           throw new Exception("Duplicated declaration")
         case None =>
-          assert(dec.typ == typ, "Declared value doesn't match")
+          assert(eq(dec.typ, typ), "Declared value doesn't match")
           DeclarationLayer(declarations.updated(name, Declaration(dec.typ, Some(value)))) +: layers.tail
       }
       case None => DeclarationLayer(declarations.updated(name, Declaration(typ, Some(value)))) +: layers.tail

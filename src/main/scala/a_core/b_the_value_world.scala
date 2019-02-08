@@ -13,11 +13,6 @@ abstract sealed class StuckValue extends Value {
   override def split(bs: Map[String, Value => Value]) = SplitStuck(this, bs)
 }
 
-object GenericValue {
-}
-
-case class GenericValue(index: Int) extends StuckValue
-
 case class OpenAbstractionReference(index: Int) extends StuckValue
 
 case class OpenDefinitionReference(index: Int, name: String) extends StuckValue
@@ -36,9 +31,13 @@ case class LambdaValue(domain: Value, map: Value => Value) extends Value
 /**
   * if an object of this type == null then means this is the end
   */
-case class NamedValueList(name: String, typ: Value, map: Value => NamedValueList)
+object DependentValues {
+  val empty = DependentValues(Map.empty, null)
+}
+case class DependentValues(independent: Map[String, Value], remaining: Map[String, Value] => DependentValues) {
+}
 
-case class RecordValue(fields: NamedValueList) extends Value
+case class RecordValue(fields: DependentValues) extends Value
 
 case class MakeValue(fields: Map[String, Value]) extends Value
 
@@ -47,7 +46,5 @@ case class SumValue(ts: Map[String, Value]) extends Value
 object Value {
   def abstractToValueMap(value: Value): Value => Value = ???
   def materializeToOpenReference(map: Value => Value): Value = ???
-  def abstractToValueList(map: Map[String, Value]): NamedValueList = ???
-  def materializeToDefinitionReference(vs: NamedValueList): Map[String, Value] = ???
 }
 

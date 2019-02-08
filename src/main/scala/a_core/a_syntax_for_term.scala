@@ -24,7 +24,10 @@ case class Make(declarations: Seq[Declaration]) extends Term
 
 case class Projection(left: Term, name: String) extends Term
 
-case class DefinitionIndex(index: Int, name: String) extends Term
+/**
+  * record types and record values both introduce a declaration context layer
+  */
+case class DeclarationIndex(index: Int, name: String) extends Term
 
 
 case class Constructor(name: String, term: Term)

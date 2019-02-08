@@ -39,30 +39,28 @@ class TypeChecker extends Evaluator with ContextBuilder {
                 ctx.newDeclaration(name, ctx.checkThenEval(body, value), value)
               case None =>
                 val it = ctx.infer(body)
-                ctx.newDeclaration(name, eval(body), it)
+                ctx.newDeclaration(name, ctx.eval(body), it)
             }
         }
         // for anonymous we always produce a non-dependent record type with all stuff inline
-        RecordValue(ctx.declarationTypes(0).toSeq.foldRight(null: NamedValueList) { (sig, txt) =>
-          NamedValueList(sig._1, sig._2, _ => txt)
-        })
+        RecordValue(DependentValues(ctx.declarationTypes(0).get, _ => DependentValues.empty))
       case Projection(left, name) =>
         infer(left) match {
           case RecordValue(map) =>
             val ev = eval(left)
             var cur = map
             var ret: Value = null
-            while (ret == null) {
-              if (name == cur.name) {
-                ret = cur.typ
+            while (cur.independent.nonEmpty && ret == null) {
+              if (cur.independent.contains(name)) {
+                ret = cur.independent(name)
               }
-              cur = cur.map(ev.projection(name))
+              cur = cur.remaining.apply(cur.independent.map(pair => (pair._1, ev.projection(pair._1))))
             }
             assert(ret != null)
             ret
           case _ => throw new Exception("Cannot infer Projection")
         }
-      case DefinitionIndex(index, name) =>
+      case DeclarationIndex(index, name) =>
         declarationType(index, name).get
       case Sum(branches) =>
         assert(branches.map(_.name).toSet.size == branches.size, "Duplicated branches in Sum")
@@ -94,24 +92,41 @@ class TypeChecker extends Evaluator with ContextBuilder {
     (term, typ) match {
       case (AbstractionIndex(index), _) =>
         assert(eq(abstractionType(index).get, typ))
-      case DefinitionIndex(index, name) =>
+      case DeclarationIndex(index, name) =>
         assert(eq(declarationType(index, name).get, typ))
       case (Lambda(domain, body), PiValue(pd, pv)) =>
         newAbstractionLayer(pd).check(body, Value.materializeToOpenReference(pv))
       case (Make(makes), RecordValue(fields)) =>
-        assert(makes.forall(_.isInstanceOf[ValueDeclaration]), "Typechecked Make syntax should not contains type declarations")
+        assert(makes.forall(_.isInstanceOf[ValueDeclaration]), "Type checked Make syntax should not contains type declarations")
         val vs = makes.map(_.asInstanceOf[ValueDeclaration])
         assert(vs.map(_.name).toSet.size == vs.size, "Duplicated make expression names")
-        val ctx = newDeclarationLayer()
+        // type checking makes should not have mutual reference
         var cur = fields
-        var ret: Value = null
-        while (ret == null) {
-          if (name == cur.name) {
-            ret = cur.typ
+        var ctx = newDeclarationLayer()
+        while (cur.independent.nonEmpty) {
+          // we don't allow this kind of thing
+          //
+          // a: A
+          // c: C
+          // a: A = ta
+          // c: C = tc
+          // where a, c is name, and other is term, and also ta depends on c and C depends on a
+          for (pair <- cur.independent) {
+            ctx = ctx.newTypeDeclaration(pair._1, pair._2)
           }
-          cur = cur.map(ev.projection(name))
+          val nv = cur.independent.map(pair => {
+            val name = pair._1
+            val body = vs.find(_.name == name).get.body
+            check(body, pair._2)
+            val v = eval(body)
+            ctx = ctx.newDeclaration(name, v, pair._2)
+            pair._1 -> v
+          })
+          cur = cur.remaining.apply(nv)
         }
       case (Construct(name, data), SumValue(ts)) =>
+        assert(ts.contains(name))
+        check(data, ts(name))
       case (_, _) =>
         assert(infer(term) == typ)
     }
