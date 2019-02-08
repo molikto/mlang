@@ -13,7 +13,7 @@ import scala.collection.mutable
 object TunnelingHack {
 
   private val uid = new AtomicLong(0)
-  private val tunnel = mutable.Map.empty[Long, Value]
+  val tunnel = mutable.Map.empty[Long, Value]
 
   def tunnelingHack(v: Value): String = {
     val a = uid.incrementAndGet()
@@ -40,7 +40,7 @@ trait Evaluator extends Context[Value] {
         val d = depth + 1
         s"PiValue(${emit(domain, depth)}, r$d => ${emit(body, d)})"
       case VariableReference(index) =>
-        if (index > depth) s"OpenAbstractionReference(${layerId(index - depth - 1)})"
+        if (index > depth) s"OpenVariableReference(${layerId(index - depth - 1).get}L)"
         else s"r${depth - index}"
       case Application(left, right) =>
         s"${emit(left, depth)}.application(${emit(right, depth)})"
@@ -70,14 +70,14 @@ trait Evaluator extends Context[Value] {
           val ly =  index - depth - 1
           declarationValue(ly, name) match {
             case Some(v) =>
-              v match {
+              TunnelingHack.tunnelingHack(v match {
                 case MutableProxyValue(Some(a)) =>
-                  TunnelingHack.tunnelingHack(a)
+                  a
                 case _ =>
-                  TunnelingHack.tunnelingHack(v)
-              }
+                  v
+              })
             case None =>
-              s"OpenDeclarationReference(${layerId(ly)}, $name)"
+              s"OpenDeclarationReference(${layerId(ly).get}L, $name)"
           }
         }
         else s"r${depth - index}_$name)"
@@ -93,7 +93,14 @@ trait Evaluator extends Context[Value] {
 
   // LATER less call to eval, how to make values compositional with contexts?
   protected def eval(term: Term): Value = {
-    val source = "import a_core._" +  emit(term, -1)
+    val source = "import a_core._\n" +  emit(term, -1)
+
+    println("==================")
+    println(term)
+    println("==================")
+    println(source)
+    println("==================")
+    println("==================")
     val twitterEval = new Eval()
     twitterEval.apply[Value](source)
   }
