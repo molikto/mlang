@@ -10,25 +10,31 @@ trait Evaluator extends Context[Value] {
     * we evaluate will **valid typechecked terms** by NBE
     */
   private def emit(term: Term, depth: Int): String = {
-    ??? // TODO
-//    term match {
-//      case VariableReference(index) =>
-//        if (index > depth) s"OpenAbstractionReference(${abstractionType()})"
-//      case Lambda(domain, body) =>
-//      case Pi(domain, body) =>
-//      case Application(left, right) =>
-//      case Record(fields) =>
-//      case Make(declarations) =>
-//      case Projection(left, name) =>
-//      case DeclarationReference(index, name) =>
-//      case Sum(branches) =>
-//      case Construct(name, data) =>
-//      case Split(left, right) =>
-//    }
+    term match {
+      case VariableReference(index) =>
+        if (index > depth) s"OpenAbstractionReference(${layerId(index - depth - 1)})"
+        else s"r${depth - index}"
+      case Lambda(domain, body) =>
+        s"LambdaValue(${emit(domain, depth)}, r${depth + 1} => ${emit(body, depth + 1)})"
+      case Pi(domain, body) =>
+        s"PiValue(${emit(domain, depth)}, r${depth + 1} => ${emit(body, depth + 1)})"
+      case Application(left, right) =>
+        s"${emit(left, depth)}.application(${emit(right, depth)})"
+      case Record(fields) =>
+        
+      case Make(declarations) =>
+      case Projection(left, name) =>
+      case DeclarationReference(index, name) =>
+        if (index > depth) s"OpenAbstractionReference(${layerId(index - depth - 1)})"
+        else s"r${depth - index}"
+      case Sum(branches) =>
+      case Construct(name, data) =>
+      case Split(left, right) =>
+    }
   }
 
   protected def eval(term: Term): Value = {
-    val source = emit(term, -1)
+    val source = "import a_core._" +  emit(term, -1)
     val twitterEval = new Eval()
     twitterEval.apply[Value](source)
   }
