@@ -15,6 +15,8 @@ should be able to read them one by one
       I
       [once](https://github.com/molikto/ChihuahuaLang/blob/master/common/src/main/scala/Syntax.scala#L59)
       done with a single fix operator, but found this ugly
+         * what we have in this version is exactly miniTT. I found it hard to support mutual definitions, but 
+           there and back again...
          * the reason of this is to support at least the delta rule for non-mutual recursive definitions
     * the current idea is unify "global scope" and "record type", viewing global scope just as a value of
       some record type. and in a record value definition, terms can have mutual recursive reference
