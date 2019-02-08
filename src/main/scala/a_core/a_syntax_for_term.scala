@@ -6,7 +6,12 @@ abstract sealed trait Term
 /**
   * we are using de Bruijn index
   */
-case class AbstractionIndex(index: Int) extends Term
+case class VariableReference(index: Int) extends Term
+
+/**
+  * record types and record values both introduce a declaration context layer
+  */
+case class DeclarationReference(index: Int, name: String) extends Term
 
 case class Lambda(domain: Term, body: Term) extends Term
 
@@ -24,10 +29,6 @@ case class Make(declarations: Seq[Declaration]) extends Term
 
 case class Projection(left: Term, name: String) extends Term
 
-/**
-  * record types and record values both introduce a declaration context layer
-  */
-case class DeclarationIndex(index: Int, name: String) extends Term
 
 
 case class Constructor(name: String, term: Term)

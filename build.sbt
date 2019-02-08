@@ -14,3 +14,7 @@ addCompilerPlugin("com.lihaoyi" %% "acyclic" % "0.1.7")
 
 scalacOptions += "-P:acyclic:force"
 
+libraryDependencies ++= Seq(
+  "com.twitter" %% "util-eval" % "6.43.0"
+)
+

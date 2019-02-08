@@ -25,6 +25,8 @@ should be able to read them one by one
     * the implementation will be a normalization by evaluation, the detailed nbe method will be studied...
          * maybe still untyped NBE following the previous attempt
          * but it is suggested to used a typed NBE
+         * `TODO` the thing is every NBE has a "readback" but we don't,
+          we have a structural equality defined on values, is this correct??
     * inductive type is also implemented so that we can get some data to play with
          * the implementation is bare-bone and not well thought, it is just simply tagged sum
     * this system is not sound, because we don't check the validity of inductive defined types and recursive definitions

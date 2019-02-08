@@ -1,12 +1,22 @@
 package a_core
 
 
-class TypeChecker extends Evaluator with ContextBuilder {
+class TypeChecker extends Evaluator with ContextBuilder[Value] {
+
+  override protected def layers: Layers = Seq.empty
+
   type Self = TypeChecker
 
+  override protected def newBuilder(ls: Layers): Self = new TypeChecker() {
+    override protected def layers: Layers = ls.asInstanceOf[this.Layers] // wtf??
+  }
+
+  /**
+    * **value is context dependent**, infer always produce a value in current context
+    */
   protected def infer(term: Term): Value = {
     term match {
-      case AbstractionIndex(index) => abstractionType(index).get
+      case VariableReference(index) => abstractionType(index).get
       case Pi(domain, body) =>
         newAbstractionLayer(checkIsTypeThenEval(domain)).checkIsType(body)
         UniverseValue
@@ -14,7 +24,7 @@ class TypeChecker extends Evaluator with ContextBuilder {
         val pty = checkIsTypeThenEval(domain)
         val ctx = newAbstractionLayer(pty)
         val vty = ctx.infer(body)
-        PiValue(pty, Value.abstractToValueMap(vty))
+        PiValue(pty, v => Value.replacingVariableValue(ctx.layerId(0).get, v, vty))
       case Application(left, right) =>
         infer(left) match {
           case PiValue(domain, map) =>
@@ -43,24 +53,24 @@ class TypeChecker extends Evaluator with ContextBuilder {
             }
         }
         // for anonymous we always produce a non-dependent record type with all stuff inline
-        RecordValue(DependentValues(ctx.declarationTypes(0).get, _ => DependentValues.empty))
+        RecordValue(AcyclicValuesGraph(ctx.declarationTypes(0).get, _ => AcyclicValuesGraph.empty))
       case Projection(left, name) =>
         infer(left) match {
           case RecordValue(map) =>
             val ev = eval(left)
             var cur = map
             var ret: Value = null
-            while (cur.independent.nonEmpty && ret == null) {
-              if (cur.independent.contains(name)) {
-                ret = cur.independent(name)
+            while (cur.initials.nonEmpty && ret == null) {
+              if (cur.initials.contains(name)) {
+                ret = cur.initials(name)
               }
-              cur = cur.remaining.apply(cur.independent.map(pair => (pair._1, ev.projection(pair._1))))
+              cur = cur.remaining.apply(cur.initials.map(pair => (pair._1, ev.projection(pair._1))))
             }
             assert(ret != null)
             ret
           case _ => throw new Exception("Cannot infer Projection")
         }
-      case DeclarationIndex(index, name) =>
+      case DeclarationReference(index, name) =>
         declarationType(index, name).get
       case Sum(branches) =>
         assert(branches.map(_.name).toSet.size == branches.size, "Duplicated branches in Sum")
@@ -75,11 +85,11 @@ class TypeChecker extends Evaluator with ContextBuilder {
             if (ts.isEmpty) {
               throw new IllegalArgumentException("This can be any type, annotate it instead")
             } else {
-              joinNonEmpty(ts.toSeq.map(a => {
-                val at = a._2
-                val term = right.find(_.name == a._1).get.term
-                newAbstractionLayer(at).infer(term)
-              }))
+              nonEmptyJoin(ts.map(pair => {
+                val at = pair._2
+                val term = right.find(_.name == pair._1).get.term
+                newAbstractionLayer(at).infer(term) // TODO the levels seems wrong here...
+              }).toSeq)
             }
           case _ => throw new Exception("Cannot infer Split")
         }
@@ -88,14 +98,15 @@ class TypeChecker extends Evaluator with ContextBuilder {
   }
 
 
+  /**
+    * when checking, the type to be checked with will always be defined by a super-context of current context
+    */
   protected def check(term: Term, typ: Value): Unit = {
     (term, typ) match {
-      case (AbstractionIndex(index), _) =>
-        assert(eq(abstractionType(index).get, typ))
-      case DeclarationIndex(index, name) =>
-        assert(eq(declarationType(index, name).get, typ))
       case (Lambda(domain, body), PiValue(pd, pv)) =>
-        newAbstractionLayer(pd).check(body, Value.materializeToOpenReference(pv))
+        val ctx = newAbstractionLayer(pd)
+        // this is really handy, to unbound this parameter
+        ctx.check(body, pv(OpenVariableReference(ctx.newUniqueId())))
       case (Make(makes), RecordValue(fields)) =>
         assert(makes.forall(_.isInstanceOf[ValueDeclaration]), "Type checked Make syntax should not contains type declarations")
         val vs = makes.map(_.asInstanceOf[ValueDeclaration])
@@ -103,7 +114,7 @@ class TypeChecker extends Evaluator with ContextBuilder {
         // type checking makes should not have mutual reference
         var cur = fields
         var ctx = newDeclarationLayer()
-        while (cur.independent.nonEmpty) {
+        while (cur.initials.nonEmpty) {
           // we don't allow this kind of thing
           //
           // a: A
@@ -111,10 +122,10 @@ class TypeChecker extends Evaluator with ContextBuilder {
           // a: A = ta
           // c: C = tc
           // where a, c is name, and other is term, and also ta depends on c and C depends on a
-          for (pair <- cur.independent) {
+          for (pair <- cur.initials) {
             ctx = ctx.newTypeDeclaration(pair._1, pair._2)
           }
-          val nv = cur.independent.map(pair => {
+          val nv = cur.initials.map(pair => {
             val name = pair._1
             val body = vs.find(_.name == name).get.body
             check(body, pair._2)
@@ -128,7 +139,7 @@ class TypeChecker extends Evaluator with ContextBuilder {
         assert(ts.contains(name))
         check(data, ts(name))
       case (_, _) =>
-        assert(infer(term) == typ)
+        assert(equal(infer(term), typ))
     }
   }
 
@@ -142,12 +153,13 @@ class TypeChecker extends Evaluator with ContextBuilder {
   protected def checkThenEval(t: Term, v: Value) = { check(t, v); eval(t) }
   protected def checkIsTypeThenEval(t: Term) = { checkIsType(t); eval(t) }
   // no need to go inside check for now
-  protected def checkIsType(t: Term): Unit = assert(eq(infer(t), UniverseValue))
+  protected def checkIsType(t: Term): Unit = assert(equal(infer(t), UniverseValue))
 
 
   /**
     * main method
     */
   def check(module: Make): Value = infer(module)
+
 }
 
