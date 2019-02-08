@@ -2,8 +2,7 @@ package a_core
 
 
 
-trait Evaluator extends Contextual {
-
+trait Evaluator extends Context {
 
   /**
     *
@@ -12,9 +11,13 @@ trait Evaluator extends Contextual {
     * @param term a term that is **valid** under the parameter context
     * @return
     */
-  protected def eval(term: Term): Value = ???
+  protected def eval(term: Term): Value
 
+  protected def equal(a: Value, b: Value): Boolean
 
-  protected def equal(a: Value, b: Value) = ???
+  protected def joinNonEmpty(vs: Seq[Value]): Value = {
+    assert(vs.tail.forall(a => equal(a, vs.head)), "The join is invalid, we currently only joins equal types")
+    vs.head
+  }
 }
 
