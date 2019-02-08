@@ -5,6 +5,7 @@
 
 * packages and files is indexed by "a-z", resulting in a linear order of files. you 
 should be able to read them one by one
+* each feature in the changelog will have a pull request, the code diff should be clean and readable
 
 ## roadmap
 
@@ -28,3 +29,5 @@ should be able to read them one by one
          * the implementation is bare-bone and not well thought, it is just simply tagged sum
     * this system is not sound, because we don't check the validity of inductive defined types and recursive definitions
     * everything is basic, for example, we don't have fancy error handling
+    
+## changelog
