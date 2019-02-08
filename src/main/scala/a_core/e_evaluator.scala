@@ -18,7 +18,7 @@ object TunnelingHack {
   def tunnelingHack(v: Value): String = {
     val a = uid.incrementAndGet()
     tunnel.put(a, v)
-    s"TunnelingHack.tunnel($a)"
+    s"TunnelingHack.tunnel(${a}L)"
   }
 }
 
