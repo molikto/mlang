@@ -7,6 +7,7 @@ abstract sealed class Value {
   def split(bs: Map[String, Value => Value]): Value = throw new Exception()
 }
 
+
 abstract sealed class StuckValue extends Value {
   override def application(seq: Value): Value = AppStuck(this, seq)
   override def projection(s: String) = ProjectionStuck(this, s)
@@ -33,6 +34,7 @@ case class LambdaValue(domain: Value, map: Value => Value) extends Value
 /**
   * if an object of this type == null then means this is the end
   */
+
 object AcyclicValuesGraph {
   val empty = AcyclicValuesGraph(Map.empty, null)
 }
@@ -49,16 +51,16 @@ case class ConstructValue(name: String, term: Value) extends Value
 
 object Value {
 
-  def replacingVariableValue(id: Long, by: Value, in0: Value): Value = {
+  def rebound(id: Long, by: Value, in0: Value): Value = {
     def rec(in: Value): Value = {
       in match {
         case OpenVariableReference(vi) => if (vi == id) by else in
-        case OpenDeclarationReference(di, name) =>
+        case OpenDeclarationReference(di, _) =>
           assert(di != id)
           in
         case ProjectionStuck(value, str) => rec(value).projection(str)
         case AppStuck(atom, app) => rec(atom).application(rec(app))
-        case SplitStuck(s, names) => rec(s).split(names.mapValues(f => (a => rec(f(a)))))
+        case SplitStuck(s, bs) => rec(s).split(bs.mapValues(f => a => rec(f(a))))
         case UniverseValue => in
         case PiValue(domain, map) => PiValue(rec(domain), a => rec(map(a)))
         case LambdaValue(domain, map) => LambdaValue(rec(domain), a => rec(map(a)))

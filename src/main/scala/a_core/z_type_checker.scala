@@ -24,21 +24,21 @@ class TypeChecker extends Evaluator with ContextBuilder[Value] {
         val pty = checkIsTypeThenEval(domain)
         val ctx = newAbstractionLayer(pty)
         val vty = ctx.infer(body)
-        PiValue(pty, v => Value.replacingVariableValue(ctx.layerId(0).get, v, vty))
+        PiValue(pty, v => Value.rebound(ctx.layerId(0).get, v, vty))
       case Application(left, right) =>
         infer(left) match {
           case PiValue(domain, map) =>
             map(checkThenEval(right, domain))
           case _ => throw new Exception("Cannot infer Application")
         }
-      case record@Record(fields) =>
+      case Record(acyclic) =>
         var ctx = newDeclarationLayer()
-        fields.foreach {
+        acyclic.flatten.foreach {
           case TypeDeclaration(name, body) =>
             ctx = ctx.newTypeDeclaration(name, ctx.checkIsTypeThenEval(body))
         }
         UniverseValue
-      case make@Make(declarations) =>
+      case Make(declarations) =>
         var ctx = newDeclarationLayer()
         declarations.foreach {
           case TypeDeclaration(name, body) =>
@@ -76,7 +76,7 @@ class TypeChecker extends Evaluator with ContextBuilder[Value] {
         assert(branches.map(_.name).toSet.size == branches.size, "Duplicated branches in Sum")
         branches.foreach(k => checkIsType(k.term))
         UniverseValue
-      case Construct(name, data) =>
+      case Construct(_, _) =>
         throw new IllegalStateException("Inferring Construct directly is not supported, always annotate with type instead")
       case Split(left, right) =>
         infer(left) match {
@@ -88,7 +88,8 @@ class TypeChecker extends Evaluator with ContextBuilder[Value] {
               nonEmptyJoin(ts.map(pair => {
                 val at = pair._2
                 val term = right.find(_.name == pair._1).get.term
-                newAbstractionLayer(at).infer(term) // TODO the levels seems wrong here...
+                newAbstractionLayer(at).infer(term)
+                // LATER we should check the levels is correct here
               }).toSeq)
             }
           case _ => throw new Exception("Cannot infer Split")
@@ -104,9 +105,10 @@ class TypeChecker extends Evaluator with ContextBuilder[Value] {
   protected def check(term: Term, typ: Value): Unit = {
     (term, typ) match {
       case (Lambda(domain, body), PiValue(pd, pv)) =>
+        assert(equal(checkIsTypeThenEval(domain), pd))
         val ctx = newAbstractionLayer(pd)
         // this is really handy, to unbound this parameter
-        ctx.check(body, pv(OpenVariableReference(ctx.newUniqueId())))
+        ctx.check(body, pv(OpenVariableReference(ctx.layerId(0).get)))
       case (Make(makes), RecordValue(fields)) =>
         assert(makes.forall(_.isInstanceOf[ValueDeclaration]), "Type checked Make syntax should not contains type declarations")
         val vs = makes.map(_.asInstanceOf[ValueDeclaration])
@@ -146,12 +148,10 @@ class TypeChecker extends Evaluator with ContextBuilder[Value] {
 
   /**
     * utilities
-    * @param module
-    * @return
     */
 
-  protected def checkThenEval(t: Term, v: Value) = { check(t, v); eval(t) }
-  protected def checkIsTypeThenEval(t: Term) = { checkIsType(t); eval(t) }
+  protected def checkThenEval(t: Term, v: Value): Value = { check(t, v); eval(t) }
+  protected def checkIsTypeThenEval(t: Term): Value = { checkIsType(t); eval(t) }
   // no need to go inside check for now
   protected def checkIsType(t: Term): Unit = assert(equal(infer(t), UniverseValue))
 

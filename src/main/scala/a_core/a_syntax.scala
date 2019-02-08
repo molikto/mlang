@@ -1,6 +1,6 @@
 package a_core
 
-abstract sealed trait Term
+sealed trait Term
 
 
 /**
@@ -23,9 +23,12 @@ sealed trait Declaration
 case class TypeDeclaration(name: String, body: Term) extends Declaration
 case class ValueDeclaration(name: String, body: Term) extends Declaration
 
-case class Record(fields: Seq[TypeDeclaration]) extends Term
+case class Record(acyclic: Seq[Seq[TypeDeclaration]]) extends Term {
+  assert(acyclic.flatten.map(_.name).distinct.size == acyclic.flatten.size)
+}
 
-case class Make(declarations: Seq[Declaration]) extends Term
+case class Make(declarations: Seq[Declaration]) extends Term {
+}
 
 case class Projection(left: Term, name: String) extends Term
 
