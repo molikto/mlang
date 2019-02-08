@@ -42,6 +42,11 @@ trait Context[Value <: AnyRef] {
     case _ => None
   }
 
+  def declaration(index: Int, name: String): Option[Declaration] = layer(index).flatMap {
+    case DeclarationLayer(ds) => ds.get(name)
+    case _ => None
+  }
+
   def declarationType(index: Int, name: String): Option[Value] = layer(index).flatMap {
     case DeclarationLayer(ds) => ds.get(name).map(_.typ)
     case _ => None
@@ -59,7 +64,7 @@ trait ContextBuilder[Value <: AnyRef] extends Context[Value] {
 
   protected def newBuilder(layers: Layers): Self
 
-  def newTypeDeclaration(name: String, typ: Value): Self = newBuilder(layers.head.layer match {
+  protected def newTypeDeclaration(name: String, typ: Value): Self = newBuilder(layers.head.layer match {
     case DeclarationLayer(declarations) => declarations.get(name) match {
       case Some(_) =>
         throw new Exception("Duplicated declaration")
@@ -69,11 +74,25 @@ trait ContextBuilder[Value <: AnyRef] extends Context[Value] {
     case _ => throw new Exception("Wrong layer type")
   })
 
+
+  protected def replaceDeclarationValue(name: String, value: Value): Self =  newBuilder(layers.head.layer match {
+    case DeclarationLayer(declarations) => declarations.get(name) match {
+      case Some(dec) => dec.value match {
+        case Some(_) =>
+          LayerWithId(DeclarationLayer(declarations.updated(name, Declaration(dec.typ, Some(value)))), layers.head.id) +: layers.tail
+        case None =>
+          throw new Exception(s"Replace should only be called on values already has a value")
+      }
+      case None =>
+        throw new Exception(s"Cannot find declaration $name")
+    }
+    case _ => throw new Exception("Wrong layer type")
+  })
   /**
     * note that if a type is already declared, a object eq check will be performed, so the intended usage is
     * check if there is a type, check the type, and then pass back that thing back if there is one
     */
-  def newDeclaration(name: String, value: Value, typ: Value): Self = newBuilder(layers.head.layer match {
+  protected def newDeclaration(name: String, value: Value, typ: Value): Self = newBuilder(layers.head.layer match {
     case DeclarationLayer(declarations) => declarations.get(name) match {
       case Some(dec) => dec.value match {
         case Some(_) =>
@@ -87,10 +106,10 @@ trait ContextBuilder[Value <: AnyRef] extends Context[Value] {
     case _ => throw new Exception("Wrong layer type")
   })
 
-  def newDeclarationLayer(map: Map[String, Value]): Self =
+  protected def newDeclarationLayer(map: Map[String, Value]): Self =
     newBuilder(LayerWithId(DeclarationLayer(map.mapValues(t => Declaration(t))), newUniqueId()) +: layers)
 
-  def newDeclarationLayer(): Self = newDeclarationLayer(Map.empty)
+  protected def newDeclarationLayer(): Self = newDeclarationLayer(Map.empty)
 
-  def newAbstractionLayer(typ: Value): Self = newBuilder(LayerWithId(LambdaLayer(typ), newUniqueId()) +: layers)
+  protected def newAbstractionLayer(typ: Value): Self = newBuilder(LayerWithId(LambdaLayer(typ), newUniqueId()) +: layers)
 }

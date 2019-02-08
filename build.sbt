@@ -15,6 +15,10 @@ addCompilerPlugin("com.lihaoyi" %% "acyclic" % "0.1.7")
 scalacOptions += "-P:acyclic:force"
 
 libraryDependencies ++= Seq(
-  "com.twitter" %% "util-eval" % "6.43.0"
+  "com.twitter" %% "util-eval" % "6.43.0",
+  "com.lihaoyi" %% "utest" % "0.6.6" % "test"
 )
+
+testFrameworks += new TestFramework("utest.runner.Framework")
+
 

@@ -1,9 +1,18 @@
 package a_core
 
 
+
+/**
+  * a value is valid only in it's producing context and context extensions. you should not HAVE REFERENCE
+  * to a invalid value
+  */
 class TypeChecker extends Evaluator with ContextBuilder[Value] {
 
-  override protected def layers: Layers = Seq.empty
+  val globalDefinitions = DeclarationLayer(Map(
+    "type" -> Declaration(UniverseValue, Some(UniverseValue))
+  ))
+
+  override protected def layers: Layers = Seq(LayerWithId(globalDefinitions, newUniqueId()))
 
   type Self = TypeChecker
 
@@ -13,6 +22,8 @@ class TypeChecker extends Evaluator with ContextBuilder[Value] {
 
   /**
     * **value is context dependent**, infer always produce a value in current context
+    *
+    * the returned type WILL NOT contains any empty proxy
     */
   protected def infer(term: Term): Value = {
     term match {
@@ -39,14 +50,24 @@ class TypeChecker extends Evaluator with ContextBuilder[Value] {
         }
         UniverseValue
       case Make(declarations) =>
+        /**
+          * HOW WE TYPE CHECK MAKE EXPRESSION
+          *
+          * when the **type** of a name first declared, we always give it a MutableHolderValue(None) as value
+          */
         var ctx = newDeclarationLayer()
         declarations.foreach {
           case TypeDeclaration(name, body) =>
-            ctx = ctx.newTypeDeclaration(name, ctx.checkIsTypeThenEval(body))
+            ctx = ctx.newDeclaration(name, MutableProxyValue(), ctx.checkIsTypeThenEval(body))
           case ValueDeclaration(name, body) =>
-            ctx = declarationType(0, name) match {
-              case Some(value) =>
-                ctx.newDeclaration(name, ctx.checkThenEval(body, value), value)
+            ctx = declaration(0, name) match {
+              case Some(decl) =>
+                assert(decl.value.contains(MutableProxyValue()))
+                val mp = decl.value.get.asInstanceOf[MutableProxyValue]
+                // a empty mutable proxy value is considered have a value when eval, so we get a circular reference
+                // but other operations is not allowed to perform on empty mutable proxy, like equality checks
+                val v = ctx.checkThenEval(body, decl.typ)
+                ctx.replaceDeclarationValue(name, mp.setSelf(v))
               case None =>
                 val it = ctx.infer(body)
                 ctx.newDeclaration(name, ctx.eval(body), it)
@@ -99,9 +120,6 @@ class TypeChecker extends Evaluator with ContextBuilder[Value] {
   }
 
 
-  /**
-    * when checking, the type to be checked with will always be defined by a super-context of current context
-    */
   protected def check(term: Term, typ: Value): Unit = {
     (term, typ) match {
       case (Lambda(domain, body), PiValue(pd, pv)) =>
@@ -160,6 +178,5 @@ class TypeChecker extends Evaluator with ContextBuilder[Value] {
     * main method
     */
   def check(module: Make): Value = infer(module)
-
 }
 

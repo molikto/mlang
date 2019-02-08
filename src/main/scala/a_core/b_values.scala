@@ -14,6 +14,16 @@ abstract sealed class StuckValue extends Value {
   override def split(bs: Map[String, Value => Value]) = SplitStuck(this, bs)
 }
 
+case class MutableProxyValue private (private var to: Option[Value] = None) extends Value {
+
+
+  def setSelf(a: Value): MutableProxyValue = {
+    assert(to == None)
+    to = Some(a)
+    this
+  }
+}
+
 /**
   * open values is produced when you eval a term under a context where the value is absent
   */
@@ -72,8 +82,14 @@ object Value {
         case MakeValue(fields) => MakeValue(fields.mapValues(rec))
         case SumValue(ts) => SumValue(ts.mapValues(rec))
         case ConstructValue(name, term) => ConstructValue(name, rec(term))
+        case MutableProxyValue(to) =>
+         to match {
+           case Some(a) => rec(a)
+           case None => throw new IllegalStateException("This seems wrong")
+         }
       }
     }
     rec(in0)
   }
 }
+
