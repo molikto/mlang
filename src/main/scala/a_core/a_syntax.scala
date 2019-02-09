@@ -42,3 +42,4 @@ case class Construct(name: String, data: Term) extends Term
 case class Branch(name: String, term: Term)
 case class Split(left: Term, right: Seq[Branch]) extends Term
 
+//case object MetaVariable extends Term
