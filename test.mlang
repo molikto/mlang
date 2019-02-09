@@ -1,0 +1,11 @@
+
+
+unit = {}
+
+;
+
+unit0 = make(unit) {}
+
+;
+
+nat: type = [zero # unit, succ # nat]

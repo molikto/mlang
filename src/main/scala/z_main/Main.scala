@@ -5,10 +5,15 @@ import b_surface_syntax.Parser
 import c_elaborator.Elaborator
 
 
-class Main extends TypeChecker with Parser with Elaborator {
+object Main extends TypeChecker with Elaborator {
 
-  def checkFile(a: String): Unit = {
-    val txt = io.Source.fromFile(a).getLines().mkString("\n")
-    check(transform(b_surface_syntax.surface.Definitions(parse(txt).get)))
+  val parser = new Parser {}
+  def main(args: Array[String]): Unit = {
+    val txt = io.Source.fromFile(args(0)).getLines().mkString("\n")
+    val parsed = parser.parse(txt).get
+    println(parsed)
+    val elaborated = elaborate(b_surface_syntax.surface.Definitions(parsed))
+    println(elaborated)
+    check(elaborated)
   }
 }

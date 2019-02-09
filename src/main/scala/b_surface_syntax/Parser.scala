@@ -14,11 +14,13 @@ object surface {
   sealed abstract class Term
   type Tele = Seq[(Seq[String], Term)]
 
-  // object {def ..., def ... }
+  // make { ..., def ... }
   case class Definition(name: String, tele: Option[Tele], ty: Option[Term], term: Option[Term]) extends Surface
   case class Definitions(defs: Seq[Definition]) extends Term
   // {def ..., def ..., term}
   case class Let(defs: Seq[Definition], body: Term) extends Term
+
+  case class Primitive(name: String) extends Term
 
   // (a : b)
   case class Ascription(term: Term, right: Term) extends Term
@@ -32,7 +34,7 @@ object surface {
   // {a: term, b: term}
   case class Record(seq: Seq[(String, Term)]) extends Term
   // make(group) {set, id, ...}
-  case class Make(term: Term, seq: Seq[Term]) extends Term
+  case class Make(term: Term, seq: Seq[(String, Term)]) extends Term
   // a.b
   case class Projection(term: Term, str: String) extends Term
 
@@ -69,15 +71,15 @@ object surface {
 trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConversions {
 
 
-  lexical.reserved ++= List("def", "match", "make", "construct", "object", "with")
-  lexical.delimiters ++= List("{", "}", "[", "]", ":", ",", "(", ")", "=>", "->", "+", "-", ";", "|", "=", "@", "\\")
+  lexical.reserved ++= List("match", "make", "construct", "type")
+  lexical.delimiters ++= List("{", "}", "[", "]", ":", "#", ",", "(", ")", "=>", "->", "+", "-", ";", "|", "=", "@", "\\")
 
   def delimited[T](a: String, t: Parser[T], b: String): Parser[T] = a ~> t <~ b
 
 
-  lazy val let: PackratParser[surface.Let] = delimited("{", rep(definition) ~ term, "}") ^^ { a => surface.Let(a._1, a._2)}
+  lazy val let: PackratParser[surface.Let] = delimited("{", repsep(definition, ";") ~ term, "}") ^^ { a => surface.Let(a._1, a._2)}
 
-  lazy val definitions: PackratParser[surface.Definitions] =  keyword("object") ~> delimited( "{", rep(definition) , "}") ^^ { a => surface.Definitions(a)}
+  lazy val definitions: PackratParser[surface.Definitions] =  keyword("make") ~> delimited( "{", repsep(definition, ";") , "}") ^^ { a => surface.Definitions(a)}
 
   lazy val tele: PackratParser[surface.Tele] = "(" ~> rep1sep((rep1(ident)) ~ opt(":" ~> term), ",") <~ ")" ^^ {a => a.map(a => (a._1, a._2.getOrElse(surface.Absent)))}
 
@@ -86,12 +88,14 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
   lazy val typedTelePossibleNoName: PackratParser[surface.Tele] = "(" ~> rep1sep(opt((rep1(ident) <~ ":")) ~ term, ",") <~ ")" ^^ {a => a.map(a => (a._1.getOrElse(Seq(surface.newValidGeneratedIdent())), a._2))}
 
   lazy val definition: PackratParser[surface.Definition] =
-    keyword("def") ~> ident ~ opt(typedTele) ~ opt(":" ~> term) ~ opt( "=" ~> term) ^^ {a => surface.Definition(a._1._1._1, a._1._1._2, a._1._2, a._2) }
+    ident ~ opt(typedTele) ~ opt(":" ~> term) ~ opt( "=" ~> term) ^^ {a => surface.Definition(a._1._1._1, a._1._1._2, a._1._2, a._2) }
+
 
 
   lazy val term: PackratParser[surface.Term] =
         ascription |
         definitions |
+        keyword("type") ^^ {_ =>  surface.Primitive("type") } |
         let |
         pi |
         lambda |
@@ -115,22 +119,22 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
   lazy val app: PackratParser[surface.App] = term ~ delimited("(", repsep(term, ","), ")") ^^ {a => surface.App(a._1, a._2)}
 
   lazy val record: PackratParser[surface.Record] =
-    delimited("{", rep1sep(ident ~ (":" ~> term), ","),"}") ^^ {a => surface.Record(a.map(b => (b._1, b._2)))}
+    delimited("{", repsep(ident ~ (":" ~> term), ";"),"}") ^^ {a => surface.Record(a.map(b => (b._1, b._2)))}
 
   lazy val make: PackratParser[surface.Make] =
-    keyword("make")~> delimited("(", term , ")") ~ delimited("{", repsep(term, ","), "}") ^^ {a => surface.Make(a._1, a._2)}
+    keyword("make")~> delimited("(", term , ")") ~ delimited("{", repsep((ident <~ "=") ~ term, ";"), "}") ^^ {a => surface.Make(a._1, a._2.map(a => (a._1, a._2)))}
 
   lazy val projection: PackratParser[surface.Projection] = (term <~ ".") ~ ident ^^ {a => surface.Projection(a._1, a._2)}
 
   lazy val sum: PackratParser[surface.Sum] =
-    delimited("[", rep1sep((ident <~ "#") ~ term,","),"]") ^^ {a => surface.Sum(a.map(k => (k._1, k._2)))}
+    delimited("[", repsep((ident <~ "#") ~ term,","),"]") ^^ {a => surface.Sum(a.map(k => (k._1, k._2)))}
 
   lazy val construct: PackratParser[surface.Construct] =
     (term <~ ":") ~ (ident <~ "#") ~ term ^^ {a => surface.Construct(a._1._1, a._1._2, a._2)}
 
   lazy val split: PackratParser[surface.Split] =
-    (keyword("match") ~> term) ~ delimited("{", rep((ident <~ "#") ~ (ident <~ "->") ~ term), "}") ^^ {a => surface.Split(a._1, a._2.map(k => (k._1._1, k._1._2, k._2)))}
+    (keyword("match") ~> term) ~ delimited("{", repsep((ident <~ "#") ~ (ident <~ "->") ~ term, ";"), "}") ^^ {a => surface.Split(a._1, a._2.map(k => (k._1._1, k._1._2, k._2)))}
 
-  def parse(a: String): ParseResult[Seq[surface.Definition]] = rep(definition)(new PackratReader(new lexical.Scanner(a)))
+  def parse(a: String): ParseResult[Seq[surface.Definition]] = repsep(definition, ";")(new PackratReader(new lexical.Scanner(a)))
 }
 

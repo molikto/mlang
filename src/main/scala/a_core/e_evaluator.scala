@@ -21,8 +21,16 @@ object TunnelingHack {
     s"TunnelingHack.tunnel(${a}L)"
   }
 }
+object Primitives {
+
+  val primitives = Map(
+    // value: type
+    "type" -> (UniverseValue, UniverseValue)
+  )
+}
 
 trait Evaluator extends Context[Value] {
+
 
   /**
     *
@@ -44,7 +52,9 @@ trait Evaluator extends Context[Value] {
         else s"r${depth - index}"
       case Application(left, right) =>
         s"${emit(left, depth)}.application(${emit(right, depth)})"
-      case Record(fields) =>
+      case Cast(a, _) =>
+        emit(a, depth) // ignore casts in values
+      case r@Record(_) =>
         def rec(fs: Seq[Seq[TypeDeclaration]]): String = {
           if (fs.isEmpty) {
             s"AcyclicValuesGraph.empty"
@@ -55,16 +65,18 @@ trait Evaluator extends Context[Value] {
             s"vs => {${hd.map(f => s"def r${d}_${f.name} = vs(${source(f.name)}))").mkString("; ")}; ${rec(fs.tail)})"
           }
         }
-        s"RecordValue(${rec(fields)})"
+        s"RecordValue(${rec(r.acyclic)})"
       case Make(declarations) =>
         val vs = declarations.filter(_.isInstanceOf[ValueDeclaration]).map(_.asInstanceOf[ValueDeclaration])
         val d = depth + 1
-        s"{ var hd = new scala.collection.mutable.Map.empty[String, Value](); " +
-            s"${vs.map(f => s"def r${d}_${f.name} = hd(${source(f.name)}))").mkString("; ")}; " +
-            s"${vs.map(f => s"hd.put(${source(f.name)}, ${emit(f.body, d)})").mkString("; ")}; " +
-            s"MakeValue(hd) }"
+        s"{ var hd = scala.collection.mutable.Map.empty[String, Value]; " +
+            s"${vs.map(f => s"def r${d}_${f.name} = hd(${source(f.name)})); ").mkString("")}" +
+            s"${vs.map(f => s"hd.put(${source(f.name)}, ${emit(f.body, d)}); ").mkString("")}" +
+            s"MakeValue(hd.toMap) }"
       case Projection(left, name) =>
         s"${emit(left, depth)}.projection(${source(name)})"
+      case Primitive(name) =>
+        s"Primitives.primitives(${source(name)})._1"
       case DeclarationReference(index, name) =>
         if (index > depth) {
           val ly =  index - depth - 1
@@ -99,7 +111,6 @@ trait Evaluator extends Context[Value] {
     println(term)
     println("==================")
     println(source)
-    println("==================")
     println("==================")
     val twitterEval = new Eval()
     twitterEval.apply[Value](source)

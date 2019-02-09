@@ -8,13 +8,10 @@ package a_core
   */
 class TypeChecker extends Evaluator with ContextBuilder[Value] {
 
-  val globalDefinitions = DeclarationLayer(Map(
-    "type" -> Declaration(UniverseValue, Some(UniverseValue))
-  ))
-
-  override protected def layers: Layers = Seq(LayerWithId(globalDefinitions, newUniqueId()))
+  override protected def layers: Layers = Seq.empty
 
   type Self = TypeChecker
+
 
   override protected def newBuilder(ls: Layers): Self = new TypeChecker() {
     override protected def layers: Layers = ls.asInstanceOf[this.Layers] // wtf??
@@ -31,6 +28,8 @@ class TypeChecker extends Evaluator with ContextBuilder[Value] {
       case Pi(domain, body) =>
         newAbstractionLayer(checkIsTypeThenEval(domain)).checkIsType(body)
         UniverseValue
+      case Primitive(name) =>
+        Primitives.primitives(name)._2
       case Lambda(domain, body) =>
         val pty = checkIsTypeThenEval(domain)
         val ctx = newAbstractionLayer(pty)
@@ -42,9 +41,13 @@ class TypeChecker extends Evaluator with ContextBuilder[Value] {
             map(checkThenEval(right, domain))
           case _ => throw new Exception("Cannot infer Application")
         }
-      case Record(acyclic) =>
+      case Cast(a, b) =>
+        val v = checkIsTypeThenEval(b)
+        check(a, v)
+        v
+      case Record(fields) =>
         var ctx = newDeclarationLayer()
-        acyclic.flatten.foreach {
+        fields.foreach {
           case TypeDeclaration(name, body) =>
             ctx = ctx.newTypeDeclaration(name, ctx.checkIsTypeThenEval(body))
         }
@@ -60,7 +63,7 @@ class TypeChecker extends Evaluator with ContextBuilder[Value] {
           case TypeDeclaration(name, body) =>
             ctx = ctx.newDeclaration(name, MutableProxyValue(), ctx.checkIsTypeThenEval(body))
           case ValueDeclaration(name, body) =>
-            ctx = declaration(0, name) match {
+            ctx = ctx.declaration(0, name) match {
               case Some(decl) =>
                 assert(decl.value.contains(MutableProxyValue()))
                 val mp = decl.value.get.asInstanceOf[MutableProxyValue]
@@ -130,7 +133,8 @@ class TypeChecker extends Evaluator with ContextBuilder[Value] {
       case (Make(makes), RecordValue(fields)) =>
         assert(makes.forall(_.isInstanceOf[ValueDeclaration]), "Type checked Make syntax should not contains type declarations")
         val vs = makes.map(_.asInstanceOf[ValueDeclaration])
-        assert(vs.map(_.name).toSet.size == vs.size, "Duplicated make expression names")
+        val names = vs.map(_.name).toSet
+        assert(names.size == vs.size, "Duplicated make expression names")
         // type checking makes should not have mutual reference
         var cur = fields
         var ctx = newDeclarationLayer()

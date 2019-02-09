@@ -1,15 +1,21 @@
 package c_elaborator
 
-import a_core._
+import a_core.{Context, _}
 import b_surface_syntax.surface
 
 import scala.collection.mutable
 
 
-sealed trait ContextLayer
+sealed trait ContextLayer {
+  def contains(t: String): Boolean
+}
 
-case class DeclarationLayer(definitions: Set[String]) extends ContextLayer
-case class LambdaLayer(name: String) extends ContextLayer
+case class DeclarationLayer(definitions: Set[String]) extends ContextLayer {
+  override def contains(t: String): Boolean = definitions.contains(t)
+}
+case class LambdaLayer(name: String) extends ContextLayer {
+  override def contains(t: String): Boolean = t == name
+}
 
 trait Elaborator {
 
@@ -41,6 +47,7 @@ trait Elaborator {
   }
 
   def elaborateMaybeLambda(tele: Option[surface.Tele], body: surface.Term, context: Seq[ContextLayer]): Term = {
+    // TODO use meta variable instead, checking is faster than infer?
     tele match {
       case Some(tele) =>
         val ts = flatten(tele)
@@ -57,6 +64,7 @@ trait Elaborator {
     }
   }
 
+
   def elaborate(a: surface.Definition, context: Seq[ContextLayer]): Seq[Declaration] = {
     a.ty.toSeq.flatMap(t => {
       Seq(TypeDeclaration(a.name, elaborateMaybePi(a.tele, t, context)))
@@ -64,11 +72,16 @@ trait Elaborator {
       Seq(ValueDeclaration(a.name, elaborateMaybeLambda(a.tele, term, context)))
     })
   }
+
   def elaborate(term: surface.Term, context: Seq[ContextLayer]): Term = {
 
+    def ascript(a: Term, ty: surface.Term): Term = {
+      Cast(a, elaborate(ty, context))
+    }
     term match {
       case surface.Definitions(defs) =>
-        Make(defs.flatMap(d => elaborate(d, DeclarationLayer(defs.map(_.name).toSet) +: context)))
+        val ctx = DeclarationLayer(defs.map(_.name).toSet) +: context
+        Make(defs.flatMap(d => elaborate(d, ctx )))
       case surface.Let(defs, body) =>
         val ctx = DeclarationLayer(defs.map(_.name).toSet) +: context
         val name = surface.letId
@@ -82,15 +95,31 @@ trait Elaborator {
       case surface.Projection(term, str) =>
         Projection(elaborate(term, context), str)
       case surface.Record(seq) =>
-
+        val ctx = DeclarationLayer(seq.map(_._1).toSet) +: context
+        Record(seq.map(d => TypeDeclaration(d._1, elaborate(d._2, ctx))))
       case surface.Make(term, seq) =>
+        val ctx = DeclarationLayer(seq.map(_._1).toSet) +: context
+        val m = Make(seq.map(d => ValueDeclaration(d._1, elaborate(d._2, ctx))))
+        ascript(m, term)
       case surface.Ascription(term, right) =>
-
+        ascript(elaborate(term, context), right)
       case surface.Sum(ts) =>
+        Sum(ts.map(a => Constructor(a._1, elaborate(a._2, context))))
       case surface.Construct(ty, name, v) =>
-      case surface.Split(term, right) =>
+        ascript(Construct(name, elaborate(v, context)), ty)
+      case surface.Split(t, ts) =>
+        Split(elaborate(t, context), ts.map(a => Branch(a._1, elaborate(a._3, LambdaLayer(a._2) +: context))))
+      case surface.Primitive(p) =>
+        Primitive(p)
       case surface.Reference(t) =>
-      case surface.Absent =>
+        context.zipWithIndex.collectFirst {
+          case (a, i) if a.contains(t) =>
+            a match {
+              case LambdaLayer(_) => VariableReference(i)
+              case DeclarationLayer(definitions) => DeclarationReference(i, t)
+            }
+        }.get
+      case surface.Absent => ??? // TODO handle lambda without parameter type
     }
   }
 
