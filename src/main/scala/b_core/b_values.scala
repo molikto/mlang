@@ -1,4 +1,4 @@
-package a_core
+package b_core
 
 
 abstract sealed class Value {
@@ -12,16 +12,6 @@ abstract sealed class StuckValue extends Value {
   override def application(seq: Value): Value = AppStuck(this, seq)
   override def projection(s: String) = ProjectionStuck(this, s)
   override def split(bs: Map[String, Value => Value]) = SplitStuck(this, bs)
-}
-
-case class MutableProxyValue private (private var to: Option[Value] = None) extends Value {
-
-
-  def setSelf(a: Value): MutableProxyValue = {
-    assert(to == None)
-    to = Some(a)
-    this
-  }
 }
 
 /**
@@ -55,7 +45,8 @@ case class RecordValue(fields: AcyclicValuesGraph) extends Value
 
 case class MakeValue(fields: Map[String, Value]) extends Value
 
-case class SumValue(ts: Map[String, Value]) extends Value
+// sum value is non-strict so it can have self-reference
+case class SumValue(keys: Set[String], ts: String => Value) extends Value
 
 case class ConstructValue(name: String, term: Value) extends Value
 
@@ -80,13 +71,8 @@ object Value {
           }
           RecordValue(recG(fields))
         case MakeValue(fields) => MakeValue(fields.mapValues(rec))
-        case SumValue(ts) => SumValue(ts.mapValues(rec))
+        case SumValue(keys, ts) => SumValue(keys, n => rec(ts(n)))
         case ConstructValue(name, term) => ConstructValue(name, rec(term))
-        case MutableProxyValue(to) =>
-         to match {
-           case Some(a) => rec(a)
-           case None => throw new IllegalStateException("This seems wrong")
-         }
       }
     }
     rec(in0)

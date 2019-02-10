@@ -1,5 +1,6 @@
-package a_core
+package b_core
 
+import scala.collection.mutable
 
 
 /**
@@ -23,6 +24,7 @@ class TypeChecker extends Evaluator with ContextBuilder[Value] {
     * the returned type WILL NOT contains any empty proxy
     */
   protected def infer(term: Term): Value = {
+    println(s"Infer $term")
     term match {
       case VariableReference(index) => abstractionType(index).get
       case Pi(domain, body) =>
@@ -52,30 +54,48 @@ class TypeChecker extends Evaluator with ContextBuilder[Value] {
             ctx = ctx.newTypeDeclaration(name, ctx.checkIsTypeThenEval(body))
         }
         UniverseValue
-      case Make(declarations) =>
-        /**
-          * HOW WE TYPE CHECK MAKE EXPRESSION
-          *
-          * when the **type** of a name first declared, we always give it a MutableHolderValue(None) as value
-          */
+      case m@Make(declarations) =>
         var ctx = newDeclarationLayer()
+        val evaluated = mutable.Set.empty[String]
+        val notEvaluated = mutable.Map.empty[String, (Term, Value)]
         declarations.foreach {
           case TypeDeclaration(name, body) =>
-            ctx = ctx.newDeclaration(name, MutableProxyValue(), ctx.checkIsTypeThenEval(body))
+            ctx = ctx.newTypeDeclaration(name, ctx.checkIsTypeThenEval(body))
           case ValueDeclaration(name, body) =>
-            ctx = ctx.declaration(0, name) match {
-              case Some(decl) =>
-                assert(decl.value.contains(MutableProxyValue()))
-                val mp = decl.value.get.asInstanceOf[MutableProxyValue]
-                // a empty mutable proxy value is considered have a value when eval, so we get a circular reference
-                // but other operations is not allowed to perform on empty mutable proxy, like equality checks
-                val v = ctx.checkThenEval(body, decl.typ)
-                ctx.replaceDeclarationValue(name, mp.setSelf(v))
+            val it = ctx.declarationType(0, name) match {
+              case Some(ty) =>
+                ctx.check(body, ty)
+                ty
               case None =>
-                val it = ctx.infer(body)
-                ctx.newDeclaration(name, ctx.eval(body), it)
+                body match {
+                  case Sum(_) => ctx = ctx.newTypeDeclaration(name, UniverseValue)
+                  case _ =>
+                }
+                ctx.infer(body)
+            }
+            val component = m.mutualDependencies.find(_.contains(name)).get
+            if (component.size == 1 && !m.directValueDependencies(name).contains(name)) {
+              evaluated += name
+              ctx = ctx.newDeclaration(name, ctx.eval(body), it)
+            } else {
+              notEvaluated.put(name, (body, it))
+              if (
+                component.forall(name => notEvaluated.keySet(name) &&
+                    m.directValueDependencies(name).forall(a => evaluated(a) || notEvaluated.keySet.contains(a)))) {
+                val toEvaluate = notEvaluated.filterKeys(component)
+                // when eval, we eval in declaration order
+                val values = ctx.eval(m.valueDeclarations.map(_.name).filter(toEvaluate.keySet).map(n => (n, toEvaluate(n)._1)))
+                for (v <- values) {
+                  ctx = ctx.newDeclaration(v._1, v._2, toEvaluate(v._1)._2)
+                }
+                evaluated ++= component
+                notEvaluated --= component
+              } else {
+                ctx = ctx.newTypeDeclaration(name, it)
+              }
             }
         }
+        assert(notEvaluated.isEmpty && evaluated.size == m.valueDeclarations.size)
         // for anonymous we always produce a non-dependent record type with all stuff inline
         RecordValue(AcyclicValuesGraph(ctx.declarationTypes(0).get, _ => AcyclicValuesGraph.empty))
       case Projection(left, name) =>
@@ -104,14 +124,14 @@ class TypeChecker extends Evaluator with ContextBuilder[Value] {
         throw new IllegalStateException("Inferring Construct directly is not supported, always annotate with type instead")
       case Split(left, right) =>
         infer(left) match {
-          case SumValue(ts) => // right is bigger
-            assert(ts.keySet.toSeq.sorted == right.map(_.name).sorted, "Split with duplicated or missing branches")
-            if (ts.isEmpty) {
+          case SumValue(keys, ts) => // right is bigger
+            assert(keys.toSeq.sorted == right.map(_.name).sorted, "Split with duplicated or missing branches")
+            if (keys.isEmpty) {
               throw new IllegalArgumentException("This can be any type, annotate it instead")
             } else {
-              nonEmptyJoin(ts.map(pair => {
-                val at = pair._2
-                val term = right.find(_.name == pair._1).get.term
+              nonEmptyJoin(keys.map(k => {
+                val at = ts(k)
+                val term = right.find(_.name == k).get.term
                 newAbstractionLayer(at).infer(term)
                 // LATER we should check the levels is correct here
               }).toSeq)
@@ -124,6 +144,7 @@ class TypeChecker extends Evaluator with ContextBuilder[Value] {
 
 
   protected def check(term: Term, typ: Value): Unit = {
+    println(s"Check $term")
     (term, typ) match {
       case (Lambda(domain, body), PiValue(pd, pv)) =>
         assert(equal(checkIsTypeThenEval(domain), pd))
@@ -131,7 +152,7 @@ class TypeChecker extends Evaluator with ContextBuilder[Value] {
         // this is really handy, to unbound this parameter
         ctx.check(body, pv(OpenVariableReference(ctx.layerId(0).get)))
       case (Make(makes), RecordValue(fields)) =>
-        assert(makes.forall(_.isInstanceOf[ValueDeclaration]), "Type checked Make syntax should not contains type declarations")
+        assert(makes.forall(_.isInstanceOf[ValueDeclaration]), "Type checked Make syntax should not contains type declarations (yet)")
         val vs = makes.map(_.asInstanceOf[ValueDeclaration])
         val names = vs.map(_.name).toSet
         assert(names.size == vs.size, "Duplicated make expression names")
@@ -159,8 +180,8 @@ class TypeChecker extends Evaluator with ContextBuilder[Value] {
           })
           cur = cur.remaining.apply(nv)
         }
-      case (Construct(name, data), SumValue(ts)) =>
-        assert(ts.contains(name))
+      case (Construct(name, data), SumValue(ks, ts)) =>
+        assert(ks.contains(name))
         check(data, ts(name))
       case (_, _) =>
         assert(equal(infer(term), typ))

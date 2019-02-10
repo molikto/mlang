@@ -1,4 +1,4 @@
-package a_core
+package b_core
 
 import java.util.concurrent.atomic.AtomicLong
 
@@ -14,6 +14,7 @@ trait Context[Value <: AnyRef] {
   sealed trait ContextLayer
 
   case class LambdaLayer(typ: Value) extends ContextLayer
+
 
   case class Declaration(typ: Value, value: Option[Value] = None)
 
@@ -64,30 +65,18 @@ trait ContextBuilder[Value <: AnyRef] extends Context[Value] {
 
   protected def newBuilder(layers: Layers): Self
 
+
   protected def newTypeDeclaration(name: String, typ: Value): Self = newBuilder(layers.head.layer match {
     case DeclarationLayer(declarations) => declarations.get(name) match {
-      case Some(_) =>
-        throw new Exception("Duplicated declaration")
+      case Some(ty) =>
+        // TODO we drop the last deleration, but should be something else
+        layers
       case None =>
         LayerWithId(DeclarationLayer(declarations.updated(name, Declaration(typ))), layers.head.id) +: layers.tail
     }
     case _ => throw new Exception("Wrong layer type")
   })
 
-
-  protected def replaceDeclarationValue(name: String, value: Value): Self =  newBuilder(layers.head.layer match {
-    case DeclarationLayer(declarations) => declarations.get(name) match {
-      case Some(dec) => dec.value match {
-        case Some(_) =>
-          LayerWithId(DeclarationLayer(declarations.updated(name, Declaration(dec.typ, Some(value)))), layers.head.id) +: layers.tail
-        case None =>
-          throw new Exception(s"Replace should only be called on values already has a value")
-      }
-      case None =>
-        throw new Exception(s"Cannot find declaration $name")
-    }
-    case _ => throw new Exception("Wrong layer type")
-  })
   /**
     * note that if a type is already declared, a object eq check will be performed, so the intended usage is
     * check if there is a type, check the type, and then pass back that thing back if there is one
@@ -98,7 +87,7 @@ trait ContextBuilder[Value <: AnyRef] extends Context[Value] {
         case Some(_) =>
           throw new Exception("Duplicated declaration")
         case None =>
-          assert(dec.typ.eq(typ), "Declared value doesn't match")
+          assert(dec.typ.eq(typ), "Declared type doesn't match")
           LayerWithId(DeclarationLayer(declarations.updated(name, Declaration(dec.typ, Some(value)))), layers.head.id) +: layers.tail
       }
       case None => LayerWithId(DeclarationLayer(declarations.updated(name, Declaration(typ, Some(value)))), layers.head.id) +: layers.tail

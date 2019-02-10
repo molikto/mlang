@@ -1,7 +1,7 @@
-package c_elaborator
+package d_elaborator
 
-import a_core.{Context, _}
-import b_surface_syntax.surface
+import b_core.{Context, _}
+import c_surface_syntax.surface
 
 import scala.collection.mutable
 
@@ -23,26 +23,27 @@ trait Elaborator {
     tele.flatMap(a => a._1.map(n => (n, a._2)))
   }
 
+  def elaborateApp(left: surface.Term, ps: Seq[surface.Term], ctx: Seq[ContextLayer]): Term = {
+    ps.foldLeft(elaborate(left, ctx)) { (v, p) =>
+      Application(v, elaborate(p, ctx))
+    }
+  }
+
+
   def elaborateMaybePi(tele: Option[surface.Tele], body: surface.Term, context: Seq[ContextLayer]): Term = {
     tele match {
       case Some(tele) =>
         val ts = flatten(tele)
         val cx = ts.reverse.map(a => LambdaLayer(a._1)) ++ context
-        val bd = elaborate(body, context)
+        val bd = elaborate(body, cx)
         val tt = ts.foldRight((cx, bd)) { (ps, tm) =>
           val c = tm._1.tail
           (c, Pi(elaborate(ps._2, c), tm._2))
         }
-        assert(tt._1.isEmpty)
+        assert(tt._1 == context)
         tt._2
       case None =>
         elaborate(body, context)
-    }
-  }
-
-  def elaborateApp(left: surface.Term, ps: Seq[surface.Term], ctx: Seq[ContextLayer]): Term = {
-    ps.foldLeft(elaborate(left, ctx)) { (v, p) =>
-      Application(v, elaborate(p, ctx))
     }
   }
 
@@ -52,12 +53,12 @@ trait Elaborator {
       case Some(tele) =>
         val ts = flatten(tele)
         val cx = ts.reverse.map(a => LambdaLayer(a._1)) ++ context
-        val bd = elaborate(body, context)
+        val bd = elaborate(body, cx)
         val tt = ts.foldRight((cx, bd)) { (ps, tm) =>
           val c = tm._1.tail
           (c, Lambda(elaborate(ps._2, c), tm._2))
         }
-        assert(tt._1.isEmpty)
+        assert(tt._1 == context)
         tt._2
       case None =>
         elaborate(body, context)
@@ -75,7 +76,7 @@ trait Elaborator {
 
   def elaborate(term: surface.Term, context: Seq[ContextLayer]): Term = {
 
-    def ascript(a: Term, ty: surface.Term): Term = {
+    def cast(a: Term, ty: surface.Term): Term = {
       Cast(a, elaborate(ty, context))
     }
     term match {
@@ -100,15 +101,15 @@ trait Elaborator {
       case surface.Make(term, seq) =>
         val ctx = DeclarationLayer(seq.map(_._1).toSet) +: context
         val m = Make(seq.map(d => ValueDeclaration(d._1, elaborate(d._2, ctx))))
-        ascript(m, term)
+        cast(m, term)
       case surface.Ascription(term, right) =>
-        ascript(elaborate(term, context), right)
+        cast(elaborate(term, context), right)
       case surface.Sum(ts) =>
-        Sum(ts.map(a => Constructor(a._1, elaborate(a._2, context))))
+        Sum(ts.map(a => Constructor(a._1, a._2.map(m => elaborate(m, context)).getOrElse(Primitive("unit")))))
       case surface.Construct(ty, name, v) =>
-        ascript(Construct(name, elaborate(v, context)), ty)
+        cast(Construct(name, v.map(v => elaborate(v, context)).getOrElse(Primitive("unit0"))), ty)
       case surface.Split(t, ts) =>
-        Split(elaborate(t, context), ts.map(a => Branch(a._1, elaborate(a._3, LambdaLayer(a._2) +: context))))
+        Split(elaborate(t, context), ts.map(a => Branch(a._1, elaborate(a._3, LambdaLayer(a._2.getOrElse(surface.newValidGeneratedIdent())) +: context))))
       case surface.Primitive(p) =>
         Primitive(p)
       case surface.Reference(t) =>

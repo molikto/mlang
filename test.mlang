@@ -1,11 +1,17 @@
 
 
-unit = {}
+nat = [zero, succ(nat)];
 
-;
+bool = [true, false];
 
-unit0 = make(unit) {}
+odd(a: nat): bool;
 
-;
+even(a: nat): bool = match a {
+  zero -> bool:true;
+  succ(a) -> odd(a);
+};
 
-nat: type = [zero # unit, succ # nat]
+odd(a: nat): bool = match a {
+  zero -> bool:false;
+  succ(a) -> even(a);
+};
