@@ -8,43 +8,6 @@ import scala.util.parsing.combinator.{ImplicitConversions, PackratParsers}
 import b_core._
 
 
-// surface syntax...
-object surface {
-  sealed abstract class Surface
-  sealed abstract class Term
-  type Tele = Seq[(Seq[String], Term)]
-
-  case class Definition(name: String, tele: Option[Tele], ty: Option[Term], term: Option[Term]) extends Surface
-  case class Definitions(defs: Seq[Definition]) extends Term
-  case class Let(defs: Seq[Definition], body: Term) extends Term
-
-  case class Primitive(name: String) extends Term
-
-  case class Ascription(term: Term, right: Term) extends Term
-  case class Pi(seq: Tele, body: Term) extends Term
-  case class Lambda(seq: Tele, body: Term) extends Term
-  case class App(left: Term, right: Seq[Term]) extends Term
-
-  case class Record(seq: Seq[(String, Term)]) extends Term
-  case class Make(term: Term, seq: Seq[(String, Term)]) extends Term
-  case class Projection(term: Term, str: String) extends Term
-
-  case class Sum(ts: Seq[(String, Option[Term])]) extends Term
-  case class Construct(ty: Term, name: String, v: Option[Term]) extends Term
-  case class Split(term: Term, right: Seq[(String, Option[String], Term)]) extends Term
-  case class Reference(t: String) extends Term
-
-  case object Absent extends Term
-
-
-  private val gen = new AtomicLong(0)
-
-  // TODO surface syntax should not contain these constructs
-  def newValidGeneratedIdent() = s"not_used_${gen.incrementAndGet()}"
-
-  val letId = "not_used_let"
-}
-
 
 
 /**
@@ -58,7 +21,7 @@ object surface {
 trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConversions {
 
 
-  lexical.reserved ++= List("match", "make", "construct", "type")
+  lexical.reserved ++= List("match", "make", "construct", "type", "assert_equal")
   lexical.delimiters ++= List("{", "}", "[", "]", ":", ",", "(", ")", "=>", "->", "+", "-", ";", "|", "=", "@", "\\")
 
   def delimited[T](a: String, t: Parser[T], b: String): Parser[T] = a ~> t <~ b
@@ -78,11 +41,9 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
     ident ~ opt(typedTele) ~ opt(":" ~> term) ~ opt( "=" ~> term) <~ ";" ^^ {a => surface.Definition(a._1._1._1, a._1._1._2, a._1._2, a._2) }
 
 
-
   lazy val term: PackratParser[surface.Term] =
         ascription |
         definitions |
-        keyword("type") ^^ {_ =>  surface.Primitive("type") } |
         let |
         pi |
         lambda |
@@ -93,12 +54,14 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
         sum |
         construct |
         split |
+        keyword("type") ^^ {_ =>  surface.Primitive("type") } |
+        keyword("assert_equal") ^^ {_ =>  surface.Primitive("assert_equal") } |
         ident ^^ {a => surface.Reference(a)}
 
   lazy val ascription: PackratParser[surface.Ascription] = delimited("(", (term <~ ":") ~ term, ")") ^^ {a => surface.Ascription(a._1, a._2)}
 
   lazy val pi: PackratParser[surface.Pi] =
-    typedTele ~ ("=>" ~> term) ^^ {a => surface.Pi(a._1, a._2)}
+    typedTelePossibleNoName ~ ("=>" ~> term) ^^ {a => surface.Pi(a._1, a._2)}
 
   lazy val lambda: PackratParser[surface.Lambda] =
     tele ~ ("->" ~> term) ^^ {a => surface.Lambda(a._1, a._2) }

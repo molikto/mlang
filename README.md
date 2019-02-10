@@ -8,6 +8,18 @@ should be able to read them one by one
 * each feature in the changelog will have a pull request, the code diff should be clean and readable
 
 ## roadmap
+    
+## changelog
+
+* basic implementation of a logical framework with dependent record and recursive tagged sum value
+    * basically equal in power with "miniTT"
+    * to termination check and type-in-type
+    * implementation note
+        * we use NBE to Scala code
+
+## archive
+
+### notes on "recursive values"
 
 * implement a logical framework with recursive records with **recursive values**,
  so we can test our idea about recursive representation of values
@@ -33,5 +45,3 @@ should be able to read them one by one
          * the implementation is bare-bone and not well thought, it is just simply tagged sum
     * this system is not sound, because we don't check the validity of inductive defined types and recursive definitions
     * everything is basic, for example, we don't have fancy error handling
-    
-## changelog

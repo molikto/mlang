@@ -1,5 +1,6 @@
 package z_main
 
+import a_utils.debug
 import b_core.TypeChecker
 import c_surface_syntax.{Parser, surface}
 import d_elaborator.Elaborator
@@ -15,11 +16,11 @@ object Main extends TypeChecker with Elaborator {
         if (!next.atEnd) {
           throw new Exception(s"Parse failed with remaining ${next.source.toString.drop(next.offset)}")
         } else {
-          println(parsed)
+          debug(parsed)
           val elaborated = elaborate(c_surface_syntax.surface.Definitions(parsed))
-          println(elaborated)
+          debug(elaborated)
           check(elaborated)
-          println("Finished")
+          debug("Finished")
         }
       case parser.NoSuccess(msg, next) =>
         throw new Exception(s"Parse failed $msg")

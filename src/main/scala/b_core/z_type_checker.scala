@@ -1,5 +1,7 @@
 package b_core
 
+import a_utils.debug
+
 import scala.collection.mutable
 
 
@@ -24,7 +26,7 @@ class TypeChecker extends Evaluator with ContextBuilder[Value] {
     * the returned type WILL NOT contains any empty proxy
     */
   protected def infer(term: Term): Value = {
-    println(s"Infer $term")
+    debug(s"Infer $term")
     term match {
       case VariableReference(index) => abstractionType(index).get
       case Pi(domain, body) =>
@@ -144,7 +146,7 @@ class TypeChecker extends Evaluator with ContextBuilder[Value] {
 
 
   protected def check(term: Term, typ: Value): Unit = {
-    println(s"Check $term")
+    debug(s"Check $term")
     (term, typ) match {
       case (Lambda(domain, body), PiValue(pd, pv)) =>
         assert(CompareValue.equal(checkIsTypeThenEval(domain), pd))

@@ -4,7 +4,13 @@ nat = [zero, succ(nat)];
 
 bool = [true, false];
 
+not(a: bool): bool = match a {
+  true -> bool:false;
+  false -> bool:true;
+};
+
 odd(a: nat): bool;
+
 
 even(a: nat): bool = match a {
   zero -> bool:true;
@@ -15,3 +21,13 @@ odd(a: nat): bool = match a {
   zero -> bool:false;
   succ(a) -> even(a);
 };
+
+
+odd_alternative(a: nat): bool = match a {
+  zero -> bool:false;
+  succ(a) -> even(a);
+};
+
+test0 = assert_equal(bool, even(nat:zero), bool:true);
+test1 = assert_equal(bool, odd(nat:zero), bool:false);
+test3 = assert_equal((nat) => bool, odd, odd_alternative);

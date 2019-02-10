@@ -1,9 +1,7 @@
 package d_elaborator
 
-import b_core.{Context, _}
+import b_core._
 import c_surface_syntax.surface
-
-import scala.collection.mutable
 
 
 sealed trait ContextLayer {

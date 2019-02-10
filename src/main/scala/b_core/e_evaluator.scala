@@ -2,6 +2,7 @@ package b_core
 
 import java.util.concurrent.atomic.AtomicLong
 
+import a_utils._
 import com.twitter.util.Eval
 
 import scala.collection.mutable
@@ -24,11 +25,19 @@ object TunnelingHack {
 object Primitives {
 
   private val unit = RecordValue(AcyclicValuesGraph.empty)
+  private val unit0 = MakeValue(Map.empty)
   private val primitives = Map(
     // value: type
     "type" -> (UniverseValue, UniverseValue),
     "unit" ->  (unit, UniverseValue),
-    "unit0" -> (MakeValue(Map.empty), unit)
+    "unit0" -> (unit0, unit),
+    "assert_equal" -> (
+        LambdaValue(UniverseValue, ty => LambdaValue(ty, a => LambdaValue(ty, b => {
+          debug.display(CompareValue.equal(a, b))
+          unit0
+        }))),
+        PiValue(UniverseValue, ty => PiValue(ty, _ => PiValue(ty, _ => unit)))
+    )
   )
 
   def value(a: String) = primitives(a)._1
@@ -121,24 +130,23 @@ trait Evaluator extends Context[Value] {
         vs.map(f => s"hd.put(${source(f._1)}, ${emitter.emit(f._2, -1)}); ").mkString("") +
         s"hd.toMap }"
 
-    println("==================")
-    println(vs)
-    println("==================")
-    println(src)
-    println("==================")
+    debug("==================")
+    debug(vs)
+    debug("==================")
+    debug(src)
+    debug("==================")
     val twitterEval = new Eval()
     twitterEval.apply[Map[String, Value]](src)
   }
 
-  // LATER less call to eval, how to make values compositional with contexts?
   protected def eval(term: Term): Value = {
     val src = "import b_core._\n" +  new Emitter().emit(term, -1)
 
-    println("==================")
-    println(term)
-    println("==================")
-    println(src)
-    println("==================")
+    debug("==================")
+    debug(term)
+    debug("==================")
+    debug(src)
+    debug("==================")
     val twitterEval = new Eval()
     twitterEval.apply[Value](src)
   }

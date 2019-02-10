@@ -1,5 +1,7 @@
 package b_core
 
+import b_core.Value.ValueMap
+
 
 /**
   * a value compare class that handles recursive values
@@ -8,7 +10,7 @@ class CompareValue(a0: Value, b0: Value) {
 
   import Value.newUniqueId
 
-  private def equalMvv(m1: Map[String, Value => Value], m2: Map[String, Value => Value]): Boolean = {
+  private def equalMvv(m1: Map[String, ValueMap], m2: Map[String, ValueMap]): Boolean = {
     m1.keySet == m2.keySet && m1.forall(pair => {
       val k = pair._1
       val a = pair._2
@@ -26,9 +28,12 @@ class CompareValue(a0: Value, b0: Value) {
     })
   }
 
-  private def equal(m1: Value => Value, m2: Value => Value): Boolean = {
-    val u = OpenVariableReference(newUniqueId())
-    equal(m1(u), m2(u))
+  private def equal(m1: ValueMap, m2: ValueMap): Boolean = {
+    // TODO mmm... I need to reconsider this...
+    m1.eq(m2) || {
+      val u = OpenVariableReference(newUniqueId())
+      equal(m1(u), m2(u))
+    }
   }
 
   private def equal(fs: AcyclicValuesGraph, gs: AcyclicValuesGraph): Boolean = {
@@ -52,7 +57,7 @@ class CompareValue(a0: Value, b0: Value) {
         case (LambdaValue(d1, m1), LambdaValue(d2, m2)) => equal(d1, d2) && equal(m1, m2)
         case (RecordValue(fs), RecordValue(gs)) => equal(fs, gs)
         case (MakeValue(fs), MakeValue(gs)) => equalMv(fs, gs)
-        case (SumValue(ks, ts), SumValue(gs, js)) => ks == gs && ks.forall(k => ts(k) == js(k))
+        case (SumValue(ks, ts), SumValue(gs, js)) => ks == gs && ks.forall(k => equal(ts(k), js(k)))
         case (ConstructValue(n1, t1), ConstructValue(n2, t2)) => n1 == n2 && equal(t1, t2)
         case (_, _) => a == b
       }
