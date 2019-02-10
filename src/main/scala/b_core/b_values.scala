@@ -1,5 +1,7 @@
 package b_core
 
+import java.util.concurrent.atomic.AtomicLong
+
 
 abstract sealed class Value {
   def application(v: Value): Value  = throw new IllegalArgumentException("Not implemented")
@@ -77,5 +79,9 @@ object Value {
     }
     rec(in0)
   }
+
+  private val uniqueIdGen =  new AtomicLong(0)
+
+  def newUniqueId(): Long = uniqueIdGen.incrementAndGet()
 }
 

@@ -20,9 +20,6 @@ trait Context[Value <: AnyRef] {
 
   case class DeclarationLayer(definitions: Map[String, Declaration]) extends ContextLayer
 
-  private val uniqueIdGen =  new AtomicLong(0)
-
-  protected def newUniqueId(): Long = uniqueIdGen.incrementAndGet()
 
   case class LayerWithId(layer: ContextLayer, id: Long)
   type Layers = Seq[LayerWithId]
@@ -96,9 +93,9 @@ trait ContextBuilder[Value <: AnyRef] extends Context[Value] {
   })
 
   protected def newDeclarationLayer(map: Map[String, Value]): Self =
-    newBuilder(LayerWithId(DeclarationLayer(map.mapValues(t => Declaration(t))), newUniqueId()) +: layers)
+    newBuilder(LayerWithId(DeclarationLayer(map.mapValues(t => Declaration(t))), Value.newUniqueId()) +: layers)
 
   protected def newDeclarationLayer(): Self = newDeclarationLayer(Map.empty)
 
-  protected def newAbstractionLayer(typ: Value): Self = newBuilder(LayerWithId(LambdaLayer(typ), newUniqueId()) +: layers)
+  protected def newAbstractionLayer(typ: Value): Self = newBuilder(LayerWithId(LambdaLayer(typ), Value.newUniqueId()) +: layers)
 }

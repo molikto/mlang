@@ -31,7 +31,7 @@ class TypeChecker extends Evaluator with ContextBuilder[Value] {
         newAbstractionLayer(checkIsTypeThenEval(domain)).checkIsType(body)
         UniverseValue
       case Primitive(name) =>
-        Primitives.primitives(name)._2
+        Primitives.typ(name)
       case Lambda(domain, body) =>
         val pty = checkIsTypeThenEval(domain)
         val ctx = newAbstractionLayer(pty)
@@ -129,7 +129,7 @@ class TypeChecker extends Evaluator with ContextBuilder[Value] {
             if (keys.isEmpty) {
               throw new IllegalArgumentException("This can be any type, annotate it instead")
             } else {
-              nonEmptyJoin(keys.map(k => {
+              CompareValue.nonEmptyJoin(keys.map(k => {
                 val at = ts(k)
                 val term = right.find(_.name == k).get.term
                 newAbstractionLayer(at).infer(term)
@@ -147,7 +147,7 @@ class TypeChecker extends Evaluator with ContextBuilder[Value] {
     println(s"Check $term")
     (term, typ) match {
       case (Lambda(domain, body), PiValue(pd, pv)) =>
-        assert(equal(checkIsTypeThenEval(domain), pd))
+        assert(CompareValue.equal(checkIsTypeThenEval(domain), pd))
         val ctx = newAbstractionLayer(pd)
         // this is really handy, to unbound this parameter
         ctx.check(body, pv(OpenVariableReference(ctx.layerId(0).get)))
@@ -156,17 +156,9 @@ class TypeChecker extends Evaluator with ContextBuilder[Value] {
         val vs = makes.map(_.asInstanceOf[ValueDeclaration])
         val names = vs.map(_.name).toSet
         assert(names.size == vs.size, "Duplicated make expression names")
-        // type checking makes should not have mutual reference
         var cur = fields
         var ctx = newDeclarationLayer()
         while (cur.initials.nonEmpty) {
-          // we don't allow this kind of thing
-          //
-          // a: A
-          // c: C
-          // a: A = ta
-          // c: C = tc
-          // where a, c is name, and other is term, and also ta depends on c and C depends on a
           for (pair <- cur.initials) {
             ctx = ctx.newTypeDeclaration(pair._1, pair._2)
           }
@@ -184,7 +176,7 @@ class TypeChecker extends Evaluator with ContextBuilder[Value] {
         assert(ks.contains(name))
         check(data, ts(name))
       case (_, _) =>
-        assert(equal(infer(term), typ))
+        assert(CompareValue.equal(infer(term), typ))
     }
   }
 
@@ -196,7 +188,7 @@ class TypeChecker extends Evaluator with ContextBuilder[Value] {
   protected def checkThenEval(t: Term, v: Value): Value = { check(t, v); eval(t) }
   protected def checkIsTypeThenEval(t: Term): Value = { checkIsType(t); eval(t) }
   // no need to go inside check for now
-  protected def checkIsType(t: Term): Unit = assert(equal(infer(t), UniverseValue))
+  protected def checkIsType(t: Term): Unit = assert(CompareValue.equal(infer(t), UniverseValue))
 
 
   /**
