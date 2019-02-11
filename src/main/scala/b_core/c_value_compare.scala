@@ -35,25 +35,30 @@ class CompareValue(a0: Value, b0: Value) {
   }
 
   private def equal(m1: VP, m2: VP): Boolean = {
-    guarded(m1, m2) {
-      val u = OpenVariableReference(newUniqueId())
-      equal(m1(u), m2(u))
-    }
+    val u = OpenVariableReference(newUniqueId())
+    // we use == here, because we don't deep compare a reduct
+    equal(m1(u, true), m2(u, true))
   }
 
   private def equal(fs: AcyclicValuesGraph, gs: AcyclicValuesGraph): Boolean = {
-    guarded(fs, gs) {
-      equalMv(fs.initials, gs.initials) && {
-        val m = fs.initials.mapValues(_ => OpenVariableReference(newUniqueId()))
-        m.isEmpty || equal(fs(m), gs(m))
-      }
+    equalMv(fs.initials, gs.initials) && {
+      val m = fs.initials.mapValues(_ => OpenVariableReference(newUniqueId()))
+      m.isEmpty || equal(fs(m), gs(m))
     }
   }
-
-  private def guarded(a: AnyRef, b: AnyRef)(run: => Boolean): Boolean = {
+  
+  private def eqByAssump(a: Value, b: Value): Boolean = {
     if (a.eq(b)) {
       true
     } else if (assumptions.getOrElse(a, null).eq(b)) {
+      true
+    } else {
+      false
+    }
+  }
+
+  private def guarded(a: Value, b: Value)(run: => Boolean): Boolean = {
+    if (eqByAssump(a, b)) {
       true
     } else {
       assumptions.put(a, b)
@@ -75,6 +80,13 @@ class CompareValue(a0: Value, b0: Value) {
         case (MakeValue(fs), MakeValue(gs)) => equalMv(fs, gs)
         case (SumValue(ks, ts), SumValue(gs, js)) => ks == gs && ks.forall(k => equal(ts(k), js(k)))
         case (ConstructValue(n1, t1), ConstructValue(n2, t2)) => n1 == n2 && equal(t1, t2)
+          // we don't compare deep inside reducts
+        case (ProjectionReduct(v1, s1), ProjectionReduct(v2, s2)) =>
+          (s1 == s2 && eqByAssump(v1, v2)) || equal(v1.projection(s1), v2.projection(s2))
+        case (AppReduct(a1, v1), AppReduct(a2, v2)) =>
+          (eqByAssump(a1, a2) && eqByAssump(v1, v2)) || equal(a1.applicationOnce(v1), a2.applicationOnce(v2))
+        case (SplitReduct(s1, m1), SplitReduct(s2, m2)) =>
+          equal(s1.splitOnce(m1), s2.splitOnce(m2))
         case (_, _) => a == b
       }
     }

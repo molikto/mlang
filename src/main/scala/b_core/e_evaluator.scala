@@ -32,11 +32,11 @@ object Primitives {
     "unit" ->  (unit, UniverseValue),
     "unit0" -> (unit0, unit),
     "assert_equal" -> (
-        LambdaValue(UniverseValue, VP(ty => LambdaValue(ty, VP(a => LambdaValue(ty, VP(b => {
+        LambdaValue(UniverseValue, VP((ty, rd) => LambdaValue(ty, VP((a, rd) => LambdaValue(ty, VP((b, rd) => {
           debug.display(CompareValue.equal(a, b))
           unit0
         })))))),
-        PiValue(UniverseValue, VP(ty => PiValue(ty, VP(_ => PiValue(ty, VP(_ => unit))))))
+        PiValue(UniverseValue, VP((ty, rd) => PiValue(ty, VP((_, rd) => PiValue(ty, VP((_, rd) => unit))))))
     )
   )
 
@@ -59,15 +59,15 @@ trait Evaluator extends Context[Value] {
       term match {
         case Lambda(domain, body) =>
           val d = depth + 1
-          s"LambdaValue(${emit(domain, depth)}, VP(r$d => ${emit(body, d)}))"
+          s"LambdaValue(${emit(domain, depth)}, VP((r$d, rd) => ${emit(body, d)}))"
         case Pi(domain, body) =>
           val d = depth + 1
-          s"PiValue(${emit(domain, depth)}, VP(r$d => ${emit(body, d)}))"
+          s"PiValue(${emit(domain, depth)}, VP((r$d, rd) => ${emit(body, d)}))"
         case VariableReference(index) =>
           if (index > depth) s"OpenVariableReference(${layerId(index - depth - 1).get}L)"
           else s"r${depth - index}"
         case Application(left, right) =>
-          s"${emit(left, depth)}.application(${emit(right, depth)})"
+          s"${emit(left, depth)}.application(${emit(right, depth)}, rd)"
         case Cast(a, _) =>
           emit(a, depth) // ignore casts in values
         case r@Record(fs) =>
@@ -90,7 +90,7 @@ trait Evaluator extends Context[Value] {
               s"${vs.map(f => s"hd.put(${source(f.name)}, ${emit(f.body, d)}); ").mkString("")}" +
               s"MakeValue(hd.toMap) }"
         case Projection(left, name) =>
-          s"${emit(left, depth)}.projection(${source(name)})"
+          s"${emit(left, depth)}.projection(${source(name)}, rd)"
         case Primitive(name) =>
           s"Primitives.value(${source(name)})"
         case DeclarationReference(index, name) =>
@@ -116,7 +116,7 @@ trait Evaluator extends Context[Value] {
           s"ConstructValue(${source(name)}, ${emit(data, depth)})"
         case Split(left, right) =>
           val d = depth + 1
-          s"${emit(left, depth)}.split(Map(${right.map(p =>s"${source(p.name)} -> VP(r$d => ${emit(p.term, d)})").mkString(", ")}))"
+          s"${emit(left, depth)}.split(Map(${right.map(p =>s"${source(p.name)} -> VP((r$d, rd) => ${emit(p.term, d)})").mkString(", ")}), rd)"
       }
     }
   }
@@ -125,7 +125,7 @@ trait Evaluator extends Context[Value] {
   protected def eval(vs: Seq[(String, Term)]): Map[String, Value] = {
     val emitter = new Emitter(vs.map(_._1))
     val src = "import b_core._\n" +
-        s"{ var hd = scala.collection.mutable.Map.empty[String, Value]; " +
+        s"{ val rd = false; var hd = scala.collection.mutable.Map.empty[String, Value]; " +
         vs.map(f => s"def d_${f._1} = hd(${source(f._1)}); ").mkString("") +
         vs.map(f => s"hd.put(${source(f._1)}, ${emitter.emit(f._2, -1)}); ").mkString("") +
         s"hd.toMap }"
@@ -140,7 +140,8 @@ trait Evaluator extends Context[Value] {
   }
 
   protected def eval(term: Term): Value = {
-    val src = "import b_core._\n" +  new Emitter().emit(term, -1)
+    val src = "import b_core._\n" +
+      "{ val rd = false; " + new Emitter().emit(term, -1) + " }"
 
     debug("==================")
     debug(term)

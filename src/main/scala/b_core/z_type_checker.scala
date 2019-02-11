@@ -38,7 +38,7 @@ class TypeChecker extends Evaluator with ContextBuilder[Value] {
         val pty = checkIsTypeThenEval(domain)
         val ctx = newAbstractionLayer(pty)
         val vty = ctx.infer(body)
-        PiValue(pty, VP(v => Value.rebound(ctx.layerId(0).get, v, vty)))
+        PiValue(pty, Value.rebound(ctx.layerId(0).get, vty))
       case Application(left, right) =>
         infer(left) match {
           case PiValue(domain, map) =>
