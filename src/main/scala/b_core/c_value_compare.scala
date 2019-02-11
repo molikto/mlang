@@ -9,7 +9,6 @@ import scala.collection.mutable
   *
   *
   */
-// FIXME this is wrong!!!! fix this for the odd odd_alternative
 class CompareValue(a0: Value, b0: Value) {
 
   private val assumptions = mutable.Map.empty[Object, Object]
