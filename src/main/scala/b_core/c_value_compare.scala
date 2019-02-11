@@ -9,6 +9,7 @@ import scala.collection.mutable
   *
   *
   */
+// LATER is this theorically sound? this is very intricate stuff
 class CompareValue(a0: Value, b0: Value) {
 
   private val assumptions = mutable.Map.empty[Object, Object]
@@ -67,7 +68,7 @@ class CompareValue(a0: Value, b0: Value) {
     }
   }
 
-  private def equal(a: Value, b: Value, firstCheck: Boolean = false): Boolean = {
+  private def equal(a: Value, b: Value): Boolean = {
     guarded(a, b) {
       (a, b) match {
         case (ProjectionStuck(v1, s1), ProjectionStuck(v2, s2)) => s1 == s2 && equal(v1, v2)
@@ -92,7 +93,7 @@ class CompareValue(a0: Value, b0: Value) {
   }
 
   def equal(): Boolean = {
-    return equal(a0, b0, firstCheck = true)
+    return equal(a0, b0)
   }
 }
 
