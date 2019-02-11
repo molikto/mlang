@@ -1,16 +1,22 @@
 package b_core
 
-import b_core.Value.ValueMap
+import scala.collection.mutable
 
 
 /**
   * a value compare class that handles recursive values
+  *
+  *
+  *
   */
+// FIXME this is wrong!!!! fix this for the odd odd_alternative
 class CompareValue(a0: Value, b0: Value) {
+
+  private val assumptions = mutable.Map.empty[Object, Object]
 
   import Value.newUniqueId
 
-  private def equalMvv(m1: Map[String, ValueMap], m2: Map[String, ValueMap]): Boolean = {
+  private def equalMvv(m1: Map[String, VP], m2: Map[String, VP]): Boolean = {
     m1.keySet == m2.keySet && m1.forall(pair => {
       val k = pair._1
       val a = pair._2
@@ -28,27 +34,37 @@ class CompareValue(a0: Value, b0: Value) {
     })
   }
 
-  private def equal(m1: ValueMap, m2: ValueMap): Boolean = {
-    // TODO mmm... I need to reconsider this...
-    m1.eq(m2) || {
+  private def equal(m1: VP, m2: VP): Boolean = {
+    guarded(m1, m2) {
       val u = OpenVariableReference(newUniqueId())
       equal(m1(u), m2(u))
     }
   }
 
   private def equal(fs: AcyclicValuesGraph, gs: AcyclicValuesGraph): Boolean = {
-    equalMv(fs.initials, gs.initials) && {
-      val m = fs.initials.mapValues(_ => OpenVariableReference(newUniqueId()))
-      m.isEmpty || equal(fs.remaining(m), gs.remaining(m))
+    guarded(fs, gs) {
+      equalMv(fs.initials, gs.initials) && {
+        val m = fs.initials.mapValues(_ => OpenVariableReference(newUniqueId()))
+        m.isEmpty || equal(fs(m), gs(m))
+      }
+    }
+  }
+
+  private def guarded(a: AnyRef, b: AnyRef)(run: => Boolean): Boolean = {
+    if (a.eq(b)) {
+      true
+    } else if (assumptions.getOrElse(a, null).eq(b)) {
+      true
+    } else {
+      assumptions.put(a, b)
+      val res = run
+      assumptions.remove(a)
+      res
     }
   }
 
   private def equal(a: Value, b: Value, firstCheck: Boolean = false): Boolean = {
-    if (a.eq(b)) {
-      true
-    } else if (!firstCheck && a.eq(a0) && b.eq(b0)) {
-      true
-    } else {
+    guarded(a, b) {
       (a, b) match {
         case (ProjectionStuck(v1, s1), ProjectionStuck(v2, s2)) => s1 == s2 && equal(v1, v2)
         case (AppStuck(a1, v1), AppStuck(a2, v2)) => equal(a1, a2) && equal(v1, v2)

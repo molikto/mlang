@@ -14,7 +14,7 @@ object Main extends TypeChecker with Elaborator {
     parser.parse(txt) match {
       case parser.Success(parsed: Seq[surface.Definition], next) =>
         if (!next.atEnd) {
-          throw new Exception(s"Parse failed with remaining ${next.source.toString.drop(next.offset)}")
+          throw new Exception(s"Parse failed with next ${next.source.toString.drop(next.offset)}")
         } else {
           debug(parsed)
           val elaborated = elaborate(c_surface_syntax.surface.Definitions(parsed))

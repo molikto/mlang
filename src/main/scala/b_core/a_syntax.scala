@@ -32,9 +32,6 @@ case class Pi(domain: Term, body: Term) extends Term {
 case class Application(left: Term, right: Term) extends Term {
   override def collectReferences(i: Int): Set[String] = left.collectReferences(i) ++ right.collectReferences(i)
 }
-case class Cast(a: Term, b: Term) extends Term {
-  override def collectReferences(i: Int): Set[String] = a.collectReferences(i) ++ b.collectReferences(i)
-}
 
 case class Primitive(name: String) extends Term {
   override def collectReferences(i: Int): Set[String] = Set.empty
@@ -109,4 +106,18 @@ case class Split(left: Term, right: Seq[Branch]) extends Term {
   override def collectReferences(i: Int): Set[String] = right.map(_.term.collectReferences(i + 1)).flatten.toSet
 }
 
+/**
+  *
+  *
+  *
+  * non-essential ones
+  *
+  *
+  *
+  */
+
 //case object MetaVariable extends Term
+
+case class Cast(a: Term, b: Term) extends Term {
+  override def collectReferences(i: Int): Set[String] = a.collectReferences(i) ++ b.collectReferences(i)
+}

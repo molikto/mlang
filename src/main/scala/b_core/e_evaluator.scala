@@ -9,7 +9,7 @@ import scala.collection.mutable
 
 
 /**
-  * this is a totoally hack, but should be harmless.
+  * this is a totally hack, but should be harmless.
   */
 object TunnelingHack {
 
@@ -32,11 +32,11 @@ object Primitives {
     "unit" ->  (unit, UniverseValue),
     "unit0" -> (unit0, unit),
     "assert_equal" -> (
-        LambdaValue(UniverseValue, ty => LambdaValue(ty, a => LambdaValue(ty, b => {
+        LambdaValue(UniverseValue, VP(ty => LambdaValue(ty, VP(a => LambdaValue(ty, VP(b => {
           debug.display(CompareValue.equal(a, b))
           unit0
-        }))),
-        PiValue(UniverseValue, ty => PiValue(ty, _ => PiValue(ty, _ => unit)))
+        })))))),
+        PiValue(UniverseValue, VP(ty => PiValue(ty, VP(_ => PiValue(ty, VP(_ => unit))))))
     )
   )
 
@@ -59,10 +59,10 @@ trait Evaluator extends Context[Value] {
       term match {
         case Lambda(domain, body) =>
           val d = depth + 1
-          s"LambdaValue(${emit(domain, depth)}, r$d => ${emit(body, d)})"
+          s"LambdaValue(${emit(domain, depth)}, VP(r$d => ${emit(body, d)}))"
         case Pi(domain, body) =>
           val d = depth + 1
-          s"PiValue(${emit(domain, depth)}, r$d => ${emit(body, d)})"
+          s"PiValue(${emit(domain, depth)}, VP(r$d => ${emit(body, d)}))"
         case VariableReference(index) =>
           if (index > depth) s"OpenVariableReference(${layerId(index - depth - 1).get}L)"
           else s"r${depth - index}"
@@ -116,7 +116,7 @@ trait Evaluator extends Context[Value] {
           s"ConstructValue(${source(name)}, ${emit(data, depth)})"
         case Split(left, right) =>
           val d = depth + 1
-          s"${emit(left, depth)}.split(Map(${right.map(p =>s"${source(p.name)} -> (r$d => ${emit(p.term, d)})").mkString(", ")}))"
+          s"${emit(left, depth)}.split(Map(${right.map(p =>s"${source(p.name)} -> VP(r$d => ${emit(p.term, d)})").mkString(", ")}))"
       }
     }
   }

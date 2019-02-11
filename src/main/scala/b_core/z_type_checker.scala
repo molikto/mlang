@@ -38,7 +38,7 @@ class TypeChecker extends Evaluator with ContextBuilder[Value] {
         val pty = checkIsTypeThenEval(domain)
         val ctx = newAbstractionLayer(pty)
         val vty = ctx.infer(body)
-        PiValue(pty, v => Value.rebound(ctx.layerId(0).get, v, vty))
+        PiValue(pty, VP(v => Value.rebound(ctx.layerId(0).get, v, vty)))
       case Application(left, right) =>
         infer(left) match {
           case PiValue(domain, map) =>
@@ -69,7 +69,7 @@ class TypeChecker extends Evaluator with ContextBuilder[Value] {
                 ctx.check(body, ty)
                 ty
               case None =>
-                body match {
+                body match { // allows inductive type to self reference
                   case Sum(_) => ctx = ctx.newTypeDeclaration(name, UniverseValue)
                   case _ =>
                 }
@@ -110,7 +110,7 @@ class TypeChecker extends Evaluator with ContextBuilder[Value] {
               if (cur.initials.contains(name)) {
                 ret = cur.initials(name)
               }
-              cur = cur.remaining.apply(cur.initials.map(pair => (pair._1, ev.projection(pair._1))))
+              cur = cur(cur.initials.map(pair => (pair._1, ev.projection(pair._1))))
             }
             assert(ret != null)
             ret
@@ -172,7 +172,7 @@ class TypeChecker extends Evaluator with ContextBuilder[Value] {
             ctx = ctx.newDeclaration(name, v, pair._2)
             pair._1 -> v
           })
-          cur = cur.remaining.apply(nv)
+          cur = cur(nv)
         }
       case (Construct(name, data), SumValue(ks, ts)) =>
         assert(ks.contains(name))

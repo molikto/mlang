@@ -22,10 +22,27 @@ odd(a: nat): bool = match a {
   succ(a) -> even(a);
 };
 
+odd_alternative(a: nat): bool;
+
+even_alternative(a: nat): bool = match a {
+  zero -> bool:true;
+  succ(a) -> odd_alternative(a);
+};
+
 
 odd_alternative(a: nat): bool = match a {
   zero -> bool:false;
-  succ(a) -> even(a);
+  succ(a) -> even_alternative(a);
+};
+
+pred(n: nat): nat = match n {
+  zero -> nat:zero;
+  succ(m) -> m;
+};
+
+pred_to_zero(n: nat): nat = match n {
+  zero -> nat:zero;
+  succ(m) -> pred_to_zero(m);
 };
 
 test0 = assert_equal(bool, even(nat:zero), bool:true);

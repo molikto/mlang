@@ -2,6 +2,7 @@ package b_core
 
 import java.util.concurrent.atomic.AtomicLong
 
+import scala.collection.mutable
 
 
 object Value {
@@ -15,13 +16,13 @@ object Value {
           in
         case ProjectionStuck(value, str) => rec(value).projection(str)
         case AppStuck(atom, app) => rec(atom).application(rec(app))
-        case SplitStuck(s, bs) => rec(s).split(bs.mapValues(f => a => rec(f(a))))
+        case SplitStuck(s, bs) => rec(s).split(bs.mapValues(f => VP(a => rec(f(a)))))
         case UniverseValue => in
-        case PiValue(domain, map) => PiValue(rec(domain), a => rec(map(a)))
-        case LambdaValue(domain, map) => LambdaValue(rec(domain), a => rec(map(a)))
+        case PiValue(domain, map) => PiValue(rec(domain), VP(a => rec(map(a))))
+        case LambdaValue(domain, map) => LambdaValue(rec(domain), VP(a => rec(map(a))))
         case RecordValue(fields) =>
           def recG(a: AcyclicValuesGraph): AcyclicValuesGraph = {
-            AcyclicValuesGraph(a.initials.mapValues(rec), p => recG(a.remaining(p)))
+            AcyclicValuesGraph(a.initials.mapValues(rec), p => recG(a(p)))
           }
           RecordValue(recG(fields))
         case MakeValue(fields) => MakeValue(fields.mapValues(rec))
@@ -36,22 +37,66 @@ object Value {
 
   def newUniqueId(): Long = uniqueIdGen.incrementAndGet()
 
-  type ValueMap = Value => Value
 }
 
-import Value._
+/**
+  *
+  * to prevent infinite expansion of values, we wrap anything that can generate a value by a
+  *
+  */
+case class VP(private val base: Value => Value) extends (Value => Value) {
+  val cache = mutable.Map.empty[Value, Value]
+  override def apply(v: Value): Value = {
+    cache.get(v) match {
+      case Some(a) => a
+      case None =>
+        val n = base(v)
+        cache.put(v, n)
+        n
+    }
+  }
+}
+
+/**
+  * if an object of this type == null then means this is the end
+  */
+
+object AcyclicValuesGraph {
+  val empty = AcyclicValuesGraph(Map.empty, null)
+  type Arg = Map[String, Value]
+}
+case class AcyclicValuesGraph(initials: Map[String, Value], private val base: AcyclicValuesGraph.Arg => AcyclicValuesGraph)
+    extends (AcyclicValuesGraph.Arg => AcyclicValuesGraph) {
+
+  import AcyclicValuesGraph._
+
+  val cache = mutable.Map.empty[Arg, AcyclicValuesGraph]
+  override def apply(v: Arg): AcyclicValuesGraph = {
+    cache.get(v) match {
+      case Some(a) => a
+      case None =>
+        val n = base(v)
+        cache.put(v, n)
+        n
+    }
+  }
+}
+
 
 abstract sealed class Value {
   def application(v: Value): Value  = throw new IllegalArgumentException("Not implemented")
   def projection(name: String): Value = throw new IllegalArgumentException("Not implemented")
-  def split(bs: Map[String, ValueMap]): Value = throw new Exception()
+  def split(bs: Map[String, VP]): Value = throw new Exception()
+
+  final override def hashCode(): Int = super.hashCode()
+  final override def equals(obj: Any): Boolean = super.equals(obj)
 }
 
 
 abstract sealed class StuckValue extends Value {
   override def application(seq: Value): Value = AppStuck(this, seq)
   override def projection(s: String) = ProjectionStuck(this, s)
-  override def split(bs: Map[String, ValueMap]) = SplitStuck(this, bs)
+  override def split(bs: Map[String, VP]) = SplitStuck(this, bs)
 }
 
 /**
@@ -63,25 +108,16 @@ case class OpenDeclarationReference(id: Long, name: String) extends StuckValue
 
 case class ProjectionStuck(value: StuckValue, str: String) extends StuckValue
 case class AppStuck(atom: StuckValue, app: Value) extends StuckValue
-case class SplitStuck(s: StuckValue, names:  Map[String, ValueMap]) extends StuckValue
+case class SplitStuck(s: StuckValue, names:  Map[String, VP]) extends StuckValue
 
 case object UniverseValue extends Value
 
-case class PiValue(domain: Value, map: ValueMap) extends Value
+case class PiValue(domain: Value, map: VP) extends Value
 
-case class LambdaValue(domain: Value, map: ValueMap) extends Value {
+case class LambdaValue(domain: Value, map: VP) extends Value {
   override def application(v: Value): Value = map(v)
 }
 
-/**
-  * if an object of this type == null then means this is the end
-  */
-
-object AcyclicValuesGraph {
-  val empty = AcyclicValuesGraph(Map.empty, null)
-}
-case class AcyclicValuesGraph(initials: Map[String, Value], remaining: Map[String, Value] => AcyclicValuesGraph) {
-}
 
 case class RecordValue(fields: AcyclicValuesGraph) extends Value
 
@@ -93,5 +129,5 @@ case class MakeValue(fields: Map[String, Value]) extends Value {
 case class SumValue(keys: Set[String], ts: String => Value) extends Value
 
 case class ConstructValue(name: String, term: Value) extends Value {
-  override def split(bs: Map[String, ValueMap]): Value = bs(name)(term)
+  override def split(bs: Map[String, VP]): Value = bs(name)(term)
 }
