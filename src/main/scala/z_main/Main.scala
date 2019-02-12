@@ -6,11 +6,19 @@ import c_surface_syntax.{Parser, surface}
 import d_elaborator.Elaborator
 
 
-object Main extends TypeChecker with Elaborator {
+object Main extends MainMain {
 
-  val parser = new Parser {}
   def main(args: Array[String]): Unit = {
     val txt = io.Source.fromFile(args(0)).getLines().mkString("\n")
+    main(txt)
+  }
+}
+
+class MainMain extends TypeChecker with Elaborator {
+
+  val parser = new Parser {}
+
+  def main(txt: String) = {
     parser.parse(txt) match {
       case parser.Success(parsed: Seq[surface.Definition], next) =>
         if (!next.atEnd) {

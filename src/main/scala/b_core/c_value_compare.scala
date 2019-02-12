@@ -12,7 +12,7 @@ import scala.collection.mutable
 // LATER is this theorically sound? this is very intricate stuff
 class CompareValue(a0: Value, b0: Value) {
 
-  private val assumptions = mutable.Map.empty[Object, Object]
+  private val assumptions = new mutable.HashMap[Value, mutable.Set[Value]] with mutable.MultiMap[Value, Value]
 
   import Value.newUniqueId
 
@@ -37,7 +37,7 @@ class CompareValue(a0: Value, b0: Value) {
   private def equal(m1: VP, m2: VP): Boolean = {
     val u = OpenVariableReference(newUniqueId())
     // we use == here, because we don't deep compare a reduct
-    equal(m1(u, true), m2(u, true))
+    equal(m1(u, NoReduction), m2(u, NoReduction))
   }
 
   private def equal(fs: AcyclicValuesGraph, gs: AcyclicValuesGraph): Boolean = {
@@ -48,9 +48,9 @@ class CompareValue(a0: Value, b0: Value) {
   }
   
   private def eqByAssump(a: Value, b: Value): Boolean = {
-    if (a.eq(b)) {
+    if (a == b) {
       true
-    } else if (assumptions.getOrElse(a, null).eq(b)) {
+    } else if (assumptions.entryExists(a, _ == b)) {
       true
     } else {
       false
@@ -61,9 +61,9 @@ class CompareValue(a0: Value, b0: Value) {
     if (eqByAssump(a, b)) {
       true
     } else {
-      assumptions.put(a, b)
+      assumptions.addBinding(a, b)
       val res = run
-      assumptions.remove(a)
+      assumptions.removeBinding(a, b)
       res
     }
   }

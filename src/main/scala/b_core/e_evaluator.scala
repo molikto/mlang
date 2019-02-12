@@ -31,7 +31,7 @@ object Primitives {
     "type" -> (UniverseValue, UniverseValue),
     "unit" ->  (unit, UniverseValue),
     "unit0" -> (unit0, unit),
-    "assert_equal" -> (
+    "print_equal" -> (
         LambdaValue(UniverseValue, VP((ty, rd) => LambdaValue(ty, VP((a, rd) => LambdaValue(ty, VP((b, rd) => {
           debug.display(CompareValue.equal(a, b))
           unit0
@@ -103,7 +103,7 @@ trait Evaluator extends Context[Value] {
                 if (ly == 0 && mutuallyDefined.contains(name)) {
                   s"d_$name"
                 } else {
-                  s"OpenDeclarationReference(${layerId(ly).get}L, $name)"
+                  s"OpenDeclarationReference(${layerId(ly).get}L, ${source(name)})"
                 }
             }
           } else {
@@ -125,7 +125,7 @@ trait Evaluator extends Context[Value] {
   protected def eval(vs: Seq[(String, Term)]): Map[String, Value] = {
     val emitter = new Emitter(vs.map(_._1))
     val src = "import b_core._\n" +
-        s"{ val rd = false; var hd = scala.collection.mutable.Map.empty[String, Value]; " +
+        s"{ val rd = FullReduction; var hd = scala.collection.mutable.Map.empty[String, Value]; " +
         vs.map(f => s"def d_${f._1} = hd(${source(f._1)}); ").mkString("") +
         vs.map(f => s"hd.put(${source(f._1)}, ${emitter.emit(f._2, -1)}); ").mkString("") +
         s"hd.toMap }"
@@ -141,7 +141,7 @@ trait Evaluator extends Context[Value] {
 
   protected def eval(term: Term): Value = {
     val src = "import b_core._\n" +
-      "{ val rd = false; " + new Emitter().emit(term, -1) + " }"
+      "{ val rd = FullReduction; " + new Emitter().emit(term, -1) + " }"
 
     debug("==================")
     debug(term)

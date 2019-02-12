@@ -1,6 +1,15 @@
 
+id(a: type, x: a) = x;
 
 nat = [zero, succ(nat)];
+
+
+nat2 = [zero, succ([zero, succ(nat)])];
+
+nat3 = [zero, succ([zero, succ(nat3)])];
+
+test00 = print_equal(type, nat, nat2);
+test01 = print_equal(type, nat, nat3);
 
 bool = [true, false];
 
@@ -14,7 +23,7 @@ odd(a: nat): bool;
 
 even(a: nat): bool = match a {
   zero -> bool:true;
-  succ(a) -> odd(a);
+  succ(a) -> not(not(id((nat) => bool, odd)(a)));
 };
 
 odd(a: nat): bool = match a {
@@ -32,7 +41,7 @@ even_alternative(a: nat): bool = match a {
 
 odd_alternative(a: nat): bool = match a {
   zero -> bool:false;
-  succ(a) -> even_alternative(a);
+  succ(a) -> not(not(id((nat) => bool, even_alternative)(a)));
 };
 
 pred(n: nat): nat = match n {
@@ -45,6 +54,7 @@ pred_to_zero(n: nat): nat = match n {
   succ(m) -> pred_to_zero(m);
 };
 
-test0 = assert_equal(bool, even(nat:zero), bool:true);
-test1 = assert_equal(bool, odd(nat:zero), bool:false);
-test3 = assert_equal((nat) => bool, odd, odd_alternative);
+
+test0 = print_equal(bool, even(nat:zero), bool:true);
+test1 = print_equal(bool, odd(nat:zero), bool:false);
+test3 = print_equal((nat) => bool, odd, odd_alternative);

@@ -57,6 +57,7 @@ class TypeChecker extends Evaluator with ContextBuilder[Value] {
         }
         UniverseValue
       case m@Make(declarations) =>
+        checkConsistency(m)
         var ctx = newDeclarationLayer()
         val evaluated = mutable.Set.empty[String]
         val notEvaluated = mutable.Map.empty[String, (Term, Value)]
@@ -75,26 +76,27 @@ class TypeChecker extends Evaluator with ContextBuilder[Value] {
                 }
                 ctx.infer(body)
             }
-            val component = m.mutualDependencies.find(_.contains(name)).get
-            if (component.size == 1 && !m.directValueDependencies(name).contains(name)) {
-              evaluated += name
-              ctx = ctx.newDeclaration(name, ctx.eval(body), it)
-            } else {
-              notEvaluated.put(name, (body, it))
-              if (
-                component.forall(name => notEvaluated.keySet(name) &&
-                    m.directValueDependencies(name).forall(a => evaluated(a) || notEvaluated.keySet.contains(a)))) {
-                val toEvaluate = notEvaluated.filterKeys(component)
-                // when eval, we eval in declaration order
-                val values = ctx.eval(m.valueDeclarations.map(_.name).filter(toEvaluate.keySet).map(n => (n, toEvaluate(n)._1)))
-                for (v <- values) {
-                  ctx = ctx.newDeclaration(v._1, v._2, toEvaluate(v._1)._2)
+            val component = m.mutualDependencies.find(_.contains(name))
+            component match {
+              case None =>
+                evaluated += name
+                ctx = ctx.newDeclaration(name, ctx.eval(body), it)
+              case Some(component) =>
+                notEvaluated.put(name, (body, it))
+                if (
+                  component.forall(name => notEvaluated.keySet(name) &&
+                      m.directValueDependencies(name).forall(a => evaluated(a) || notEvaluated.keySet.contains(a)))) {
+                  val toEvaluate = notEvaluated.filterKeys(component)
+                  // when eval, we eval in declaration order
+                  val values = ctx.eval(m.valueDeclarations.map(_.name).filter(toEvaluate.keySet).map(n => (n, toEvaluate(n)._1)))
+                  for (v <- values) {
+                    ctx = ctx.newDeclaration(v._1, v._2, toEvaluate(v._1)._2)
+                  }
+                  evaluated ++= component
+                  notEvaluated --= component
+                } else {
+                  ctx = ctx.newTypeDeclaration(name, it)
                 }
-                evaluated ++= component
-                notEvaluated --= component
-              } else {
-                ctx = ctx.newTypeDeclaration(name, it)
-              }
             }
         }
         assert(notEvaluated.isEmpty && evaluated.size == m.valueDeclarations.size)
@@ -145,6 +147,17 @@ class TypeChecker extends Evaluator with ContextBuilder[Value] {
   }
 
 
+  def checkConsistency(m: Make) = {
+    assert(m.mutualDependencies.flatten.forall(name => {
+      m.valueDeclarations.find(_.name == name).get.body match {
+        case _: Lambda => true
+        case _: Sum => true
+        case _: DeclarationReference => true
+        case _ => false
+      }
+    }), "wrong recursive type")
+  }
+
   protected def check(term: Term, typ: Value): Unit = {
     debug(s"Check $term")
     (term, typ) match {
@@ -153,12 +166,13 @@ class TypeChecker extends Evaluator with ContextBuilder[Value] {
         val ctx = newAbstractionLayer(pd)
         // this is really handy, to unbound this parameter
         ctx.check(body, pv(OpenVariableReference(ctx.layerId(0).get)))
-      case (Make(makes), RecordValue(fields)) =>
+      case (m@Make(makes), RecordValue(fields)) =>
         assert(makes.forall(_.isInstanceOf[ValueDeclaration]), "Type checked Make syntax should not contains type declarations (yet)")
         val vs = makes.map(_.asInstanceOf[ValueDeclaration])
         val names = vs.map(_.name).toSet
         assert(names.size == vs.size, "Duplicated make expression names")
         var cur = fields
+        checkConsistency(m)
         var ctx = newDeclarationLayer()
         while (cur.initials.nonEmpty) {
           for (pair <- cur.initials) {

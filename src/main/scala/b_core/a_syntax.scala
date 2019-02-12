@@ -83,7 +83,8 @@ case class Make(declarations: Seq[Declaration]) extends Term {
     valueDeclarations.map(a => a.name -> a.body).toMap.mapValues(_.collectReferences(0))
   }
 
-  val mutualDependencies: Set[Set[String]] = a_utils.GraphAlgorithms.tarjanCcc(directValueDependencies)
+  val mutualDependencies: Set[Set[String]] =
+    a_utils.GraphAlgorithms.tarjanCcc(directValueDependencies).filter(a => a.size > 1 || directValueDependencies(a.head).contains(a.head))
 }
 
 case class Projection(left: Term, name: String) extends Term {
