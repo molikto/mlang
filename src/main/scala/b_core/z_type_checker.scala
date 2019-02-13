@@ -79,7 +79,7 @@ class TypeChecker extends Evaluator with ContextBuilder[Value] {
                 ty
               case None =>
                 body match { // allows inductive type to self reference
-                  case Sum(_) => ctx = ctx.newTypeDeclaration(name, UniverseValue)
+                  case Inductive(_) => ctx = ctx.newTypeDeclaration(name, UniverseValue)
                   case _ =>
                 }
                 ctx.infer(body)
@@ -128,16 +128,16 @@ class TypeChecker extends Evaluator with ContextBuilder[Value] {
         }
       case DeclarationReference(index, name) =>
         declarationType(index, name).get
-      case Sum(branches) =>
+      case Inductive(branches) =>
         if (branches.map(_.name).toSet.size != branches.size)
-          throw new Exception("Duplicated branches in Sum")
+          throw new Exception("Duplicated branches in Inductive")
         branches.foreach(k => checkIsType(k.term))
         UniverseValue
       case Construct(_, _) =>
         throw new IllegalStateException("Inferring Construct directly is not supported, always annotate with type instead")
       case Split(left, right) =>
         infer(left) match {
-          case SumValue(keys, ts) => // right is bigger
+          case InductiveValue(keys, ts) => // right is bigger
             if (keys.toSeq.sorted != right.map(_.name).sorted)
               throw new Exception("Split with duplicated or missing branches")
             if (keys.isEmpty) {
@@ -160,13 +160,18 @@ class TypeChecker extends Evaluator with ContextBuilder[Value] {
   def checkConsistency(m: Make) = {
     // we should not allow type fixpoints except inductive definitions. also inductive definitions
     // https://cstheory.stackexchange.com/questions/41080/fixed-points-in-dependent-type-theories
-    if (!m.mutualDependencies.flatten.forall(name => {
-      m.valueDeclarations.find(_.name == name).get.body match {
-        case _: Lambda => true
-        case _: Sum => true
-        case _: DeclarationReference => true
+    if (!m.mutualDependencies.forall(set => {
+      val isMutuallyDefinedLambda = set.forall(name => {
+        m.valueDeclarations.find(_.name == name).get.body match {
+          case _: Lambda => true
+          case _ => false
+        }
+      })
+      val isSingleInductiveType = set.size == 1 && (m.valueDeclarations.find(_.name == set.head).get.body match {
+        case _: Inductive => true
         case _ => false
-      }
+      })
+      isMutuallyDefinedLambda || isSingleInductiveType
     })) {
      throw new Exception("wrong recursive type")
     }
@@ -208,7 +213,7 @@ class TypeChecker extends Evaluator with ContextBuilder[Value] {
           })
           cur = cur(nv)
         }
-      case (Construct(name, data), SumValue(ks, ts)) =>
+      case (Construct(name, data), InductiveValue(ks, ts)) =>
         if (!ks.contains(name)) {
           throw new Exception("Wrong construct")
         }

@@ -45,7 +45,7 @@ object Value {
           }
           RecordValue(recG(fields))
         case MakeValue(fields) => MakeValue(fields.mapValues(a => rec(a, rd)))
-        case SumValue(keys, ts) => SumValue(keys, n => rec(ts(n), rd))
+        case InductiveValue(keys, ts) => InductiveValue(keys, n => rec(ts(n), rd))
         case ConstructValue(name, term) => ConstructValue(name, rec(term, rd))
       }
     }
@@ -149,7 +149,7 @@ case class MakeValue(fields: Map[String, Value]) extends Value {
 
 // sum value is non-strict so it can have self-reference
 // LATER memorize on keys?
-case class SumValue(keys: Set[String], ts: String => Value) extends RecursiveValue {
+case class InductiveValue(keys: Set[String], ts: String => Value) extends RecursiveValue {
 
 }
 

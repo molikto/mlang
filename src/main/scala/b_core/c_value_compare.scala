@@ -94,7 +94,7 @@ class CompareValue(a0: Value, b0: Value) {
         case (LambdaValue(d1, m1), LambdaValue(d2, m2)) => equal(d1, d2) && equal(m1, m2)
         case (RecordValue(fs), RecordValue(gs)) => equal(fs, gs)
         case (MakeValue(fs), MakeValue(gs)) => equalMv(fs, gs)
-        case (SumValue(ks, ts), SumValue(gs, js)) => ks == gs && ks.forall(k => equal(ts(k), js(k)))
+        case (InductiveValue(ks, ts), InductiveValue(gs, js)) => ks == gs && ks.forall(k => equal(ts(k), js(k)))
         case (ConstructValue(n1, t1), ConstructValue(n2, t2)) => n1 == n2 && equal(t1, t2)
         case (_, _) => a == b
       }

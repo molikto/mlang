@@ -120,8 +120,8 @@ trait Evaluator extends Context[Value] {
           } else {
             s"r${depth - index}_$name"
           }
-        case Sum(ts) =>
-          s"SumValue(Set(${ts.map(a => source(a.name)).mkString(", ")}), " +
+        case Inductive(ts) =>
+          s"InductiveValue(Set(${ts.map(a => source(a.name)).mkString(", ")}), " +
               s"name => name match { ${ts.map(p => s"case ${source(p.name)} => " + emit(p.term, depth)).mkString("; ")}})"
         case Construct(name, data) =>
           s"ConstructValue(${source(name)}, ${emit(data, depth)})"

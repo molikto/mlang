@@ -84,8 +84,8 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
 
   lazy val projection: PackratParser[surface.Projection] = (term <~ ".") ~ ident ^^ {a => surface.Projection(a._1, a._2)}
 
-  lazy val sum: PackratParser[surface.Sum] =
-    delimited("[", repsep(ident ~ opt(delimited("(", term, ")")),","),"]") ^^ {a => surface.Sum(a.map(k => (k._1, k._2)))}
+  lazy val sum: PackratParser[surface.Inductive] =
+    delimited("[", repsep(ident ~ opt(delimited("(", term, ")")),","),"]") ^^ {a => surface.Inductive(a.map(k => (k._1, k._2)))}
 
   lazy val construct: PackratParser[surface.Construct] =
     (term <~ ":") ~ ident ~ opt(delimited("(", term, ")")) ^^ {a => surface.Construct(a._1._1, a._1._2, a._2)}

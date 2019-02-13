@@ -121,8 +121,8 @@ trait Elaborator {
         cast(m, term)
       case surface.Ascription(term, right) =>
         cast(elaborate(term, context), right)
-      case surface.Sum(ts) =>
-        Sum(ts.map(a => Constructor(a._1, a._2.map(m => elaborate(m, context)).getOrElse(Primitive("unit")))))
+      case surface.Inductive(ts) =>
+        Inductive(ts.map(a => Constructor(a._1, a._2.map(m => elaborate(m, context)).getOrElse(Primitive("unit")))))
       case surface.Construct(ty, name, v) =>
         cast(Construct(name, v.map(v => elaborate(v, context)).getOrElse(Primitive("unit0"))), ty)
       case surface.Split(t, ts) =>

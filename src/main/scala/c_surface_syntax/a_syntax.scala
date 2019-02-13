@@ -32,7 +32,7 @@ object surface {
   case class Make(term: Term, seq: Seq[(String, Term)]) extends Term
   case class Projection(term: Term, str: String) extends Term
 
-  case class Sum(ts: Seq[(String, Option[Term])]) extends Term
+  case class Inductive(ts: Seq[(String, Option[Term])]) extends Term
   case class Construct(ty: Term, name: String, v: Option[Term]) extends Term
   case class Split(term: Term, right: Seq[(String, Option[String], Term)]) extends Term
   case class Reference(t: String) extends Term

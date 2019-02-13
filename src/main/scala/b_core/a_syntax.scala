@@ -100,7 +100,7 @@ case class Projection(left: Term, name: String) extends Term {
 
 
 case class Constructor(name: String, term: Term)
-case class Sum(branches: Seq[Constructor]) extends Term {
+case class Inductive(branches: Seq[Constructor]) extends Term {
   override def collectReferences(i: Int): Set[String] = branches.map(_.term.collectReferences(i)).flatten.toSet
 }
 
