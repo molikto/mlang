@@ -33,7 +33,7 @@ class TypeChecker extends Evaluator with ContextBuilder[Value] {
         newAbstractionLayer(checkIsTypeThenEval(domain)).checkIsType(body)
         UniverseValue
       case Primitive(name) =>
-        Primitives.typ(name)
+        PrimitiveValues.typ(name)
       case Lambda(domain, body) =>
         val pty = checkIsTypeThenEval(domain)
         val ctx = newAbstractionLayer(pty)
@@ -41,8 +41,8 @@ class TypeChecker extends Evaluator with ContextBuilder[Value] {
         PiValue(pty, Value.rebound(ctx.layerId(0).get, vty))
       case Application(left, right) =>
         infer(left) match {
-          case PiValue(domain, map) =>
-            map(checkThenEval(right, domain))
+          case pi@PiValue(domain, map) =>
+            pi(checkThenEval(right, domain))
           case _ => throw new Exception("Cannot infer Application")
         }
       case Cast(a, b) =>
@@ -88,7 +88,7 @@ class TypeChecker extends Evaluator with ContextBuilder[Value] {
                       m.directValueDependencies(name).forall(a => evaluated(a) || notEvaluated.keySet.contains(a)))) {
                   val toEvaluate = notEvaluated.filterKeys(component)
                   // when eval, we eval in declaration order
-                  val values = ctx.eval(m.valueDeclarations.map(_.name).filter(toEvaluate.keySet).map(n => (n, toEvaluate(n)._1)))
+                  val values = ctx.evalMutualRecursive(m.valueDeclarations.map(_.name).filter(toEvaluate.keySet).map(n => (n, toEvaluate(n)._1)))
                   for (v <- values) {
                     ctx = ctx.newDeclaration(v._1, v._2, toEvaluate(v._1)._2)
                   }
@@ -148,6 +148,8 @@ class TypeChecker extends Evaluator with ContextBuilder[Value] {
 
 
   def checkConsistency(m: Make) = {
+    // we should not allow type fixpoints except inductive definitions. also inductive definitions
+    // https://cstheory.stackexchange.com/questions/41080/fixed-points-in-dependent-type-theories
     assert(m.mutualDependencies.flatten.forall(name => {
       m.valueDeclarations.find(_.name == name).get.body match {
         case _: Lambda => true
@@ -161,11 +163,11 @@ class TypeChecker extends Evaluator with ContextBuilder[Value] {
   protected def check(term: Term, typ: Value): Unit = {
     debug(s"Check $term")
     (term, typ) match {
-      case (Lambda(domain, body), PiValue(pd, pv)) =>
+      case (Lambda(domain, body), pi@PiValue(pd, pv)) =>
         assert(CompareValue.equal(checkIsTypeThenEval(domain), pd))
         val ctx = newAbstractionLayer(pd)
         // this is really handy, to unbound this parameter
-        ctx.check(body, pv(OpenVariableReference(ctx.layerId(0).get)))
+        ctx.check(body, pi(OpenVariableReference(ctx.layerId(0).get)))
       case (m@Make(makes), RecordValue(fields)) =>
         assert(makes.forall(_.isInstanceOf[ValueDeclaration]), "Type checked Make syntax should not contains type declarations (yet)")
         val vs = makes.map(_.asInstanceOf[ValueDeclaration])

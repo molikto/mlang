@@ -22,7 +22,7 @@ object TunnelingHack {
     s"TunnelingHack.tunnel(${a}L)"
   }
 }
-object Primitives {
+object PrimitiveValues {
 
   private val unit = RecordValue(AcyclicValuesGraph.empty)
   private val unit0 = MakeValue(Map.empty)
@@ -31,14 +31,23 @@ object Primitives {
     "type" -> (UniverseValue, UniverseValue),
     "unit" ->  (unit, UniverseValue),
     "unit0" -> (unit0, unit),
-    "print_equal" -> (
-        LambdaValue(UniverseValue, VP((ty, rd) => LambdaValue(ty, VP((a, rd) => LambdaValue(ty, VP((b, rd) => {
-          debug.display(CompareValue.equal(a, b))
+    "assert_equal" -> (
+        LambdaValue(UniverseValue, (ty, _) => LambdaValue(ty, (a, _) => LambdaValue(ty, (b, _) => {
+          assert(CompareValue.equal(a, b))
           unit0
-        })))))),
-        PiValue(UniverseValue, VP((ty, rd) => PiValue(ty, VP((_, rd) => PiValue(ty, VP((_, rd) => unit))))))
+        }))),
+        PiValue(UniverseValue, (ty, _) => PiValue(ty, (_, _) => PiValue(ty, (_, _) => unit)))
+    ),
+    "assert_not_equal" -> (
+        LambdaValue(UniverseValue, (ty, _) => LambdaValue(ty, (a, _) => LambdaValue(ty, (b, _) => {
+          assert(!CompareValue.equal(a, b))
+          unit0
+        }))),
+        PiValue(UniverseValue, (ty, _) => PiValue(ty, (_, _) => PiValue(ty, (_, _) => unit)))
     )
   )
+
+  val keys = primitives.keySet
 
   def value(a: String) = primitives(a)._1
 
@@ -54,15 +63,16 @@ trait Evaluator extends Context[Value] {
       *
       * we evaluate will **valid typechecked terms** by NBE
       */
-    def emit(term: Term, depth: Int): String = {
+    def emit(term: Term, depth: Int, isRecursive: Boolean = false): String = {
 
       term match {
         case Lambda(domain, body) =>
           val d = depth + 1
-          s"LambdaValue(${emit(domain, depth)}, VP((r$d, rd) => ${emit(body, d)}))"
+          val base = s"LambdaValue(${emit(domain, depth)}, (r$d, rd) => ${emit(body, d)})"
+          if (isRecursive) s"new $base with RecursiveValue" else base
         case Pi(domain, body) =>
           val d = depth + 1
-          s"PiValue(${emit(domain, depth)}, VP((r$d, rd) => ${emit(body, d)}))"
+          s"PiValue(${emit(domain, depth)}, (r$d, rd) => ${emit(body, d)})"
         case VariableReference(index) =>
           if (index > depth) s"OpenVariableReference(${layerId(index - depth - 1).get}L)"
           else s"r${depth - index}"
@@ -84,10 +94,11 @@ trait Evaluator extends Context[Value] {
           s"RecordValue(${rec(r.nonDependentLayers.map(_.map(n => fs.find(_.name == n).get)))})"
         case m@Make(_) =>
           val vs = m.valueDeclarations
+          def isRecursive(a: String) = m.mutualDependencies.exists(_.contains(a))
           val d = depth + 1
           s"{ var hd = scala.collection.mutable.Map.empty[String, Value]; " +
               s"${vs.map(f => s"def r${d}_${f.name} = hd(${source(f.name)})); ").mkString("")}" +
-              s"${vs.map(f => s"hd.put(${source(f.name)}, ${emit(f.body, d)}); ").mkString("")}" +
+              s"${vs.map(f => s"hd.put(${source(f.name)}, ${emit(f.body, d, isRecursive(f.name))}); ").mkString("")}" +
               s"MakeValue(hd.toMap) }"
         case Projection(left, name) =>
           s"${emit(left, depth)}.projection(${source(name)}, rd)"
@@ -116,18 +127,18 @@ trait Evaluator extends Context[Value] {
           s"ConstructValue(${source(name)}, ${emit(data, depth)})"
         case Split(left, right) =>
           val d = depth + 1
-          s"${emit(left, depth)}.split(Map(${right.map(p =>s"${source(p.name)} -> VP((r$d, rd) => ${emit(p.term, d)})").mkString(", ")}), rd)"
+          s"${emit(left, depth)}.split(Map(${right.map(p =>s"${source(p.name)} -> ((r$d, rd) => ${emit(p.term, d)})").mkString(", ")}), rd)"
       }
     }
   }
 
   // LATER less call to eval, how to make values compositional with contexts?
-  protected def eval(vs: Seq[(String, Term)]): Map[String, Value] = {
+  protected def evalMutualRecursive(vs: Seq[(String, Term)]): Map[String, Value] = {
     val emitter = new Emitter(vs.map(_._1))
     val src = "import b_core._\n" +
         s"{ val rd = FullReduction; var hd = scala.collection.mutable.Map.empty[String, Value]; " +
         vs.map(f => s"def d_${f._1} = hd(${source(f._1)}); ").mkString("") +
-        vs.map(f => s"hd.put(${source(f._1)}, ${emitter.emit(f._2, -1)}); ").mkString("") +
+        vs.map(f => s"hd.put(${source(f._1)}, ${emitter.emit(f._2, -1, isRecursive = true)}); ").mkString("") +
         s"hd.toMap }"
 
     debug("==================")

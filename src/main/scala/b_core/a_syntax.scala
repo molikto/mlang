@@ -37,6 +37,10 @@ case class Primitive(name: String) extends Term {
   override def collectReferences(i: Int): Set[String] = Set.empty
 }
 
+object Primitive {
+  val names = PrimitiveValues.keys
+}
+
 sealed trait Declaration
 case class TypeDeclaration(name: String, body: Term) extends Declaration
 case class ValueDeclaration(name: String, body: Term) extends Declaration

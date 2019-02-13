@@ -1,15 +1,23 @@
 package b_core
 
+import b_core.Value.VP
+
 import scala.collection.mutable
 
 
 /**
   * a value compare class that handles recursive values
   *
+  * in Mini-TT the comparing of values is done by readback. but this can be inefficient
+  * because there are a lot of opportunities to stop early. this function compare values in
+  * normal form structurally.
   *
+  * using the congruence rules of lambda terms, lambda equality is done by applying the closure
+  * to a generic value. to avoid infinite unfolding of lambda terms, this evaluation will not
+  * unfold definitional equalities
   *
   */
-// LATER is this theorically sound? this is very intricate stuff
+// LATER compare with others
 class CompareValue(a0: Value, b0: Value) {
 
   private val assumptions = new mutable.HashMap[Value, mutable.Set[Value]] with mutable.MultiMap[Value, Value]
@@ -37,9 +45,10 @@ class CompareValue(a0: Value, b0: Value) {
   private def equal(m1: VP, m2: VP): Boolean = {
     val u = OpenVariableReference(newUniqueId())
     // we use == here, because we don't deep compare a reduct
-    equal(m1(u, NoReduction), m2(u, NoReduction))
+    equal(m1(u, NoFixReduction), m2(u, NoFixReduction))
   }
 
+  // TODO this need to feed in reduction type
   private def equal(fs: AcyclicValuesGraph, gs: AcyclicValuesGraph): Boolean = {
     equalMv(fs.initials, gs.initials) && {
       val m = fs.initials.mapValues(_ => OpenVariableReference(newUniqueId()))
@@ -61,6 +70,7 @@ class CompareValue(a0: Value, b0: Value) {
     if (eqByAssump(a, b)) {
       true
     } else {
+      if (a.isInstanceOf[RecursiveValue] && b.isInstanceOf[RecursiveValue])
       assumptions.addBinding(a, b)
       val res = run
       assumptions.removeBinding(a, b)
@@ -73,6 +83,7 @@ class CompareValue(a0: Value, b0: Value) {
       (a, b) match {
         case (ProjectionStuck(v1, s1), ProjectionStuck(v2, s2)) => s1 == s2 && equal(v1, v2)
         case (AppStuck(a1, v1), AppStuck(a2, v2)) => equal(a1, a2) && equal(v1, v2)
+        case (FixApplication(a1, v1), FixApplication(a2, v2)) => equal(a1, a2) && equal(v1, v2)
         case (SplitStuck(s1, m1), SplitStuck(s2, m2)) => equal(s1, s2) && equalMvv(m1, m2)
         case (PiValue(d1, m1), PiValue(d2, m2)) => equal(d1, d2) && equal(m1, m2)
         case (LambdaValue(d1, m1), LambdaValue(d2, m2)) => equal(d1, d2) && equal(m1, m2)
@@ -80,13 +91,6 @@ class CompareValue(a0: Value, b0: Value) {
         case (MakeValue(fs), MakeValue(gs)) => equalMv(fs, gs)
         case (SumValue(ks, ts), SumValue(gs, js)) => ks == gs && ks.forall(k => equal(ts(k), js(k)))
         case (ConstructValue(n1, t1), ConstructValue(n2, t2)) => n1 == n2 && equal(t1, t2)
-          // we don't compare deep inside reducts
-        case (ProjectionReduct(v1, s1), ProjectionReduct(v2, s2)) =>
-          (s1 == s2 && eqByAssump(v1, v2)) || equal(v1.projection(s1), v2.projection(s2))
-        case (AppReduct(a1, v1), AppReduct(a2, v2)) =>
-          (eqByAssump(a1, a2) && eqByAssump(v1, v2)) || equal(a1.applicationOnce(v1), a2.applicationOnce(v2))
-        case (SplitReduct(s1, m1), SplitReduct(s2, m2)) =>
-          equal(s1.splitOnce(m1), s2.splitOnce(m2))
         case (_, _) => a == b
       }
     }

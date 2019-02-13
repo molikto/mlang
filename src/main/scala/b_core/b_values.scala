@@ -4,33 +4,24 @@ import java.util.concurrent.atomic.AtomicLong
 
 
 sealed trait Reduction {
-  def next(): Boolean
+  def performFix(): Boolean
 }
 
 case object FullReduction extends Reduction {
-  override def next(): Boolean = true
+  override def performFix(): Boolean = true
 }
 
-case object NoReduction extends Reduction {
-  override def next(): Boolean = false
+case object NoFixReduction extends Reduction {
+  override def performFix(): Boolean = false
 }
 
-case class OneReduction() extends Reduction {
-  private var reduct: Boolean = false
-  override def next(): Boolean = {
-    if (reduct) {
-      reduct = false
-      true
-    } else {
-      false
-    }
-  }
-}
 
 object Value {
 
+  type VP = (Value, Reduction) => Value
+
   def rebound(id: Long, in0: Value): VP = {
-    VP((v, rd) => Value.rebound0(id, v, in0, rd))
+    (v, rd) => Value.rebound0(id, v, in0, rd)
   }
 
   private def rebound0(id: Long, by: Value, in0: Value, rd: Reduction): Value = {
@@ -42,13 +33,11 @@ object Value {
           in
         case ProjectionStuck(value, str) => rec(value, rd).projection(str)
         case AppStuck(atom, app) => rec(atom, rd).application(rec(app, rd))
-        case SplitStuck(s, bs) => rec(s, rd).split(bs.mapValues(f => VP((a, rd) => rec(f(a), rd))))
-        case ProjectionReduct(value, str) => ProjectionReduct(rec(value, rd).asInstanceOf[MakeValue], str)
-        case AppReduct(atom, app) => AppReduct(rec(atom, rd).asInstanceOf[LambdaValue], rec(app, rd))
-        case SplitReduct(s, bs) => SplitReduct(rec(s, rd).asInstanceOf[ConstructValue], bs.mapValues(f => VP((a, rd) => rec(f(a), rd))))
+        case FixApplication(atom, app) => rec(atom, rd).application(rec(app, rd))
+        case SplitStuck(s, bs) => rec(s, rd).split(bs.mapValues(f => (a, rd) => rec(f(a, rd), rd)))
         case UniverseValue => in
-        case PiValue(domain, map) => PiValue(rec(domain, rd), VP((a, rd) => rec(map(a), rd)))
-        case LambdaValue(domain, map) => LambdaValue(rec(domain, rd), VP((a, rd) => rec(map(a), rd)))
+        case PiValue(domain, map) => PiValue(rec(domain, rd), (a, rd) => rec(map(a, rd), rd))
+        case LambdaValue(domain, map) => LambdaValue(rec(domain, rd), (a, rd) => rec(map(a, rd), rd))
         case RecordValue(fields) =>
           def recG(a: AcyclicValuesGraph): AcyclicValuesGraph = {
             AcyclicValuesGraph(a.initials.mapValues(a => rec(a, rd)), p => recG(a(p)))
@@ -68,15 +57,7 @@ object Value {
 
 }
 
-/**
-  *
-  * to prevent infinite expansion of values, we wrap anything that can generate a value by a
-  *
-  */
-case class VP(private val base: (Value, Reduction) => Value) {
-  def apply(v: Value, reduct: Reduction = FullReduction): Value = {
-    base(v, reduct)
-  }
+trait RecursiveValue extends Value {
 }
 
 /**
@@ -97,6 +78,7 @@ case class AcyclicValuesGraph(initials: Map[String, Value], private val base: Ac
   }
 }
 
+import Value._
 
 abstract sealed class Value {
   def application(v: Value, reductor: Reduction = FullReduction): Value  = throw new IllegalArgumentException("Not implemented")
@@ -134,38 +116,42 @@ case class AppStuck(atom: StuckValue, app: Value) extends StuckValue
 case class SplitStuck(s: StuckValue, names:  Map[String, VP]) extends StuckValue
 
 
-case class ProjectionReduct(value: MakeValue, str: String) extends ReductValue
-case class AppReduct(value: LambdaValue, app: Value) extends ReductValue
-case class SplitReduct(s: ConstructValue, names:  Map[String, VP]) extends ReductValue
+/**
+  * this stuck value only presents when your evaluation doesn't unfold fix
+  */
+case class FixApplication(lambda: LambdaValue, to: Value) extends StuckValue
 
 case object UniverseValue extends Value
 
-case class PiValue(domain: Value, map: VP) extends Value
+case class PiValue(domain: Value, map: VP) extends Value {
+  def apply(a: Value) = map(a, FullReduction)
+}
+
 
 case class LambdaValue(domain: Value, map: VP) extends Value {
+  // beta and fix application
   override def application(v: Value, reductor: Reduction): Value =
-    if (reductor.next()) map(v, reductor)
-    else  AppReduct(this, v)
-
-  def applicationOnce(v: Value): Value = map(v, OneReduction())
+    if (this.isInstanceOf[RecursiveValue] && !reductor.performFix()) {
+      FixApplication(this, v)
+    } else {
+      map(v, reductor)
+    }
 }
 
 
 case class RecordValue(fields: AcyclicValuesGraph) extends Value
 
 case class MakeValue(fields: Map[String, Value]) extends Value {
-  override def projection(name: String, reductor: Reduction): Value =
-    if (reductor.next()) fields(name)
-    else ProjectionReduct(this, name)
+  // LATER is there a name for this??
+  override def projection(name: String, reductor: Reduction): Value = fields(name)
 }
 
 // sum value is non-strict so it can have self-reference
-case class SumValue(keys: Set[String], ts: String => Value) extends Value
+case class SumValue(keys: Set[String], ts: String => Value) extends RecursiveValue {
+
+}
 
 case class ConstructValue(name: String, term: Value) extends Value {
-  override def split(bs: Map[String, VP], reductor: Reduction): Value =
-    if (reductor.next()) bs(name)(term, reductor)
-    else SplitReduct(this, bs)
-
-  def splitOnce(bs: Map[String, VP]): Value = bs(name)(term, OneReduction())
+  // LATER unlike iota, we perform the beta afterwards... consider make it better
+  override def split(bs: Map[String, VP], reductor: Reduction): Value = bs(name)(term, reductor)
 }

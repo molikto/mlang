@@ -21,7 +21,7 @@ import b_core._
 trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConversions {
 
 
-  lexical.reserved ++= List("match", "make", "construct", "type", "print_equal")
+  lexical.reserved ++= List("match", "make") ++ Primitive.names
   lexical.delimiters ++= List("{", "}", "[", "]", ":", ",", "(", ")", "=>", "->", "+", "-", ";", "|", "=", "@", "\\")
 
   def delimited[T](a: String, t: Parser[T], b: String): Parser[T] = a ~> t <~ b
@@ -53,9 +53,9 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
         projection |
         sum |
         construct |
-        split |
-        keyword("type") ^^ {_ =>  surface.Primitive("type") } |
-        keyword("print_equal") ^^ {_ =>  surface.Primitive("print_equal") } |
+        Primitive.names.foldLeft[PackratParser[surface.Term]](split) { (p, n) =>
+          p | (keyword(n) ^^ {_ =>  surface.Primitive(n) })
+        } |
         ident ^^ {a => surface.Reference(a)}
 
   lazy val ascription: PackratParser[surface.Ascription] = delimited("(", (term <~ ":") ~ term, ")") ^^ {a => surface.Ascription(a._1, a._2)}

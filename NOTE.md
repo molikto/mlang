@@ -3,6 +3,8 @@
 # equality for mutual defined functions
 
 
+## cases we handle as success
+
 ```coq
 Fixpoint even(a: nat) : bool := 
   match a with
@@ -55,4 +57,27 @@ nn1 false = true
 
 test2 :  nn ≡ nn1
 test2 i = nn1 -- fails
+```
+
+## what about this??
+
+```Coq
+Fixpoint predd(a: nat): nat := 
+  match a with
+  | O => O
+  | S b => predd(b)
+  end.
+
+Fixpoint preddd(a: nat): nat := 
+  match a with
+  | O => O
+  | S b => match b with | O => O | S c => preddd(c) end
+  end.
+
+
+Fixpoint predd2(a: nat): nat := 
+  match a with
+  | O => O
+  | S b => preddd(b)
+  end.
 ```
