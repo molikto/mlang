@@ -1,7 +1,10 @@
 package d_elaborator
 
+import java.util.concurrent.atomic.AtomicLong
+
 import b_core._
 import c_surface_syntax.surface
+import c_surface_syntax.surface.{NamedTeleItem, UnnamedTeleItem}
 
 
 sealed trait ContextLayer {
@@ -17,9 +20,24 @@ case class LambdaLayer(name: String) extends ContextLayer {
 
 trait Elaborator {
 
-  def flatten(tele: surface.Tele): Seq[(String, surface.Term)] = {
-    tele.flatMap(a => a._1.map(n => (n, a._2)))
+
+
+  // LATER handle generated identifiers
+  private val gen = new AtomicLong(0)
+
+  private def newValidGeneratedIdent() = s"not_used_${gen.incrementAndGet()}"
+
+  private val letId = "not_used_let"
+
+  def flatten(tele: surface.UnnamedTele): Seq[(String, surface.Term)] = {
+    tele.flatMap {
+      case a: NamedTeleItem =>
+        a.names.map(n => (n, a.term))
+      case b: UnnamedTeleItem =>
+        Seq((newValidGeneratedIdent(), b.term))
+    }
   }
+
 
   def elaborateApp(left: surface.Term, ps: Seq[surface.Term], ctx: Seq[ContextLayer]): Term = {
     ps.foldLeft(elaborate(left, ctx)) { (v, p) =>
@@ -28,7 +46,7 @@ trait Elaborator {
   }
 
 
-  def elaborateMaybePi(tele: Option[surface.Tele], body: surface.Term, context: Seq[ContextLayer]): Term = {
+  def elaborateMaybePi(tele: Option[surface.UnnamedTele], body: surface.Term, context: Seq[ContextLayer]): Term = {
     tele match {
       case Some(tele) =>
         val ts = flatten(tele)
@@ -46,7 +64,7 @@ trait Elaborator {
   }
 
   def elaborateMaybeLambda(tele: Option[surface.Tele], body: surface.Term, context: Seq[ContextLayer]): Term = {
-    // TODO use meta variable instead, checking is faster than infer?
+    // LATER use meta variable instead, checking is faster than infer?
     tele match {
       case Some(tele) =>
         val ts = flatten(tele)
@@ -65,6 +83,7 @@ trait Elaborator {
 
 
   def elaborate(a: surface.Definition, context: Seq[ContextLayer]): Seq[Declaration] = {
+    // LATER don't generate duplicated
     a.ty.toSeq.flatMap(t => {
       Seq(TypeDeclaration(a.name, elaborateMaybePi(a.tele, t, context)))
     }) ++ a.term.toSeq.flatMap(term => {
@@ -83,7 +102,7 @@ trait Elaborator {
         Make(defs.flatMap(d => elaborate(d, ctx )))
       case surface.Let(defs, body) =>
         val ctx = DeclarationLayer(defs.map(_.name).toSet) +: context
-        val name = surface.letId
+        val name = letId
         Projection(Make(defs.flatMap(d => elaborate(d, ctx)) ++ elaborate(surface.Definition(name, None, None, Some(body)), ctx)), name)
       case surface.Pi(seq, body) =>
         elaborateMaybePi(Some(seq), body, context)
@@ -107,7 +126,7 @@ trait Elaborator {
       case surface.Construct(ty, name, v) =>
         cast(Construct(name, v.map(v => elaborate(v, context)).getOrElse(Primitive("unit0"))), ty)
       case surface.Split(t, ts) =>
-        Split(elaborate(t, context), ts.map(a => Branch(a._1, elaborate(a._3, LambdaLayer(a._2.getOrElse(surface.newValidGeneratedIdent())) +: context))))
+        Split(elaborate(t, context), ts.map(a => Branch(a._1, elaborate(a._3, LambdaLayer(a._2.getOrElse(newValidGeneratedIdent())) +: context))))
       case surface.Primitive(p) =>
         Primitive(p)
       case surface.Reference(t) =>
@@ -118,7 +137,7 @@ trait Elaborator {
               case DeclarationLayer(definitions) => DeclarationReference(i, t)
             }
         }.get
-      case surface.Absent => ??? // TODO handle lambda without parameter type
+      case surface.Absent => ??? // TODO handle lambda without parameter type, the most simple case of unification
     }
   }
 

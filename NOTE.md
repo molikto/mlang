@@ -81,3 +81,5 @@ Fixpoint predd2(a: nat): nat :=
   | S b => preddd(b)
   end.
 ```
+
+[asked here](https://cstheory.stackexchange.com/questions/42371/definitional-equality-of-recursive-function-definition-by-infinite-unfolding)

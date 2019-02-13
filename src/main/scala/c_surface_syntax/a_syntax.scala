@@ -3,11 +3,18 @@ package c_surface_syntax
 import java.util.concurrent.atomic.AtomicLong
 
 
-// surface syntax...
+/**
+  * surface syntax is a **equivalence** of what user write
+  */
 object surface {
   sealed trait Surface
   sealed trait Term
-  type Tele = Seq[(Seq[String], Term)]
+  sealed trait TeleItem
+  case class NamedTeleItem(names: Seq[String], term: Term) extends TeleItem
+  case class UnnamedTeleItem(term: Term) extends TeleItem
+  type Tele = Seq[NamedTeleItem]
+  type UnnamedTele = Seq[TeleItem]
+
 
   case class Definition(name: String, tele: Option[Tele], ty: Option[Term], term: Option[Term]) extends Surface
   case class Definitions(defs: Seq[Definition]) extends Term
@@ -17,7 +24,7 @@ object surface {
   case class Primitive(name: String) extends Term
 
   case class Ascription(term: Term, right: Term) extends Term
-  case class Pi(seq: Tele, body: Term) extends Term
+  case class Pi(seq: UnnamedTele, body: Term) extends Term
   case class Lambda(seq: Tele, body: Term) extends Term
   case class App(left: Term, right: Seq[Term]) extends Term
 
@@ -33,14 +40,6 @@ object surface {
 
   case object Absent extends Term
 
-
-  private val gen = new AtomicLong(0)
-
-  // TODO surface syntax should not contain these constructs
-  def newValidGeneratedIdent() = s"not_used_${gen.incrementAndGet()}"
-
-  // TODO better handle this!
-  val letId = "not_used_let"
 }
 
 

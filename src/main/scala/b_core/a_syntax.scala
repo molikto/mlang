@@ -2,14 +2,18 @@ package b_core
 
 import scala.collection.mutable.ArrayBuffer
 
-sealed trait Term {
-  def collectReferences(i: Int): Set[String]
-}
+
+
 
 
 /**
   * currently some term is "core" as they can be readback as. some is not, as "cast" we discard them in value world
   */
+sealed trait Term {
+  def collectReferences(i: Int): Set[String]
+}
+
+
 case class VariableReference(index: Int) extends Term {
   override def collectReferences(i: Int): Set[String] = Set.empty
 }
@@ -35,10 +39,6 @@ case class Application(left: Term, right: Term) extends Term {
 
 case class Primitive(name: String) extends Term {
   override def collectReferences(i: Int): Set[String] = Set.empty
-}
-
-object Primitive {
-  val names = PrimitiveValues.keys
 }
 
 sealed trait Declaration

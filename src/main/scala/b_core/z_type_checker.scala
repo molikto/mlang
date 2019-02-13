@@ -33,7 +33,7 @@ class TypeChecker extends Evaluator with ContextBuilder[Value] {
         newAbstractionLayer(checkIsTypeThenEval(domain)).checkIsType(body)
         UniverseValue
       case Primitive(name) =>
-        PrimitiveValues.typ(name)
+        Primitives.typ(name)
       case Lambda(domain, body) =>
         val pty = checkIsTypeThenEval(domain)
         val ctx = newAbstractionLayer(pty)
@@ -41,8 +41,8 @@ class TypeChecker extends Evaluator with ContextBuilder[Value] {
         PiValue(pty, Value.rebound(ctx.layerId(0).get, vty))
       case Application(left, right) =>
         infer(left) match {
-          case pi@PiValue(domain, map) =>
-            pi(checkThenEval(right, domain))
+          case PiValue(domain, map) =>
+            map(checkThenEval(right, domain))
           case _ => throw new Exception("Cannot infer Application")
         }
       case Cast(a, b) =>
@@ -63,7 +63,12 @@ class TypeChecker extends Evaluator with ContextBuilder[Value] {
         val notEvaluated = mutable.Map.empty[String, (Term, Value)]
         declarations.foreach {
           case TypeDeclaration(name, body) =>
-            ctx = ctx.newTypeDeclaration(name, ctx.checkIsTypeThenEval(body))
+            ctx.declarationType(0, name) match {
+              case Some(ty) =>
+                assert(CompareValue.equal(ty, ctx.checkIsTypeThenEval(body)))
+              case None =>
+                ctx = ctx.newTypeDeclaration(name, ctx.checkIsTypeThenEval(body))
+            }
           case ValueDeclaration(name, body) =>
             val it = ctx.declarationType(0, name) match {
               case Some(ty) =>
@@ -163,11 +168,11 @@ class TypeChecker extends Evaluator with ContextBuilder[Value] {
   protected def check(term: Term, typ: Value): Unit = {
     debug(s"Check $term")
     (term, typ) match {
-      case (Lambda(domain, body), pi@PiValue(pd, pv)) =>
+      case (Lambda(domain, body), PiValue(pd, pv)) =>
         assert(CompareValue.equal(checkIsTypeThenEval(domain), pd))
         val ctx = newAbstractionLayer(pd)
         // this is really handy, to unbound this parameter
-        ctx.check(body, pi(OpenVariableReference(ctx.layerId(0).get)))
+        ctx.check(body, pv(OpenVariableReference(ctx.layerId(0).get)))
       case (m@Make(makes), RecordValue(fields)) =>
         assert(makes.forall(_.isInstanceOf[ValueDeclaration]), "Type checked Make syntax should not contains type declarations (yet)")
         val vs = makes.map(_.asInstanceOf[ValueDeclaration])

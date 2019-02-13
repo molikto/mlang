@@ -22,7 +22,7 @@ object TunnelingHack {
     s"TunnelingHack.tunnel(${a}L)"
   }
 }
-object PrimitiveValues {
+object Primitives {
 
   private val unit = RecordValue(AcyclicValuesGraph.empty)
   private val unit0 = MakeValue(Map.empty)
@@ -36,14 +36,14 @@ object PrimitiveValues {
           assert(CompareValue.equal(a, b))
           unit0
         }))),
-        PiValue(UniverseValue, (ty, _) => PiValue(ty, (_, _) => PiValue(ty, (_, _) => unit)))
+        PiValue(UniverseValue, ty => PiValue(ty, _ => PiValue(ty, _ => unit)))
     ),
     "assert_not_equal" -> (
         LambdaValue(UniverseValue, (ty, _) => LambdaValue(ty, (a, _) => LambdaValue(ty, (b, _) => {
           assert(!CompareValue.equal(a, b))
           unit0
         }))),
-        PiValue(UniverseValue, (ty, _) => PiValue(ty, (_, _) => PiValue(ty, (_, _) => unit)))
+        PiValue(UniverseValue, ty => PiValue(ty, _ => PiValue(ty, _ => unit)))
     )
   )
 
@@ -72,7 +72,7 @@ trait Evaluator extends Context[Value] {
           if (isRecursive) s"new $base with RecursiveValue" else base
         case Pi(domain, body) =>
           val d = depth + 1
-          s"PiValue(${emit(domain, depth)}, (r$d, rd) => ${emit(body, d)})"
+          s"PiValue(${emit(domain, depth)}, r$d => ${emit(body, d)})"
         case VariableReference(index) =>
           if (index > depth) s"OpenVariableReference(${layerId(index - depth - 1).get}L)"
           else s"r${depth - index}"
@@ -101,7 +101,7 @@ trait Evaluator extends Context[Value] {
               s"${vs.map(f => s"hd.put(${source(f.name)}, ${emit(f.body, d, isRecursive(f.name))}); ").mkString("")}" +
               s"MakeValue(hd.toMap) }"
         case Projection(left, name) =>
-          s"${emit(left, depth)}.projection(${source(name)}, rd)"
+          s"${emit(left, depth)}.projection(${source(name)})"
         case Primitive(name) =>
           s"Primitives.value(${source(name)})"
         case DeclarationReference(index, name) =>

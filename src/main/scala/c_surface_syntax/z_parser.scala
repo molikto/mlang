@@ -6,6 +6,7 @@ import scala.collection.mutable
 import scala.util.parsing.combinator.syntactical.StandardTokenParsers
 import scala.util.parsing.combinator.{ImplicitConversions, PackratParsers}
 import b_core._
+import c_surface_syntax.surface.{NamedTeleItem, UnnamedTeleItem}
 
 
 
@@ -14,14 +15,14 @@ import b_core._
   *
   *
   *
-  * VERY ULGY PARSER for test purpose only
+  * VERY ULGY PARSER for now
   *
   *
   */
 trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConversions {
 
 
-  lexical.reserved ++= List("match", "make") ++ Primitive.names
+  lexical.reserved ++= List("match", "make") ++ Primitives.keys
   lexical.delimiters ++= List("{", "}", "[", "]", ":", ",", "(", ")", "=>", "->", "+", "-", ";", "|", "=", "@", "\\")
 
   def delimited[T](a: String, t: Parser[T], b: String): Parser[T] = a ~> t <~ b
@@ -31,11 +32,18 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
 
   lazy val definitions: PackratParser[surface.Definitions] =  keyword("make") ~> delimited( "{", rep(definition) , "}") ^^ { a => surface.Definitions(a)}
 
-  lazy val tele: PackratParser[surface.Tele] = "(" ~> rep1sep((rep1(ident)) ~ opt(":" ~> term), ",") <~ ")" ^^ {a => a.map(a => (a._1, a._2.getOrElse(surface.Absent)))}
+  lazy val tele: PackratParser[surface.Tele] = "(" ~> rep1sep((rep1(ident)) ~ opt(":" ~> term), ",") <~ ")" ^^ {a => a.map(a => NamedTeleItem(a._1, a._2.getOrElse(surface.Absent)))}
 
-  lazy val typedTele: PackratParser[surface.Tele] = "(" ~> rep1sep((rep1(ident) <~ ":") ~ term, ",") <~ ")" ^^ {a => a.map(a => (a._1, a._2))}
+  lazy val typedTele: PackratParser[surface.Tele] = "(" ~> rep1sep((rep1(ident) <~ ":") ~ term, ",") <~ ")" ^^ {a => a.map(a => NamedTeleItem(a._1, a._2))}
 
-  lazy val typedTelePossibleNoName: PackratParser[surface.Tele] = "(" ~> rep1sep(opt((rep1(ident) <~ ":")) ~ term, ",") <~ ")" ^^ {a => a.map(a => (a._1.getOrElse(Seq(surface.newValidGeneratedIdent())), a._2))}
+  lazy val typedTelePossibleNoName: PackratParser[surface.UnnamedTele] = "(" ~> rep1sep(opt((rep1(ident) <~ ":")) ~ term, ",") <~ ")" ^^ { a =>
+    a.map(a => a._1 match {
+      case Some(l) =>
+        NamedTeleItem(a._1.get, a._2)
+      case None =>
+        UnnamedTeleItem(a._2)
+    })
+  }
 
   lazy val definition: PackratParser[surface.Definition] =
     ident ~ opt(typedTele) ~ opt(":" ~> term) ~ opt( "=" ~> term) <~ ";" ^^ {a => surface.Definition(a._1._1._1, a._1._1._2, a._1._2, a._2) }
@@ -53,7 +61,7 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
         projection |
         sum |
         construct |
-        Primitive.names.foldLeft[PackratParser[surface.Term]](split) { (p, n) =>
+        Primitives.keys.foldLeft[PackratParser[surface.Term]](split) { (p, n) =>
           p | (keyword(n) ^^ {_ =>  surface.Primitive(n) })
         } |
         ident ^^ {a => surface.Reference(a)}

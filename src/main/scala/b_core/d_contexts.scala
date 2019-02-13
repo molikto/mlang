@@ -66,8 +66,7 @@ trait ContextBuilder[Value <: AnyRef] extends Context[Value] {
   protected def newTypeDeclaration(name: String, typ: Value): Self = newBuilder(layers.head.layer match {
     case DeclarationLayer(declarations) => declarations.get(name) match {
       case Some(ty) =>
-        // TODO we drop the last deleration, but should be something else
-        layers
+        throw new Exception("Duplicated type declaration")
       case None =>
         LayerWithId(DeclarationLayer(declarations.updated(name, Declaration(typ))), layers.head.id) +: layers.tail
     }

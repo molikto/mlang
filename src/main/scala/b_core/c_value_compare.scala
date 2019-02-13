@@ -1,6 +1,6 @@
 package b_core
 
-import b_core.Value.VP
+import b_core.Value.{VP, VV}
 
 import scala.collection.mutable
 
@@ -17,7 +17,7 @@ import scala.collection.mutable
   * unfold definitional equalities
   *
   */
-// LATER compare with others
+// NOTE compare with others
 class CompareValue(a0: Value, b0: Value) {
 
   private val assumptions = new mutable.HashMap[Value, mutable.Set[Value]] with mutable.MultiMap[Value, Value]
@@ -48,7 +48,12 @@ class CompareValue(a0: Value, b0: Value) {
     equal(m1(u, NoFixReduction), m2(u, NoFixReduction))
   }
 
-  // TODO this need to feed in reduction type
+  private def equal(m1: VV, m2: VV): Boolean = {
+    val u = OpenVariableReference(newUniqueId())
+    // we use == here, because we don't deep compare a reduct
+    equal(m1(u), m2(u))
+  }
+
   private def equal(fs: AcyclicValuesGraph, gs: AcyclicValuesGraph): Boolean = {
     equalMv(fs.initials, gs.initials) && {
       val m = fs.initials.mapValues(_ => OpenVariableReference(newUniqueId()))

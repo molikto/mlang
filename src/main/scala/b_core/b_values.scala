@@ -19,12 +19,13 @@ case object NoFixReduction extends Reduction {
 object Value {
 
   type VP = (Value, Reduction) => Value
+  type VV = Value => Value
 
-  def rebound(id: Long, in0: Value): VP = {
-    (v, rd) => Value.rebound0(id, v, in0, rd)
+  def rebound(id: Long, in0: Value): VV = {
+    (v) => Value.rebound0(id, v, in0)
   }
 
-  private def rebound0(id: Long, by: Value, in0: Value, rd: Reduction): Value = {
+  private def rebound0(id: Long, by: Value, in0: Value): Value = {
     def rec(in: Value, rd: Reduction): Value = {
       in match {
         case OpenVariableReference(vi) => if (vi == id) by else in
@@ -36,7 +37,7 @@ object Value {
         case FixApplication(atom, app) => rec(atom, rd).application(rec(app, rd))
         case SplitStuck(s, bs) => rec(s, rd).split(bs.mapValues(f => (a, rd) => rec(f(a, rd), rd)))
         case UniverseValue => in
-        case PiValue(domain, map) => PiValue(rec(domain, rd), (a, rd) => rec(map(a, rd), rd))
+        case PiValue(domain, map) => PiValue(rec(domain, rd), (a) => rec(map(a), rd))
         case LambdaValue(domain, map) => LambdaValue(rec(domain, rd), (a, rd) => rec(map(a, rd), rd))
         case RecordValue(fields) =>
           def recG(a: AcyclicValuesGraph): AcyclicValuesGraph = {
@@ -48,7 +49,7 @@ object Value {
         case ConstructValue(name, term) => ConstructValue(name, rec(term, rd))
       }
     }
-    rec(in0, rd)
+    rec(in0, FullReduction)
   }
 
   private val uniqueIdGen =  new AtomicLong(0)
@@ -82,7 +83,7 @@ import Value._
 
 abstract sealed class Value {
   def application(v: Value, reductor: Reduction = FullReduction): Value  = throw new IllegalArgumentException("Not implemented")
-  def projection(name: String, reductor: Reduction = FullReduction): Value = throw new IllegalArgumentException("Not implemented")
+  def projection(name: String): Value = throw new IllegalArgumentException("Not implemented")
   def split(bs: Map[String, VP], reductor: Reduction = FullReduction): Value = throw new Exception()
 
   final override def hashCode(): Int = super.hashCode()
@@ -96,7 +97,7 @@ abstract sealed class Value {
 
 abstract sealed class StuckValue extends Value {
   override def application(seq: Value, reductor: Reduction): Value = AppStuck(this, seq)
-  override def projection(s: String, reductor: Reduction) = ProjectionStuck(this, s)
+  override def projection(s: String) = ProjectionStuck(this, s)
   override def split(bs: Map[String, VP], reductor: Reduction) = SplitStuck(this, bs)
 }
 
@@ -123,8 +124,8 @@ case class FixApplication(lambda: LambdaValue, to: Value) extends StuckValue
 
 case object UniverseValue extends Value
 
-case class PiValue(domain: Value, map: VP) extends Value {
-  def apply(a: Value) = map(a, FullReduction)
+// NOTE the mapping inside Pi is not considered VP
+case class PiValue(domain: Value, map: VV) extends Value {
 }
 
 
@@ -142,8 +143,8 @@ case class LambdaValue(domain: Value, map: VP) extends Value {
 case class RecordValue(fields: AcyclicValuesGraph) extends Value
 
 case class MakeValue(fields: Map[String, Value]) extends Value {
-  // LATER is there a name for this??
-  override def projection(name: String, reductor: Reduction): Value = fields(name)
+  // NOTE is there a name for this??
+  override def projection(name: String): Value = fields(name)
 }
 
 // sum value is non-strict so it can have self-reference
@@ -152,6 +153,6 @@ case class SumValue(keys: Set[String], ts: String => Value) extends RecursiveVal
 }
 
 case class ConstructValue(name: String, term: Value) extends Value {
-  // LATER unlike iota, we perform the beta afterwards... consider make it better
+  // NOTE unlike iota, we perform the beta afterwards... consider make it better
   override def split(bs: Map[String, VP], reductor: Reduction): Value = bs(name)(term, reductor)
 }
