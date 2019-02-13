@@ -12,8 +12,19 @@ should be able to read them one by one
 * each feature in the changelog will have a pull request, the code diff should be clean and readable
 
 ## roadmap
+
+* syntax constructions for simple inductive type: no parameters, no index, no recursive-inductive or inductive-inductive
+* implicit/explicit sized type
+* implicit/explicit universe polymorphism
+* cubical type theory
+* unordered overlapping patterns
+* subtyping for record types
+* union and intersection 
+* more inductive types
+
+## done
     
-* implement a logical framework with recursive records with **recursive values**,
+* 2b515f4ae9f686e13576e9c8e7fb35f1aeda2cf9 implement a logical framework with recursive records with **recursive values**,
  so we can test our idea about recursive representation of values
     * "miniTT" use explicit mutual patterns to deal with recursion and mutual recursion.
       I [once](https://github.com/molikto/ChihuahuaLang/blob/master/common/src/main/scala/Syntax.scala#L59)
@@ -36,12 +47,3 @@ should be able to read them one by one
          * the implementation is bare-bone and not well thought, it is just simply tagged sum
     * this system is not sound, because we don't check the validity of inductive defined types and recursive definitions
     * everything is basic, for example, we don't have fancy error handling
-
-* syntax constructions for simple inductive type: no parameters, no index, no recursive-inductive or inductive-inductive
-* implicit/explicit sized type
-* implicit/explicit universe polymorphism
-* cubical type theory
-* unordered overlapping patterns
-* subtyping for record types
-* union and intersection 
-* more inductive types
