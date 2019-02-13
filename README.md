@@ -37,7 +37,6 @@ should be able to read them one by one
     * this system is not sound, because we don't check the validity of inductive defined types and recursive definitions
     * everything is basic, for example, we don't have fancy error handling
 
-
 * syntax constructions for simple inductive type: no parameters, no index, no recursive-inductive or inductive-inductive
 * implicit/explicit sized type
 * implicit/explicit universe polymorphism
