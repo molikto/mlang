@@ -49,7 +49,8 @@ class TypeChecker extends Evaluator with ContextBuilder[Value] {
         val v = checkIsTypeThenEval(b)
         check(a, v)
         v
-      case Record(fields) =>
+      case r@Record(fields) =>
+        r.syntaxCheck()
         var ctx = newDeclarationLayer()
         fields.foreach {
           case TypeDeclaration(name, body) =>
@@ -65,7 +66,9 @@ class TypeChecker extends Evaluator with ContextBuilder[Value] {
           case TypeDeclaration(name, body) =>
             ctx.declarationType(0, name) match {
               case Some(ty) =>
-                assert(CompareValue.equal(ty, ctx.checkIsTypeThenEval(body)))
+                if (!CompareValue.equal(ty, ctx.checkIsTypeThenEval(body))) {
+                  throw new Exception("Duplicated declaration with not equal types")
+                }
               case None =>
                 ctx = ctx.newTypeDeclaration(name, ctx.checkIsTypeThenEval(body))
             }
@@ -119,14 +122,15 @@ class TypeChecker extends Evaluator with ContextBuilder[Value] {
               }
               cur = cur(cur.initials.map(pair => (pair._1, ev.projection(pair._1))))
             }
-            assert(ret != null)
+            if (ret == null) throw new Exception("projection on non-existing names")
             ret
           case _ => throw new Exception("Cannot infer Projection")
         }
       case DeclarationReference(index, name) =>
         declarationType(index, name).get
       case Sum(branches) =>
-        assert(branches.map(_.name).toSet.size == branches.size, "Duplicated branches in Sum")
+        if (branches.map(_.name).toSet.size != branches.size)
+          throw new Exception("Duplicated branches in Sum")
         branches.foreach(k => checkIsType(k.term))
         UniverseValue
       case Construct(_, _) =>
@@ -134,7 +138,8 @@ class TypeChecker extends Evaluator with ContextBuilder[Value] {
       case Split(left, right) =>
         infer(left) match {
           case SumValue(keys, ts) => // right is bigger
-            assert(keys.toSeq.sorted == right.map(_.name).sorted, "Split with duplicated or missing branches")
+            if (keys.toSeq.sorted != right.map(_.name).sorted)
+              throw new Exception("Split with duplicated or missing branches")
             if (keys.isEmpty) {
               throw new IllegalArgumentException("This can be any type, annotate it instead")
             } else {
@@ -155,29 +160,37 @@ class TypeChecker extends Evaluator with ContextBuilder[Value] {
   def checkConsistency(m: Make) = {
     // we should not allow type fixpoints except inductive definitions. also inductive definitions
     // https://cstheory.stackexchange.com/questions/41080/fixed-points-in-dependent-type-theories
-    assert(m.mutualDependencies.flatten.forall(name => {
+    if (!m.mutualDependencies.flatten.forall(name => {
       m.valueDeclarations.find(_.name == name).get.body match {
         case _: Lambda => true
         case _: Sum => true
         case _: DeclarationReference => true
         case _ => false
       }
-    }), "wrong recursive type")
+    })) {
+     throw new Exception("wrong recursive type")
+    }
   }
 
   protected def check(term: Term, typ: Value): Unit = {
     debug(s"Check $term")
     (term, typ) match {
       case (Lambda(domain, body), PiValue(pd, pv)) =>
-        assert(CompareValue.equal(checkIsTypeThenEval(domain), pd))
+        if (!CompareValue.equal(checkIsTypeThenEval(domain), pd)) {
+          throw new Exception("Lambda and pi domain not match")
+        }
         val ctx = newAbstractionLayer(pd)
         // this is really handy, to unbound this parameter
         ctx.check(body, pv(OpenVariableReference(ctx.layerId(0).get)))
       case (m@Make(makes), RecordValue(fields)) =>
-        assert(makes.forall(_.isInstanceOf[ValueDeclaration]), "Type checked Make syntax should not contains type declarations (yet)")
+        if (!makes.forall(_.isInstanceOf[ValueDeclaration])) {
+         throw new Exception("Type checked Make syntax should not contains type declarations (yet)")
+        }
         val vs = makes.map(_.asInstanceOf[ValueDeclaration])
         val names = vs.map(_.name).toSet
-        assert(names.size == vs.size, "Duplicated make expression names")
+        if (names.size != vs.size) {
+          throw new Exception("Duplicated make expression names")
+        }
         var cur = fields
         checkConsistency(m)
         var ctx = newDeclarationLayer()
@@ -196,10 +209,14 @@ class TypeChecker extends Evaluator with ContextBuilder[Value] {
           cur = cur(nv)
         }
       case (Construct(name, data), SumValue(ks, ts)) =>
-        assert(ks.contains(name))
+        if (!ks.contains(name)) {
+          throw new Exception("Wrong construct")
+        }
         check(data, ts(name))
       case (_, _) =>
-        assert(CompareValue.equal(infer(term), typ))
+        if (!CompareValue.equal(infer(term), typ)) {
+          throw new Exception("Type check failed")
+        }
     }
   }
 
@@ -211,7 +228,11 @@ class TypeChecker extends Evaluator with ContextBuilder[Value] {
   protected def checkThenEval(t: Term, v: Value): Value = { check(t, v); eval(t) }
   protected def checkIsTypeThenEval(t: Term): Value = { checkIsType(t); eval(t) }
   // no need to go inside check for now
-  protected def checkIsType(t: Term): Unit = assert(CompareValue.equal(infer(t), UniverseValue))
+  protected def checkIsType(t: Term): Unit =  {
+    if (!CompareValue.equal(infer(t), UniverseValue)) {
+      throw new Exception("is not type")
+    }
+  }
 
 
   /**

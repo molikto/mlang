@@ -66,7 +66,11 @@ trait ContextBuilder[Value <: AnyRef] extends Context[Value] {
   protected def newTypeDeclaration(name: String, typ: Value): Self = newBuilder(layers.head.layer match {
     case DeclarationLayer(declarations) => declarations.get(name) match {
       case Some(ty) =>
-        throw new Exception("Duplicated type declaration")
+        if (ty.typ == typ) {
+          layers
+        } else {
+          throw new IllegalStateException("Duplicated type declaration")
+        }
       case None =>
         LayerWithId(DeclarationLayer(declarations.updated(name, Declaration(typ))), layers.head.id) +: layers.tail
     }
@@ -81,9 +85,9 @@ trait ContextBuilder[Value <: AnyRef] extends Context[Value] {
     case DeclarationLayer(declarations) => declarations.get(name) match {
       case Some(dec) => dec.value match {
         case Some(_) =>
-          throw new Exception("Duplicated declaration")
+          throw new AssertionError("Duplicated declaration")
         case None =>
-          assert(dec.typ.eq(typ), "Declared type doesn't match")
+          assert(dec.typ == typ, "Declared type doesn't match")
           LayerWithId(DeclarationLayer(declarations.updated(name, Declaration(dec.typ, Some(value)))), layers.head.id) +: layers.tail
       }
       case None => LayerWithId(DeclarationLayer(declarations.updated(name, Declaration(typ, Some(value)))), layers.head.id) +: layers.tail

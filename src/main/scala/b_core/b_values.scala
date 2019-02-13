@@ -148,6 +148,7 @@ case class MakeValue(fields: Map[String, Value]) extends Value {
 }
 
 // sum value is non-strict so it can have self-reference
+// LATER memorize on keys?
 case class SumValue(keys: Set[String], ts: String => Value) extends RecursiveValue {
 
 }

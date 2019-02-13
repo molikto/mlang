@@ -1,6 +1,10 @@
 
 # mlang
 
+## build & run & test
+
+standard SBT project, run `Main` with file name to check, test with standard SBT commands
+
 ## code
 
 * packages and files is indexed by "a-z", resulting in a linear order of files. you 

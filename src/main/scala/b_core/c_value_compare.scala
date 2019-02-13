@@ -110,7 +110,8 @@ object CompareValue {
 
   def equal(a: Value, b: Value) = new CompareValue(a, b).equal()
   def nonEmptyJoin(vs: Seq[Value]): Value = {
-    assert(vs.tail.forall(a => equal(vs.head, a)), "The join is invalid, we currently only joins equal types")
+    if (!vs.tail.forall(a => equal(vs.head, a)))
+      throw new Exception("The join is invalid, we currently only joins equal types")
     vs.head
   }
 }

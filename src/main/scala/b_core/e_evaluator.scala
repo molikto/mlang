@@ -33,14 +33,14 @@ object Primitives {
     "unit0" -> (unit0, unit),
     "assert_equal" -> (
         LambdaValue(UniverseValue, (ty, _) => LambdaValue(ty, (a, _) => LambdaValue(ty, (b, _) => {
-          assert(CompareValue.equal(a, b))
+          if (!CompareValue.equal(a, b)) throw new Exception("Command failed, not equal")
           unit0
         }))),
         PiValue(UniverseValue, ty => PiValue(ty, _ => PiValue(ty, _ => unit)))
     ),
     "assert_not_equal" -> (
         LambdaValue(UniverseValue, (ty, _) => LambdaValue(ty, (a, _) => LambdaValue(ty, (b, _) => {
-          assert(!CompareValue.equal(a, b))
+          if (CompareValue.equal(a, b)) throw new Exception("Command failed, they are equal")
           unit0
         }))),
         PiValue(UniverseValue, ty => PiValue(ty, _ => PiValue(ty, _ => unit)))

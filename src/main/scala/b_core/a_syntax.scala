@@ -46,7 +46,9 @@ case class TypeDeclaration(name: String, body: Term) extends Declaration
 case class ValueDeclaration(name: String, body: Term) extends Declaration
 
 case class Record(fields: Seq[TypeDeclaration]) extends Term {
-  assert(fields.map(_.name).distinct.size == fields.size)
+
+  def syntaxCheck() =
+    if (fields.map(_.name).distinct.size != fields.size) throw new Exception("names should be different")
 
   val nonDependentLayers: Seq[Seq[String]] = {
     if (fields.isEmpty) {

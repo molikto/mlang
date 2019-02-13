@@ -12,8 +12,8 @@ object CoreTests extends TestSuite {
     }
 
     'invalidPi - {
-      intercept {
-        run("what: type = (type) => what")
+      intercept[Exception] {
+        run("what: type = (type) => what;")
       }
     }
   }
