@@ -13,8 +13,7 @@ trait Context[Value <: AnyRef] {
 
   sealed trait ContextLayer
 
-  case class LambdaLayer(typ: Value) extends ContextLayer
-
+  case class AbstractionLayer(typ: Value) extends ContextLayer
 
   case class Declaration(typ: Value, value: Option[Value] = None)
 
@@ -31,7 +30,7 @@ trait Context[Value <: AnyRef] {
   def layerId(index: Int): Option[Long] = layers.lift(index).map(_.id)
 
   def abstractionType(index: Int): Option[Value] = layer(index).flatMap {
-      case LambdaLayer(typ) => Some(typ)
+      case AbstractionLayer(typ) => Some(typ)
       case _ => None
   }
 
@@ -100,5 +99,5 @@ trait ContextBuilder[Value <: AnyRef] extends Context[Value] {
 
   protected def newDeclarationLayer(): Self = newDeclarationLayer(Map.empty)
 
-  protected def newAbstractionLayer(typ: Value): Self = newBuilder(LayerWithId(LambdaLayer(typ), Value.newUniqueId()) +: layers)
+  protected def newAbstractionLayer(typ: Value): Self = newBuilder(LayerWithId(AbstractionLayer(typ), Value.newUniqueId()) +: layers)
 }

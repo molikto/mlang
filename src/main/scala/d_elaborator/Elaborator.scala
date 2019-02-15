@@ -46,6 +46,24 @@ trait Elaborator {
   }
 
 
+  def elaborateInductiveConstructor(name: String, tele: surface.Tele, context: Seq[ContextLayer]): Constructor = {
+    ???
+//    tele match {
+//      case Some(tele) =>
+//        val ts = flatten(tele)
+//        val cx = ts.reverse.map(a => LambdaLayer(a._1)) ++ context
+//        val bd = elaborate(body, cx)
+//        val tt = ts.foldRight((cx, bd)) { (ps, tm) =>
+//          val c = tm._1.tail
+//          (c, Pi(elaborate(ps._2, c), tm._2))
+//        }
+//        assert(tt._1 == context)
+//        tt._2
+//      case None =>
+//        elaborate(body, context)
+//    }
+  }
+
   def elaborateMaybePi(tele: Option[surface.UnnamedTele], body: surface.Term, context: Seq[ContextLayer]): Term = {
     tele match {
       case Some(tele) =>
@@ -122,7 +140,7 @@ trait Elaborator {
       case surface.Ascription(term, right) =>
         cast(elaborate(term, context), right)
       case surface.Inductive(ts) =>
-        Inductive(ts.map(a => Constructor(a._1, a._2.map(m => elaborate(m, context)).getOrElse(Primitive("unit")))))
+        Inductive(ts.map(a => elaborateInductiveConstructor(a._1, a._2, context)))
       case surface.Construct(ty, name, v) =>
         cast(Construct(name, v.map(v => elaborate(v, context)).getOrElse(Primitive("unit0"))), ty)
       case surface.Split(t, ts) =>

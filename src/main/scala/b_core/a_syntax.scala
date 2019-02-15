@@ -45,7 +45,10 @@ sealed trait Declaration
 case class TypeDeclaration(name: String, body: Term) extends Declaration
 case class ValueDeclaration(name: String, body: Term) extends Declaration
 
-case class Record(fields: Seq[TypeDeclaration]) extends Term {
+
+trait DependentTelescope {
+
+  def fields: Seq[TypeDeclaration]
 
   def syntaxCheck() =
     if (fields.map(_.name).distinct.size != fields.size) throw new Exception("names should be different")
@@ -71,7 +74,10 @@ case class Record(fields: Seq[TypeDeclaration]) extends Term {
     }
   }
 
-  override def collectReferences(i: Int): Set[String] = fields.map(_.body.collectReferences(i + 1)).flatten.toSet
+  def collectReferences(i: Int): Set[String] = fields.map(_.body.collectReferences(i + 1)).flatten.toSet
+}
+case class Record(override val fields: Seq[TypeDeclaration]) extends Term with DependentTelescope {
+
 }
 
 case class Make(declarations: Seq[Declaration]) extends Term {
@@ -99,16 +105,19 @@ case class Projection(left: Term, name: String) extends Term {
 
 
 
-case class Constructor(name: String, term: Term)
+case class Constructor(name: String, override val fields: Seq[TypeDeclaration]) extends DependentTelescope
+
 case class Inductive(branches: Seq[Constructor]) extends Term {
-  override def collectReferences(i: Int): Set[String] = branches.map(_.term.collectReferences(i)).flatten.toSet
+  override def collectReferences(i: Int): Set[String] = branches.flatMap(_.collectReferences(i)).toSet
 }
 
-case class Construct(name: String, data: Term) extends Term {
-  override def collectReferences(i: Int): Set[String] = data.collectReferences(i)
+case class Construct(name: String, data: Seq[Term]) extends Term {
+  override def collectReferences(i: Int): Set[String] = data.flatMap(_.collectReferences(i)).toSet
 }
 
+// currently our pattern is all simple, as we only allow split on inductive types, and each pattern is just a tag
 case class Branch(name: String, term: Term)
+
 case class Split(left: Term, right: Seq[Branch]) extends Term {
   override def collectReferences(i: Int): Set[String] = right.map(_.term.collectReferences(i + 1)).flatten.toSet
 }
