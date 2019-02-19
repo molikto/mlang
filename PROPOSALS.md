@@ -147,7 +147,7 @@ or
 
 then all constraint can be translated to the previous definition without constraints, so in the core type theory there is no modification at all!
 
-*but what's the good of this? see bellow)*
+*(but what's the good of this? see bellow)*
 
 ### constraint inference
 
