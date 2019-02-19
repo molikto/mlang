@@ -164,7 +164,7 @@ matrix = record {
 matrix_multiple[m1.width = m2.height](m1 m2: marix) = ....
 ```
 
-so now we want to define what matrix invertible matrix
+so now we want to define invertible matrix
 
 ```
 invertable(m: matrix) = record{ inverse: matrix, eq: matrix_multiple(m, a) == matrix_multiple(a, m) }
