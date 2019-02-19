@@ -143,7 +143,7 @@ but what about we give some (definitional) equality constraint to the definition
 ```
 or
 ```
-[g1.carrier = g2.carrier = g2.carrier](g1 g2 g3: group)
+[g1.carrier = g2.carrier = g3.carrier](g1 g2 g3: group)
 ```
 
 then all constraint can be translated to the previous definition without constraints, so in the core type theory there is no modification at all!
