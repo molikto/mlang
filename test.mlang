@@ -60,3 +60,12 @@ pred_to_zero(n: nat): nat = match n {
 };
 
 
+test_eta = (a: type, f: (a) => a) -> make {
+  test = assert_equal((a) => a, f, (x: a) -> f(x));
+};
+
+test_lambda_not_equal = (a: type, f: (a) => a, x: a) -> make {
+  test = assert_not_equal((a) => a, f, (y: a) -> x);
+};
+
+

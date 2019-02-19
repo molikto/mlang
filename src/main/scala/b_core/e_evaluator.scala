@@ -34,6 +34,7 @@ object Primitives {
     "assert_equal" -> (
         LambdaValue(UniverseValue, (ty, _) => LambdaValue(ty, (a, _) => LambdaValue(ty, (b, _) => {
           if (!CompareValue.equal(a, b)) throw new Exception("Command failed, not equal")
+          else debug.display("assert_equal success")
           unit0
         }))),
         PiValue(UniverseValue, ty => PiValue(ty, _ => PiValue(ty, _ => unit)))
@@ -41,6 +42,7 @@ object Primitives {
     "assert_not_equal" -> (
         LambdaValue(UniverseValue, (ty, _) => LambdaValue(ty, (a, _) => LambdaValue(ty, (b, _) => {
           if (CompareValue.equal(a, b)) throw new Exception("Command failed, they are equal")
+          else debug.display("assert_not_equal success")
           unit0
         }))),
         PiValue(UniverseValue, ty => PiValue(ty, _ => PiValue(ty, _ => unit)))
@@ -97,7 +99,7 @@ trait Evaluator extends Context[Value] {
           def isRecursive(a: String) = m.mutualDependencies.exists(_.contains(a))
           val d = depth + 1
           s"{ var hd = scala.collection.mutable.Map.empty[String, Value]; " +
-              s"${vs.map(f => s"def r${d}_${f.name} = hd(${source(f.name)})); ").mkString("")}" +
+              s"${vs.map(f => s"def r${d}_${f.name} = hd(${source(f.name)}); ").mkString("")}" +
               s"${vs.map(f => s"hd.put(${source(f.name)}, ${emit(f.body, d, isRecursive(f.name))}); ").mkString("")}" +
               s"MakeValue(hd.toMap) }"
         case Projection(left, name) =>

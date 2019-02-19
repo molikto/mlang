@@ -13,6 +13,10 @@ should be able to read them one by one
 
 ## roadmap
 
+* implicit conversions of specifying, rewriting, renaming
+* constraint unification
+* validate all rules
+* typed reduction
 * syntax constructions for simple inductive type: no parameters, no index, no recursive-inductive or inductive-inductive
 * implicit/explicit sized type
 * implicit/explicit universe polymorphism

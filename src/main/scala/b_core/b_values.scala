@@ -34,7 +34,7 @@ object Value {
           in
         case ProjectionStuck(value, str) => rec(value, rd).projection(str)
         case AppStuck(atom, app) => rec(atom, rd).application(rec(app, rd))
-        case FixApplication(atom, app) => rec(atom, rd).application(rec(app, rd))
+        case FixApplication(atom, app) => FixApplication(rec(atom, rd).asInstanceOf[LambdaValue], rec(app, rd))
         case SplitStuck(s, bs) => rec(s, rd).split(bs.mapValues(f => (a, rd) => rec(f(a, rd), rd)))
         case UniverseValue => in
         case PiValue(domain, map) => PiValue(rec(domain, rd), (a) => rec(map(a), rd))

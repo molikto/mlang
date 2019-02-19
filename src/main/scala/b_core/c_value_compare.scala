@@ -96,10 +96,20 @@ class CompareValue(a0: Value, b0: Value) {
         case (MakeValue(fs), MakeValue(gs)) => equalMv(fs, gs)
         case (InductiveValue(ks, ts), InductiveValue(gs, js)) => ks == gs && ks.forall(k => equal(ts(k), js(k)))
         case (ConstructValue(n1, t1), ConstructValue(n2, t2)) => n1 == n2 && equal(t1, t2)
+        case (l: LambdaValue, s: StuckValue) =>
+          val u = OpenVariableReference(newUniqueId())
+          // we use == here, because we don't deep compare a reduct
+          equal(l.map(u, FullReduction), AppStuck(s, u))
+
+        case (y: StuckValue, l: LambdaValue) =>
+          val u = OpenVariableReference(newUniqueId())
+          // we use == here, because we don't deep compare a reduct
+          equal(AppStuck(y, u), l.map(u, FullReduction))
         case (_, _) => a == b
       }
     }
   }
+
 
   def equal(): Boolean = {
     return equal(a0, b0)
