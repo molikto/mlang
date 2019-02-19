@@ -168,7 +168,7 @@ matrix_multiple[m1.width = m2.height](m1 m2: marix) = ....
 so now we want to define invertible matrix
 
 ```
-invertable(m: matrix) = record{ inverse: matrix, eq: matrix_multiple(m, a) == matrix_multiple(a, m) }
+invertable(m: matrix) = record{ inverse: matrix, eq: matrix_multiple(m, inverse) == matrix_multiple(inverse, m) }
 ```
 
 you see the problem? this will not type check because `matrix_multiple` not only accept two matrix, it **also needs some constraint met**! but we are not in trouble, on the contrary, we have a blessing:
@@ -181,6 +181,8 @@ also, we can have a editor functionality to dim the inferred constraint, so read
 ## implicits
 
 as we say before, the way we make `group` a `monoid` is by implicits, we plan to have more stuff about implicits, and they might be like the one before, is automatic generated
+
+
 
 # discussion
 
