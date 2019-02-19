@@ -177,13 +177,6 @@ the constraints can be inferred and filled in by the type-checker, the writer of
 
 also, we can have a editor functionality to dim the inferred constraint, so readers will be less distracted by less important (because they are derivable information) details!
 
-### even crazier ideas
-
-
-```
-function_extensionality: (f g: function, eq_in_cod: (x) => f(x) == g(x)): f == g
-```
-
 ## implicits
 
 as we say before, the way we make `group` a `monoid` is by implicits, we plan to have more stuff about implicits, and they might be like the one before, is automatic generated
