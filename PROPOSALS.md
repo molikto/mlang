@@ -187,3 +187,5 @@ as we say before, the way we make `group` a `monoid` is by implicits, we plan to
 do you think the proposals are useful?
 
 do you think they are ill-defined / what are the potential troubles?
+
+are there already something similar to what mentioned?
