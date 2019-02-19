@@ -25,5 +25,6 @@ should be able to read them one by one
   * implicit and explicit sized type
 * implicit and explicit universe polymorphism
 * cubical type theory
+  * how do they interact with inductive families?
 
 

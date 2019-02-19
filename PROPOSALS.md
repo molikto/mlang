@@ -187,7 +187,7 @@ as we say before, the way we make `group` a `monoid` is by implicits, we plan to
 # discussion
 
 
-do you think the proposals are useful? does it scale to other fields of mathematics?
+do you think the proposals are useful? is it widely applicable?
 
 do you think they are ill-defined / what are the potential troubles?
 
