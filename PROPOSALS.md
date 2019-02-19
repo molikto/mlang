@@ -173,7 +173,7 @@ invertable(m: matrix) = record{ inverse: matrix, eq: matrix_multiple(m, a) == ma
 
 you see the problem? this will not type check because `matrix_multiple` not only accept two matrix, it **also needs some constraint met**! but we are not in trouble, on the contrary, we have a blessing:
 
-the constraints can be inferred and filled in by the typechecker, the writer of the function will not need to mention the constraint at all!!
+the constraints can be inferred and filled in by the type-checker, the writer of the function will not need to mention the constraint at all!!
 
 also, we can have a editor functionality to dim the inferred constraint, so readers will be less distracted by non important details!
 
