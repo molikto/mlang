@@ -130,10 +130,10 @@ so, when we type check `g: group, a: g`, seeing `g` is not a type but an instanc
 
 how we say that two group is defined on the same carrier?
 
-first we can do it like bellow, using the previous record specification, this is yet a new syntax, specifying several fields of a record by another record instance (because `set` is also a record as we defined before)
+first we can do it like bellow, using the previous record specification, `unpacking` is yet a new syntax, specifying several fields of a record by another record instance (because `set` is also a record as we defined before)
 
 ```
-(c: set, g1 g2: group(:= c)
+(c: set, g1 g2: group(unpacking c))
 ```
 
 but what about we give some (definitional) equality constraint to the definition, like bellow, where inside `[]` is the constraint
