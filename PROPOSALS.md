@@ -121,7 +121,7 @@ set  = typeable + record {
 }
 ```
 
-so, when we type check `g: group, a: g`, we implicitly convert it to `g: group, a: g.carrier`
+so, when we type check `g: group, a: g`, seeing `g` is not a type but an instance of `typeable`, we implicitly convert it to `g: group, a: g.carrier`
 
 ## constraints
 
