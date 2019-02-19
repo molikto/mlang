@@ -181,7 +181,7 @@ also, we can have a editor functionality to dim the inferred constraint, so read
 
 
 ```
-function_extensionality: (f g: function, (x: dom(f)) => f(x) == g(x)): f == g
+function_extensionality: (f g: function, (x) => f(x) == g(x)): f == g
 ```
 
 ## implicits
