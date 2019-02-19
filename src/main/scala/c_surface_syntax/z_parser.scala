@@ -59,7 +59,7 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
         record |
         make |
         projection |
-        sum |
+        inductive |
         construct |
         Primitives.keys.foldLeft[PackratParser[surface.Term]](split) { (p, n) =>
           p | (keyword(n) ^^ {_ =>  surface.Primitive(n) })
@@ -84,14 +84,14 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
 
   lazy val projection: PackratParser[surface.Projection] = (term <~ ".") ~ ident ^^ {a => surface.Projection(a._1, a._2)}
 
-  lazy val sum: PackratParser[surface.Inductive] =
-    delimited("[", repsep(ident ~ opt(delimited("(", term, ")")),","),"]") ^^ {a => surface.Inductive(a.map(k => (k._1, k._2)))}
+  lazy val inductive: PackratParser[surface.Inductive] =
+    delimited("[", repsep(ident ~ opt(tele),","),"]") ^^ {a => surface.Inductive(a.map(k => (k._1, k._2.getOrElse(Seq.empty))))}
 
   lazy val construct: PackratParser[surface.Construct] =
-    (term <~ ":") ~ ident ~ opt(delimited("(", term, ")")) ^^ {a => surface.Construct(a._1._1, a._1._2, a._2)}
+    (term <~ ":") ~ ident ~ opt(delimited("(", repsep(term, ","), ")")) ^^ {a => surface.Construct(a._1._1, a._1._2, a._2)}
 
   lazy val split: PackratParser[surface.Split] =
-    (keyword("match") ~> term) ~ delimited("{", rep((ident ~ opt(delimited("(", ident ,")"))) ~ ("->" ~> term <~ ";")), "}") ^^ {a => surface.Split(a._1, a._2.map(k => (k._1._1, k._1._2, k._2)))}
+    (keyword("match") ~> term) ~ delimited("{", rep((ident ~ opt(delimited("(", repsep(ident, ",") ,")"))) ~ ("->" ~> term <~ ";")), "}") ^^ {a => surface.Split(a._1, a._2.map(k => (k._1._1, k._1._2, k._2)))}
 
   def parse(a: String): ParseResult[Seq[surface.Definition]] = rep(definition)(new PackratReader(new lexical.Scanner(a)))
 }

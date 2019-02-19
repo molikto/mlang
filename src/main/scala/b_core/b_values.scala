@@ -20,12 +20,16 @@ object Value {
 
   type VP = (Value, Reduction) => Value
   type VV = Value => Value
+  type NamedValues = Map[String, Value]
 
   def rebound(id: Long, in0: Value): VV = {
     (v) => Value.rebound0(id, v, in0)
   }
 
   private def rebound0(id: Long, by: Value, in0: Value): Value = {
+    def recG(a: AcyclicValuesGraph, rd: Reduction): AcyclicValuesGraph = {
+      AcyclicValuesGraph(a.initials.mapValues(a => rec(a, rd)), p => recG(a(p), rd))
+    }
     def rec(in: Value, rd: Reduction): Value = {
       in match {
         case OpenVariableReference(vi) => if (vi == id) by else in
@@ -40,13 +44,10 @@ object Value {
         case PiValue(domain, map) => PiValue(rec(domain, rd), (a) => rec(map(a), rd))
         case LambdaValue(domain, map) => LambdaValue(rec(domain, rd), (a, rd) => rec(map(a, rd), rd))
         case RecordValue(fields) =>
-          def recG(a: AcyclicValuesGraph): AcyclicValuesGraph = {
-            AcyclicValuesGraph(a.initials.mapValues(a => rec(a, rd)), p => recG(a(p)))
-          }
-          RecordValue(recG(fields))
+          RecordValue(recG(fields, rd))
         case MakeValue(fields) => MakeValue(fields.mapValues(a => rec(a, rd)))
-        case InductiveValue(keys, ts) => InductiveValue(keys, n => rec(ts(n), rd))
-        case ConstructValue(name, term) => ConstructValue(name, rec(term, rd))
+        case InductiveValue(keys, ts) => InductiveValue(keys, n => recG(ts(n), rd))
+        case ConstructValue(name, term) => ConstructValue(name, term.mapValues(a => rec(a, rd)))
       }
     }
     rec(in0, FullReduction)
@@ -58,6 +59,8 @@ object Value {
 
 }
 
+import Value._
+
 trait RecursiveValue extends Value {
 }
 
@@ -67,19 +70,17 @@ trait RecursiveValue extends Value {
 
 object AcyclicValuesGraph {
   val empty = AcyclicValuesGraph(Map.empty, null)
-  type Arg = Map[String, Value]
 }
-case class AcyclicValuesGraph(initials: Map[String, Value], private val base: AcyclicValuesGraph.Arg => AcyclicValuesGraph)
-    extends (AcyclicValuesGraph.Arg => AcyclicValuesGraph) {
+case class AcyclicValuesGraph(initials: NamedValues, private val base: NamedValues => AcyclicValuesGraph)
+    extends (NamedValues => AcyclicValuesGraph) {
 
   import AcyclicValuesGraph._
 
-  override def apply(v: Arg): AcyclicValuesGraph = {
+  override def apply(v: NamedValues): AcyclicValuesGraph = {
     base(v)
   }
 }
 
-import Value._
 
 abstract sealed class Value {
   def application(v: Value, reductor: Reduction = FullReduction): Value  = throw new IllegalArgumentException("Not implemented")
@@ -142,18 +143,19 @@ case class LambdaValue(domain: Value, map: VP) extends Value {
 
 case class RecordValue(fields: AcyclicValuesGraph) extends Value
 
-case class MakeValue(fields: Map[String, Value]) extends Value {
+case class MakeValue(fields: NamedValues) extends Value {
   // NOTE is there a name for this??
   override def projection(name: String): Value = fields(name)
 }
 
 // sum value is non-strict so it can have self-reference
 // LATER memorize on keys?
-case class InductiveValue(keys: Set[String], ts: String => Value) extends RecursiveValue {
+case class InductiveValue(keys: Set[String], ts: String => AcyclicValuesGraph) extends RecursiveValue {
 
 }
 
-case class ConstructValue(name: String, term: Value) extends Value {
+case class ConstructValue(name: String, term: NamedValues) extends Value {
   // NOTE unlike iota, we perform the beta afterwards... consider make it better
+  // we will have multiple split latter, so it is ok to not change it now
   override def split(bs: Map[String, VP], reductor: Reduction): Value = bs(name)(term, reductor)
 }
