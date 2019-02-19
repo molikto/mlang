@@ -11,20 +11,29 @@ standard SBT project, run `Main` with file name to check, test with standard SBT
 should be able to read them one by one
 * each feature in the changelog will have a pull request, the code diff should be clean and readable
 
-## roadmap
 
+## invocations
+
+* returning optional data with polarized field --- basically dependent theory with optional parameters
+* type directed constraint resolution with principle field
 * implicit conversions of specifying, rewriting, renaming
 * constraint unification
-* validate all rules
+
+## things to learn
+
 * typed reduction
-* syntax constructions for simple inductive type: no parameters, no index, no recursive-inductive or inductive-inductive
-* implicit/explicit sized type
-* implicit/explicit universe polymorphism
+* readback and error messages
+* unification
+* unordered overlapping patterns, view from left
+
+## hard things
+
+* termination checking
+  * various inductive types and checking
+  * implicit and explicit sized type
+* implicit and explicit universe polymorphism
 * cubical type theory
-* unordered overlapping patterns
-* subtyping for record types
-* union and intersection 
-* more inductive types
+
 
 ## done
     
