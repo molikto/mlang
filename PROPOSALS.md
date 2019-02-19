@@ -177,6 +177,12 @@ the constraints can be inferred and filled in by the type-checker, the writer of
 
 also, we can have a editor functionality to dim the inferred constraint, so readers will be less distracted by less important (because they are derivable information) details!
 
+### even crazier ideas
+
+
+```
+function_extensionality: (f g: function, (x: dom(f)) => f(x) == g(x)): f == g
+```
 
 ## implicits
 
