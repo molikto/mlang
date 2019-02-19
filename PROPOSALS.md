@@ -1,6 +1,7 @@
 
 here are some proposals to make writing mathematical definitions and proof in dependent type more pleasant
 
+
 the ideas might dependent on each other, but they are linearly presented
 
 # proposals
@@ -70,7 +71,7 @@ int_group_type_2 = record {
   ...
 }
 ```
-in this way, when we want to say that integers form a group, we just define a variable `ing_group: group(carrier = int)`
+in this way, when we want to say that integers form a group, we just define a variable `int_group: group(carrier = int)`
 
 ### dependent record intersection
 
