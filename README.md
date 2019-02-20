@@ -15,14 +15,18 @@ should be able to read them one by one
 
 * typed reduction
 * readback and error messages
-* unification
-* unordered overlapping patterns, view from left
+* unification and implicit resolution
 
 ## hard things
 
-* termination checking
+* recursive types
+  * termination checking
+     * implicit and explicit sized type
   * various inductive types and checking
-  * implicit and explicit sized type
+     * vectors are records, too
+  * pattern matching
+     * unordered overlapping patterns
+     * view from left
 * implicit and explicit universe polymorphism
 * cubical type theory
   * how do they interact with inductive families?
