@@ -61,6 +61,8 @@ group = record {
 and for record type, we give it a new reduction rule like this `group(carrier = int)` means the same record type
 without the carrier field, and all reference to the carrier field is replaced by the value `int`
 
+one way to consider this is because record type is not a lambda, we can overload the application as if the record type is parametrized by it's fields.
+
 this means the two bellow is definitional equal
 
 ```
@@ -72,6 +74,21 @@ int_group_type_2 = record {
 }
 ```
 in this way, when we want to say that integers form a group, we just define a variable `int_group: group(carrier = int)`
+
+
+
+example of applying on two fields:
+
+```
+category = set + {
+arrows: type
+}
+
+
+category(carrier = base, arrows = obj) // you can apply two multiple fields
+```
+
+
 
 ### dependent record intersection
 
@@ -104,6 +121,62 @@ the code before defines the record `group` on top of record `monoid`. but only t
 
 * automately define an implicit conversion `group_is_monoid: group => monoid` when a syntax `monoid + something_else + { ... }` is present
 * subtyping (not preferred?)
+
+
+### failure of intersection
+
+same named fields will be intersected on a intersection of two record type, so the types are required to also have an intersection
+
+```
+structure_1 = {
+  carrier: type
+  a: list(carrier)
+}
+
+structure_2 = {
+  carrier: type
+  a: option(carrier)
+}
+
+// will not type check
+structure_3 = structure_1 + structure_2 
+
+
+// will type check, renmaing see bellow
+structure_3 = structure_1 + structure_2(renaming a to b) 
+```
+
+## record field renaming
+
+both record type and record value will have a new renaming reduction
+
+```
+// assuming we have infix operators as field names
+abelian_group = group(renaming * to +) + {
+  ....
+}
+
+```
+
+we still have a implicit conversion from abelian_group to group, and it will rename the record value:
+
+`make` bellow is our syntax to define a record value
+
+```
+v1 = abelain_group_as_group(make {
+  carrier = int
+  + = ...
+  ...
+})
+
+v2 = make {
+  carrier = int
+  * = ...
+}
+```
+
+the two value above is definitional equal.
+
 
 
 ## overloading `a : A`
