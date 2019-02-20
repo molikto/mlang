@@ -172,6 +172,7 @@ v1 = abelain_group_as_group(make {
 v2 = make {
   carrier = int
   * = ...
+  ...
 }
 ```
 
