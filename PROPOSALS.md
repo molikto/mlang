@@ -81,11 +81,11 @@ example of applying on two fields:
 
 ```
 category = set + {
-arrows: type
+  arrows: type
 }
 
 
-category(carrier = base, arrows = obj) // you can apply two multiple fields
+category(carrier = base, arrows = obj) // you can apply multiple fields
 ```
 
 
