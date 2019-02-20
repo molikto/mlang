@@ -61,7 +61,7 @@ group = record {
 and for record type, we give it a new reduction rule like this `group(carrier = int)` means the same record type
 without the carrier field, and all reference to the carrier field is replaced by the value `int`
 
-one way to consider this is because record type is not a lambda, we can overload the application as if the record type is parametrized by it's fields.
+one way to consider this is because record type is not a lambda, we can overload the lambda application as if the record type is parametrized by it's fields.
 
 this means the two bellow is definitional equal
 
