@@ -9,7 +9,6 @@ standard SBT project, run `Main` with file name to check, test with standard SBT
 
 * packages and files is indexed by "a-z", resulting in a linear order of files. you 
 should be able to read them one by one
-* each feature in the changelog will have a pull request, the code diff should be clean and readable
 
 ## things to learn
 
@@ -28,7 +27,7 @@ should be able to read them one by one
      * unordered overlapping patterns
      * view from left
 * implicit and explicit universe polymorphism
-* cubical type theory
+* cubical type theory and hits
   * how do they interact with inductive families?
 
 
