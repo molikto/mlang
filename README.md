@@ -15,6 +15,9 @@ should be able to read them one by one
 * typed reduction
 * readback and error messages
 * unification and implicit resolution
+  * read about Agda's instance resolution
+  * read about Coq's instance resolution
+  * read about unification in Coq and Agda
 
 ## hard things
 
