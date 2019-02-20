@@ -204,7 +204,7 @@ test = a_function_that_accepts_monoid(a_group)
 ### relating to the carrier type
 
 ```
-implicit_product_group(a b: group): group(a.carrier * b.carrier)
+implicit product_group(a b: group): group(a.carrier * b.carrier)
 ```
 
 ### just use it as instance argument instead
