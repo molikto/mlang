@@ -177,10 +177,54 @@ the constraints can be inferred and filled in by the type-checker, the writer of
 
 also, we can have a editor functionality to dim the inferred constraint, so readers will be less distracted by less important (because they are derivable information) details!
 
+
+
+### conclusion
+
+compared to Agda, seems we declare less implicit parameter (when the parameter is just pass through, or we can just refer it using `a.carrer` syntax), or in the case we can convert them to constraints, we have the ability to not mentioning the implicit parameter in later parameters, and dim the constraint when they are less important.
+
 ## implicits
 
 as we say before, the way we make `group` a `monoid` is by implicits, we plan to have more stuff about implicits, and they might be like the one before, is automatic generated
 
+
+### passing a group as a monoid
+
+```
+implicit group_is_monoid(g: group) : monoid = ...
+
+a_function_that_accepts_monoid(a: monoid) = ....
+
+a_group: group = ....
+
+// this should just works
+test = a_function_that_accepts_monoid(a_group)
+```
+
+### relating to the carrier type
+
+```
+implicit_product_group(a b: group): group(a.carrier * b.carrier)
+```
+
+### just use it as instance argument instead
+
+```
+heter_eq = record {
+   a: type
+   b: type
+   h_eq: a => b => bool
+}
+
+// inside the function body, the heter_eq is an implicit parameter, so you can just use it like the old typeclass way
+some_function(a b: type, implicit heter_eq(a, b)) = ...
+```
+
+### conclusion
+
+compared to Agda, it seems we can define less "instance argument" when possible
+
+does it replace the typeclass way of doing things? seems so
 
 
 # discussion
