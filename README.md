@@ -27,6 +27,7 @@ should be able to read them one by one
      * unordered overlapping patterns
      * view from left
 * implicit and explicit universe polymorphism
+  * what's the problems with Coq's UP?
 * cubical type theory and hits
   * how do they interact with inductive families?
 
