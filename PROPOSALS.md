@@ -8,6 +8,8 @@ the ideas might dependent on each other, but they are linearly presented
 
 ## record type calculus
 
+(after more paper reading seems the ideas is already present in *Dependently typed records for representing mathematical structure*, and this paper and the problem bellow is actually mentioned in Agda technical report...)
+
 ### specialising on a record field
 
 consider how group is defined in Agda. there are definitions [`isGroup`](https://github.com/agda/agda-stdlib/blob/master/src/Algebra/Structures.agda#L108) and [`Group`](https://github.com/agda/agda-stdlib/blob/master/src/Algebra.agda#L177). 
