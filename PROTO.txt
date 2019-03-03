@@ -1,0 +1,70 @@
+
+
+
+
+
+nat = inductive {
+  zero
+  succ(nat)
+}
+
+
+// a record type can be specialized by `ctype(carrier = A)`
+// if a field is declared as "parameter", then the `carrier = ?` is not needed
+ctype = {
+  implicit_cast parameter carrier: type
+}
+
+
+centered = ctype + {
+  center: carrier
+}
+
+contractible = centered + {
+  all_x_eq_to_center: (x: carrier) => x == center
+}
+
+// introduction of implicit parameters is done by /.../
+singleton /A: Type/(a: A) = {x: A, eq: x == a}
+
+// or like this!
+singleton (a: /A/) = { x: A, x_eq_a: a == x }
+
+fiber(f: /A/ => /B/, b: B) = { x: A, eq: f(x) == b }
+
+// creating path like in Cubical type
+refl(a: /A/): a == a = \i -> a
+
+implicit singleton_is_contractible(s: singleton(/a/)): contractible(s) =
+  {
+    center = (a, refl)
+    all_x_eq_to_center = (a: s) -> \i -> (a.x_eq_a@i, \j -> a.x_eq_a@(i /\ j))
+  }
+
+
+// this is a new syntax
+// the A, B is defined as parameter, so you can say equivalence(A, B) for equivalences between A and B
+// or you can use equivalence(A) for equivalences with A
+// or you can use equivalence(f)
+// this use A and B implicitly, the reason this works is because f and A is not the same sort
+equivalence = {
+  parameter A: Type
+  parameter B: Type
+  parameter_with_implicits(A, B) f: A => B
+  property: (b: B) => contractible(fiber(f, b))
+}
+
+reverse(eq: equivalence(/A/, /B/)): equivalence(B, A) =
+  {
+    f = (b: B) -> eq.property(b).center.x // this is kind of magical... how this just respect equality in B
+    property = (a: A) -> { center = eq.f(a), } ... // too long to write
+  }
+
+
+equivalence_is_equivalence: equivalence(Type, Type) = {
+   f = (A: Type): Type -> equivalence(a)
+}
+
+twist: Bool == Bool = ...
+
+canonical_bool_equivalences(a: Bool == Bool) => (a == refl) or (a == twist)  =

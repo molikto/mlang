@@ -10,14 +10,18 @@ standard SBT project, run `Main` with file name to check, test with standard SBT
 * packages and files is indexed by "a-z", resulting in a linear order of files. you 
 should be able to read them one by one
 
+## what do we want
+
+* this is a PA that focus on the ease to use
+    * we will implement records with `with` see `PROPOSALS.md`
+
 ## things to learn
 
-* typed reduction
-* readback and error messages
-* unification and implicit resolution
-  * read about Agda's instance resolution
-  * read about Coq's instance resolution
-  * read about unification in Coq and Agda
+* learn the unification and the limitations
+    * what's the variants
+    * how to combine (and how easy it is) with other features
+* how to add implicits to it
+* overloading?
 
 ## hard things
 
