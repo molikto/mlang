@@ -59,6 +59,12 @@ pred_to_zero(n: nat): nat = match n {
   succ(m) -> pred_to_zero(m);
 };
 
+pred_to_zero(n: nat): assert_return_is() = match n {
+  zero -> assert_equal(n, zero);
+  succ(m) -> assert_equal(nat:succ(m), n);
+};
+
+
 
 test_eta = (a: type, f: (a) => a) -> make {
   test = assert_equal((a) => a, f, (x: a) -> f(x));

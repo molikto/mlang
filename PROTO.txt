@@ -11,7 +11,7 @@ nat = inductive {
 
 // a record type can be specialized by `ctype(carrier = A)`
 // if a field is declared as "parameter", then the `carrier = ?` is not needed
-ctype = {
+carrier_type = {
   implicit_cast parameter carrier: type
 }
 
@@ -35,7 +35,7 @@ fiber(f: /A/ => /B/, b: B) = { x: A, eq: f(x) == b }
 // creating path like in Cubical type
 refl(a: /A/): a == a = \i -> a
 
-implicit singleton_is_contractible(s: singleton(/a/)): contractible(s) =
+implicit singleton_to_contractible(s: singleton(/a/)): contractible(s) =
   {
     center = (a, refl)
     all_x_eq_to_center = (a: s) -> \i -> (a.x_eq_a@i, \j -> a.x_eq_a@(i /\ j))
