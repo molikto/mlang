@@ -86,3 +86,19 @@ Fixpoint predd2(a: nat): nat :=
 
 
 # library inconsistency problem of Coq
+
+
+# recursive definitions
+
+
+```agda
+-- not passing
+test : Bool → Bool
+test _ = res
+  where
+    test2 : Bool → Bool
+    test2 true = false
+    test2 false = test false
+
+    res = test2 true
+```

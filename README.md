@@ -13,8 +13,14 @@ should be able to read them one by one
 ## my reading list
 
 
-* is the size changing used in Agda?
 * what is reducibility
+* how does a two level system works?
+* semantics of induction-recursion?
+
+## open problems
+
+* induction-recursion in cubical types?
+* inductive type defined on arbitrary context?
 
 ### the idea about inductive definitions
 
@@ -26,6 +32,8 @@ should be able to read them one by one
     * `extension?` Agda allows recursive happens with non-uniform parameters
     * `extension?` it extends to mutual induction
     * `extension?` [Coq's rules](https://coq.inria.fr/refman/language/cic.html#well-formed-inductive-definitions)
+    * extending families is induction-recursion
+    * induction-induction?
 2. to define a function from it, use eliminators
 3. recursive pattern matching is introduced. the simplest form is only allows case trees, then covering is easy, then the problem is termination checking
     * *Coquand paper*: well-founded call relation is what makes recursive terminating, some algorithms recognise them is:
@@ -70,6 +78,10 @@ this is a PA that focus on the ease to use
 * Agda stdlib
 * Artin's or Lang's *Algebra*
 * Agda's test cases and it's issues
+* https://ncatlab.org/homotopytypetheory/show/open+problems#higher_algebra_and_higher_category_theory
+    * seems interesting: limits problem?
+* https://github.com/HoTT/HoTT
+* unimath
 
 
 ## misc
