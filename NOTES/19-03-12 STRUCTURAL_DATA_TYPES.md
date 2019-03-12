@@ -53,7 +53,7 @@ the idea is the categorical semantics of a recursive data type and a non-recursi
 * simple data types is structural in the sense you can use them anywhere, because they are just sigma and sums. **they allows type calculus**
   
 * the usage of "inductive data types" can appear similar to simple ones, but we restrict syntaxally what term they can contains
-    * no calling a recursive function inside (but non-the-less can be defined inside them)
+    * no calling a recursive function "a" inside "a" (but non-the-less can be defined inside them)
     * no definition of recursive data type/recursive functions is allowed inside
     
   this way the semantics is pretty much the same as when they are defined in empty context

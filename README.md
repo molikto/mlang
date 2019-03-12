@@ -12,6 +12,12 @@ should be able to read them one by one
 
 ## what we have
 
+
+rec_fun some_function(some_parameter: __) = {
+   val a = sum {...: some_function(d), ...: a }
+   .... // use both a and some_function in the function body
+}
+
 ---
 
 (in progress)
