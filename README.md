@@ -30,7 +30,7 @@ should be able to read them one by one
 * all other forms of inductive type mentioned above, except induction-induction
 * implicit parameters and possibly more liberal unification
 * ad-hoc polymorphism
-* explicit universe polymorphism with editor helper
+* explicit universe polymorphism with editor helper (subtyping? see NOTES for issues)
 
 
 ## math
