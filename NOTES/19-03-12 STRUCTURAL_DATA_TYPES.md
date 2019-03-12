@@ -47,7 +47,7 @@ the idea is the categorical semantics of a recursive data type and a non-recursi
   * inductive
   * inductive record
 * simple data types
-  * record -- no need for parameters, because there is not a thing called "non-uniform record or inductive type"
+  * record -- no need for parameters, because there is not a thing called "non-uniform non-recursive record", so just use lambdas
   * sum
 
 * simple data types is structural in the sense you can use them anywhere, because they are just sigma and sums. **they allows type calculus**
