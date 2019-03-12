@@ -65,7 +65,7 @@ the idea is the categorical semantics of a recursive data type and a non-recursi
 * but for arguments, this is less sure, inductive types ofc can have positional equality for arguments, but less ture for recursive records
 * on the other hand, there is no problem treating them as nominally ineuqal
 
-* for calculus record/sum types we definitely want named equality
+* for calculus record/sum types we definitely want named equality for fields/tags
 
 ## mismatches of data types
 
