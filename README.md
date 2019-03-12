@@ -13,26 +13,21 @@ should be able to read them one by one
 ## what we have
 
 
-rec_fun some_function(some_parameter: __) = {
-   val a = sum {...: some_function(d), ...: a }
-   .... // use both a and some_function in the function body
-}
-
 ---
 
 (in progress)
 
-* **pi**: function types with eta rule, mutually recursively defined lambdas
+* **pi**: function types with eta rule, mutually recursively defined lambdas with size-changing termination checker
 * **path**: cubical type theory (`TODO: eta for path?`)
 * **universe**: culmutative universe (no subtyping) with univalance
 * **inductive**: uniform-parametized simple higher inductive type (no index, no non-uniform, no mutual, no induction-recursion, no induction-induction)
 * **record**: record type with record type calculus, make expressions
 * case lambda
 * coercion subtyping
-
+* 
 ## roadmap
 
-* pattern matching
+* pattern matching and coverage checker
 * all other forms of inductive type mentioned above, except induction-induction
 * implicit parameters and possibly more liberal unification
 * ad-hoc polymorphism
