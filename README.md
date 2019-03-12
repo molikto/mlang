@@ -20,28 +20,6 @@ should be able to read them one by one
 ## open problems
 
 * induction-recursion in cubical types?
-* inductive type defined on arbitrary context?
-
-### the idea about inductive definitions
-
-1. inductive data type is formed by rules and eliminators: *Inductive Families by Dybjer*
-    * scoping of parameters and indexes
-    * seems it must be defined under a empty context, or iterated theory, but at least in case of a non-cubical theory, non-empty context is fine (just translate them to parameters)
-    * the constructors is strictly positive: recursion must happen as a end of a telescope, trivial one is ordinal induction, or otherwise generalized induction
-        * `extension?` also seems in a predictive setting, you can just have non-strict positive, and seems Agda is doing this
-    * `extension?` Agda allows recursive happens with non-uniform parameters
-    * `extension?` it extends to mutual induction
-    * `extension?` [Coq's rules](https://coq.inria.fr/refman/language/cic.html#well-formed-inductive-definitions)
-    * extending families is induction-recursion
-    * induction-induction?
-2. to define a function from it, use eliminators
-3. recursive pattern matching is introduced. the simplest form is only allows case trees, then covering is easy, then the problem is termination checking
-    * *Coquand paper*: well-founded call relation is what makes recursive terminating, some algorithms recognise them is:
-       * *A Predicative Analysis of Structural Recursion*
-       * *The Size-Change Principle for Program Termination*: is such a wonderful paper!
-4. then pattern matching on telescope is introduced and there is another covering checker, i.e. they form a case tree, then we treat them as case trees to do termination checking
-5. the *new HIT work by Coquand et al.* "suggested" a schema, and *another work in CMU* extended it to families (seems no parameters?)
-
 
 ## what do we want
 
@@ -82,6 +60,7 @@ this is a PA that focus on the ease to use
     * seems interesting: limits problem?
 * https://github.com/HoTT/HoTT
 * unimath
+* the big problems list
 
 
 ## misc
