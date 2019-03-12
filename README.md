@@ -12,7 +12,26 @@ should be able to read them one by one
 
 ## what we have
 
-## possible roadmap
+---
+
+(in progress)
+
+* **pi**: function types with eta rule, mutually recursively defined lambdas
+* **path**: cubical type theory (`TODO: eta for path?`)
+* **universe**: culmutative universe (no subtyping) with univalance
+* **inductive**: uniform-parametized simple higher inductive type (no index, no non-uniform, no mutual, no induction-recursion, no induction-induction)
+* **record**: record type with record type calculus, make expressions
+* case lambda
+* coercion subtyping
+
+## roadmap
+
+* pattern matching
+* all other forms of inductive type mentioned above, except induction-induction
+* implicit parameters and possibly more liberal unification
+* ad-hoc polymorphism
+* explicit universe polymorphism with editor helper
+
 
 ## math
 
