@@ -12,7 +12,6 @@ should be able to read them one by one
 
 ## what we have
 
-
 ---
 
 (in progress)

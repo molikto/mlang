@@ -14,7 +14,7 @@ enum Term {
   case PathType(domain: Term, left: Term, right: Term)
   case PathAbstraction(body: Term)
   case PathApplication(abstraction: Term, argument: Dimension)
-  // TODO other terms in cubical theory
+  // TODO other terms in cubical theory glue, unglue, glue_type, transp, and hcomp
   case Inductive(parameters: Seq[Term], cases: Seq[Constructor])
   case Construct(name: Unicode, arguments: Seq[Term])
   case Record(fields: Seq[Field])
