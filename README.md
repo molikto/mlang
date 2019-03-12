@@ -10,7 +10,7 @@ standard SBT project, run `Main` with file name to check, test with standard SBT
 * packages and files is indexed by "a-z", resulting in a linear order of files. you 
 should be able to read them one by one
 
-## what we have
+## mvp
 
 ---
 
@@ -23,10 +23,11 @@ should be able to read them one by one
 * **record**: record type with record type calculus, make expressions
 * case lambda
 * coercion subtyping
-* 
-## roadmap
+
+## maybe roadmap
 
 * pattern matching and coverage checker
+* overlapping and definitional patterns
 * all other forms of inductive type mentioned above, except induction-induction
 * implicit parameters and possibly more liberal unification
 * ad-hoc polymorphism
