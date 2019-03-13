@@ -7,8 +7,8 @@ standard SBT project, run `Main` with file name to check, test with standard SBT
 
 ## code
 
-* packages and files is indexed by "a-z", resulting in a linear order of files. you 
-should be able to read them one by one
+* dependencies is documented in code, we wish we have more power in controlling this but now we don't
+* `==` equality should be used VERY sparsely
 
 ## mvp
 
@@ -22,12 +22,14 @@ should be able to read them one by one
 * **inductive**: uniform-parametized simple higher inductive type (no index, no non-uniform, no mutual, no induction-recursion, no induction-induction)
 * **record**: record type with record type calculus, make expressions
 * case lambda
+* very limited implicit arguments
 * coercion subtyping
 
 ## maybe roadmap
 
 * pattern matching and coverage checker
-* overlapping and definitional patterns
+    * overlapping and definitional patterns
+* first-class sum types (what about defining true/false as sum?)
 * all other forms of inductive type mentioned above, except induction-induction
 * implicit parameters and possibly more liberal unification
 * ad-hoc polymorphism

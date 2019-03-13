@@ -13,15 +13,15 @@ trait Event {
 
 }
 
-case class AbstractTextRun(unicode: Unicode, size: Int, typeface: TypefaceVariant)
+sealed case class AbstractTextRun(unicode: Unicode, size: Int, typeface: TypefaceVariant)
 
-case class MeasuredTextInfo(width: Int, top: Int, bottom: Int)
+sealed case class MeasuredTextInfo(width: Int, top: Int, bottom: Int)
 
-case class Draw(string: Unicode)
+sealed case class Draw(string: Unicode)
 
 
 trait Platform {
-  def measure(measureable: Measureable): MeasuredTextInfo
+  def measure(measureable: AbstractTextRun): MeasuredTextInfo
   def draws(dw: Seq[Draw]): Unit
 }
 

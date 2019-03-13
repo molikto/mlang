@@ -10,6 +10,11 @@ lazy val sharedSettings: Seq[Def.Setting[_]] = Seq(
 lazy val mlang = project
     .in(file("mlang"))
     .settings(sharedSettings: _*)
+    .settings(
+      libraryDependencies ++= Seq(
+        ("org.scala-lang.modules" %% "scala-parser-combinators" % "1.1.1").withDottyCompat(scalaVersion.value)
+      )
+    )
 
 lazy val `mlang-swing` = project
     .in(file("mlang-swing"))

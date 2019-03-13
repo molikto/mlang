@@ -3,9 +3,10 @@ package c_surface_syntax
 import java.util.concurrent.atomic.AtomicLong
 
 import scala.collection.mutable
+import scala.language.implicitConversion
 import scala.util.parsing.combinator.syntactical.StandardTokenParsers
 import scala.util.parsing.combinator.{ImplicitConversions, PackratParsers}
-import b_core._
+import mlang.core.Term._
 import c_surface_syntax.surface.{NamedTeleItem, UnnamedTeleItem}
 
 

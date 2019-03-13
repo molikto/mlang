@@ -30,7 +30,7 @@ class Main extends Platform {
     ???
   }
 
-  def measure(measureable: Measureable) = {
+  def measure(measureable: AbstractTextRun) = {
     ???
   }
 

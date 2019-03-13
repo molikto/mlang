@@ -1,3 +1,7 @@
 .idea/
 target/
 test.v
+out/
+.dotty-ide.json
+.dotty-ide-artifact
+
