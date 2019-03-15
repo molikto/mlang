@@ -8,17 +8,23 @@ standard SBT project, run `Main` with file name to check, test with standard SBT
 ## code
 
 * dependencies is documented in code, we wish we have more power in controlling this but now we don't
-* `==` equality should be used VERY sparsely
+* dotty
+    * `==` equality should be used VERY sparsely, it is not known yet we should use multi-universe equality or not
+    * no `extends` in core theory!
+    * hope one day IntelliJ support and Scala.js support is ok. so we can use Mill, IntelliJ IDEA
+    * we want lambda with recievers!!
 
 ## mvp
 
 ---
 
+first implement without cubical stuff and without implicit argument/subtyping
+
 (in progress)
 
 * **pi**: function types with eta rule, mutually recursively defined lambdas with size-changing termination checker
 * **path**: cubical type theory (`TODO: eta for path?`)
-* **universe**: culmutative universe with subtyping with univalance
+* **universe**: non-commutative universe with subtyping with univalance
 * **inductive**: uniform-parametized simple higher inductive type (no index, no non-uniform, no mutual, no induction-recursion, no induction-induction)
 * **record**: record type with record type calculus, make expressions
 * case lambda
@@ -33,7 +39,7 @@ standard SBT project, run `Main` with file name to check, test with standard SBT
 * all other forms of inductive type mentioned above, except induction-induction
 * implicit parameters and possibly more liberal unification
 * ad-hoc polymorphism
-* explicit universe polymorphism with editor helper
+* explicit universe polymorphism with editor helper (Agda style? look it up what it is!!!)
 
 
 ## math

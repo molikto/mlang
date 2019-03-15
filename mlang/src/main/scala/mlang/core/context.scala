@@ -10,97 +10,95 @@ import mlang.utils._
 // the head is the newest layer, unlike a context in type theory x: A, y: B(x)
 
 
-sealed case class Declaration(typ: Value, value: Option[Value] = None)
+case class TypeValue(typ: Value, value: Value)
 
-enum ContextLayer {
-  // used for pi and lambda and prameters for inductive type/arguments
-  case Abstraction(typ: Value)
-  // for make, record
-  case Declarations(definitions: Map[Unicode, Declaration])
-  case Path()
-  case Cofibration(restriction: Cofibration)
+object ContextLayer {
+
+  case class Declaration(id: Long, typ: Value, value: Option[Value] = None)
+
 }
 
-opaque type Context =  Seq[(ContextLayer, Long)]
+import ContextLayer._
+
+
+enum ContextLayer {
+// used for pi and lambda and prameters for inductive type/arguments
+case Abstraction (id: Long, name: Unicode, typ: mlang.core.Value)
+// for make, record
+case Declarations (definitions: Map[Unicode, Declaration] )
+case Path (id: Long, name: Unicode)
+case Cofibration (restriction: Cofibration)
+}
+
+opaque type Context = Seq[ContextLayer]
+
+opaque type IdProvider = Long
 
 object Context {
 
+
   def empty: Context = Seq.empty
 
-  private def (c: Context) apply1(index: Int): Option[ContextLayer] =  c.lift(index).map(_._1)
-  
-  def (c: Context) apply(index: Int): Option[ContextLayer] =  c.apply1(index)
+  object LookupMethods {
 
-  def (c: Context) id(index: Int): Option[Long] = c.lift(index).map(_._2)
-
-  def (c: Context) abstractionType(index: Int): Option[Value] = c.apply1(index).flatMap {
-      case ContextLayer.Abstraction(typ) => Some(typ)
-      case _ => None
-  }
-
-  def (c: Context) declarationValue(index: Int, name: Unicode): Option[Value] = c.apply1(index).flatMap {
-    case ContextLayer.Declarations(ds) => ds.get(name).flatMap(_.value)
-    case _ => None
-  }
-
-  def (c: Context) declaration(index: Int, name: Unicode): Option[Declaration] = c.apply1(index).flatMap {
-    case ContextLayer.Declarations(ds) => ds.get(name)
-    case _ => None
-  }
-
-  def (c: Context) declarationType(index: Int, name: Unicode): Option[Value] = c.apply1(index).flatMap {
-    case ContextLayer.Declarations(ds) => ds.get(name).map(_.typ)
-    case _ => None
-  }
-
-  def (c: Context) declarationTypes(index: Int): Option[Map[Unicode, Value]] = c.apply1(index).flatMap {
-    case ContextLayer.Declarations(ds) => Some(ds.mapValues(_.typ))
-    case _ => None
-  }
-
-  def (c: Context) newTypeDeclaration(name: Unicode, typ: Value): Context = c.head._1 match {
-    case ContextLayer.Declarations(declarations) => declarations.get(name) match {
-      case Some(ty) =>
-        if (ty.typ == typ) {
-          c
-        } else {
-          throw new IllegalStateException("Duplicated type declaration")
-        }
-      case None =>
-        (ContextLayer.Declarations(declarations.updated(name, Declaration(typ))), c.head._2) +: c.tail
+    def lookupValue(n: Unicode) given (c: Context): Option[TypeValue] = c.firstOption {
+      case Abstraction(id, name, typ) => if (name == n) Some(TypeValue(typ, ???)) else None
+      case Declarations(ds) => ds.get(n).map(d => TypeValue(d.typ, d.value.get))
+      case Path(_, name) => if (name == n) throw new Exception("Not a value") else None
+      case Cofibration(_) => None
     }
-    case _ => throw new Exception("Wrong layer type")
   }
 
+  object Builders {
 
-  /**
-    * note that if a type is already declared, a object eq check will be performed, so the intended usage is
-    * check if there is a type, check the type, and then pass back that thing back if there is one
-    */
-  def (c: Context) newDeclaration(name: Unicode, value: Value, typ: Value): Context = c.head._1 match {
-    case ContextLayer.Declarations(declarations) => declarations.get(name) match {
-      case Some(dec) => dec.value match {
-        case Some(_) =>
-          throw new IllegalStateException("Duplicated declaration")
-        case None =>
-          if (dec.typ == typ) {
-            (ContextLayer.Declarations(declarations.updated(name, Declaration(dec.typ, Some(value)))), c.head._2) +: c.tail
+    def newAbstraction(name: Unicode, typ: Value) given (c: Context): (Context, Value) = {
+      val id = newUniqueId()
+      val ct = ContextLayer.Abstraction(id, name, typ) +: c
+      (ct, Value.OpenReference(id, name))
+    }
+
+    def newTypeDeclaration(name: Unicode, typ: Value) given (c: Context): Context = c.headOption match {
+      case Some(ContextLayer.Declarations(declarations)) => declarations.get(name) match {
+        case Some(ty) =>
+          if (ty.typ == typ) {
+            c
           } else {
-            throw new IllegalStateException("Declared type doesn't match")
+            throw new IllegalStateException("Duplicated type declaration")
           }
+        case None =>
+          ContextLayer.Declarations(declarations.updated(name, Declaration(newUniqueId(), typ))) +: c.tail
       }
-      case None => (ContextLayer.Declarations(declarations.updated(name, Declaration(typ, Some(value)))), c.head._2) +: c.tail
+      case _ => throw new Exception("Wrong layer type or not enough layer")
     }
-    case _ => throw new Exception("Wrong layer type")
+
+
+    /**
+      * note that if a type is already declared, a object eq check will be performed, so the intended usage is
+      * check if there is a type, check the type, and then pass back that thing back if there is one
+      */
+    def newDeclaration(name: Unicode, value: Value, typ: Value) given (c: Context): Context = c.headOption match {
+      case Some(ContextLayer.Declarations(declarations)) => declarations.get(name) match {
+        case Some(dec) => dec.value match {
+          case Some(_) =>
+            throw new IllegalStateException("Duplicated declaration")
+          case None =>
+            if (dec.typ == typ) {
+              ContextLayer.Declarations(declarations.updated(name, Declaration(dec.id, dec.typ, Some(value)))) +: c.tail
+            } else {
+              throw new IllegalStateException("Declared type doesn't match")
+            }
+        }
+        case None => ContextLayer.Declarations(declarations.updated(name, Declaration(newUniqueId(), typ, Some(value)))) +: c.tail
+      }
+      case _ => throw new Exception("Wrong layer type or not enough layer")
+    }
+
+    // TODO dotty don't want this to be refer to previous one
+    // def newDeclarations(map: Map[Unicode, Value]) given (c: Context): Context =
+    //   ContextLayer.Declarations(map.mapValues(t => Declaration(newUniqueId(), t))) +: c
+
+    def newDeclarations() given (c: Context): Context =
+      ContextLayer.Declarations(Map.empty) +: c
   }
-
-  def (c: Context) newDeclarations(map: Map[Unicode, Value]): Context =
-    (ContextLayer.Declarations(map.mapValues(t => Declaration(t))), newUniqueId()) +: c
-
-  // TODO dotty don't want this to be refer to previous one
-  def (c: Context) newDeclarations(): Context = 
-    (ContextLayer.Declarations(Map.empty), newUniqueId()) +: c
-
-  def (c: Context) newAbstraction(typ: Value): Context = (ContextLayer.Abstraction(typ), newUniqueId()) +: c
 }
 
