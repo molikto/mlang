@@ -147,8 +147,8 @@ private def check(term: Term, typ: Value, nv: NeedsValue) given (ctx: Context): 
       justEval()
     case (Term.CaseLambda(cases), Value.Pi(domain, codomain)) =>
       domain match {
-        case sum@Value.Sum(cs) =>
-          if (sum.names.eqUnordered(cases.map(_.name))) {
+        case Value.Sum(cs) =>
+          if (cs.map(_.name).eqUnordered(cases.map(_.name))) {
             throw new Exception("Pattern matching is not covering or contains duplicates")
           } else {
             for (cons <- cs) {

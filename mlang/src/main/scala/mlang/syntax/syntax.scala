@@ -22,12 +22,14 @@ object Term {
   // sealed case class Face(dimension: Dimension, isZero: Boolean, body: Term)
 
   sealed case class Field(name: Unicode, typ: Term)
+
+  sealed case class Definition(name: Unicode, term: Term)
 }
 
 import Term._
 
 enum Term {
-  case Reference(name: Unicode)
+  case Reference(name: Unicode) // recursive or not??
 
   case Ascription(body: Term, typ: Term)
   
@@ -41,7 +43,7 @@ enum Term {
   case Lambda(name: Unicode, body: Term)
   case CaseLambda(cases: Seq[Case])
   case Construct(name: Unicode, arguments: Seq[Term])
-  case Make(fields: Seq[Term])
+  case Make(fields: Seq[Definition])
 
   case Universe(level: Int)
   /*

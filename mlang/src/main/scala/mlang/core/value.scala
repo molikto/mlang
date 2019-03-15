@@ -7,29 +7,6 @@ type Cofibration = Unit
 /**
 the values is **typeless**
 */
-case class Reduction(
-  application: Boolean,
-  split: Boolean,
-  projection: Boolean,
-  reference: Boolean)
-
-object Reduction {
-  // notice we DON'T expand recursive references!!!
-  //
-  // but --
-  // a soft stuck is a closed recursive reference
-  // the default reduction will ensure outermost is NOT a soft stuck
-  // but it might be in other places, like in a sum type, the branches
-  val Default = Reduction(true, true, true, true)
-}
-
-sealed trait Value {
-  def application(v: Value, reductor: Reduction = Reduction.Default): Value  = throw new IllegalArgumentException("Not implemented")
-  def projection(name: Unicode, reduction: Reduction = Reduction.Default): Value = throw new IllegalArgumentException("Not implemented")
-}
-
-
-
 
 object Value {
 
@@ -46,12 +23,20 @@ object Value {
     }
   }
 
-  sealed trait Stuck extends Value {
-    override def application(term: Value, reduction: Reduction) = LambdaApplication(this, term) // should here save the reduction values?
-    override def projection(name: Unicode, r: Reduction) = Projection(this, name)
-  }
+  sealed trait StuckT // because of enum, we cannot say that all stuck is value anymore
+  sealed trait StuckHeadT extends StuckT
+  sealed trait HardStuckHeadT extends StuckHeadT
+  sealed trait SoftStuckHeadT extends StuckHeadT
+  sealed trait SpineT extends StuckT
+  type SpineHeadPosition = Value // because we have All kinds of reduction methods
 
-  type Head = Value // because we have All kinds of reduction methods
+  case class Constructor(name: Unicode, pi: Pi)
+  case class Case(name: Unicode, body: VSP)
+}
+
+import Value._
+
+
 
 // cases of a value
 // non-sutck
@@ -59,52 +44,71 @@ object Value {
 // spin - hard_head
 // spin - soft_head  ==>  default when evaluating 
 
-  sealed trait StuckHead extends Stuck
-  sealed trait Spine extends Stuck
+enum Value {
+  case Universe(level: Int)
 
-  case class Universe(level: Int) extends Value {
-  }
-
-  case class OpenReference(id: Long, annotation: Unicode) extends StuckHead
-
+  case OpenReference(id: Long, annotation: Unicode) extends Value with HardStuckHeadT
   // the evil **var** is to build up recursive data!!!
-  case class ClosedRecursiveReference(var to: Value, annotation: Unicode) extends StuckHead
+  case RecursiveReference(var to: Value, annotation: Unicode) extends Value with SoftStuckHeadT
+  case SimpleReference(to: Value, annotation: Unicode) extends Value with SoftStuckHeadT
 
-  case class ClosedReference(to: Value, annotation: Unicode) extends Value
+  case Pi(domain: Value, codomain: VP)
+  case Lambda(application0: VP)
+  case CaseLambda(cases: Seq[Case])
+  case Application(value: SpineHeadPosition, argument: Value) extends Value with SpineT
 
+  case Record(avg: AVG)
+  case Make(values: NVS)
+  case Projection(value: SpineHeadPosition, field: Unicode) extends Value with SpineT
 
-  case class Pi(domain: Value, codomain: VP) extends Value
-
-  case class Lambda(application0: VP) extends Value {
-    override def application(term: Value, reduction: Reduction) = {
-      if (reduction.application) {
-        application0(term, reduction)
-      } else {
-        LambdaApplication(this, term)
-      }
+  case Sum(constructors: Seq[Constructor])
+  case Construct(name: Unicode, values: Seq[Value])
+  case CaseApplication(value: CaseLambda, argument: SpineHeadPosition) extends Value with SpineT
+  
+  def dereferenceOr(a: Value, recution: Reduction, success: Value => Value, fail: Value => Value): Value = {
+    a match {
+      case SimpleReference(to, _) => if (recution.reference >= 1) success(to) else fail(a)
+      case RecursiveReference(to, _) => if (recution.reference >= 2) success(to) else fail(a)
+      case _ => fail(a)
     }
   }
 
+  def application(term: Value, reduction: Reduction = Reduction.Default): Value  = this match {
+    case Lambda(application0) =>
+      if (reduction.application) {
+        application0(term, reduction)
+      } else {
+        Application(this, term)
+      }
+    case cl@CaseLambda(cases) =>
+      if (reduction.application) {
+        term match {
+          case Construct(name, values) => 
+            if (reduction.split) {
+              cases.find(_.name == name).get.body(values, reduction)
+            } else {
+              CaseApplication(cl, term)
+            }
+          case _: StuckT => CaseApplication(cl, term)
+          case _ => throw new IllegalArgumentException("Not possible")
+        }
+      } else {
+        Application(this, term)
+      }
+    case _: StuckT =>
+      dereferenceOr(this, reduction, s => s.application(term, reduction), s => Application(s, term))
+    case _ => throw new IllegalArgumentException("Cannot perform application")
+  }
 
-  case class LambdaApplication(value: Head, argument: Value) extends Spine
-  case class Record(avg: AVG) extends Value
-
-  case class Make(values: NVS) extends Value {
-    override def projection(name: Unicode, reduction: Reduction) = {
+  def projection(name: Unicode, reduction: Reduction = Reduction.Default): Value = this match {
+    case Make(values) =>
       if (reduction.projection) {
         values(name)
       } else {
         Projection(this, name)
       }
-    }
+    case _: StuckT =>
+      dereferenceOr(this, reduction, s => s.projection(name, reduction), s => Projection(s, name))
+    case _ => throw new IllegalArgumentException("Cannot perform projection")
   }
-
-  case class Projection(value: Head, field: Unicode) extends Spine
-
-  case class Constructor(name: Unicode, pi: Pi)
-  case class Sum(constructors: Seq[Constructor]) extends Value {
-    val names = constructors.map(_.name).toSet
-  }
-
-  case class Construct(name: Unicode, values: Seq[Value]) extends Value
 }
