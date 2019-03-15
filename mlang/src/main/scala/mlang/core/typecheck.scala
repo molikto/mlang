@@ -18,6 +18,7 @@ private trait NeedsValue {
   def bool: Boolean
   def just(byName: => Value): V
   def map(t: V, m: Value => Value): V
+  def flatMap(t: Seq[V], m: Seq[Value] => Value): V
 
   // these are infer, level and check results, they all might return a value depends on if you asked
   case class I(typ: Value, value: V)
@@ -37,6 +38,7 @@ private object Y extends NeedsValue {
   override def bool = true
   override def just(byName: => Value): Value = byName
   override def map(t: Value, m: Value => Value): Value = m(t)
+  override def flatMap(t: Seq[Value], m: Seq[Value] => Value) = m(t)
 }
 
 private object N extends NeedsValue {
@@ -44,6 +46,7 @@ private object N extends NeedsValue {
   override def bool = false
   override def just(byName: => Value): Unit = Unit
   override def map(t: Unit, m: Value => Value): Unit = Unit
+  override def flatMap(t: Seq[Unit], m: Seq[Value] => Value) = Unit
 }
 private def (c: Context) and[T](init: given Context => T): T = init given c
 
@@ -65,14 +68,64 @@ main
 
 
 
-private def inferApplication(argument: Term, pi: Value.Pi, nv: NeedsValue, lv: nv.V) given Context: (Value, nv.I) = {
+private def inferApplication(argument: Term, pi: Value.Pi, nv: NeedsValue, lv: nv.V) given Context: nv.I = {
   val av = check(argument, pi.domain, Y)
   // argument type, and infered result
-  (av, nv.I(
+  nv.I(
     pi.codomain(av, Reduction.Default), 
     nv.map(lv, lv => lv.application(eval(argument), Reduction.Default))
-  ))
+  )
 }
+
+private def inferAvg(fields: Seq[Term.Parameter]) given Context: Int = {
+  fields.foldLeft((newDeclarations(), 0)) { (pair, field) =>
+    val (ctx, level) = pair
+    ctx.and {
+      val Y.L(lv, v) = inferLevel(field.term, Y)
+      (newTypeDeclaration(field.name, v)._1, level max lv)
+    }
+  }._2
+}
+
+
+private def buildAvgContext[T, V](tele: Value.AVG[T, V], name: T => Unicode) given Context: (Map[T, Value], Context) = {
+    def rec(collect: Map[T, Value], tele: Value.AVG[T, V]) given (c: Context): (Map[T, Value], Context) = {
+    tele match {
+      case Value.AVG.Cons(domain, map) =>
+        var ctx: Context = c
+        val vv = domain.transform((key, typ) => {
+          val (cc, v) = newTypeDeclaration(name(key), typ) given ctx
+          ctx = cc
+          v : Value
+        })
+        rec(collect ++ vv, map(vv, Reduction.Default)) given ctx
+      case Value.AVG.Terminal(_) =>
+        (collect, c)
+    }
+  }
+  newDeclarations().and {
+    rec(Map.empty, tele)
+  }
+}
+
+private def checkToAvg[T, V](tele: Value.AVG[T, V], name: T => Unicode, vs: T => Term) given Context: Map[T, Value] = {
+  def rec(collect: Map[T, Value], tele: Value.AVG[T, V]) given (c: Context): Map[T, Value] = {
+    tele match {
+      case Value.AVG.Cons(domain, map) =>
+        val vv: Map[T, Value] = domain.transform((key, value) => check(vs(key), value, Y) : Value)
+        var ctx: Context = c
+        domain.foreach(d => ctx = newDeclaration(name(d._1), vv(d._1), d._2) given ctx)
+        rec(vv ++ collect, map(vv, Reduction.Default)) given ctx
+      case Value.AVG.Terminal(_) =>
+        collect
+    }
+  }
+  newDeclarations().and {
+    rec(Map.empty, tele)
+  }
+}
+
+private def sort(defs: Seq[Term.Definition]): Seq[Term.Parameter] = ???
 
 
 private def infer(term: Term, nv: NeedsValue) given Context: nv.I = {
@@ -89,7 +142,7 @@ private def infer(term: Term, nv: NeedsValue) given Context: nv.I = {
     case Term.Application(lambda, argument) =>
       val nv.I(lty, lv) = infer(lambda, nv)
       lty match {
-        case pi: Value.Pi => inferApplication(argument, pi, nv, lv)._2
+        case pi: Value.Pi => inferApplication(argument, pi, nv, lv)
         case _ => throw new Exception("Cannot infer Application")
       }
     case Term.Projection(term, name) =>
@@ -97,15 +150,10 @@ private def infer(term: Term, nv: NeedsValue) given Context: nv.I = {
       lty match {
         case Value.Record(map) =>
           var cur = map
-          var ret: Value = null
-          while (cur.initials.nonEmpty && ret == null) {
-            if (cur.initials.contains(name)) {
-              ret = cur.initials(name)
-            }
-            cur = cur(cur.initials.map(pair => (pair._1, ev.projection(pair._1, Reduction.Default))))
-          }
-          if (ret == null) throw new Exception("projection on non-existing names")
-          nv.I(ret, nv.just(ev.projection(name, Reduction.Default)))
+          nv.I(
+            map.project(name, Reduction.Default, t => ev.projection(t, Reduction.Default)),
+            nv.just(ev.projection(name, Reduction.Default))
+          )
         case _ => throw new Exception("Cannot infer Projection")
       }
     case Term.Pi(name, domain, codomain) =>
@@ -113,27 +161,31 @@ private def infer(term: Term, nv: NeedsValue) given Context: nv.I = {
       val N.L(lcd, cd) = newAbstraction(name, d).and { inferLevel(codomain, N) }
       val rty = Value.Universe(ld max lcd)
       nv.I(rty, nv.just(eval(term)))
-    case Term.Inductive(parameters, typ, constructors) =>
+    case Term.Inductive(parameters, constructors) =>
       ???
     case Term.Record(fields) =>
       if (!fields.map(_.name).allDistinct) {
         throw new Exception("Record defined with duplicated field names")
       } else {
-        // LATER allow out of order definitions?
-        val level = fields.foldLeft((newDeclarations(), 0)) { (pair, field) =>
-          val (ctx, level) = pair
-          ctx.and {
-            val Y.L(lv, v) = inferLevel(field.typ, Y)
-            (newTypeDeclaration(field.name, v), level max lv)
-          }
-        }._2
-        nv.I(Value.Universe(level), nv.just(eval(term)))
+        nv.I(Value.Universe(inferAvg(sort(fields))), nv.just(eval(term)))
       }
     case Term.Universe(level) =>
       nv.I(Value.Universe(level + 1), nv.just(Value.Universe(level)))
-    case Term.Make(fields) =>
-    // a special case of inferable constructor, if all items of make is inferable, then it is inferable
+    case Term.Make(fields, dependent) =>
+    val fs = fields.map(a => a.term match {
+      case Term.Ascription(body, typ) => (a.name, body, typ)
+      case _ => throw new Exception("Cannot infer type of field without a annotation")
+    })
+    if (!fs.map(_._1).allDistinct) {
+      throw new Exception("Make expression contains duplicated names")
+    } else if (dependent) {
+      // make a fake record type and check against
+      val ty = Term.Record(fs.map(a => Term.Definition(a._1, a._3)))
+      val Y.I(_, rty) = infer(ty, Y)
+      nv.I(rty, check(Term.Make(fs.map(a => Term.Definition(a._1, a._2)), dependent), rty, nv))
+    } else {
       ???
+    }
     case _ =>  // TODO infer lambdas? lambda, case lambda, construct
       throw new Exception("Cannot infer type")
   }
@@ -156,24 +208,13 @@ private def check(term: Term, typ: Value, nv: NeedsValue) given (ctx: Context): 
               if (!c.fields.allDistinct) {
                 throw new Exception("Constructor argument names is not different")
               } else {
-                def upAll(ns: Seq[Unicode], tt: Value) given (c: Context): (Context, Seq[Value]) = {
-                  (ns, tt) match {
-                    case ((n +: tail), Value.Pi(ty, tl)) =>
-                      newAbstraction(ns.head, ty).and {
-                        val res = upAll(tail, tl(result, Reduction.Default))
-                        (res._1, result +: res._2)
-                      }
-                    case (Nil, Value.Pi(_, _)) =>
-                      throw new Exception("Named parameters in case lambda telescope is shorter")
-                    case (Nil, _) =>
-                      (c, Seq.empty[Value])
-                    case _ =>
-                      throw new Exception("Named parameters in case lambda telescope is longer")
+                val (frees, ctx1) = buildAvgContext(cons.tele, i => c.fields.getOrElse(i, throw new Exception("Argument size is smaller")))
+                if (frees.size < c.fields.size) {
+                  throw new Exception("Constructor argument size is bigger than expected")
+                } else {
+                  ctx1.and {
+                    check(c.body, codomain(Value.Construct(cons.name, frees.toSeqByKey), Reduction.Default), N)
                   }
-                }
-                val (cx, vs) = upAll(c.fields, cons.pi)
-                cx.and {
-                  check(c.body, codomain(Value.Construct(cons.name, vs), Reduction.Default), N)
                 }
               }
             }
@@ -181,25 +222,32 @@ private def check(term: Term, typ: Value, nv: NeedsValue) given (ctx: Context): 
         case _ => throw new Exception("Pattern matching on non-sum type")
       }
       justEval()
-    case (Term.Make(fields), Value.Record(avg)) =>
-      ???
-    case (Term.Construct(name, args), Value.Sum(ks)) =>
-      if (!ks.contains(name)) {
-        throw new Exception("Wrong construct")
+    case (Term.Make(fields, dependent), Value.Record(avg)) =>
+      if (!fields.map(_.name).allDistinct) {
+        throw new Exception("Make names not distinct")
       } else {
-        val pi: Value = ks.find(_.name == name).get.pi
-        val (vs, res) = args.foldLeft((Seq.empty[Value], pi)) { (pair, term) =>
-          pair match {
-            case (vs, pi: Value.Pi) =>
-              val (av, N.I(ty, _)) = inferApplication(term, pi, N, Unit)
-              (vs :+ av, ty)
-            case _ => throw new Exception("Constructor has more arguments")
+        // need to first check recursive like before
+        val vs = checkToAvg(avg, i => i, n => fields.find(_.name == n) match {
+          case Some(a) => a.term
+          case None => throw new Exception("Make lacking field")
+        })
+        if (vs.size != fields.size) {
+          throw new Exception("Make has more fields")
+        } else {
+          nv.just(Value.Make(vs))
+        }
+      }
+    case (Term.Construct(name, args), Value.Sum(ks)) =>
+      ks.find(_.name == name) match {
+        case None => throw new Exception("Wrong construct")
+        case Some(Value.Constructor(_, tele)) =>
+          // there is no mutual reference in custructor, so it is ok to give it just toString
+          val vs = checkToAvg(tele, i => Unicode(i), i => if (i >= args.length) throw new Exception("Constructor has less arguments") else args(i))
+          if (vs.size != args.size) {
+            throw new Exception("Constructor has more arguments")
+          } else {
+            nv.just(Value.Construct(name, vs.toSeqByKey))
           }
-        }
-        res match {
-          case _: Value.Pi => throw new Exception("Constructor has less arguments")
-          case _ => nv.just(Value.Construct(name, vs))
-        }
       }
     case (tm, ty) => 
        val nv.I(ty0, v) = infer(tm, nv)

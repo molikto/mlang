@@ -5,32 +5,35 @@ import mlang.utils._
 type Cofibration = Unit
 
 /**
-the values is **typeless**
+value in weak head normal form (if given reduct = Default)
+inductive definition will have recursive references as fields, this is ok
 */
-
 object Value {
 
   type VP = (Value, Reduction) => Value // value map (with reduction)
   type VSP = (Seq[Value], Reduction) => Value // value sequence map (with reduction)
   type NVS = Map[Unicode, Value] // named values
 
-  object AVG { // acylic value graph
-    val empty = AVG(Map.empty, null)
-  }
-  case class AVG(initials: NVS, private val base: NVS => AVG) extends (NVS => AVG) {
-    override def apply(v: NVS): AVG = {
-      base(v)
+  enum AVG[T, V] {
+    case Terminal(v: V)
+    case Cons(domain: Map[T, Value], map: (T => Value, Reduction) => AVG[T, V])
+
+    def project(name: T, reduction: Reduction, access: T => Value): Value = this match {
+      case Terminal(_) => throw new Exception("Tele cannot project on non-existing name")
+      case Cons(ns, map) => ns.getOrElse(name, map(access, reduction).project(name, reduction, access))
     }
   }
 
-  sealed trait StuckT // because of enum, we cannot say that all stuck is value anymore
+
+  // because of enum, we cannot say that all stuck is value anymore, so we give them markers
+  sealed trait StuckT
   sealed trait StuckHeadT extends StuckT
   sealed trait HardStuckHeadT extends StuckHeadT
   sealed trait SoftStuckHeadT extends StuckHeadT
   sealed trait SpineT extends StuckT
   type SpineHeadPosition = Value // because we have All kinds of reduction methods
 
-  case class Constructor(name: Unicode, pi: Pi)
+  case class Constructor(name: Unicode, tele: AVG[Int, Unit]) // the int is the index
   case class Case(name: Unicode, body: VSP)
 }
 
@@ -57,7 +60,7 @@ enum Value {
   case CaseLambda(cases: Seq[Case])
   case Application(value: SpineHeadPosition, argument: Value) extends Value with SpineT
 
-  case Record(avg: AVG)
+  case Record(avg: AVG[Unicode, Unit])
   case Make(values: NVS)
   case Projection(value: SpineHeadPosition, field: Unicode) extends Value with SpineT
 
@@ -65,11 +68,12 @@ enum Value {
   case Construct(name: Unicode, values: Seq[Value])
   case CaseApplication(value: CaseLambda, argument: SpineHeadPosition) extends Value with SpineT
   
-  def dereferenceOr(a: Value, recution: Reduction, success: Value => Value, fail: Value => Value): Value = {
-    a match {
-      case SimpleReference(to, _) => if (recution.reference >= 1) success(to) else fail(a)
-      case RecursiveReference(to, _) => if (recution.reference >= 2) success(to) else fail(a)
-      case _ => fail(a)
+  // TODO try to reduct more, in case some spine head position can use some reduction
+  def reductMoreOr(stuck: Value, recution: Reduction, success: Value => Value, fail: Value => Value): Value = {
+    stuck match {
+      case SimpleReference(to, _) => if (recution.reference >= 1) success(to) else fail(stuck)
+      case RecursiveReference(to, _) => if (recution.reference >= 2) success(to) else fail(stuck)
+      case _ => fail(stuck)
     }
   }
 
@@ -96,7 +100,7 @@ enum Value {
         Application(this, term)
       }
     case _: StuckT =>
-      dereferenceOr(this, reduction, s => s.application(term, reduction), s => Application(s, term))
+      reductMoreOr(this, reduction, s => s.application(term, reduction), s => Application(s, term))
     case _ => throw new IllegalArgumentException("Cannot perform application")
   }
 
@@ -108,7 +112,7 @@ enum Value {
         Projection(this, name)
       }
     case _: StuckT =>
-      dereferenceOr(this, reduction, s => s.projection(name, reduction), s => Projection(s, name))
+      reductMoreOr(this, reduction, s => s.projection(name, reduction), s => Projection(s, name))
     case _ => throw new IllegalArgumentException("Cannot perform projection")
   }
 }

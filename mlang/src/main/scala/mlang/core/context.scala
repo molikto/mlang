@@ -2,6 +2,7 @@ package mlang.core
 
 
 import mlang.utils._
+import mlang.syntax._
 
 /**
   * context is syntactical. adding a layer always occurs when a new binder is introduced. that's why we can give each
@@ -22,12 +23,12 @@ import ContextLayer._
 
 
 enum ContextLayer {
-// used for pi and lambda and prameters for inductive type/arguments
-case Abstraction (id: Long, name: Unicode, typ: mlang.core.Value)
-// for make, record
-case Declarations (definitions: Map[Unicode, Declaration] )
-case Path (id: Long, name: Unicode)
-case Cofibration (restriction: Cofibration)
+  // used for pi and lambda and prameters for inductive type/arguments
+  case Abstraction (id: Long, name: Unicode, typ: mlang.core.Value)
+  // for make, record
+  case Declarations (definitions: Map[Unicode, Declaration])
+  case Path(id: Long, name: Unicode)
+  case Cofibration (restriction: Cofibration)
 }
 
 opaque type Context = Seq[ContextLayer]
@@ -57,16 +58,18 @@ object Context {
       (ct, Value.OpenReference(id, name))
     }
 
-    def newTypeDeclaration(name: Unicode, typ: Value) given (c: Context): Context = c.headOption match {
+    def newTypeDeclaration(name: Unicode, typ: Value) given (c: Context): (Context, Value) = c.headOption match {
       case Some(ContextLayer.Declarations(declarations)) => declarations.get(name) match {
         case Some(ty) =>
           if (ty.typ == typ) {
-            c
+            (c, ty.value.getOrElse(Value.OpenReference(ty.id, name)))
           } else {
             throw new IllegalStateException("Duplicated type declaration")
           }
         case None =>
-          ContextLayer.Declarations(declarations.updated(name, Declaration(newUniqueId(), typ))) +: c.tail
+          val id = newUniqueId()
+          val ct = ContextLayer.Declarations(declarations.updated(name, Declaration(id, typ))) +: c.tail
+          (ct, Value.OpenReference(id, name))
       }
       case _ => throw new Exception("Wrong layer type or not enough layer")
     }
