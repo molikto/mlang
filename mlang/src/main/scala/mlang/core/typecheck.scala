@@ -125,7 +125,6 @@ private def checkToAvg[T, V](tele: Value.AVG[T, V], name: T => Unicode, vs: T =>
   }
 }
 
-private def sort(defs: Seq[Term.Definition]): Seq[Term.Parameter] = ???
 
 
 private def infer(term: Term, nv: NeedsValue) given Context: nv.I = {
@@ -163,11 +162,17 @@ private def infer(term: Term, nv: NeedsValue) given Context: nv.I = {
       nv.I(rty, nv.just(eval(term)))
     case Term.Inductive(parameters, constructors) =>
       ???
-    case Term.Record(fields) =>
+    case r@Term.Record(fields) =>
       if (!fields.map(_.name).allDistinct) {
         throw new Exception("Record defined with duplicated field names")
       } else {
-        nv.I(Value.Universe(inferAvg(sort(fields))), nv.just(eval(term)))
+        r.avg match {
+          case Some(avg) => 
+            val l = inferAvg(avg.flatMap(_.toSeq).map(a => Term.Parameter(a, fields.find(_.name == a).get.term)))
+            nv.I(Value.Universe(l), nv.just(eval(term)))
+          case None =>
+            throw new Exception("Record fields contains cycles")
+        }
       }
     case Term.Universe(level) =>
       nv.I(Value.Universe(level + 1), nv.just(Value.Universe(level)))
@@ -226,7 +231,9 @@ private def check(term: Term, typ: Value, nv: NeedsValue) given (ctx: Context): 
       if (!fields.map(_.name).allDistinct) {
         throw new Exception("Make names not distinct")
       } else {
-        // need to first check recursive like before
+        // case not allowed:
+        // t1 -> 
+        // 
         val vs = checkToAvg(avg, i => i, n => fields.find(_.name == n) match {
           case Some(a) => a.term
           case None => throw new Exception("Make lacking field")

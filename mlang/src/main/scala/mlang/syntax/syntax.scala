@@ -23,20 +23,50 @@ object Term {
     case CanMutual, CannotMutual
   }
 
-  sealed case class Parameter(name: Unicode, term: Term)
-
   sealed case class Case(name: Unicode, fields: Seq[Unicode], body: Term)
 
   sealed case class Constructor(name: Unicode, arguments: Seq[Parameter], typ: Term)
 
   // sealed case class Face(dimension: Dimension, isZero: Boolean, body: Term)
 
-
   type Dependencies = Map[Unicode, Dependency]
 
-  sealed case class Definition(name: Unicode, term: Term) {
+  trait Parameters {
+    def terms: Seq[Parameter]
 
-    def dependencies(names: Set[Unicode]): Dependencies = {
+    lazy val directDependencies: Map[Unicode, Dependencies] = {
+      val names = terms.map(_.name).toSet
+      terms.map(a => a.name -> a.directDependencies(names)).toMap
+    }
+
+    def avg: Option[Seq[Set[Unicode]]] = {
+      var remaining = directDependencies.mapValues(a => a.keySet)
+      var collect = Seq.empty[Set[Unicode]]
+      var cont = true
+      while (remaining.nonEmpty && cont) {
+        val newOnes = remaining.filter(_._2.isEmpty).keySet
+        if (newOnes.isEmpty) {
+          cont = false
+        } else {
+          collect = collect :+ newOnes
+          remaining = (remaining -- newOnes).mapValues(_ -- newOnes)
+        }
+      }
+      if (cont) {
+        Some(collect)
+      } else {
+        None
+      }
+    }
+
+    // val recursiveDependencies: Set[Set[String]] = 
+    //   tarjanCcc(directDependencies.mapValues(_.keySet)).filter(a => a.size > 1 || directDependencies(a.head).contains(a.head))
+  }
+
+
+  sealed case class Parameter(name: Unicode, term: Term) {
+
+    def directDependencies(names: Set[Unicode]): Dependencies = {
       def join(a: Dependencies, b: Dependencies): Dependencies = {
         a.mergeWith(b, { (v, v2) =>
           v match {
@@ -45,52 +75,45 @@ object Term {
           }
         })
       }
-
       def flatten(a: Seq[Dependencies]): Dependencies = {
         a match {
           case (h +: t) => join(h, flatten(t))
           case Nil => Map.empty
         }
       }
-      def recDefs(fs: Seq[Definition], alive: Set[Unicode], dependency: Dependency) = {
-        val av = alive -- fs.map(_.name)
-        flatten(fs.map(f => rec(f.term, av, dependency)))
-      }
-      def recParams(fs: Seq[Parameter], alive: Set[Unicode], dependency: Dependency): Dependencies = {
-        fs match {
-          case (h +: t) => join(rec(h.term, alive, dependency), recParams(t, alive - h.name, dependency))
-          case Nil => Map.empty
-        }
+      def recSeq(fs: Seq[Term], alive: Set[Unicode], dependency: Dependency): Dependencies = {
+        flatten(fs.map(f => rec(f, alive, dependency)))
       }
       def recCt(c: Constructor, alive: Set[Unicode], dependency: Dependency): Dependencies = {
-        join(recParams(c.arguments, alive, dependency), rec(c.typ, alive -- c.arguments.map(_.name), dependency))
+        val av = alive -- c.arguments.map(_.name)
+        join(recSeq(c.arguments.map(_.term), av, dependency), rec(c.typ, av, dependency))
       }
+
       def rec(tm: Term, alive: Set[Unicode], dependency: Dependency): Dependencies = {
         tm match {
           case Reference(name) =>
             if (alive.contains(name)) Map(name -> dependency) else Map.empty
           case Ascription(body, typ) =>
             join(rec(body, alive, dependency), rec(typ, alive, dependency))
-          case Application(lambda, argument) =>
-            join(rec(lambda, alive, dependency), rec(argument, alive, dependency))
-          case Projection(term, field) =>
-            rec(term, alive, dependency)
+          case Pi(parameters, codomain) =>
+            val av = alive -- parameters.map(_.name)
+            join(recSeq(parameters.map(_.term), av, dependency), rec(codomain, av, dependency))
+          case Lambda(names, body) =>
+            rec(body, alive -- names, dependency)
+          case Application(lambda, arguments) =>
+            join(rec(lambda, alive, dependency), recSeq(arguments, alive, dependency))
           case Inductive(parameters, constructors) =>
             val dp = Dependency.CannotMutual
             val av = alive -- parameters.map(_.name)
-            join(recParams(parameters, alive, dp), flatten(constructors.map(c => recCt(c, av, dp))))
-          case Pi(name: Unicode, domain: Term, codomain: Term) =>
-            join(rec(domain, alive, dependency), rec(codomain, alive - name, dependency))
-          case Record(fields) =>
-            recDefs(fields, alive, dependency)
-          case Lambda(name, body) =>
-            rec(body, alive - name, dependency)
-          case CaseLambda(cases) =>
-            flatten(cases.map(c => rec(c.body, alive -- c.fields, dependency)))
+            join(recSeq(parameters.map(_.term), alive, dp), flatten(constructors.map(c => recCt(c, av, dp))))
+          case Record(parameters) =>
+            val av = alive -- parameters.map(_.name)
+            recSeq(parameters.map(_.term), alive, dependency)
           case Construct(name, arguments) =>
-            flatten(arguments.map(a => rec(a, alive, dependency)))
-          case Make(fields, dependent) =>
-            recDefs(fields, alive, dependency)
+            recSeq(arguments, alive, dependency)
+          case Make(parameters, dependent) =>
+            val av = alive -- parameters.map(_.name)
+            recSeq(parameters.map(_.term), alive, dependency)
           case Universe(level) =>
             Map.empty
         }
@@ -106,18 +129,16 @@ enum Term {
   case Reference(name: Unicode) // recursive or not??
 
   case Ascription(body: Term, typ: Term)
-  
-  case Application(lambda: Term, argument: Term)
-  case Projection(term: Term, field: Unicode)
+
+  case Pi(parameters: Seq[Parameter], codomain: Term)
+  case Lambda(names: Seq[Unicode], body: Term) // TODO pattern matching
+  case Application(lambda: Term, arguments: Seq[Term])
 
   case Inductive(parameters: Seq[Parameter], constructors: Seq[Constructor])
-  case Pi(name: Unicode, domain: Term, codomain: Term)
-  case Record(fields: Seq[Definition])
-
-  case Lambda(name: Unicode, body: Term)
-  case CaseLambda(cases: Seq[Case])
   case Construct(name: Unicode, arguments: Seq[Term])
-  case Make(fields: Seq[Definition], dependent: Boolean)
+
+  case Record(override val terms: Seq[Parameter]) extends Term with Parameters
+  case Make(override val terms: Seq[Parameter], dependent: Boolean) extends Term with Parameters
 
   case Universe(level: Int)
   /*
@@ -130,4 +151,3 @@ enum Term {
   // TODO univalance terms
   //case Omitted
 }
-

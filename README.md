@@ -22,19 +22,18 @@ first implement without cubical stuff and without implicit argument/subtyping
 
 (in progress)
 
-* **pi**: function types with eta rule, mutually recursively defined lambdas with size-changing termination checker
+* **pi**: primitive multiple arity function types; eta rule; mutually recursively defined lambdas with size-changing termination checker
+* pattern matching lambda and coverage checker
+    * overlapping and definitional patterns
 * **path**: cubical type theory (`TODO: eta for path?`)
 * **universe**: non-commutative universe with subtyping with univalance
 * **inductive**: uniform-parametized simple higher inductive type (no index, no non-uniform, no mutual, no induction-recursion, no induction-induction)
 * **record**: record type with record type calculus, make expressions
-* case lambda
 * very limited implicit arguments
 * coercion subtyping
 
 ## maybe roadmap
 
-* pattern matching and coverage checker
-    * overlapping and definitional patterns
 * first-class sum types (what about defining true/false as sum?)
 * all other forms of inductive type mentioned above, except induction-induction
 * implicit parameters and possibly more liberal unification
@@ -55,6 +54,7 @@ first implement without cubical stuff and without implicit argument/subtyping
 * https://github.com/HoTT/HoTT
 * unimath
 * the big problems list
+* Agda Katas
 
 
 ## misc

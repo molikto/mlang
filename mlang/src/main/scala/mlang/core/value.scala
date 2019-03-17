@@ -4,37 +4,28 @@ import mlang.utils._
 
 type Cofibration = Unit
 
+
+type IndexedValues[K] = Map[K, Value]
+
+type ValueMap[K, T] = (IndexedValues[K], Reduction) => T
+
+case class Trunk[K, T](
+  domain: Set[K],
+  body: ValueMap[K, T]
+)
+
+case class ValueGraph[K, T](
+  initials: IndexedValues[K], // unknown values of known type's name => type
+  trucks: Map[K, Trunk[K, Value]],  // values depends on un unknown values
+  termial: Trunk[K, T]
+)
+
 /**
 value in weak head normal form (if given reduct = Default)
 inductive definition will have recursive references as fields, this is ok
 */
 object Value {
-
-  type VP = (Value, Reduction) => Value // value map (with reduction)
-  type VSP = (Seq[Value], Reduction) => Value // value sequence map (with reduction)
-  type NVS = Map[Unicode, Value] // named values
-
-  enum AVG[T, V] {
-    case Terminal(v: V)
-    case Cons(domain: Map[T, Value], map: (T => Value, Reduction) => AVG[T, V])
-
-    def project(name: T, reduction: Reduction, access: T => Value): Value = this match {
-      case Terminal(_) => throw new Exception("Tele cannot project on non-existing name")
-      case Cons(ns, map) => ns.getOrElse(name, map(access, reduction).project(name, reduction, access))
-    }
-  }
-
-
-  // because of enum, we cannot say that all stuck is value anymore, so we give them markers
-  sealed trait StuckT
-  sealed trait StuckHeadT extends StuckT
-  sealed trait HardStuckHeadT extends StuckHeadT
-  sealed trait SoftStuckHeadT extends StuckHeadT
-  sealed trait SpineT extends StuckT
-  type SpineHeadPosition = Value // because we have All kinds of reduction methods
-
-  case class Constructor(name: Unicode, tele: AVG[Int, Unit]) // the int is the index
-  case class Case(name: Unicode, body: VSP)
+  case class Constructor(name: Unicode, tele: ValueGraph[Int, Unit]) // the int is the index
 }
 
 import Value._
@@ -50,69 +41,55 @@ import Value._
 enum Value {
   case Universe(level: Int)
 
-  case OpenReference(id: Long, annotation: Unicode) extends Value with HardStuckHeadT
+  case OpenReference(id: Long, annotation: Unicode) // hard stuck head
   // the evil **var** is to build up recursive data!!!
-  case RecursiveReference(var to: Value, annotation: Unicode) extends Value with SoftStuckHeadT
-  case SimpleReference(to: Value, annotation: Unicode) extends Value with SoftStuckHeadT
+  case RecursiveReference(var to: Value, annotation: Unicode) // soft stuck head
+  case SimpleReference(to: Value, annotation: Unicode) // soft stuck head
 
-  case Pi(domain: Value, codomain: VP)
-  case Lambda(application0: VP)
-  case CaseLambda(cases: Seq[Case])
-  case Application(value: SpineHeadPosition, argument: Value) extends Value with SpineT
+  case Pi(graph: ValueGraph[Int, Value])
+  case Lambda(pattern: ValueMap[Int, Value])
+  case Application(head: Value, argument: IndexedValues[Int]) // spine, apply arguments to a stuck term
+  // case PatternMachingStuck(value: Lambda, argument: SpineHeadPosition) //
 
-  case Record(avg: AVG[Unicode, Unit])
-  case Make(values: NVS)
-  case Projection(value: SpineHeadPosition, field: Unicode) extends Value with SpineT
+  case Record(avg: ValueGraph[Unicode, Unit])
+  case Make(values: IndexedValues[Unicode])
 
   case Sum(constructors: Seq[Constructor])
-  case Construct(name: Unicode, values: Seq[Value])
-  case CaseApplication(value: CaseLambda, argument: SpineHeadPosition) extends Value with SpineT
+  case Construct(name: Unicode, values: IndexedValues[Int])
   
   // TODO try to reduct more, in case some spine head position can use some reduction
-  def reductMoreOr(stuck: Value, recution: Reduction, success: Value => Value, fail: Value => Value): Value = {
-    stuck match {
-      case SimpleReference(to, _) => if (recution.reference >= 1) success(to) else fail(stuck)
-      case RecursiveReference(to, _) => if (recution.reference >= 2) success(to) else fail(stuck)
-      case _ => fail(stuck)
-    }
-  }
+  // def reductMoreOr(stuck: Value, recution: Reduction, success: Value => Value, fail: Value => Value): Value = {
+  //   stuck match {
+  //     case SimpleReference(to, _) => if (recution.reference >= 1) success(to) else fail(stuck)
+  //     case RecursiveReference(to, _) => if (recution.reference >= 2) success(to) else fail(stuck)
+  //     case _ => fail(stuck)
+  //   }
+  // }
 
-  def application(term: Value, reduction: Reduction = Reduction.Default): Value  = this match {
-    case Lambda(application0) =>
-      if (reduction.application) {
-        application0(term, reduction)
-      } else {
-        Application(this, term)
-      }
-    case cl@CaseLambda(cases) =>
-      if (reduction.application) {
-        term match {
-          case Construct(name, values) => 
-            if (reduction.split) {
-              cases.find(_.name == name).get.body(values, reduction)
-            } else {
-              CaseApplication(cl, term)
-            }
-          case _: StuckT => CaseApplication(cl, term)
-          case _ => throw new IllegalArgumentException("Not possible")
-        }
-      } else {
-        Application(this, term)
-      }
-    case _: StuckT =>
-      reductMoreOr(this, reduction, s => s.application(term, reduction), s => Application(s, term))
-    case _ => throw new IllegalArgumentException("Cannot perform application")
-  }
-
-  def projection(name: Unicode, reduction: Reduction = Reduction.Default): Value = this match {
-    case Make(values) =>
-      if (reduction.projection) {
-        values(name)
-      } else {
-        Projection(this, name)
-      }
-    case _: StuckT =>
-      reductMoreOr(this, reduction, s => s.projection(name, reduction), s => Projection(s, name))
-    case _ => throw new IllegalArgumentException("Cannot perform projection")
-  }
+  // def application(term: Value, reduction: Reduction = Reduction.Default): Value  = this match {
+  //   case Lambda(application0) =>
+  //     if (reduction.application) {
+  //       application0(term, reduction)
+  //     } else {
+  //       Application(this, term)
+  //     }
+  //   case cl@CaseLambda(cases) =>
+  //     if (reduction.application) {
+  //       term match {
+  //         case Construct(name, values) => 
+  //           if (reduction.split) {
+  //             cases.find(_.name == name).get.body(values, reduction)
+  //           } else {
+  //             CaseApplication(cl, term)
+  //           }
+  //         case _: StuckT => CaseApplication(cl, term)
+  //         case _ => throw new IllegalArgumentException("Not possible")
+  //       }
+  //     } else {
+  //       Application(this, term)
+  //     }
+  //   case _: StuckT =>
+  //     reductMoreOr(this, reduction, s => s.application(term, reduction), s => Application(s, term))
+  //   case _ => throw new IllegalArgumentException("Cannot perform application")
+  // }
 }
