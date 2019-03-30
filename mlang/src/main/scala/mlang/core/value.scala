@@ -4,39 +4,37 @@ import mlang.utils._
 
 type Cofibration = Unit
 
+object Telescope {
+  type Values = Map[Unicode, Value]
+  type Closure[T] = (Values, Reduction) => T
 
-type IndexedValues[K] = Map[K, Value]
-
-type ValueMap[K, T] = (IndexedValues[K], Reduction) => T
-
-case class Trunk[K, T](
-  domain: Set[K],
-  body: ValueMap[K, T]
-)
-
-case class ValueGraph[K, T](
-  initials: IndexedValues[K], // unknown values of known type's name => type
-  trucks: Map[K, Trunk[K, Value]],  // values depends on un unknown values
-  termial: Trunk[K, T]
-)
-
-/**
-value in weak head normal form (if given reduct = Default)
-inductive definition will have recursive references as fields, this is ok
-*/
-object Value {
-  case class Constructor(name: Unicode, tele: ValueGraph[Int, Unit]) // the int is the index
+  case class Trunk[T](
+    domain: Set[Unicode],
+    body: Closure[T]
+  )
 }
+import Telescope._
+
+case class Telescope[T](
+  initials: Map[Unicode, Value],
+  trucks: Map[Unicode, Truck[Value]],
+  terminal: Truck[T]
+)
+
+
+object Value {
+  case class Constructor(name: Unicode, tele: Telescope[Unit]) // the int is the index
+  enum Step {
+    case Introduce(name: String, as: String)
+  }
+  case class Pattern(steps: Seq[Step], Closure[Value])
+}
+
 
 import Value._
 
-
-
-// cases of a value
-// non-sutck
-// hard_head
-// spin - hard_head
-// spin - soft_head  ==>  default when evaluating 
+// lambda (....) f(x,, fdfjsal)
+// a.b, 
 
 enum Value {
   case Universe(level: Int)
@@ -46,16 +44,16 @@ enum Value {
   case RecursiveReference(var to: Value, annotation: Unicode) // soft stuck head
   case SimpleReference(to: Value, annotation: Unicode) // soft stuck head
 
-  case Pi(graph: ValueGraph[Int, Value])
-  case Lambda(pattern: ValueMap[Int, Value])
-  case Application(head: Value, argument: IndexedValues[Int]) // spine, apply arguments to a stuck term
+  case Pi(tele: Telescope[Value])
+  case Lambda(patterns: Seq[Pattern])
+  case Application(head: Value, argument: Telescope.Values) // spine, apply arguments to a stuck term
   // case PatternMachingStuck(value: Lambda, argument: SpineHeadPosition) //
 
-  case Record(avg: ValueGraph[Unicode, Unit])
-  case Make(values: IndexedValues[Unicode])
+  case Record(avg: Telescope[Unit])
+  case Make(values: Telescope.Values)
 
   case Sum(constructors: Seq[Constructor])
-  case Construct(name: Unicode, values: IndexedValues[Int])
+  case Construct(name: Unicode, values: Telescope.Values)
   
   // TODO try to reduct more, in case some spine head position can use some reduction
   // def reductMoreOr(stuck: Value, recution: Reduction, success: Value => Value, fail: Value => Value): Value = {
