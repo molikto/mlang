@@ -44,19 +44,19 @@
 * function types is seen as nagetively defined, with well-known eta rule
     * it is dual to sigma type in the sense they are left/right adjoint of the pullback functor
         * **is this the duality in the basic sense? seems not??**
-    * **it is said that function type has a positive presentation, look it up, and see if it is dual to the negative presentation of sigma**
+    * **it is said that function type has a positive presentation**
     * *[this](https://scholar.google.com/scholar?hl=en&as_sdt=0%2C5&q=Type+Theory+based+on+Dependent+Inductive+and+Coinductive+Types&btnG=) give a type theory with only inductive and coinductive types. is function type really some special case of coinductive type? then what are the corresponding "special case" of inductive types? or this cannot really apply to Agda-like theory at all?*
-    * **can we generalize function types like record types generalize sigma types, they are dual right?**
+    * **can we generalize function types like record types generalize sigma types, they are dual right? (I guess this is not kind of dual...) a way to think of it is to create a model where the pullback functor has adjoint as record type???**
     * lambda is defined by copattern matching. the same expression can be considered dually, but then it still does't makes total sense (because the need to translate to case tree and losing definitional equality)
     * **definitional equality of lambdas with recursive unfolding, [here](https://cstheory.stackexchange.com/questions/42371/definitional-equality-of-recursive-function-definition-by-infinite-unfolding)?**
 
-* non-recursive record type is generalized sigma type, where the iterative explicit dependency is changed to implicit dependency. can be seen both as positive type or nagetive type, and each has a eta-rule, positive type [with eta (which is subtle)](https://ncatlab.org/nlab/show/product+type#as_a_positive_type) will validate the nagetive type [with eta](https://ncatlab.org/nlab/show/product+type#as_a_negative_type) and vice versa. so non-recursive record type is really both positive and nagetive in a compatible way. 
+* non-recursive record type is generalized sigma type, where the iterative explicit dependency is changed to implicit dependency. can be seen both as positive type or nagetive type, and each has a eta-rule, positive type [with eta (which is subtle)](https://ncatlab.org/nlab/show/product+type#as_a_positive_type) will validate the nagetive type [with eta](https://ncatlab.org/nlab/show/product+type#as_a_negative_type) propositionally and vice versa
     * one says it is a inductive type with one constructor in the positive case, this is just because a inductive type has a coproduct-sigma factoring
         * there is no "higher-record type" consider integer defined as differences, there is no projection of the first nat
-    * Agda doesn't have eta rule for record types, so in this sense their "projection" rule is just a syntax sugar, which does't support the negative eta rule
-        * **what about "Vector are Records Too"?**
-        * *can we really allow strictly-positive or even positive in the sense bellow ones?*
-        * *if we allow also recursive ones satisfying a positive condition, can we say that they are *intersection* of inductive type and coinductive type, so they can act as both?*
+    * Agda doesn't have negative eta rule for recursive record types, so in this sense their "projection" rule is just a syntax sugar, which does't support the negative eta rule
+        * vectors can be seen as records too, becuase they defined a family of non-recursive records. see "Vector are Records Too"?
+    * what will go wrong if a recursive record type also has a negative eta rule? [here](https://github.com/agda/agda/issues/402) and [here](https://cstheory.stackexchange.com/questions/42606/what-will-go-wrong-if-a-recursive-record-type-has-a-negative-eta-rule)
+        * **so in this sense we should allow recursive records, and they are not seen as a simple generaization of sigma types. but it needs to be seen if they allow record calculus?**
 
 * sum type: is just generalized coproduct type, it is normally a positive type, with eta rule
     * they can be defined with large elimination and boolean, but they are essentially the same thing
@@ -74,27 +74,9 @@
         * **[it is possible to have non-strict but positive ones?](http://vilhelms.github.io/posts/why-must-inductive-types-be-strictly-positive/), also mentioned in 3.2 in "Inductively defined types" by Coquand**
     * **how/in what sense does they reduce to sum-of records? even because there is indexes?**
     * there is a notion of "generalized" and "strict" inductive familes, and usually we are talking about the generalized one (see paper "Indexed Induction-Recursion")
-        * can we give a alternative form of generalized inductive type where the equality is definitional and expressed by constraints? this is however not possible, consider:
-
-          ```
-          idn : ℕ → ℕ
-          idn a = a
-
-          predk : (ℕ → ℕ) → (ℕ → ℕ)
-          predk f zero = f zero
-          predk f (suc k) = f k
-
-          data Vec {a} (A : Set a) : (ℕ → ℕ) → Set a where
-            nill : Vec A idn
-            conss : ∀ {n} (x : A) (xs : Vec A n) → Vec A (predk n)
-          ```
-          it is not like the case of vector, where you can unroll by pattern
-          ```
-          vec : ℕ → Set
-          vec zero = ℕ
-          vec (suc n) = (vec n) × ℕ
-          ```
-          but actually this has been considered before [like here](https://lists.chalmers.se/pipermail/agda/2008/000420.html)
+        * the Martin-Löf identity type is a gif, but not a rif
+        * can we give a alternative form of generalized inductive type where the equality is definitional and expressed by constraints? this is however not possible, because the index can be type that don't allow pattern matching. actually this has been considered before [like here](https://lists.chalmers.se/pipermail/agda/2008/000420.html)
+            * **how important is it to have this generalized index?? what incovenience will we get?** because it seems people say the coinductive case is natural with restricted
     * the idea of recursive-inductive definition is to define function `T: U => D` and inductive type `U[T]` and only allow `T` occurs in `U` of the form `T(...)`, i.e. application
         * this is rejected as "non-positive" in Agda
           ```
@@ -116,14 +98,14 @@
           ty : (n : ℕ) → (a : U) → a ≡ a
 
           data U where
-            nn : U
             ss : (a : U) → U
             dd : (a : U) → (b : ty zero (ss a) ≡ ty zero (ss a)) → U
 
           ty _ a i = a
           ```
 
-* induction-induction
+    * **induction-induction**
+    * higher inductive types inductively add to inductive types paths and squares, also the constructors can mix dimension and reference previous one. **[a non-linearizable example?](https://github.com/agda/cubical/issues/77#issuecomment-478245776)**
 
 * coinductive type (coalgebra approach)
     * **what is a coinductively defined set/type exactly? why there are also the codata approach?**
