@@ -44,11 +44,12 @@
 * function types is seen as nagetively defined, with well-known eta rule
     * it is dual to sigma type in the sense they are left/right adjoint of the pullback functor
         * **is this the duality in the basic sense? seems not??**
+        * **can we generalize function types like record types generalize sigma types, they are dual right? (I guess this is not kind of dual...) a way to think of it is to create a model where the pullback functor has adjoint as record type???**
     * **it is said that function type has a positive presentation**
-    * *[this](https://scholar.google.com/scholar?hl=en&as_sdt=0%2C5&q=Type+Theory+based+on+Dependent+Inductive+and+Coinductive+Types&btnG=) give a type theory with only inductive and coinductive types. is function type really some special case of coinductive type? then what are the corresponding "special case" of inductive types? or this cannot really apply to Agda-like theory at all?*
-    * **can we generalize function types like record types generalize sigma types, they are dual right? (I guess this is not kind of dual...) a way to think of it is to create a model where the pullback functor has adjoint as record type???**
     * lambda is defined by copattern matching. the same expression can be considered dually, but then it still does't makes total sense (because the need to translate to case tree and losing definitional equality)
+    * *[this](https://scholar.google.com/scholar?hl=en&as_sdt=0%2C5&q=Type+Theory+based+on+Dependent+Inductive+and+Coinductive+Types&btnG=) give a type theory with only inductive and coinductive types. is function type really some special case of coinductive type? then what are the corresponding "special case" of inductive types? or this cannot really apply to Agda-like theory at all?*
     * **definitional equality of lambdas with recursive unfolding, [here](https://cstheory.stackexchange.com/questions/42371/definitional-equality-of-recursive-function-definition-by-infinite-unfolding)?**
+    * **what are categorical semantics for fix points?**
 
 * non-recursive record type is generalized sigma type, where the iterative explicit dependency is changed to implicit dependency. can be seen both as positive type or nagetive type, and each has a eta-rule, positive type [with eta (which is subtle)](https://ncatlab.org/nlab/show/product+type#as_a_positive_type) will validate the nagetive type [with eta](https://ncatlab.org/nlab/show/product+type#as_a_negative_type) propositionally and vice versa
     * one says it is a inductive type with one constructor in the positive case, this is just because a inductive type has a coproduct-sigma factoring
@@ -74,9 +75,10 @@
         * **[it is possible to have non-strict but positive ones?](http://vilhelms.github.io/posts/why-must-inductive-types-be-strictly-positive/), also mentioned in 3.2 in "Inductively defined types" by Coquand**
     * **how/in what sense does they reduce to sum-of records? even because there is indexes?**
     * there is a notion of "generalized" and "strict" inductive familes, and usually we are talking about the generalized one (see paper "Indexed Induction-Recursion")
+        * **semantics**
         * the Martin-Löf identity type is a gif, but not a rif
         * can we give a alternative form of generalized inductive type where the equality is definitional and expressed by constraints? this is however not possible, because the index can be type that don't allow pattern matching. actually this has been considered before [like here](https://lists.chalmers.se/pipermail/agda/2008/000420.html)
-            * **how important is it to have this generalized index?? what incovenience will we get?** because it seems people say the coinductive case is natural with restricted
+            * how important is it to have this generalized index?? what incovenience will we get? see discuession [here](https://wiki.portal.chalmers.se/agda/pmwiki.php?n=Main.InductiveFamilies). it seems at least essential to [tt in tt](https://github.com/mr-ohman/logrel-mltt/blob/86a0e7c509fd0e8ea3c68b16983627d92006a105/Definition/Conversion.agda)
     * the idea of recursive-inductive definition is to define function `T: U => D` and inductive type `U[T]` and only allow `T` occurs in `U` of the form `T(...)`, i.e. application
         * this is rejected as "non-positive" in Agda
           ```
@@ -106,6 +108,7 @@
 
     * **induction-induction**
     * higher inductive types inductively add to inductive types paths and squares, also the constructors can mix dimension and reference previous one. **[a non-linearizable example?](https://github.com/agda/cubical/issues/77#issuecomment-478245776)**
+    * **can we have unordered pattern matching on all of them?**
 
 * coinductive type (coalgebra approach)
     * **what is a coinductively defined set/type exactly? why there are also the codata approach?**
@@ -124,4 +127,4 @@
 
 * more
     * what is **propositional resizing**?
-    * what is two level theories?
+    * what is two level theories? observational type theory?
