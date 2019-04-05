@@ -40,7 +40,6 @@ what about mixed case? it forces the definition more principle with what calling
 * `(A, B) => C` equals `A * B => C` called with `f(a, b)`, or `val c = (a, b); f(c)`
 * `(A; B) => C` equals `A => B => C` called with `f(a; b)` or `f(a)(b)` or `f(a)`
 * `(A, B; C, D) => E` equals `A * B => C * D => E` called with `f(a, b; c, d)` or `f(a, b)`
-* `{a: A, b: B} => C` calls with `f(a = some, b = some)`
 
 ------
 
