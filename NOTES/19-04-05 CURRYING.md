@@ -12,7 +12,7 @@ in programming languages, there are three implementations for multiple argument 
     * `(A, B) => C` is defined as `A * B => C`
 
 
-currently in proof assistants, only 2 is used.
+most of time 1 is not used in functional languages. currently in proof assistants, only 2 is used. 3 is used in Standard ML.
 
 
 * 2 good
