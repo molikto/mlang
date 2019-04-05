@@ -28,6 +28,7 @@ most of time 1 is not used in functional languages. currently in proof assistant
     * 3 makes it easier to call `funExt f g` where `f` and `g` takes multiple arguments, also `map f [(1,2,3), (4,5,6), (7, 8, 9)]`
 * 3 bad
     * not easy to write partial application, we can provide one partial application *macro*, but it will make definitional equality ugly
+    * it uses record type, which is not something in basic type theory (most of time only Pi and Sigma), also the syntax is messier: `(A) => B` doesn't create a record type, but `(A, B) => C` does
     
     
 the problem of 2 and 3 is a problem of syntax. 
@@ -43,7 +44,7 @@ what about mixed case? it forces the definition more principle with what calling
 
 ------
 
-anyway. it might be annoying to think what convention should be used to call a function, and one just want to use Agda/Haskell/Coq style currying. but being able to have ad-hoc overloading seems a nice add-on from OO languages.
+anyway. it might be annoying to think what convention should be used to call a function, and one just want to use Agda/Haskell/Coq style currying. non-the-less Agda have pattern matching, but being able to have ad-hoc overloading (for some functions) seems a nice add-on from OO languages.
      
     
 
