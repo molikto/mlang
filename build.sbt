@@ -1,34 +1,51 @@
-lazy val sharedSettings: Seq[Def.Setting[_]] = Seq(
-  version := "0.1",
-  scalaVersion := "0.13.0-RC1",
-  resolvers += Resolver.jcenterRepo,
+import sbtcrossproject.CrossPlugin.autoImport.{crossProject, CrossType}
+
+
+lazy val core = crossProject(JSPlatform, JVMPlatform).crossType(CrossType.Pure).in(file("core")).settings(
+  sharedSettings,
+//    libraryDependencies ++= Deps.shared.value,
+).jsConfigure(_.enablePlugins(ScalaJSPlugin))
+
+lazy val `client-web` = project.in(file("client-web")).settings(
+  sharedSettings,
+  scalaJSUseMainModuleInitializer := true,
   libraryDependencies ++= Seq(
-    "com.novocode" % "junit-interface" % "0.11" % "test"
+    "org.scala-js" %%% "scalajs-dom" % "0.9.6",
+    "com.lihaoyi" %%% "scalatags" % "0.6.7"
+)
+).enablePlugins(ScalaJSPlugin).dependsOn(core.js)
+
+val sharedSettings = Seq(
+  scalaVersion := "2.12.6",
+  resolvers ++= Seq(
+    "Sonatype OSS Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots/",
+    Resolver.jcenterRepo,
+    Resolver.sonatypeRepo("releases"),
   ),
+  sources in (Compile, doc) := Seq.empty,
+  publishArtifact in (Compile, packageDoc) := false,
+  testFrameworks += new TestFramework("utest.runner.Framework"),
+  scalacOptions ++= Seq(
+    "-language:implicitConversions",
+    "-deprecation", // Emit warning and location for usages of deprecated APIs.
+    "-feature", // Emit warning and location for usages of features that should be imported explicitly.
+    "-unchecked", // Enable additional warnings where generated code depends on assumptions.
+    //"-Xfatal-warnings", // Fail the compilation if there are any warnings.
+    //"-Xlint", // Enable recommended additional warnings.
+    //"-Ywarn-adapted-args", // Warn if an argument list is modified to match the receiver.
+    "-Ywarn-dead-code", // Warn when dead code is identified.
+    "-Ywarn-inaccessible", // Warn about inaccessible types in method signatures.
+    "-Ywarn-nullary-override", // Warn when non-nullary overrides nullary, e.g. def foo() over def foo.
+    "-Ywarn-numeric-widen", // Warn when numerics are widened.
+    "-Xlint:-unused,_",
+    "-P:acyclic:force",
+  ),
+  autoCompilerPlugins := true,
+  addCompilerPlugin("com.lihaoyi" %% "acyclic" %  "0.1.8"),
+  libraryDependencies += "com.lihaoyi" %% "acyclic" % "0.1.8" % "provided",
+
+  resolvers += Resolver.bintrayRepo("stg-tud", "maven"),
+  addCompilerPlugin("de.tuda.stg" % "dslparadise" % "0.2.0" cross CrossVersion.patch),
+  libraryDependencies += "de.tuda.stg" %% "dslparadise-types" % "0.2.0"
 )
 
-lazy val mlang = project
-    .in(file("mlang"))
-    .settings(sharedSettings: _*)
-    .settings(
-      libraryDependencies ++= Seq(
-        ("org.scala-lang.modules" %% "scala-parser-combinators" % "1.1.1").withDottyCompat(scalaVersion.value)
-      )
-    )
-
-lazy val `mlang-swing` = project
-    .in(file("mlang-swing"))
-    .settings(sharedSettings: _*)
-    .settings(
-      libraryDependencies ++= Seq(
-      )
-    ).dependsOn(mlang)
-
-lazy val `mlang-imgui` = project
-    .in(file("mlang-imgui"))
-    .settings(sharedSettings: _*)
-    .settings(
-      libraryDependencies ++= Seq(
-        "org.ice1000.jimgui" % "core" % "v0.7"
-      )
-    ).dependsOn(mlang)

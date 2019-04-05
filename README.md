@@ -20,25 +20,36 @@ standard SBT project, run `Main` with file name to check, test with standard SBT
 
 first implement without cubical stuff and without implicit argument/subtyping
 
+* when you are not sure, implement the one that is 1. easy to implement 2. restricted 3. enough for now
+
 (in progress)
 
-* **pi**: primitive multiple arity function types; eta rule; mutually recursively defined lambdas with size-changing termination checker
+* **pi**: function types; eta rule; mutually recursively defined lambdas with size-changing termination checker
 * pattern matching lambda and coverage checker
     * overlapping and definitional patterns
 * **path**: cubical type theory (`TODO: eta for path?`)
-* **universe**: non-commutative universe with subtyping with univalance
-* **inductive**: uniform-parametized simple higher inductive type (no index, no non-uniform, no mutual, no induction-recursion, no induction-induction)
-* **record**: record type with record type calculus, make expressions
+* **universe**: non-commutative universe without subtyping with univalance
+* data types
+    * record type - both negative and positive
+        * simple - allows calculus
+        * inductive - recursive - no calculus
+        * (future: coinductive types)
+    * sum type
+        * simple
+        * computational indexed
+        * general indexed
+        * hit
 * very limited implicit arguments
 * coercion subtyping
 
 ## maybe roadmap
 
 * first-class sum types (what about defining true/false as sum?)
-* all other forms of inductive type mentioned above, except induction-induction
+* all other forms of inductive type mentioned above
 * implicit parameters and possibly more liberal unification
 * ad-hoc polymorphism
 * explicit universe polymorphism with editor helper (Agda style? look it up what it is!!!)
+* destructors
 
 
 ## math

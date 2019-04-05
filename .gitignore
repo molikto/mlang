@@ -1,7 +1,26 @@
-.idea/
-target/
-test.v
-out/
-.dotty-ide.json
-.dotty-ide-artifact
+.idea
+fontawesome-free-5.2.0-desktop/
+jvm/saved
+logs
+project/project
+project/target
+target
+tmp
+.history
+dist
+/.idea
+/*.iml
+/out
+/.idea_modules
+/.classpath
+/.project
+/RUNNING_PID
+/.settings
+/bin
 
+# local helpers
+dump_local.sh
+
+# production files
+production.sh
+deploy.sh
