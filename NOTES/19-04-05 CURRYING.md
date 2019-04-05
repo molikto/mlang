@@ -30,6 +30,7 @@ most of time 1 is not used in functional languages. currently in proof assistant
     * not easy to write partial application, we can provide one partial application *macro*, but it will make definitional equality ugly
     
     
+the problem of 2 and 3 is a problem of syntax. 
 
 what about mixed case? it forces the definition more principle with what calling convention should be used
 
