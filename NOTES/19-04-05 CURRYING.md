@@ -36,8 +36,13 @@ what about mixed case? it forces the definition more principle with what calling
 
 * `(A) => B` equals `A => B`, called with `f(a)`
 * `(A, B) => C` equals `A * B => C` called with `f(a, b)`, or `val c = (a, b); f(c)`
-* `(A; B) => C` equals `A => B => C` called with `f(a; b)` or `f(a)(b)`
-* `(A, B; C, D) => E` equals `A * B => C * D => E` called with `f(a, b; c, d)`
+* `(A; B) => C` equals `A => B => C` called with `f(a; b)` or `f(a)(b)` or `f(a)`
+* `(A, B; C, D) => E` equals `A * B => C * D => E` called with `f(a, b; c, d)` or `f(a, b)`
+* `{a: A, b: B} => C` calls with `f(a = some, b = some)`
+
+------
+
+anyway. it might be annoying to think what convention should be used to call a function, and one just want to use Agda/Haskell/Coq style currying. but being able to have ad-hoc overloading seems a nice add-on from OO languages.
      
     
 
