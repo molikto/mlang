@@ -47,7 +47,7 @@ object Value {
     assert(nodes.isEmpty || nodes.head.dependencies.isEmpty)
     // TODO what will they became when readback??
 
-    val make: Value = {
+    val maker: Value = {
       def rec(known: Seq[Value], remaining: Seq[RecordNode]): Value = {
         remaining match {
           case Seq() => Make(nodes.map(_.name).zip(known).toMap)
@@ -57,14 +57,14 @@ object Value {
       }
       rec(Seq.empty, nodes)
     }
-    val makeType: Value = {
+    val makerType: Value = {
       def rec(known: Seq[(Name, Value)], remaining: Seq[RecordNode]): Value = {
         remaining match {
           case Seq() => rthis
           case Seq(head) =>
-            Function(head.closure(known.filter(n => head.dependencies.contains(n)).map(_._2)), _ => rthis)
+            Function(head.closure(known.filter(n => head.dependencies.contains(n._1)).map(_._2)), _ => rthis)
           case head +: more +: tail =>
-            Function(head.closure(known.filter(n => head.dependencies.contains(n)).map(_._2)), p => {
+            Function(head.closure(known.filter(n => head.dependencies.contains(n._1)).map(_._2)), p => {
               rec(known ++ Seq((more.name, p)), tail)
             })
         }
@@ -87,7 +87,7 @@ object Value {
   // TODO sum should have a type, it can be indexed, so a pi type ends with type_i
   // TODO should have a field: recursive, and it must be recursive, also in case of indexed, use Constructor instead of value
   case class Constructor(name: Name, nodes: Seq[MultiClosure]) {
-    val make: Value = {
+    val maker: Value = {
       def rec(known: Seq[Value], remaining: Seq[MultiClosure]): Value = {
         remaining match {
           case Seq() => Construct(name, known)
@@ -97,9 +97,9 @@ object Value {
       }
       rec(Seq.empty, nodes)
     }
-    lazy val makeType: Value = _makeType
-    private[Value] var _makeType: Value = null
-    private[Value] def makeMakeType(rthis: Value): Value = {
+    lazy val makerType: Value = _makerType
+    private[Value] var _makerType: Value = null
+    private[Value] def initMakerType(rthis: Value): Value = {
       def rec(known: Seq[Value], remaining: Seq[MultiClosure]): Value = {
         remaining match {
           case Seq() => rthis
@@ -117,7 +117,7 @@ object Value {
   case class Sum(constructors: Seq[Constructor]) extends Value {
 
     for (c <- constructors) {
-      c._makeType = c.makeMakeType(this)
+      c._makerType = c.initMakerType(this)
     }
   }
 

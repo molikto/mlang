@@ -44,7 +44,7 @@
 * function types is seen as nagetively defined, with well-known eta rule
     * it is dual to sigma type in the sense they are left/right adjoint of the pullback functor
         * **is this the duality in the basic sense? seems not??**
-        * **can we generalize function types like record types generalize sigma types, they are dual right? (I guess this is not kind of dual...) a way to think of it is to create a model where the pullback functor has adjoint as record type???**
+        * **can we generalize function types like record types generalize sigma types, they are dual right? (I guess this is not kind of dual...) a way to think of it is to create a model where the pullback functor has adjoint as record type??**
     * function type has a wired looking [positive presentation](https://cstheory.stackexchange.com/questions/16937/funsplit-and-polarity-of-pi-types?rq=1)
     * lambda is defined by copattern matching
     * *what the hell is [this](https://scholar.google.com/scholar?hl=en&as_sdt=0%2C5&q=Type+Theory+based+on+Dependent+Inductive+and+Coinductive+Types&btnG=)?*
