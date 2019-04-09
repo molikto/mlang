@@ -1,35 +1,21 @@
 
 # mlang
 
-## build & run & test
-
-standard SBT project, run `Main` with file name to check, test with standard SBT commands
-
-## code
-
-* dependencies is documented in code, we wish we have more power in controlling this but now we don't
-* dotty
-    * `==` equality should be used VERY sparsely, it is not known yet we should use multi-universe equality or not
-    * no `extends` in core theory!
-    * hope one day IntelliJ support and Scala.js support is ok. so we can use Mill, IntelliJ IDEA
-    * we want lambda with recievers!!
-
-## mvp
-
----
-
 
 * when you are not sure, implement the one that is 1. easy to implement 2. restricted 3. enough for now
 
 * roadmap
-    * **basics**
+    * **totally unsafe basics**
+        * basic syntax and parser
         * eta rule
     * coverage checker
         * overlapping patterns
     * mutual recursive functions
     * user defined eliminations
-    * evaluation method
-    * error reporting
+    * HTML pretty print
+    * naming shadowing
+    * evaluator control
+        * error reporting
     * record calculus
     * recursive types
         * inductive families of two flavor
@@ -41,6 +27,9 @@ standard SBT project, run `Main` with file name to check, test with standard SBT
     * implicit arguments
     * implicit conversions
     * structural editor
+        * modules and compile unit
+    * universe polymorphism
+    * coinductive types
     
 
 

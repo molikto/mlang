@@ -17,8 +17,9 @@ trait Context extends GenericGen {
 
   protected val layers: Layers
 
-  def lookup(name: NameRef): Option[Binder] = ???
-
+  def lookup(name: NameRef): Option[Binder] = layers.collectFirst {
+    case l if l.contains(name) => l(name)
+  }
 }
 
 

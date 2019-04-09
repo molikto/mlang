@@ -5,4 +5,5 @@ package object checker {
 
   type Generic = Long
 
+
 }
