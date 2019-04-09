@@ -12,6 +12,9 @@ package object concrete {
   type Name = Text
   type NameRef = Text
 
+  object NameRef {
+    val make: NameRef = Text("make")
+  }
 }
 
 

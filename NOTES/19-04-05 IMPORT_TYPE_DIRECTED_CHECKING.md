@@ -20,3 +20,10 @@ like in a oo language, we have projection and application
 problem with sum of product
 
 1. path constructor cannot write ... : isSet anymore
+
+
+
+--------------
+
+
+the problem of ad-hoc polymorphism / scope stuff is, well, they are not typed

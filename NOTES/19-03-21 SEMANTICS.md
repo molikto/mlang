@@ -47,9 +47,11 @@
         * **can we generalize function types like record types generalize sigma types, they are dual right? (I guess this is not kind of dual...) a way to think of it is to create a model where the pullback functor has adjoint as record type???**
     * function type has a wired looking [positive presentation](https://cstheory.stackexchange.com/questions/16937/funsplit-and-polarity-of-pi-types?rq=1)
     * lambda is defined by copattern matching
-    * *[this](https://scholar.google.com/scholar?hl=en&as_sdt=0%2C5&q=Type+Theory+based+on+Dependent+Inductive+and+Coinductive+Types&btnG=) give a type theory with only inductive and coinductive types. is function type really some special case of coinductive type? then what are the corresponding "special case" of inductive types? or this cannot really apply to Agda-like theory at all?*
+    * *what the hell is [this](https://scholar.google.com/scholar?hl=en&as_sdt=0%2C5&q=Type+Theory+based+on+Dependent+Inductive+and+Coinductive+Types&btnG=)?*
     * **definitional equality of lambdas with recursive unfolding, [here](https://cstheory.stackexchange.com/questions/42371/definitional-equality-of-recursive-function-definition-by-infinite-unfolding)?**
     * **what are categorical semantics for fix points?**
+    
+* traditionally data types is added as iterated extensions to theory
 
 * non-recursive record type is generalized sigma type, where the iterative explicit dependency is changed to implicit dependency. can be seen both as positive type or nagetive type, and each has a eta-rule, positive type [with eta (which is subtle)](https://ncatlab.org/nlab/show/product+type#as_a_positive_type) will validate the nagetive type [with eta](https://ncatlab.org/nlab/show/product+type#as_a_negative_type) propositionally and vice versa
     * one says it is a inductive type with one constructor in the positive case, this is just because a inductive type has a coproduct-sigma factoring
@@ -86,7 +88,7 @@
         * the Martin-Löf identity type is a gif, but not a rif
         * can we give a alternative form of generalized inductive type where the equality is definitional and expressed by constraints? this is however not possible, because the index can be type that don't allow pattern matching. actually this has been considered before [like here](https://lists.chalmers.se/pipermail/agda/2008/000420.html)
         * how important is it to have this generalized index?? what incovenience will we get? see discuession [here](https://wiki.portal.chalmers.se/agda/pmwiki.php?n=Main.InductiveFamilies). it seems at least essential to [tt in tt](https://github.com/mr-ohman/logrel-mltt/blob/86a0e7c509fd0e8ea3c68b16983627d92006a105/Definition/Conversion.agda)
-        * **what if we have a type theory with general indexed family, but annotated reduction rules?**
+        * **what if we have a type theory with general indexed family, but annotated reduction rules? (I think this is doable)**
     * the idea of recursive-inductive definition is to define function `T: U => D` and inductive type `U[T]` and only allow `T` occurs in `U` of the form `T(...)`, i.e. application
         * this is rejected as "non-positive" in Agda
           ```
@@ -114,7 +116,8 @@
           ty _ a i = a
           ```
 
-    * **induction-induction**
+    * induction-induction
+        * not reducible to inductive types, see [here](https://jashug.github.io/papers/ConstructingII.pdf)
     * higher inductive types inductively add to inductive types paths and squares, also the constructors can mix dimension and reference previous one.
         * (at least now) indexed hit's path constructor also has a index, and there is no heterogeneous equality introduced
         * **the syntax of hit is not entirely worked out see Bob's papers conclusion**. Agda supports more stuff than the two papers, for example identity types, but mostly natural extensions
