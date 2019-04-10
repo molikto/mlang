@@ -27,7 +27,6 @@ class Editor() extends editor.Editor {
   override def height: Float = 0F
 
   override def measure(text: StyledText): StyledTextMeasurement = {
-    ???
+    StyledTextMeasurement(0, 0, 0)
   }
-
 }

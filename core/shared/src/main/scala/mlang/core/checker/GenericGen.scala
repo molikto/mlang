@@ -4,10 +4,17 @@ import java.util.concurrent.atomic.AtomicLong
 
 
 trait GenericGen {
+  def apply(): Generic
+}
 
-  private val con= new AtomicLong(1)
-  private val abs = new AtomicLong(-1)
+object GenericGen {
+  object Positive extends GenericGen  {
+    private val con= new AtomicLong(1)
+    override def apply(): Generic = con.getAndIncrement()
+  }
 
-  def generic(): Generic = con.getAndIncrement()
-  def negativeGeneric(): Generic = abs.getAndDecrement()
+  object Negative extends GenericGen {
+    private val abs = new AtomicLong(-1)
+    override def apply(): Generic = abs.getAndDecrement()
+  }
 }

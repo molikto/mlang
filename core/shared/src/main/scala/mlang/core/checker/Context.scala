@@ -1,9 +1,8 @@
 package mlang.core.checker
 
-import mlang.core.concrete.{Name, NameRef, Pattern}
 
-
-
+import mlang.core.checker
+import mlang.core.concrete.{Name, NameRef}
 
 case class Binder(id: Generic, name: Name, typ: Value, value: Option[Value] = None)
 
@@ -13,11 +12,13 @@ object Context {
 }
 
 import Context._
-trait Context extends GenericGen {
+trait Context {
 
   protected val layers: Layers
 
-  def lookup(name: NameRef): Option[(Binder, Abstract.AbstractReference)] =  {
+  def get(depth: Int, index: Int): Binder = layers(depth)(index)
+
+  def lookup(name: NameRef): (Binder, Abstract.AbstractReference) =  {
     var up = 0
     var index = -1
     var ls = layers
@@ -37,18 +38,9 @@ trait Context extends GenericGen {
       up += 1
     }
     if (binder == null) {
-      None
+      throw new checker.ContextException.NonExistingReference()
     } else {
-      Some((binder, Abstract.AbstractReference(up, index, name)))
+      (binder, Abstract.AbstractReference(up, index, name))
     }
   }
-}
-
-
-trait ContextBuilder extends Context {
-
-  type Self <: ContextBuilder
-
-  protected implicit def create(a: Layers): Self
-
 }

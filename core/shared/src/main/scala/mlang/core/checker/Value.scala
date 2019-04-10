@@ -2,38 +2,63 @@ package mlang.core.checker
 
 import mlang.core.concrete.{Name, NameRef}
 
+import scala.collection.mutable
+import scala.collection.mutable.ArrayBuffer
 
+
+sealed trait PatternExtractException extends CoreException
+
+object PatternExtractException {
+  class MakeWrongSize() extends PatternExtractException
+  class MakeIsNotRecordType() extends PatternExtractException
+  class ConstructUnknownName() extends PatternExtractException
+  class ConstructWrongSize() extends PatternExtractException
+  class ConstructNotSumType() extends PatternExtractException
+}
 
 sealed trait Value {
   def app(v: Value): Value = throw new IllegalArgumentException()
-  def project(name: NameRef): Value = throw new IllegalArgumentException()
+  def project(name: Int): Value = throw new IllegalArgumentException()
 }
-
 
 
 object Value {
 
-  type Closure = Value => Value
   type MultiClosure = Seq[Value] => Value
+  type Closure = MultiClosure
 
-  trait Spine extends Value {
-    override def app(v: Stuck): Stuck = Application(this, v)
-    override def project(name: NameRef): Stuck = Projection(this, name)
-  }
   type Stuck = Value
 
-  case class Universe(level: Int) extends Value
+  sealed trait Elimination {
 
-  case class RecursiveReference(var value: Value, name: NameRef) extends Value
-  case class Reference(value: Value, name: Name) extends Value
-  case class OpenReference(id: Long, name: Name) extends Value
+  }
+
+
+  sealed trait AsStuck extends Value {
+    override def app(v: Value): Stuck = Application(this, v)
+    override def project(name: Int): Stuck = Projection(this, name)
+  }
+
+  sealed trait Spine extends AsStuck
+
+  sealed trait ClosedReference extends Value {
+    def value: Value
+    override def app(v: Value): Value = value.app(v)
+    override def project(name: Int): Value = value.project(name)
+  }
+
+  case class RecursiveReference(var value: Value, name: NameRef) extends ClosedReference
+  case class Reference(override val value: Value, name: Name) extends ClosedReference
+  case class OpenReference(id: Generic, typ: Value, name: Name) extends AsStuck
+
+  case class Universe(level: Int) extends Value
 
   case class Function(domain: Value, codomain: Closure) extends Value
   /**
     * this lambda is transparent on the arguments
     */
   case class Lambda(closure: Closure) extends Value {
-    override def app(v: Stuck): Stuck = closure(v)
+    override def app(v: Stuck): Stuck = closure(Seq(v))
   }
   case class Application(lambda: Stuck, argument: Value) extends Spine
 
@@ -43,16 +68,16 @@ object Value {
   case class RecordNode(name: Name, dependencies: Seq[NameRef], closure: MultiClosure)
   /**
     */
-  case class Record(nodes: Seq[RecordNode]) extends Value { rthis =>
+  case class Record(level: Int, nodes: Seq[RecordNode]) extends Value { rthis =>
     assert(nodes.isEmpty || nodes.head.dependencies.isEmpty)
     // TODO what will they became when readback??
 
     val maker: Value = {
       def rec(known: Seq[Value], remaining: Seq[RecordNode]): Value = {
         remaining match {
-          case Seq() => Make(nodes.map(_.name).zip(known).toMap)
+          case Seq() => Make(known)
           case _ +: tail =>
-            Lambda(p => rec(known :+ p, tail))
+            Lambda(p => rec(known :+ p(0), tail))
         }
       }
       rec(Seq.empty, nodes)
@@ -65,23 +90,23 @@ object Value {
             Function(head.closure(known.filter(n => head.dependencies.contains(n._1)).map(_._2)), _ => rthis)
           case head +: more +: tail =>
             Function(head.closure(known.filter(n => head.dependencies.contains(n._1)).map(_._2)), p => {
-              rec(known ++ Seq((more.name, p)), tail)
+              rec(known ++ Seq((more.name, p(0))), tail)
             })
         }
       }
       rec(Seq.empty, nodes)
     }
-    def projectedType(values: Map[NameRef, Value], name: NameRef): Value = {
-      val b = nodes.find(_.name == name).get
-      b.closure(b.dependencies.map(values))
+    def projectedType(values: Seq[Value], name: Int): Value = {
+      val b = nodes(name)
+      b.closure(b.dependencies.map(nodes.map(_.name).zip(values).toMap))
     }
   }
 
-  case class Make(values: Map[Name, Value]) extends Value {
-    override def project(name: NameRef): Stuck = values(name)
+  case class Make(values: Seq[Value]) extends Value {
+    override def project(name: Int): Stuck = values(name)
   }
 
-  case class Projection(make: Stuck, field: Name) extends Spine
+  case class Projection(make: Stuck, field: Int) extends Spine
 
   case class Construct(name: NameRef, vs: Seq[Value]) extends Value
   // TODO sum should have a type, it can be indexed, so a pi type ends with type_i
@@ -92,7 +117,7 @@ object Value {
         remaining match {
           case Seq() => Construct(name, known)
           case _ +: tail =>
-            Lambda(p => rec(known :+ p, tail))
+            Lambda(p => rec(known :+ p(0), tail))
         }
       }
       rec(Seq.empty, nodes)
@@ -107,25 +132,132 @@ object Value {
             Function(head(known), _ => rthis)
           case head +: _ +: tail =>
             Function(head(known), p => {
-              rec(known :+ p, tail)
+              rec(known :+ p(0), tail)
             })
         }
       }
       rec(Seq.empty, nodes)
     }
   }
-  case class Sum(constructors: Seq[Constructor]) extends Value {
+  case class Sum(level: Int, constructors: Seq[Constructor]) extends Value {
+
+    def constructor(name: NameRef): Option[Constructor] = constructors.find(_.name == name)
 
     for (c <- constructors) {
       c._makerType = c.initMakerType(this)
     }
   }
 
-  sealed trait Pattern {
+  case class Case(pattern: Pattern, closure: MultiClosure) {
+    def tryApp(v: Value): Option[Value] = {
+      extract(pattern, v).map(closure)
+    }
   }
-  case class Case(pattern: Pattern, closure: MultiClosure)
-  case class PatternLambda(cases: Seq[Case]) extends Value {
-    override def app(v: Stuck): Stuck = ???
+  
+  case class PatternLambda(typ: Closure, cases: Seq[Case]) extends Value {
+    // TODO overlapping patterns, we are now using first match
+    override def app(v: Value): Value = {
+      var res: Value = null
+      var cs = cases
+      while (cs.nonEmpty && res == null) {
+        res = cs.head.tryApp(v).orNull
+        cs = cs.tail
+      }
+      if (res != null) {
+        res
+      } else {
+        PatternStuck(this, v)
+      }
+    }
+  }
+
+  case class PatternStuck(lambda: PatternLambda, stuck: Stuck) extends Spine
+
+
+
+  def extractTypes(
+      pattern: Pattern,
+      typ: Value,
+      gen: GenericGen,
+      names: Int => Name = (_: Int) => ""
+  ): (Seq[OpenReference], Value) = {
+    val vs = mutable.ArrayBuffer[OpenReference]()
+    def rec(p: Pattern, t: Value): Value = {
+      p match {
+        case Pattern.Atom =>
+          vs.append(OpenReference(gen(), t, names(vs.size)))
+          t
+        case Pattern.Make(maps) =>
+          typ match {
+            case r@Value.Record(_, nodes) =>
+              if (maps.size == nodes.size) {
+                var vs =  Seq.empty[Value]
+                for (m  <- maps) {
+                  val it = r.projectedType(vs, vs.size)
+                  val tv = rec(m, it)
+                  vs = vs :+ tv
+                }
+                Value.Make(vs)
+              } else {
+                throw new PatternExtractException.MakeWrongSize()
+              }
+            case _ => throw new PatternExtractException.MakeIsNotRecordType()
+          }
+        case Pattern.Constructor(name, maps) =>
+          typ match {
+            case Value.Sum(_, cs) =>
+              cs.find(_.name == name) match {
+                case Some(c) =>
+                  if (c.nodes.size == maps.size) {
+                    val vs = new mutable.ArrayBuffer[Value]()
+                    for ((m, n) <- maps.zip(c.nodes)) {
+                      val it = n(vs)
+                      val tv = rec(m, it)
+                      vs.append(tv)
+                    }
+                    Value.Construct(name, vs)
+                  } else {
+                    throw new PatternExtractException.ConstructWrongSize()
+                  }
+                case _ =>
+                  throw new PatternExtractException.ConstructUnknownName()
+              }
+            case _ => throw new PatternExtractException.ConstructNotSumType()
+          }
+      }
+    }
+    val t = rec(pattern, typ)
+    (vs, t)
+  }
+
+  def extract(pattern: Pattern, v: Value): Option[Seq[Value]] = {
+    val vs = mutable.ArrayBuffer[Value]()
+    def rec(pattern: Pattern, v: Value): Boolean = {
+      pattern match {
+        case Pattern.Atom =>
+          vs.append(v)
+          true
+        case Pattern.Make(names) =>
+          v match {
+            case Make(values) =>
+              names.zip(values).forall(pair => rec(pair._1, pair._2))
+            case _ =>
+              false
+          }
+        case Pattern.Constructor(name, pattern) =>
+          v match {
+            case Construct(n, values) if name == n =>
+              pattern.zip(values).forall(pair => rec(pair._1, pair._2))
+            case _ =>
+              false
+          }
+      }
+    }
+    if (rec(pattern, v)) {
+      Some(vs)
+    } else {
+      None
+    }
   }
 }
 

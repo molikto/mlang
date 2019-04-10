@@ -25,7 +25,7 @@
         * instead inductive type should still have their parameters, so non-uniform parameters is allowed: https://coq-club.inria.narkive.com/e3qSfR9G/recursively-non-uniform-parameters-in-inductive-types#post4 `TODO: what's the paper on this?`
     * defining a data type inside a lambda will result in a recursive-inductive definition...
 
-    * does this even makes sense???
+    * does this even makes sense??
       ```
       context = sum {
         empty: context

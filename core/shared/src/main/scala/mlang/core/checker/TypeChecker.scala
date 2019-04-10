@@ -1,8 +1,7 @@
 package mlang.core.checker
 
-import mlang.core.concrete._
+import mlang.core.concrete.{Pattern => Patt, _}
 import Context._
-import mlang.core
 import mlang.core.checker
 import mlang.core.concrete.Term.NameType
 
@@ -12,16 +11,9 @@ import scala.language.implicitConversions
 
 
 
-sealed class TypeCheckException extends Exception
+sealed trait TypeCheckException extends CoreException
 
 object TypeCheckException {
-  // name intro wrong
-  class AlreadyDeclared() extends TypeCheckException
-  class AlreadyDefined() extends TypeCheckException
-  class NotDeclared() extends TypeCheckException
-
-  // name resolve
-  class NonExistingReference() extends TypeCheckException
 
   // elimination mismatch
   class UnknownAsType() extends TypeCheckException
@@ -29,11 +21,6 @@ object TypeCheckException {
   class UnknownAsFunction() extends TypeCheckException
 
   // pattern mismatch
-  class MakePatternWrongSize() extends TypeCheckException
-  class MakePatternIsNotRecordType() extends TypeCheckException
-  class ConstructPatternUnknownName() extends TypeCheckException
-  class ConstructPatternWrongSize() extends TypeCheckException
-  class ConstructPatternNotSumType() extends TypeCheckException
 
   // not enough type information
   class CannotInferLambdaWithoutDomain() extends TypeCheckException
@@ -49,117 +36,12 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
 
   override protected implicit def create(a: Layers): Self = new TypeChecker(a)
 
-  def newLayer(): Self = (Seq.empty : Layer) +: layers
-
-  def newDeclaration(name: Name, typ: Value) : Self = {
-    layers.head.find(_.name == name) match {
-      case Some(_) => throw new TypeCheckException.AlreadyDeclared()
-      case _ => (layers.head :+ Binder(generic(), name, typ)) +: layers.tail
-    }
-  }
-
-  def newDefinitionChecked(name: Name, v: Value) : Self = {
-    layers.head.find(_.name == name) match {
-      case Some(Binder(id, _, typ, tv)) => tv match {
-        case Some(_) => throw new TypeCheckException.AlreadyDefined()
-        case _ => layers.head.updated(layers.head.indexWhere(_.name == name), Binder(id, name, typ, Some(v))) +: layers.tail
-      }
-      case _ => throw new TypeCheckException.NotDeclared()
-    }
-  }
-
-  def newDefinition(name: Name, typ: Value, v: Value): Self = {
-    layers.head.find(_.name == name) match {
-      case Some(_) => throw new TypeCheckException.AlreadyDeclared()
-      case _ => (layers.head :+ Binder(generic(), name, typ, Some(v))) +: layers.tail
-    }
-  }
-
-  def newAbstraction(name: Name, typ: Value) : (Self, Value) = {
-    layers.head.find(_.name == name) match {
-      case Some(_) => throw new TypeCheckException.AlreadyDeclared()
-      case _ =>
-        val g = generic()
-        val v = Value.OpenReference(g, name)
-        ((layers.head :+ Binder(g, name, typ, Some(v))) +: layers.tail, v)
-    }
-  }
-
-  def compile(pattern: Pattern): Abstract.Pattern = {
-    def rec(p: Pattern): Abstract.Pattern = {
-      p match {
-        case Pattern.Atom(_) =>
-          Abstract.Pattern.Atom
-        case Pattern.Make(maps) =>
-          Abstract.Pattern.Make(maps.map(compile))
-        case Pattern.Constructor(name, maps) =>
-          Abstract.Pattern.Constructor(name, maps.map(compile))
-      }
-    }
-    rec(pattern)
-  }
-
-
-  def newAbstractions(pattern: Pattern, typ: Value): (Self, Value) = {
-    def rec(l: Self, p: Pattern, t: Value): (Self, Value) = {
-      p match {
-        case Pattern.Atom(id0) =>
-          l.newAbstraction(id0, t)
-        case Pattern.Make(maps) =>
-          typ match {
-            case r@Value.Record(nodes) =>
-              if (maps.size == nodes.size) {
-                var ll = l
-                var vs = Map.empty[NameRef, Value]
-                for ((m, n) <- maps.zip(nodes)) {
-                  val it = r.projectedType(vs, n.name)
-                  val (ll0, tv) = rec(l, m, it)
-                  ll = ll0
-                  vs = vs.updated(n.name, tv)
-                }
-                (ll, Value.Make(vs))
-              } else {
-                throw new TypeCheckException.MakePatternWrongSize()
-              }
-            case _ => throw new TypeCheckException.MakePatternIsNotRecordType()
-          }
-        case Pattern.Constructor(name, maps) =>
-          typ match {
-            case Value.Sum(cs) =>
-              cs.find(_.name == name) match {
-                case Some(c) =>
-                  if (c.nodes.size == maps.size) {
-                    var ll = l
-                    val vs = new mutable.ArrayBuffer[Value]()
-                    for ((m, n) <- maps.zip(c.nodes)) {
-                      val it = n(vs)
-                      val (ll0, tv) = rec(l, m, it)
-                      ll = ll0
-                      vs.append(tv)
-                    }
-                    (ll, Value.Construct(name, vs))
-                  } else {
-                    throw new TypeCheckException.ConstructPatternWrongSize()
-                  }
-                case _ =>
-                  throw new TypeCheckException.ConstructPatternUnknownName()
-              }
-            case _ => throw new TypeCheckException.ConstructPatternNotSumType()
-          }
-      }
-    }
-    rec(this, pattern, typ)
-  }
-
-
   private def infer(term: Term): (Value, Abstract) = {
     term match {
       case Term.Reference(name) =>
         // should lookup always return a value? like a open reference?
-        lookup(name) match {
-          case Some((Binder(_, _, t, _), abs)) => (t, abs)
-          case _ => throw new TypeCheckException.NonExistingReference()
-        }
+        val (Binder(_, _, t, _), abs) = lookup(name)
+        (t, abs)
       case Term.Cast(v, t) =>
         val (_, ta) = inferLevel(t)
         val tv = eval(ta)
@@ -171,12 +53,12 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
         (ft, Abstract.Function(da, ca))
       case Term.Record(fields) =>
         val (fl, fs) = newLayer().inferLevel(fields)
-        (Value.Universe(fl), Abstract.Record(fs.zip(fields).map(pair => Abstract.RecordNode(pair._2.name, pair._1))))
+        (Value.Universe(fl), Abstract.Record(fl, fs.zip(fields).map(pair => Abstract.RecordNode(pair._2.name, pair._1))))
       case Term.Sum(constructors) =>
         // TODO in case of HIT, each time a constructor finished, we need to construct a partial sum and update the value
         val fs = constructors.map(c => newLayer().inferLevel(c.term))
         val fl = fs.map(_._1).max
-        (Value.Universe(fl), Abstract.Sum(fs.zip(constructors).map(a => Abstract.Constructor(a._2.name, a._1._2))))
+        (Value.Universe(fl), Abstract.Sum(fl, fs.zip(constructors).map(a => Abstract.Constructor(a._2.name, a._1._2))))
       case Term.Lambda(_, _) =>
         // TODO inferring the type of a lambda, the inferred type might not have the same branches as the lambda itself
         throw new TypeCheckException.CannotInferLambdaWithoutDomain()
@@ -190,14 +72,15 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
         def error() = throw new TypeCheckException.UnknownProjection()
         lv match {
           case m: Value.Make if ltr.nodes.exists(_.name == right) =>
-            (ltr.projectedType(m.values, right), Abstract.Projection(la, right))
+            val index = ltr.nodes.indexWhere(_.name == right)
+            (ltr.projectedType(m.values, index), Abstract.Projection(la, index))
           // TODO user defined projections
           case r: Value.Record if right == NameRef.make =>
             (r.makerType, Abstract.RecordMaker(la))
           case r: Value.Sum if r.constructors.exists(_.name == right) =>
             r.constructors.find(_.name == right) match {
               case Some(br) =>
-                (br.makerType, Abstract.SumMaker(la, right))
+                (br.makerType, Abstract.SumMaker(la, r.constructors.indexWhere(_.name == right)))
               case _ => error()
             }
           case _ => error()
@@ -208,7 +91,7 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
           case Value.Function(domain, codomain) =>
             val aa = check(argument, domain)
             val av = eval(aa)
-            (codomain(av), Abstract.Application(la, aa))
+            (codomain(Seq(av)), Abstract.Application(la, aa))
           case _ => throw new TypeCheckException.UnknownAsFunction()
         }
       case Term.Let(declarations, in) =>
@@ -223,22 +106,23 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
     (term, cp) match {
       case (Term.Lambda(name, body), Value.Function(domain, codomain)) =>
         val (ctx, v) = newLayer().newAbstraction(name, domain)
-        Abstract.Lambda(ctx.check(body, codomain(v)))
+        Abstract.Lambda(ctx.check(body, codomain(Seq(v))))
       case (Term.PatternLambda(cases), Value.Function(domain, codomain)) =>
-        Abstract.PatternLambda(cases.map(c => {
+        Abstract.PatternLambda(codomain, cases.map(c => {
           val (ctx, v) = newLayer().newAbstractions(c.pattern, domain)
-          val ba = ctx.check(c.body, codomain(v))
+          val ba = ctx.check(c.body, codomain(Seq(v)))
           Abstract.Case(compile(c.pattern), ba)
         }))
       case _ =>
         val (tt, ta) = infer(term)
-        if (equalType(tt, cp)) ta
+        if (equalType(Int.MaxValue, tt, cp)) ta
         else throw new TypeCheckException.TypeMismatch()
     }
   }
 
 
   private def checkDeclarations(seq: Seq[Declaration]): (Self, Seq[Abstract]) = {
+    // TODO recursive defines
     var ctx = this
     val abs = new mutable.ArrayBuffer[Abstract]()
     seq.map(s => {
@@ -297,5 +181,11 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
   def checkModule(m: Module): Unit = newLayer().checkDeclarations(m.declarations)
 
 
-  def eval(term: Abstract): Value = platformEval(term)
+  private def eval(term: Abstract): Value = platformEval(term)
+}
+
+object TypeChecker {
+  val empty = new TypeChecker(Seq.empty)
+
+
 }

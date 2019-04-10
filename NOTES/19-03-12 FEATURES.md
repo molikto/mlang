@@ -7,7 +7,7 @@ this is a PA that focus on the ease to use
     * explicit universe polymorphism with editor inference
         * `TODO` what's the problems with Coq's UP?
     * **we will implement records with `with` see `PROPOSALS.md`**
-        * `TODO` *recursive records???* what are they used for? -- how do they interact with record sum
+        * `TODO` *recursive records??* what are they used for? -- how do they interact with record sum
     * simple parameterized higher inductive types
         * `LATER` inductive families (not needed now. the theory combining cubical type is still unclear)
         * `MAYBE` mutually defined inductive types (when we need them)
