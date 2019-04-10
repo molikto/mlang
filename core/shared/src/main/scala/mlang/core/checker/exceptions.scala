@@ -1,5 +1,6 @@
 package mlang.core.checker
 
+import mlang.core.concrete.Name
 
 
 trait CoreException extends Exception
@@ -10,7 +11,7 @@ sealed trait ContextException extends Exception
 object ContextException {
 
   // resolve
-  class NonExistingReference() extends ContextException
+  class NonExistingReference(name: Name) extends ContextException
 
   // build
   class AlreadyDeclared() extends ContextException

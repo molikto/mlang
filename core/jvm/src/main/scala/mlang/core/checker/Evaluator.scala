@@ -23,7 +23,7 @@ trait Evaluator extends BaseEvaluator {
     term match {
       case Abstract.Universe(l) =>
         s"Universe($l)"
-      case Abstract.AbstractReference(up, index, name) =>
+      case Abstract.Reference(up, index, name) =>
         // TODO closed reference
         if (up > depth) s"ctx.get(${up - depth - 1}, $index).value.get"
         else s"r${depth - up}($index)"
@@ -39,14 +39,14 @@ trait Evaluator extends BaseEvaluator {
         val d = depth + 1
         s"""Record($level, ${nodes.zipWithIndex.map(c => s"RecordNode(${source(c._1.name)}, Seq(${nodes.take(c._2).map(a => source(a.name)).mkString(", ")}), r$d => ${emit(c._1.typ, d)})")})"""
       case Abstract.RecordMaker(record) =>
-        s"${emit(record, depth)}.make"
+        s"${emit(record, depth)}.asInstanceOf[Record].maker"
       case Abstract.Projection(left, field) =>
         s"${emit(left, depth)}.project($field)"
       case Abstract.Sum(level, constructors) =>
         val d = depth + 1
-        s"""Sum($level, ${constructors.zipWithIndex.map(c => s"Constructor(${source(c._1.name)}, Seq(${c._1.params.map(p => "r$d => " + emit(p, d)).mkString(", ")}))")})"""
+        s"""Sum($level, ${constructors.zipWithIndex.map(c => s"Constructor(${source(c._1.name)}, Seq(${c._1.params.map(p => s"r$d => " + emit(p, d)).mkString(", ")}))")})"""
       case Abstract.SumMaker(sum, field) =>
-        s"${emit(sum, depth)}.constructors($field).make"
+        s"${emit(sum, depth)}.asInstanceOf[Sum].constructors($field).maker"
       case Abstract.Let(definitions, in) =>
         val d = depth + 1
         s"val r$d = new scala.collection.mutable.ArrayBuffer[Value](); ${definitions.map(a => s"r$d.append(${emit(a, d)})").mkString("; ")}; ${emit(in, d)}"

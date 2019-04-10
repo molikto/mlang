@@ -129,42 +129,53 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
     res
   }
 
+  private def checkDeclaration(s: Declaration, abs: mutable.ArrayBuffer[Abstract]): Self = {
+    s match {
+      case Declaration.Define(name, v, t0) =>
+        debug(s"check define $name")
+        t0 match {
+          case Some(t) =>
+            val (_, ta) = inferLevel(t)
+            val tv = eval(ta)
+            val va = check(v, tv)
+            val ctx = newDefinition(name, tv, eval(va))
+            debug(s"defined $name")
+            ctx
+          case None =>
+            val index = layers.head.indexWhere(_.name == name)
+            if (index < 0) {
+              val (vt, va) = infer(v)
+              val ctx = newDefinition(name, vt, eval(va))
+              debug(s"defined $name")
+              abs.append(va)
+              ctx
+            } else {
+              val b = layers.head(index)
+              val va = check(v, b.typ)
+              val ctx = newDefinitionChecked(name, eval(va))
+              debug(s"defined body $name")
+              abs.updated(index, va)
+              ctx
+            }
+        }
+      case Declaration.Declare(name, t) =>
+        debug(s"check declare $name")
+        val (_, ta) = inferLevel(t)
+        val ctx = newDeclaration(name, eval(ta))
+        debug(s"declared $name")
+        abs.append(null)
+        ctx
+    }
+
+  }
 
   private def checkDeclarations(seq: Seq[Declaration]): (Self, Seq[Abstract]) = {
     // TODO recursive defines
     var ctx = this
     val abs = new mutable.ArrayBuffer[Abstract]()
-    seq.map(s => {
-      s match {
-        case Declaration.Define(name, v, t0) =>
-          debug(s"check define $name")
-          t0 match {
-            case Some(t) =>
-              val (_, ta) = inferLevel(t)
-              val tv = eval(ta)
-              val va = check(v, tv)
-              ctx = ctx.newDefinition(name, tv, eval(va))
-              abs.append(va)
-            case None =>
-              val index = layers.head.indexWhere(_.name == name)
-              if (index < 0) {
-                val (vt, va) = infer(v)
-                ctx = ctx.newDefinition(name, vt, eval(va))
-                abs.append(va)
-              } else {
-                val b = layers.head(index)
-                val va = check(v, b.typ)
-                ctx = ctx.newDefinitionChecked(name, eval(va))
-                abs.updated(index, va)
-              }
-          }
-        case Declaration.Declare(name, t) =>
-          debug(s"check declare $name")
-          val (_, ta) = inferLevel(t)
-          ctx = ctx.newDeclaration(name, eval(ta))
-          abs.append(null)
-      }
-    })
+    for (s <- seq) {
+      ctx = ctx.checkDeclaration(s, abs)
+    }
     (ctx, abs)
   }
 
@@ -192,7 +203,12 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
   def checkModule(m: Module): Unit = newLayer().checkDeclarations(m.declarations)
 
 
-  private def eval(term: Abstract): Value = platformEval(term)
+  private def eval(term: Abstract): Value = {
+    term match {
+      case Abstract.Reference(up, index, name) => layers.get(up, index).value.get
+      case _ => platformEval(term)
+    }
+  }
 }
 
 object TypeChecker {

@@ -18,7 +18,7 @@ trait Context {
 
   def get(depth: Int, index: Int): Binder = layers(depth)(index)
 
-  def lookup(name: NameRef): (Binder, Abstract.AbstractReference) =  {
+  def lookup(name: NameRef): (Binder, Abstract.Reference) =  {
     var up = 0
     var index = -1
     var ls = layers
@@ -34,13 +34,15 @@ trait Context {
         i += 1
         ll = ll.tail
       }
-      ls = ls.tail
-      up += 1
+      if (binder == null) {
+        ls = ls.tail
+        up += 1
+      }
     }
     if (binder == null) {
-      throw new checker.ContextException.NonExistingReference()
+      throw new checker.ContextException.NonExistingReference(name)
     } else {
-      (binder, Abstract.AbstractReference(up, index, name))
+      (binder, Abstract.Reference(up, index, name))
     }
   }
 }
