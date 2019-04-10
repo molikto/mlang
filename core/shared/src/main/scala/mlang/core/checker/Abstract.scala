@@ -7,6 +7,8 @@ sealed trait Abstract {
 }
 
 object Abstract {
+  case class Universe(i: Int) extends Abstract
+
   case class AbstractReference(up: Int, index: Int, name: NameRef) extends Abstract
 
   case class Function(domain: Abstract, codomain: Abstract) extends Abstract

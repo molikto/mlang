@@ -3,6 +3,8 @@ package mlang.core.concrete
 sealed trait Term
 
 object Term {
+  case class Universe(level: Int) extends Term
+
   case class Reference(name: NameRef) extends Term // some name is renamed
 
   case class Cast(term: Term, typ: Term) extends Term

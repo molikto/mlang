@@ -1,5 +1,6 @@
 package mlang.core.checker
 
+import mlang.core.checker.Value.Closure
 import mlang.core.utils.{Text, debug}
 
 import scala.collection.mutable
@@ -20,6 +21,8 @@ trait Evaluator extends BaseEvaluator {
 
   private def emit(term: Abstract, depth: Int): String = {
     term match {
+      case Abstract.Universe(l) =>
+        s"Universe($l)"
       case Abstract.AbstractReference(up, index, name) =>
         // TODO closed reference
         if (up > depth) s"ctx.get(${up - depth - 1}, $index).value.get"
@@ -34,14 +37,14 @@ trait Evaluator extends BaseEvaluator {
         s"${emit(left, depth)}.app(${emit(right, depth)})"
       case Abstract.Record(level, nodes) =>
         val d = depth + 1
-        s"""Record($level, ${nodes.zipWithIndex.map(c => s"RecordNode(${c._1.name}, Seq(${nodes.take(c._2).map(a => source(a.name)).mkString(", ")}), r$d => ${emit(c._1.typ, d)})")})"""
+        s"""Record($level, ${nodes.zipWithIndex.map(c => s"RecordNode(${source(c._1.name)}, Seq(${nodes.take(c._2).map(a => source(a.name)).mkString(", ")}), r$d => ${emit(c._1.typ, d)})")})"""
       case Abstract.RecordMaker(record) =>
         s"${emit(record, depth)}.make"
       case Abstract.Projection(left, field) =>
         s"${emit(left, depth)}.project($field)"
       case Abstract.Sum(level, constructors) =>
         val d = depth + 1
-        s"""Sum($level, ${constructors.zipWithIndex.map(c => s"Constructor(${c._1.name}, r$d => ${c._1.params.map(p => emit(p, d)).mkString(", ")})")})"""
+        s"""Sum($level, ${constructors.zipWithIndex.map(c => s"Constructor(${source(c._1.name)}, Seq(${c._1.params.map(p => "r$d => " + emit(p, d)).mkString(", ")}))")})"""
       case Abstract.SumMaker(sum, field) =>
         s"${emit(sum, depth)}.constructors($field).make"
       case Abstract.Let(definitions, in) =>
@@ -62,7 +65,8 @@ trait Evaluator extends BaseEvaluator {
          |import mlang.core.checker.Value._
          |import mlang.core.utils.Text
          |
-         |object H extends Holder {
+         |
+         |new Holder {
          |  def value(ctx: Context, vs: Seq[Value], cs: Seq[Closure], ps: Seq[Pattern]) = ${emit(term, -1)}
          |}
        """.stripMargin

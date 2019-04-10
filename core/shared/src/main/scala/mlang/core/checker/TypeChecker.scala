@@ -4,6 +4,7 @@ import mlang.core.concrete.{Pattern => Patt, _}
 import Context._
 import mlang.core.checker
 import mlang.core.concrete.Term.NameType
+import mlang.core.utils.debug
 
 import scala.collection.mutable
 import scala.language.implicitConversions
@@ -37,7 +38,10 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
   override protected implicit def create(a: Layers): Self = new TypeChecker(a)
 
   private def infer(term: Term): (Value, Abstract) = {
-    term match {
+    debug(s"infer $term")
+    val res = term match {
+      case Term.Universe(i) =>
+        (Value.Universe(i + 1), Abstract.Universe(i))
       case Term.Reference(name) =>
         // should lookup always return a value? like a open reference?
         val (Binder(_, _, t, _), abs) = lookup(name)
@@ -99,11 +103,14 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
         val (it, ia) = ctx.infer(in)
         (it, Abstract.Let(da, ia))
     }
+    debug(s"infer result ${res._2}")
+    res
   }
 
 
   private def check(term: Term, cp: Value): Abstract = {
-    (term, cp) match {
+    debug(s"check $term")
+    val res = (term, cp) match {
       case (Term.Lambda(name, body), Value.Function(domain, codomain)) =>
         val (ctx, v) = newLayer().newAbstraction(name, domain)
         Abstract.Lambda(ctx.check(body, codomain(Seq(v))))
@@ -118,6 +125,8 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
         if (equalType(Int.MaxValue, tt, cp)) ta
         else throw new TypeCheckException.TypeMismatch()
     }
+    debug(s"check result ${res}")
+    res
   }
 
 
@@ -128,6 +137,7 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
     seq.map(s => {
       s match {
         case Declaration.Define(name, v, t0) =>
+          debug(s"check define $name")
           t0 match {
             case Some(t) =>
               val (_, ta) = inferLevel(t)
@@ -149,6 +159,7 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
               }
           }
         case Declaration.Declare(name, t) =>
+          debug(s"check declare $name")
           val (_, ta) = inferLevel(t)
           ctx = ctx.newDeclaration(name, eval(ta))
           abs.append(null)
@@ -186,6 +197,4 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
 
 object TypeChecker {
   val empty = new TypeChecker(Seq.empty)
-
-
 }
