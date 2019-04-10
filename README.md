@@ -1,6 +1,8 @@
 
 # mlang
 
+[![Join the chat at https://gitter.im/mlang-discuess/community](https://badges.gitter.im/mlang-discuess/community.svg)](https://gitter.im/mlang-discuess/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+
 
 * when you are not sure, implement the one that is 1. easy to implement 2. restricted 3. enough for now
 
