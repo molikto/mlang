@@ -1,9 +1,7 @@
 package mlang.core.checker
 
-import mlang.core.checker.Value.Closure
 import mlang.core.utils.{Text, debug}
 
-import scala.collection.mutable
 import scala.reflect.runtime.currentMirror
 import scala.tools.reflect.ToolBox
 

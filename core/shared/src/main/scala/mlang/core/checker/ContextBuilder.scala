@@ -6,6 +6,15 @@ import scala.collection.mutable
 
 
 
+sealed trait ContextBuilderException extends CoreException
+
+object ContextBuilderException {
+
+  class AlreadyDeclared() extends ContextBuilderException
+  class AlreadyDefined() extends ContextBuilderException
+  class NotDeclared() extends ContextBuilderException
+
+}
 
 
 import Context._
@@ -23,7 +32,7 @@ trait ContextBuilder extends Context {
 
   def newDeclaration(name: Name, typ: Value) : Self = {
     layers.head.find(_.name == name) match {
-      case Some(_) => throw new ContextException.AlreadyDeclared()
+      case Some(_) => throw new ContextBuilderException.AlreadyDeclared()
       case _ => (layers.head :+ Binder(gen(), name, typ)) +: layers.tail
     }
   }
@@ -31,23 +40,23 @@ trait ContextBuilder extends Context {
   def newDefinitionChecked(name: Name, v: Value) : Self = {
     layers.head.find(_.name == name) match {
       case Some(Binder(id, _, typ, tv)) => tv match {
-        case Some(_) => throw new ContextException.AlreadyDefined()
+        case Some(_) => throw new ContextBuilderException.AlreadyDefined()
         case _ => layers.head.updated(layers.head.indexWhere(_.name == name), Binder(id, name, typ, Some(v))) +: layers.tail
       }
-      case _ => throw new ContextException.NotDeclared()
+      case _ => throw new ContextBuilderException.NotDeclared()
     }
   }
 
   def newDefinition(name: Name, typ: Value, v: Value): Self = {
     layers.head.find(_.name == name) match {
-      case Some(_) => throw new ContextException.AlreadyDeclared()
+      case Some(_) => throw new ContextBuilderException.AlreadyDeclared()
       case _ => (layers.head :+ Binder(gen(), name, typ, Some(v))) +: layers.tail
     }
   }
 
   def newAbstraction(name: Name, typ: Value) : (Self, Value) = {
     layers.head.find(_.name == name) match {
-      case Some(_) => throw new ContextException.AlreadyDeclared()
+      case Some(_) => throw new ContextBuilderException.AlreadyDeclared()
       case _ =>
         val g = gen()
         val v = Value.OpenReference(g, typ, name)

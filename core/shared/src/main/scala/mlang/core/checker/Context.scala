@@ -4,6 +4,14 @@ package mlang.core.checker
 import mlang.core.checker
 import mlang.core.concrete.{Name, NameRef}
 
+sealed trait ContextException extends CoreException
+
+object ContextException {
+
+  class NonExistingReference(name: Name) extends ContextException
+
+}
+
 case class Binder(id: Generic, name: Name, typ: Value, value: Option[Value] = None)
 
 object Context {
