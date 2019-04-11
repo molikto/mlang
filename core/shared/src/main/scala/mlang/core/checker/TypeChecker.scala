@@ -15,6 +15,10 @@ sealed trait TypeCheckException extends CoreException
 
 object TypeCheckException {
 
+
+  // names
+  class NamesDuplicated() extends TypeCheckException
+
   // elimination mismatch
   class UnknownAsType() extends TypeCheckException
   class UnknownProjection() extends TypeCheckException
@@ -57,9 +61,24 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
         val ft = Value.Universe(dl max cl)
         (ft, Abstract.Function(da, ca))
       case Term.Record(fields) =>
+        // TODO calculate real record dependencies
+        for (i <- fields.indices) {
+          for (j <- i until fields.size) {
+            if (fields(i).name.intersect(fields(j).name)) {
+              throw new TypeCheckException.NamesDuplicated()
+            }
+          }
+        }
         val (fl, fs) = newLayer().inferLevel(fields)
         (Value.Universe(fl), Abstract.Record(fl, fs.zip(fields).map(pair => Abstract.RecordNode(pair._2.name, pair._1))))
       case Term.Sum(constructors) =>
+        for (i <- constructors.indices) {
+          for (j <- i until constructors.size) {
+            if (constructors(i).name.intersect(constructors(j).name)) {
+              throw new TypeCheckException.NamesDuplicated()
+            }
+          }
+        }
         // TODO in case of HIT, each time a constructor finished, we need to construct a partial sum and update the value
         val fs = constructors.map(c => newLayer().inferLevel(c.term))
         val fl = fs.map(_._1).max
