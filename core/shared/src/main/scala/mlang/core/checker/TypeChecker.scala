@@ -1,9 +1,7 @@
 package mlang.core.checker
 
-import mlang.core.concrete.{Pattern => Patt, _}
+import mlang.core.concrete._
 import Context._
-import mlang.core
-import mlang.core.checker
 import mlang.core.utils.debug
 
 import scala.collection.mutable
@@ -133,7 +131,7 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
 
   private def checkDeclaration(s: Declaration, abs: mutable.ArrayBuffer[Abstract]): Self = {
     s match {
-      case Declaration.Define(name, v, t0) =>
+      case Declaration.Define(name, tele, t0, v0) =>
         debug(s"check define $name")
         t0 match {
           case Some(t) =>
@@ -144,23 +142,27 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
             debug(s"defined $name")
             ctx
           case None =>
-            val index = layers.head.indexWhere(_.name == name)
-            if (index < 0) {
-              val (vt, va) = infer(v)
-              val ctx = newDefinition(name, vt, eval(va))
-              debug(s"defined $name")
-              abs.append(va)
-              ctx
-            } else {
-              val b = layers.head(index)
-              val va = check(v, b.typ)
-              val ctx = newDefinitionChecked(name, eval(va))
-              debug(s"defined body $name")
-              abs.updated(index, va)
-              ctx
+            v0 match {
+              case Left(v) =>
+                val index = layers.head.indexWhere(_.name == name)
+                if (index < 0) {
+                  val (vt, va) = infer(v)
+                  val ctx = newDefinition(name, vt, eval(va))
+                  debug(s"defined $name")
+                  abs.append(va)
+                  ctx
+                } else {
+                  val b = layers.head(index)
+                  val va = check(v, b.typ)
+                  val ctx = newDefinitionChecked(name, eval(va))
+                  debug(s"defined body $name")
+                  abs.updated(index, va)
+                  ctx
+                }
+              case _ => throw new TypeCheckException.CannotInferReturningTypeWithPatterns()
             }
         }
-      case Declaration.Declare(name, t) =>
+      case Declaration.Declare(name, tele, t) =>
         debug(s"check declare $name")
         val (_, ta) = inferLevel(t)
         val ctx = newDeclaration(name, eval(ta))
@@ -182,7 +184,7 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
   }
 
 
-  private def inferLevel(terms: Seq[NameType]): (Int, Seq[Abstract]) = {
+  private def inferLevel(terms: Seq[NamesType]): (Int, Seq[Abstract]) = {
     var ctx = this
     var l = 0
     val fas = terms.map(f => {

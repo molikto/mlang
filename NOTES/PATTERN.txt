@@ -1,7 +1,0 @@
-
-just : Bool → Set
-just true = Bool
-just false = Bool
-
-test : (b : Bool) → just b
-test _ = true
