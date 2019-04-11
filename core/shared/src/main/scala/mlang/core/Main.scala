@@ -7,7 +7,7 @@ import mlang.core.concrete.Term._
 object Main {
   implicit def strToRef(s: String): Reference = Reference(s)
   implicit def strToName(s: String): Name = Name(s)
-  def pi (a: Term, b: Term) = Function(a, "", b)
+  def pi (a: Term, b: Term) = Function(Seq(NameType(Seq.empty, a)), b)
   def main(args: Array[String]): Unit = {
     TypeChecker.empty.checkModule(Module(Seq(
       Declaration.Define("bool", None, Sum(

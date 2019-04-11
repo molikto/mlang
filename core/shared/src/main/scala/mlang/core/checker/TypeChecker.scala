@@ -2,6 +2,7 @@ package mlang.core.checker
 
 import mlang.core.concrete._
 import Context._
+import mlang.core
 import mlang.core.{Name, checker}
 import mlang.core.utils.debug
 
@@ -19,11 +20,16 @@ object TypeCheckException {
   // names
   class NamesDuplicated() extends TypeCheckException
   class MustBeNamed() extends TypeCheckException
+  class EmptyTelescope() extends TypeCheckException
+  class EmptyArguments() extends TypeCheckException
+  class EmptyLambdaParameters() extends TypeCheckException
 
   // elimination mismatch
   class UnknownAsType() extends TypeCheckException
   class UnknownProjection() extends TypeCheckException
   class UnknownAsFunction() extends TypeCheckException
+
+  class CheckingAgainstNonFunction() extends TypeCheckException
 
   // pattern mismatch
 
@@ -43,6 +49,7 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
 
   override protected implicit def create(a: Layers): Self = new TypeChecker(a)
 
+
   private def infer(term: Term): (Value, Abstract) = {
     debug(s"infer $term")
     val res = term match {
@@ -56,11 +63,10 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
         val (_, ta) = inferLevel(t)
         val tv = eval(ta)
         (tv, check(v, tv))
-      case Term.Function(domain, name, codomain) =>
-        val (dl, da) = inferLevel(domain)
-        val (cl, ca) = newLayer().newAbstraction(name, eval(da))._1.inferLevel(codomain)
-        val ft = Value.Universe(dl max cl)
-        (ft, Abstract.Function(da, ca))
+      case Term.Function(domain, codomain) =>
+        if (domain.isEmpty) throw new TypeCheckException.EmptyTelescope()
+        val (l, v) = inferFunction(NameType.flatten(domain), codomain)
+        (Value.Universe(l), v)
       case r@Term.Record(fields) =>
         // TODO calculate real record dependencies
         for (f <- fields) {
@@ -113,15 +119,10 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
             }
           case _ => error()
         }
-      case Term.Application(lambda, argument) =>
+      case Term.Application(lambda, arguments) =>
+        if (arguments.size == 0) throw new TypeCheckException.EmptyArguments()
         val (lt, la) = infer(lambda)
-        lt match {
-          case Value.Function(domain, codomain) =>
-            val aa = check(argument, domain)
-            val av = eval(aa)
-            (codomain(Seq(av)), Abstract.Application(la, aa))
-          case _ => throw new TypeCheckException.UnknownAsFunction()
-        }
+        inferApplication(lt, la, arguments)
       case Term.Let(declarations, in) =>
         val (ctx, da) = newLayer().checkDeclarations(declarations)
         val (it, ia) = ctx.infer(in)
@@ -131,23 +132,79 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
     res
   }
 
+  private def inferFunction(domain: NameType.FlatSeq, codomain: Term): (Int, Abstract) = {
+    domain match {
+      case head +: tail =>
+        val (dl, da) = inferLevel(head._2)
+        var ctx = newLayer()
+        head._1 match {
+          case Some(n) =>
+            ctx = ctx.newAbstraction(n, eval(da))._1
+          case _ =>
+        }
+        val (cl, ca) = ctx.inferFunction(tail, codomain)
+        (dl max cl, Abstract.Function(da, ca))
+      case Seq() =>
+        inferLevel(codomain)
+    }
+  }
+
+  private def inferApplication(lt: Value, la: Abstract, arguments: Seq[Term]): (Value, Abstract) = {
+    arguments match {
+      case head +: tail =>
+        lt match {
+          case Value.Function(domain, codomain) =>
+            val aa = check(head, domain)
+            val av = eval(aa)
+            val lt1 = codomain(Seq(av))
+            val la1 = Abstract.Application(la, aa)
+            inferApplication(lt1, la1, tail)
+            // TODO user defined applications
+          case _ => throw new TypeCheckException.UnknownAsFunction()
+        }
+      case Seq() =>
+        (lt, la)
+    }
+  }
+
+  private def checkFallback(term: Term, cp: Value): Abstract = {
+    val (tt, ta) = infer(term)
+    if (equalType(Int.MaxValue, tt, cp)) ta
+    else throw new TypeCheckException.TypeMismatch()
+  }
+
+  private def checkLambda(names: Seq[Name], body: Term, cp: Value): Abstract = {
+    names match {
+      case head +: tail =>
+        cp match {
+          case Value.Function(domain, codomain) =>
+            val (ctx, v) = newLayer().newAbstraction(head, domain)
+            Abstract.Lambda(ctx.checkLambda(tail, body, codomain(Seq(v))))
+          case _ => throw new TypeCheckException.CheckingAgainstNonFunction()
+        }
+      case Seq() =>
+        check(body, cp)
+    }
+  }
 
   private def check(term: Term, cp: Value): Abstract = {
     debug(s"check $term")
-    val res = (term, cp) match {
-      case (Term.Lambda(name, body), Value.Function(domain, codomain)) =>
-        val (ctx, v) = newLayer().newAbstraction(name, domain)
-        Abstract.Lambda(ctx.check(body, codomain(Seq(v))))
-      case (Term.PatternLambda(cases), Value.Function(domain, codomain)) =>
-        Abstract.PatternLambda(codomain, cases.map(c => {
-          val (ctx, v) = newLayer().newAbstractions(c.pattern, domain)
-          val ba = ctx.check(c.body, codomain(Seq(v)))
-          Abstract.Case(compile(c.pattern), ba)
-        }))
+    val res = term match {
+      case Term.Lambda(names, body) =>
+        if (names.isEmpty) throw new TypeCheckException.EmptyLambdaParameters()
+        checkLambda(names, body, cp)
+      case Term.PatternLambda(cases) =>
+        cp match {
+          case Value.Function(domain, codomain) =>
+            Abstract.PatternLambda(codomain, cases.map(c => {
+              val (ctx, v) = newLayer().newAbstractions(c.pattern, domain)
+              val ba = ctx.check(c.body, codomain(Seq(v)))
+              Abstract.Case(compile(c.pattern), ba)
+            }))
+          case _ => throw new TypeCheckException.CheckingAgainstNonFunction()
+        }
       case _ =>
-        val (tt, ta) = infer(term)
-        if (equalType(Int.MaxValue, tt, cp)) ta
-        else throw new TypeCheckException.TypeMismatch()
+        checkFallback(term, cp)
     }
     debug(s"check result $res")
     res

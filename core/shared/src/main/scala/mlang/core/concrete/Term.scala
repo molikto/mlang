@@ -6,16 +6,31 @@ sealed trait Term
 
 case class NameType(names: Seq[Name], ty: Term)
 
+object NameType {
+  type FlatSeq = Seq[(Name.Opt, Term)]
+
+  def flatten(names: Seq[NameType]): NameType.FlatSeq = names.flatMap(n => {
+    if (n.names.isEmpty) {
+      Seq((None, n.ty))
+    } else {
+      n.names.map(m => (Some(m), n.ty))
+    }
+  })
+}
+
+
 object Term {
+
+
   case class Universe(level: Int) extends Term
 
   case class Reference(name: Name.Ref) extends Term // some name is renamed
 
   case class Cast(term: Term, typ: Term) extends Term
 
-  case class Function(domain: Term, name: Name, codomain: Term) extends Term
-  case class Lambda(name: Name, codomain: Term) extends Term
-  case class Application(left: Term, right: Term) extends Term
+  case class Function(domain: Seq[NameType], codomain: Term) extends Term
+  case class Lambda(domain: Seq[Name], codomain: Term) extends Term
+  case class Application(left: Term, right: Seq[Term]) extends Term
 
   case class Record(fields: Seq[NameType]) extends Term {
     val names = fields.flatMap(_.names)
