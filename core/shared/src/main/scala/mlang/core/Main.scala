@@ -5,8 +5,8 @@ import mlang.core.concrete._
 import mlang.core.concrete.Term._
 
 object Main {
-  implicit def strToRef(s: String) = Reference(s)
-  implicit def strToName(s: String) = Name(s)
+  implicit def strToRef(s: String): Reference = Reference(s)
+  implicit def strToName(s: String): Name = Name(s)
   def pi (a: Term, b: Term) = Function(a, "", b)
   def main(args: Array[String]): Unit = {
     TypeChecker.empty.checkModule(Module(Seq(
@@ -21,8 +21,7 @@ object Main {
         ))),
       Declaration.Define("bool_pair", None,
         Record(Seq(
-          NameType("_1", "bool"),
-          NameType("_2", "bool")
+          NameType(Seq("_1", "_2"), "bool")
         ))),
     )))
   }

@@ -4,7 +4,7 @@ import mlang.core.Name
 
 sealed trait Term
 
-case class NameType(name: Name, ty: Term)
+case class NameType(names: Seq[Name], ty: Term)
 
 object Term {
   case class Universe(level: Int) extends Term
@@ -17,7 +17,9 @@ object Term {
   case class Lambda(name: Name, codomain: Term) extends Term
   case class Application(left: Term, right: Term) extends Term
 
-  case class Record(fields: Seq[NameType]) extends Term
+  case class Record(fields: Seq[NameType]) extends Term {
+    val names = fields.flatMap(_.names)
+  }
   case class Projection(left: Term, right: Name.Ref) extends Term
 
   case class Constructor(name: Name, term: Seq[NameType])

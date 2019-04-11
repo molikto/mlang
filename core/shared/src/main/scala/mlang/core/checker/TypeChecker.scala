@@ -2,7 +2,7 @@ package mlang.core.checker
 
 import mlang.core.concrete._
 import Context._
-import mlang.core.Name
+import mlang.core.{Name, checker}
 import mlang.core.utils.debug
 
 import scala.collection.mutable
@@ -18,6 +18,7 @@ object TypeCheckException {
 
   // names
   class NamesDuplicated() extends TypeCheckException
+  class MustBeNamed() extends TypeCheckException
 
   // elimination mismatch
   class UnknownAsType() extends TypeCheckException
@@ -60,20 +61,23 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
         val (cl, ca) = newLayer().newAbstraction(name, eval(da))._1.inferLevel(codomain)
         val ft = Value.Universe(dl max cl)
         (ft, Abstract.Function(da, ca))
-      case Term.Record(fields) =>
+      case r@Term.Record(fields) =>
         // TODO calculate real record dependencies
-        for (i <- fields.indices) {
-          for (j <- i until fields.size) {
-            if (fields(i).name.intersect(fields(j).name)) {
+        for (f <- fields) {
+          if (f.names.isEmpty) throw new TypeCheckException.MustBeNamed()
+        }
+        for (i <- r.names.indices) {
+          for (j <- (i + 1) until r.names.size) {
+            if (r.names(i)intersect (r.names(j))) {
               throw new TypeCheckException.NamesDuplicated()
             }
           }
         }
         val (fl, fs) = newLayer().inferLevel(fields)
-        (Value.Universe(fl), Abstract.Record(fl, fs.zip(fields).map(pair => Abstract.RecordNode(pair._2.name, pair._1))))
+        (Value.Universe(fl), Abstract.Record(fl, fs.map(pair => Abstract.RecordNode(pair._1, pair._2))))
       case Term.Sum(constructors) =>
         for (i <- constructors.indices) {
-          for (j <- i until constructors.size) {
+          for (j <- (i + 1) until constructors.size) {
             if (constructors(i).name.intersect(constructors(j).name)) {
               throw new TypeCheckException.NamesDuplicated()
             }
@@ -82,7 +86,7 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
         // TODO in case of HIT, each time a constructor finished, we need to construct a partial sum and update the value
         val fs = constructors.map(c => newLayer().inferLevel(c.term))
         val fl = fs.map(_._1).max
-        (Value.Universe(fl), Abstract.Sum(fl, fs.zip(constructors).map(a => Abstract.Constructor(a._2.name, a._1._2))))
+        (Value.Universe(fl), Abstract.Sum(fl, fs.map(_._2.map(_._2)).zip(constructors).map(a => Abstract.Constructor(a._2.name, a._1))))
       case Term.Lambda(_, _) =>
         // TODO inferring the type of a lambda, the inferred type might not have the same branches as the lambda itself
         throw new TypeCheckException.CannotInferLambdaWithoutDomain()
@@ -200,14 +204,16 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
   }
 
 
-  private def inferLevel(terms: Seq[NameType]): (Int, Seq[Abstract]) = {
+  private def inferLevel(terms: Seq[NameType]): (Int, Seq[(Name, Abstract)]) = {
     var ctx = this
     var l = 0
-    val fas = terms.map(f => {
-      val (fl, fa) = ctx.inferLevel(f.ty)
-      l = l max fl
-      ctx = ctx.newAbstraction(f.name, eval(fa))._1
-      fa
+    val fas = terms.flatMap(f => {
+      f.names.map(n => {
+        val (fl, fa) = ctx.inferLevel(f.ty)
+        l = l max fl
+        ctx = ctx.newAbstraction(n, eval(fa))._1
+        (n, fa)
+      })
     })
     (l, fas)
   }
