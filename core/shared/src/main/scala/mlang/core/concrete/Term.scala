@@ -2,6 +2,8 @@ package mlang.core.concrete
 
 sealed trait Term
 
+case class NameType(name: Name, ty: Term)
+
 object Term {
   case class Universe(level: Int) extends Term
 
@@ -13,7 +15,6 @@ object Term {
   case class Lambda(name: Name, codomain: Term) extends Term
   case class Application(left: Term, right: Term) extends Term
 
-  case class NameType(name: Name, ty: Term)
   case class Record(fields: Seq[NameType]) extends Term
   case class Projection(left: Term, right: NameRef) extends Term
 
@@ -38,7 +39,7 @@ case class Module(declarations: Seq[Declaration])
 sealed trait Declaration
 
 object Declaration {
-  case class Define(name: Name, term: Term, typ: Option[Term]) extends Declaration
+  case class Define(name: Name, typ: Option[Term], term: Term) extends Declaration
   // depending on our algorithm, recursive ones might not need to declare first
   case class Declare(name: Name, typ: Term) extends Declaration
 }

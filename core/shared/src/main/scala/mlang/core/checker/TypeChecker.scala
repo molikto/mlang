@@ -133,7 +133,7 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
 
   private def checkDeclaration(s: Declaration, abs: mutable.ArrayBuffer[Abstract]): Self = {
     s match {
-      case Declaration.Define(name, v, t0) =>
+      case Declaration.Define(name, t0, v) =>
         debug(s"check define $name")
         t0 match {
           case Some(t) =>
