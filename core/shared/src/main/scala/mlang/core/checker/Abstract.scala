@@ -1,15 +1,14 @@
 package mlang.core.checker
 
-import mlang.core.concrete.{Name, NameRef}
+import mlang.core.Name
 
 
-sealed trait Abstract {
-}
+sealed trait Abstract
 
 object Abstract {
   case class Universe(i: Int) extends Abstract
 
-  case class Reference(up: Int, index: Int, name: NameRef) extends Abstract
+  case class Reference(up: Int, index: Int) extends Abstract
 
   case class Function(domain: Abstract, codomain: Abstract) extends Abstract
 

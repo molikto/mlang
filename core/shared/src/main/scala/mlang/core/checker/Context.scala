@@ -2,13 +2,13 @@ package mlang.core.checker
 
 
 import mlang.core.checker
-import mlang.core.concrete.{Name, NameRef}
+import mlang.core.Name
 
 sealed trait ContextException extends CoreException
 
 object ContextException {
 
-  class NonExistingReference(name: Name) extends ContextException
+  class NonExistingReference(name: Name.Ref) extends ContextException
 
 }
 
@@ -26,7 +26,7 @@ trait Context {
 
   def get(depth: Int, index: Int): Binder = layers(depth)(index)
 
-  def lookup(name: NameRef): (Binder, Abstract.Reference) =  {
+  def lookup(name: Name.Ref): (Binder, Abstract.Reference) =  {
     var up = 0
     var index = -1
     var ls = layers
@@ -35,7 +35,7 @@ trait Context {
       var i = 0
       var ll = ls.head
       while (ll.nonEmpty && binder == null) {
-        if (ll.head.name == name) {
+        if (ll.head.name.by(name)) {
           index = i
           binder = ll.head
         }
@@ -50,7 +50,7 @@ trait Context {
     if (binder == null) {
       throw new checker.ContextException.NonExistingReference(name)
     } else {
-      (binder, Abstract.Reference(up, index, name))
+      (binder, Abstract.Reference(up, index))
     }
   }
 }

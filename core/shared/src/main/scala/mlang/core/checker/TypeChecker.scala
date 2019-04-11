@@ -1,9 +1,8 @@
 package mlang.core.checker
 
-import mlang.core.concrete.{Pattern => Patt, _}
+import mlang.core.concrete._
 import Context._
-import mlang.core
-import mlang.core.checker
+import mlang.core.Name
 import mlang.core.utils.debug
 
 import scala.collection.mutable
@@ -77,16 +76,16 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
         def ltr = lt.asInstanceOf[Value.Record]
         def error() = throw new TypeCheckException.UnknownProjection()
         lv match {
-          case m: Value.Make if ltr.nodes.exists(_.name == right) =>
-            val index = ltr.nodes.indexWhere(_.name == right)
+          case m: Value.Make if ltr.nodes.exists(_.name.by(right)) =>
+            val index = ltr.nodes.indexWhere(_.name.by(right))
             (ltr.projectedType(m.values, index), Abstract.Projection(la, index))
           // TODO user defined projections
-          case r: Value.Record if right == NameRef.make =>
+          case r: Value.Record if right == Name.Ref.make =>
             (r.makerType, Abstract.RecordMaker(la))
-          case r: Value.Sum if r.constructors.exists(_.name == right) =>
-            r.constructors.find(_.name == right) match {
+          case r: Value.Sum if r.constructors.exists(_.name.by(right)) =>
+            r.constructors.find(_.name.by(right)) match {
               case Some(br) =>
-                (br.makerType, Abstract.SumMaker(la, r.constructors.indexWhere(_.name == right)))
+                (br.makerType, Abstract.SumMaker(la, r.constructors.indexWhere(_.name.by(right))))
               case _ => error()
             }
           case _ => error()
@@ -127,7 +126,7 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
         if (equalType(Int.MaxValue, tt, cp)) ta
         else throw new TypeCheckException.TypeMismatch()
     }
-    debug(s"check result ${res}")
+    debug(s"check result $res")
     res
   }
 

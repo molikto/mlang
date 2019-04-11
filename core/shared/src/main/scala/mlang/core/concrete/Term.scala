@@ -1,5 +1,7 @@
 package mlang.core.concrete
 
+import mlang.core.Name
+
 sealed trait Term
 
 case class NameType(name: Name, ty: Term)
@@ -7,7 +9,7 @@ case class NameType(name: Name, ty: Term)
 object Term {
   case class Universe(level: Int) extends Term
 
-  case class Reference(name: NameRef) extends Term // some name is renamed
+  case class Reference(name: Name.Ref) extends Term // some name is renamed
 
   case class Cast(term: Term, typ: Term) extends Term
 
@@ -16,7 +18,7 @@ object Term {
   case class Application(left: Term, right: Term) extends Term
 
   case class Record(fields: Seq[NameType]) extends Term
-  case class Projection(left: Term, right: NameRef) extends Term
+  case class Projection(left: Term, right: Name.Ref) extends Term
 
   case class Constructor(name: Name, term: Seq[NameType])
   case class Sum(constructors: Seq[Constructor]) extends Term
@@ -53,7 +55,7 @@ sealed trait Pattern
 object Pattern {
   case class Atom(id: Name) extends Pattern
   case class Make(names: Seq[Pattern]) extends Pattern // TODO named patterns?
-  case class Constructor(name: NameRef, pattern: Seq[Pattern]) extends Pattern
+  case class Constructor(name: Name.Ref, pattern: Seq[Pattern]) extends Pattern
 }
 
 

@@ -1,5 +1,6 @@
 package mlang.core.checker
 
+import mlang.core.Name
 import mlang.core.utils.{Text, debug}
 
 import scala.reflect.runtime.currentMirror
@@ -17,11 +18,13 @@ trait PlatformEvaluator extends BaseEvaluator {
 
   private def source(a: Text): String = "Text(\"" + a.string + "\")"
 
+  private def source(a: Name): String = "Name(\"" + a.main + "\")"
+
   private def emit(term: Abstract, depth: Int): String = {
     term match {
       case Abstract.Universe(l) =>
         s"Universe($l)"
-      case Abstract.Reference(up, index, name) =>
+      case Abstract.Reference(up, index) =>
         // TODO closed reference
         if (up > depth) s"ctx.get(${up - depth - 1}, $index).value.get"
         else s"r${depth - up}($index)"
@@ -35,7 +38,7 @@ trait PlatformEvaluator extends BaseEvaluator {
         s"${emit(left, depth)}.app(${emit(right, depth)})"
       case Abstract.Record(level, nodes) =>
         val d = depth + 1
-        s"""Record($level, ${nodes.zipWithIndex.map(c => s"RecordNode(${source(c._1.name)}, Seq(${nodes.take(c._2).map(a => source(a.name)).mkString(", ")}), r$d => ${emit(c._1.typ, d)})")})"""
+        s"""Record($level, ${nodes.zipWithIndex.map(c => s"RecordNode(${source(c._1.name)}, Seq(${nodes.take(c._2).map(a => source(a.name.ref)).mkString(", ")}), r$d => ${emit(c._1.typ, d)})")})"""
       case Abstract.RecordMaker(record) =>
         s"${emit(record, depth)}.asInstanceOf[Record].maker"
       case Abstract.Projection(left, field) =>
@@ -59,6 +62,7 @@ trait PlatformEvaluator extends BaseEvaluator {
   protected def platformEval(term: Abstract): Value = {
     val src =
       s"""
+         |import mlang.core.Name
          |import mlang.core.checker._
          |import mlang.core.checker.Value._
          |import mlang.core.utils.Text

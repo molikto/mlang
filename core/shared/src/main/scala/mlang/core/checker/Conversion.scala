@@ -1,6 +1,7 @@
 package mlang.core.checker
 
 import Value._
+import mlang.core.Name
 
 import scala.util.{Success, Try}
 
@@ -13,7 +14,7 @@ trait Conversion extends Context {
       n1.zip(n2).foldLeft(Some(Seq.empty[Value]) : Option[Seq[Value]]) { (as0, pair) =>
         as0 match {
           case Some(as) if pair._1.dependencies == pair._2.dependencies =>
-            val mm = n1.map(_.name).zip(as).toMap
+            val mm = n1.map(_.name.ref).zip(as).toMap
             equalTypeMultiClosure(less, pair._1.dependencies.map(mm), pair._1.closure, pair._2.closure).map(as :+ _)
           case None =>
             None
@@ -42,7 +43,7 @@ trait Conversion extends Context {
 
 
   private def equalTypeMultiClosure(less: Int, ts: Seq[Value], c1: MultiClosure, c2: MultiClosure): Option[Value] = {
-    val cs = ts.map(t => OpenReference(gen(), t, ""))
+    val cs = ts.map(t => OpenReference(gen(), t))
     val t = c1(cs)
     if (equalType(less, t, c2(cs))) {
       Some(t)
@@ -55,7 +56,7 @@ trait Conversion extends Context {
     if (c1.eq(c2)) {
       true
     } else {
-      val c = OpenReference(gen(), t, "")
+      val c = OpenReference(gen(), t)
       equalType(less, c1(Seq(c)), c2(Seq(c)))
     }
   }
@@ -64,7 +65,7 @@ trait Conversion extends Context {
     if (c1.eq(c2)) {
       true
     } else {
-      val c = OpenReference(gen(), domain, "")
+      val c = OpenReference(gen(), domain)
       equalTerm(codomain(Seq(c)), c1(Seq(c)), c2(Seq(c)))
     }
   }
@@ -72,7 +73,7 @@ trait Conversion extends Context {
 
   private def equalNeutral(t1: Value, t2: Value): Option[Value] = {
     (t1, t2) match {
-      case (OpenReference(i1, v1, _), OpenReference(i2, v2, _)) =>
+      case (OpenReference(i1, v1), OpenReference(i2, v2)) =>
         if (i1 == i2) {
           assert(v1.eq(v2))
           Some(v1)
@@ -91,7 +92,7 @@ trait Conversion extends Context {
         }
       case (Projection(m1, f1), Projection(m2, f2)) =>
         equalNeutral(m1, m2).flatMap {
-          case r: Record if f1 == f2 => Some(r.projectedType((0 until r.nodes.size).map(n => Projection(m1, n)), f2))
+          case r: Record if f1 == f2 => Some(r.projectedType(r.nodes.indices.map(n => Projection(m1, n)), f2))
           case _ => throw new IllegalArgumentException("")
         }
       case (PatternStuck(l1, s1), PatternStuck(l2, s2)) =>
@@ -140,7 +141,7 @@ trait Conversion extends Context {
           ns.size == v1.size && ns.size == v2.size && ns.zip(v1.zip(v2)).foldLeft(Some(Seq.empty) : Option[Seq[Value]]) { (as0, pair) =>
             as0 match {
               case Some(as) =>
-                val mm = ns.map(_.name).zip(as).toMap
+                val mm = ns.map(_.name.ref).zip(as).toMap
                 val nm = pair._1.closure(pair._1.dependencies.map(mm))
                 if (equalTerm(nm, pair._2._1, pair._2._2)) {
                   Some(as :+ nm)
@@ -152,7 +153,7 @@ trait Conversion extends Context {
             }
           }.isDefined
         case (Sum(_, cs), Construct(n1, v1), Construct(n2, v2)) =>
-          n1 == n2 && cs.find(_.name == n1).exists(c => {
+          n1 == n2 && cs.find(_.name.by(n1)).exists(c => {
             if (c.nodes.size == v1.size && v2.size == v1.size) {
               c.nodes.zip(v1.zip(v2)).foldLeft(Some(Seq.empty): Option[Seq[Value]]) { (as0, pair) =>
                 as0 match {

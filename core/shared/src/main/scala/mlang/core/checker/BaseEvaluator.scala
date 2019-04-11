@@ -22,26 +22,26 @@ trait BaseEvaluator extends Context {
   protected def tunnel(v: Value): String = {
     val i = existingValues.size
     existingValues.append(v)
-    return s"vs($i)"
+    s"vs($i)"
   }
 
   protected def tunnel(v: Value.Closure): String = {
     val i = existingClosures.size
     existingClosures.append(v)
-    return s"cs($i)"
+    s"cs($i)"
   }
 
   protected def tunnel(v: Pattern): String = {
     val i = existingPatterns.size
     existingPatterns.append(v)
-    return s"ps($i)"
+    s"ps($i)"
   }
 
   protected def platformEval(value: Abstract): Value
 
   protected def eval(term: Abstract): Value = {
     term match {
-      case Abstract.Reference(up, index, name) => get(up, index).value.get
+      case Abstract.Reference(up, index) => get(up, index).value.get
       case _ => platformEval(term)
     }
   }

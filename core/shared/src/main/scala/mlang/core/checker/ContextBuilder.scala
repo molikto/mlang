@@ -1,6 +1,7 @@
 package mlang.core.checker
 
-import mlang.core.concrete.{Name, Pattern => Patt}
+import mlang.core.concrete.{Pattern => Patt}
+import mlang.core.Name
 
 
 
@@ -29,35 +30,35 @@ trait ContextBuilder extends Context {
   def newLayer(): Self = (Seq.empty : Layer) +: layers
 
   def newDeclaration(name: Name, typ: Value) : Self = {
-    layers.head.find(_.name == name) match {
+    layers.head.find(_.name.intersect(name)) match {
       case Some(_) => throw new ContextBuilderException.AlreadyDeclared()
       case _ => (layers.head :+ Binder(gen(), name, typ)) +: layers.tail
     }
   }
 
   def newDefinitionChecked(name: Name, v: Value) : Self = {
-    layers.head.find(_.name == name) match {
+    layers.head.find(_.name.intersect(name)) match {
       case Some(Binder(id, _, typ, tv)) => tv match {
         case Some(_) => throw new ContextBuilderException.AlreadyDefined()
-        case _ => layers.head.updated(layers.head.indexWhere(_.name == name), Binder(id, name, typ, Some(v))) +: layers.tail
+        case _ => layers.head.updated(layers.head.indexWhere(_.name.intersect(name)), Binder(id, name, typ, Some(v))) +: layers.tail
       }
       case _ => throw new ContextBuilderException.NotDeclared()
     }
   }
 
   def newDefinition(name: Name, typ: Value, v: Value): Self = {
-    layers.head.find(_.name == name) match {
+    layers.head.find(_.name.intersect(name)) match {
       case Some(_) => throw new ContextBuilderException.AlreadyDeclared()
       case _ => (layers.head :+ Binder(gen(), name, typ, Some(v))) +: layers.tail
     }
   }
 
   def newAbstraction(name: Name, typ: Value) : (Self, Value) = {
-    layers.head.find(_.name == name) match {
+    layers.head.find(_.name.intersect(name)) match {
       case Some(_) => throw new ContextBuilderException.AlreadyDeclared()
       case _ =>
         val g = gen()
-        val v = Value.OpenReference(g, typ, name)
+        val v = Value.OpenReference(g, typ)
         ((layers.head :+ Binder(g, name, typ, Some(v))) +: layers.tail, v)
     }
   }
@@ -93,9 +94,9 @@ trait ContextBuilder extends Context {
 
   def newAbstractions(pattern: Patt, typ: Value): (Self, Value) = {
     val ns = names(pattern)
-    val (os, v) = Value.extractTypes(compile(pattern), typ, gen, ns)
+    val (os, v) = Value.extractTypes(compile(pattern), typ, gen)
     assert(os.size == ns.size)
-    val ctx: Self = (layers.head ++ os.map(o => Binder(o.id, o.name, o.typ, Some(o)))) +: layers.tail
+    val ctx: Self = (layers.head ++ os.zip(ns).map(o => Binder(o._1.id, o._2, o._1.typ, Some(o._1)))) +: layers.tail
     (ctx, v)
   }
 }
