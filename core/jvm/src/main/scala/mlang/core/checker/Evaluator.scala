@@ -7,7 +7,7 @@ import scala.tools.reflect.ToolBox
 
 
 
-trait Evaluator extends BaseEvaluator {
+trait PlatformEvaluator extends BaseEvaluator {
 
   private def compile[A](string: String): A = {
     val toolbox = currentMirror.mkToolBox()
@@ -56,7 +56,7 @@ trait Evaluator extends BaseEvaluator {
 
 
 
-  def platformEval(term: Abstract): Value = {
+  protected def platformEval(term: Abstract): Value = {
     val src =
       s"""
          |import mlang.core.checker._

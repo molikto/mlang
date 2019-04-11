@@ -36,4 +36,13 @@ trait BaseEvaluator extends Context {
     existingPatterns.append(v)
     return s"ps($i)"
   }
+
+  protected def platformEval(value: Abstract): Value
+
+  protected def eval(term: Abstract): Value = {
+    term match {
+      case Abstract.Reference(up, index, name) => get(up, index).value.get
+      case _ => platformEval(term)
+    }
+  }
 }

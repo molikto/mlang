@@ -2,8 +2,8 @@ package mlang.core.checker
 
 import mlang.core.concrete.{Pattern => Patt, _}
 import Context._
+import mlang.core
 import mlang.core.checker
-import mlang.core.concrete.Term.NameType
 import mlang.core.utils.debug
 
 import scala.collection.mutable
@@ -27,12 +27,14 @@ object TypeCheckException {
   class CannotInferLambdaWithoutDomain() extends TypeCheckException
 
   class TypeMismatch() extends TypeCheckException
+
+  class CannotInferReturningTypeWithPatterns() extends TypeCheckException
 }
 
 
 
 
-class TypeChecker private (protected override val layers: Layers) extends ContextBuilder with Conversion with Evaluator {
+class TypeChecker private (protected override val layers: Layers) extends ContextBuilder with Conversion with BaseEvaluator with PlatformEvaluator {
   override type Self = TypeChecker
 
   override protected implicit def create(a: Layers): Self = new TypeChecker(a)
@@ -196,19 +198,12 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
     val (tt, ta) = infer(term)
     tt match {
       case Value.Universe(l) => (l, ta)
+      // TODO user defined type coercion
       case _ => throw new TypeCheckException.UnknownAsType()
     }
   }
 
   def checkModule(m: Module): Unit = newLayer().checkDeclarations(m.declarations)
-
-
-  private def eval(term: Abstract): Value = {
-    term match {
-      case Abstract.Reference(up, index, name) => layers.get(up, index).value.get
-      case _ => platformEval(term)
-    }
-  }
 }
 
 object TypeChecker {

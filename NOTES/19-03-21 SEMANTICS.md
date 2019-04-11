@@ -88,7 +88,7 @@
         * the Martin-Löf identity type is a gif, but not a rif
         * can we give a alternative form of generalized inductive type where the equality is definitional and expressed by constraints? this is however not possible, because the index can be type that don't allow pattern matching. actually this has been considered before [like here](https://lists.chalmers.se/pipermail/agda/2008/000420.html)
         * how important is it to have this generalized index?? what incovenience will we get? see discuession [here](https://wiki.portal.chalmers.se/agda/pmwiki.php?n=Main.InductiveFamilies). it seems at least essential to [tt in tt](https://github.com/mr-ohman/logrel-mltt/blob/86a0e7c509fd0e8ea3c68b16983627d92006a105/Definition/Conversion.agda)
-        * **what if we have a type theory with general indexed family, but annotated reduction rules? (I think this is doable)**
+        * **what if we have a type theory with both computational and non-computational indexed family**
     * the idea of recursive-inductive definition is to define function `T: U => D` and inductive type `U[T]` and only allow `T` occurs in `U` of the form `T(...)`, i.e. application
         * this is rejected as "non-positive" in Agda
           ```

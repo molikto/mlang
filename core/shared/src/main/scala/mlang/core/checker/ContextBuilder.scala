@@ -2,8 +2,6 @@ package mlang.core.checker
 
 import mlang.core.concrete.{Name, Pattern => Patt}
 
-import scala.collection.mutable
-
 
 
 sealed trait ContextBuilderException extends CoreException

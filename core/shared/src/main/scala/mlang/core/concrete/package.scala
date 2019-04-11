@@ -10,6 +10,7 @@ package object concrete {
 
   //case class Name(short: Text, long: Text)
   type Name = Text
+  type OptName = Option[Name]
   type NameRef = Text
 
   object NameRef {

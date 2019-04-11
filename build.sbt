@@ -5,7 +5,10 @@ import sbtcrossproject.CrossPlugin.autoImport.{crossProject, CrossType}
 
 lazy val core = crossProject(JSPlatform, JVMPlatform).in(file("core")).settings(
   sharedSettings,
-//    libraryDependencies ++= Deps.shared.value,
+
+  libraryDependencies ++= Seq(
+    "org.scala-lang.modules" %%% "scala-parser-combinators" % "1.1.2" 
+  ),
 ).jsConfigure(_.enablePlugins(ScalaJSPlugin)).jvmConfigure(_.settings(
   libraryDependencies ++= Seq(
     "org.scala-lang" % "scala-compiler" % scalaVersion.value
@@ -49,9 +52,5 @@ val sharedSettings = Seq(
   autoCompilerPlugins := true,
   addCompilerPlugin("com.lihaoyi" %% "acyclic" %  "0.1.8"),
   libraryDependencies += "com.lihaoyi" %% "acyclic" % "0.1.8" % "provided",
-
-  resolvers += Resolver.bintrayRepo("stg-tud", "maven"),
-  addCompilerPlugin("de.tuda.stg" % "dslparadise" % "0.2.0" cross CrossVersion.patch),
-  libraryDependencies += "de.tuda.stg" %% "dslparadise-types" % "0.2.0"
 )
 

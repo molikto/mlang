@@ -9,22 +9,20 @@ object Main {
   def pi (a: Term, b: Term) = Function(a, "", b)
   def main(args: Array[String]): Unit = {
     TypeChecker.empty.checkModule(Module(Seq(
-      Declaration.Define("bool", Sum(
+      Declaration.Define("bool", None, Sum(
         Seq(Constructor("true", Seq.empty),
         Constructor("false", Seq.empty)
-      )), None),
-      Declaration.Define("not",
+      ))),
+      Declaration.Define("not", Some(pi("bool", "bool")),
         PatternLambda(Seq(
           Case(Pattern.Constructor("true", Seq.empty), Projection("bool", "false")),
           Case(Pattern.Constructor("false", Seq.empty), Projection("bool", "true"))
-        ))
-        , Some(pi("bool", "bool"))),
-      Declaration.Define("bool_pair",
+        ))),
+      Declaration.Define("bool_pair", None,
         Record(Seq(
           NameType("_1", "bool"),
           NameType("_2", "bool")
-        ))
-        , None),
+        ))),
     )))
   }
 }

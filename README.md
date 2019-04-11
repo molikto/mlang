@@ -10,14 +10,8 @@
     * **totally unsafe basics**
         * basic syntax and parser
         * eta rule
-    * coverage checker
-        * overlapping patterns
     * mutual recursive functions
     * user defined eliminations
-    * HTML pretty print
-    * naming shadowing
-    * evaluator control
-        * error reporting
     * record calculus
     * recursive types
         * inductive families of two flavor
@@ -25,9 +19,15 @@
         * inductive-inductive
         * inductive-recursive
     * cubical features
-    * termination checking
     * implicit arguments
     * implicit conversions
+    * coverage checker
+        * overlapping patterns
+    * HTML pretty print
+    * naming shadowing
+    * evaluator control
+        * error reporting
+    * termination checking
     * structural editor
         * modules and compile unit
     * universe polymorphism
