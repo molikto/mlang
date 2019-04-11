@@ -1,6 +1,6 @@
 package mlang.core.checker
 
-import mlang.core.Name
+import mlang.core.name._
 
 
 sealed trait Abstract
@@ -23,7 +23,7 @@ object Abstract {
 
   case class Projection(left: Abstract, field: Int) extends Abstract
 
-  case class Constructor(name: Name, params: Seq[Abstract])
+  case class Constructor(name: Tag, params: Seq[Abstract])
   case class Sum(level: Int, constructors: Seq[Constructor]) extends Abstract
 
   case class SumMaker(sum: Abstract, field: Int) extends Abstract

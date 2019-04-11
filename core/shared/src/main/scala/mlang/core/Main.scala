@@ -1,28 +1,23 @@
 package mlang.core
 
-import mlang.core.checker.TypeChecker
-import mlang.core.concrete._
-import mlang.core.concrete.Term._
+import java.io.File
 
-object Main {
-  implicit def strToRef(s: String): Reference = Reference(s)
-  implicit def strToName(s: String): Name = Name(s)
-  def pi (a: Term, b: Term) = Function(Seq(NameType(Seq.empty, a)), b)
+import mlang.core.checker.TypeChecker
+import mlang.core.poorparser.Parser
+
+object Main extends Parser {
+
   def main(args: Array[String]): Unit = {
-    TypeChecker.empty.checkModule(Module(Seq(
-      Declaration.Define("bool", None, Sum(
-        Seq(Constructor("true", Seq.empty),
-        Constructor("false", Seq.empty)
-      ))),
-      Declaration.Define("not", Some(pi("bool", "bool")),
-        PatternLambda(Seq(
-          Case(Pattern.Constructor("true", Seq.empty), Projection("bool", "false")),
-          Case(Pattern.Constructor("false", Seq.empty), Projection("bool", "true"))
-        ))),
-      Declaration.Define("bool_pair", None,
-        Record(Seq(
-          NameType(Seq("_1", "_2"), "bool")
-        ))),
-    )))
+    var checker = TypeChecker.empty
+    new File("library").listFiles(_.getName.endsWith(".poor")).sortBy(_.getName).foreach(f => {
+      val res = parse(scala.io.Source.fromFile(f).getLines().mkString("\n"))
+      res match {
+        case Success(result, next) =>
+          if (next.atEnd) checker = checker.check(result)
+          else throw new Exception("Parse failed with result " + result + "and remaining " + next.rest.toString)
+        case NoSuccess(msg, next) =>
+          throw new Exception(s"Parse failed with $msg")
+      }
+    })
   }
 }

@@ -1,7 +1,9 @@
 package mlang.core.checker
 
 import mlang.core.concrete.{Pattern => Patt}
-import mlang.core.Name
+import mlang.core.name._
+
+import scala.collection.mutable
 
 
 
@@ -63,40 +65,71 @@ trait ContextBuilder extends Context {
     }
   }
 
-  def compile(pattern: Patt): Pattern = {
-    def rec(p: Patt): Pattern = {
+
+  def newAbstractions(pattern: Patt, typ: Value): (Self, Value, Pattern) = {
+    val vvv = mutable.ArrayBuffer[Binder]()
+    def rec(p: Patt, t: Value): (Value, Pattern) = {
       p match {
-        case Patt.Atom(_) =>
-          Pattern.Atom
-        case Patt.Make(maps) =>
-          Pattern.Make(maps.map(compile))
-        case Patt.Constructor(name, maps) =>
-          Pattern.Constructor(name, maps.map(compile))
+        case Patt.Atom(name) =>
+          var ret: (Value, Pattern) = null
+          name.flatMap(_.asRef) match {
+            case Some(ref) =>
+              t match {
+                case Value.Sum(_, cs) if cs.exists(c => c.name == ref && c.parameters == 0) =>
+                  ret = (Value.Construct(ref, Seq.empty), Pattern.Construct(ref, Seq.empty))
+                case _ =>
+              }
+            case _ =>
+          }
+          if (ret == null) {
+            val open = Value.OpenReference(gen(), t)
+            if (name.isDefined) {
+              vvv.append(Binder(gen(), name.get, t, Some(open)))
+            }
+            ret = (open, Pattern.Atom)
+          }
+          ret
+        case Patt.Group(maps) =>
+          typ match {
+            case r@Value.Record(_, nodes) =>
+              if (maps.size == nodes.size) {
+                var vs =  Seq.empty[(Value, Pattern)]
+                for (m  <- maps) {
+                  val it = r.projectedType(vs.map(_._1), vs.size)
+                  val tv = rec(m, it)
+                  vs = vs :+ tv
+                }
+                (Value.Make(vs.map(_._1)), Pattern.Make(vs.map(_._2)))
+              } else {
+                throw new PatternExtractException.MakeWrongSize()
+              }
+            case _ => throw new PatternExtractException.MakeIsNotRecordType()
+          }
+        case Patt.NamedGroup(name, maps) =>
+          typ match {
+            case Value.Sum(_, cs) =>
+              cs.find(_.name == name) match {
+                case Some(c) =>
+                  if (c.nodes.size == maps.size) {
+                    val vs = new mutable.ArrayBuffer[(Value, Pattern)]()
+                    for ((m, n) <- maps.zip(c.nodes)) {
+                      val it = n(vs.map(_._1))
+                      val tv = rec(m, it)
+                      vs.append(tv)
+                    }
+                    (Value.Construct(name, vs.map(_._1)), Pattern.Construct(name, vs.map(_._2)))
+                  } else {
+                    throw new PatternExtractException.ConstructWrongSize()
+                  }
+                case _ =>
+                  throw new PatternExtractException.ConstructUnknownName()
+              }
+            case _ => throw new PatternExtractException.ConstructNotSumType()
+          }
       }
     }
-    rec(pattern)
-  }
-
-  def names(pattern: Patt): Seq[Name] = {
-    def rec(p: Patt): Seq[Name] = {
-      p match {
-        case Patt.Atom(n) =>
-          Seq(n)
-        case Patt.Make(maps) =>
-          maps.flatMap(names)
-        case Patt.Constructor(_, maps) =>
-          maps.flatMap(names)
-      }
-    }
-    rec(pattern)
-  }
-
-
-  def newAbstractions(pattern: Patt, typ: Value): (Self, Value) = {
-    val ns = names(pattern)
-    val (os, v) = Value.extractTypes(compile(pattern), typ, gen)
-    assert(os.size == ns.size)
-    val ctx: Self = (layers.head ++ os.zip(ns).map(o => Binder(o._1.id, o._2, o._1.typ, Some(o._1)))) +: layers.tail
-    (ctx, v)
+    val (os, p) = rec(pattern, typ)
+    val ctx: Self = (layers.head ++ vvv) +: layers.tail
+    (ctx, os, p)
   }
 }

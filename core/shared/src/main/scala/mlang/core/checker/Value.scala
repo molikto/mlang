@@ -1,6 +1,6 @@
 package mlang.core.checker
 
-import mlang.core.Name
+import mlang.core.name._
 
 import scala.collection.mutable
 
@@ -53,18 +53,12 @@ object Value {
   case class Universe(level: Int) extends Value
 
   case class Function(domain: Value, codomain: Closure) extends Value
-  /**
-    * this lambda is transparent on the arguments
-    */
-  case class Lambda(closure: Closure) extends Value {
-    override def app(v: Stuck): Stuck = closure(Seq(v))
-  }
   case class Application(lambda: Stuck, argument: Value) extends Spine
 
   // TODO should have a field: recursive, and it must be recursive
   // TODO record should have a type
 
-  case class RecordNode(name: Name, dependencies: Seq[Name.Ref], closure: MultiClosure)
+  case class RecordNode(name: Name, dependencies: Seq[Ref], closure: MultiClosure)
   /**
     */
   case class Record(level: Int, nodes: Seq[RecordNode]) extends Value { rthis =>
@@ -82,14 +76,14 @@ object Value {
       rec(Seq.empty, nodes)
     }
     val makerType: Value = {
-      def rec(known: Seq[(Name, Value)], remaining: Seq[RecordNode]): Value = {
+      def rec(known: Seq[(Ref, Value)], remaining: Seq[RecordNode]): Value = {
         remaining match {
           case Seq() => rthis
           case Seq(head) =>
-            Function(head.closure(known.filter(n => head.dependencies.contains(n._1.ref)).map(_._2)), _ => rthis)
+            Function(head.closure(known.filter(n => head.dependencies.contains(n._1)).map(_._2)), _ => rthis)
           case head +: more +: tail =>
-            Function(head.closure(known.filter(n => head.dependencies.contains(n._1.ref)).map(_._2)), p => {
-              rec(known ++ Seq((more.name, p.head)), tail)
+            Function(head.closure(known.filter(n => head.dependencies.contains(n._1)).map(_._2)), p => {
+              rec(known ++ Seq((more.name.refSelf, p.head)), tail)
             })
         }
       }
@@ -97,7 +91,7 @@ object Value {
     }
     def projectedType(values: Seq[Value], name: Int): Value = {
       val b = nodes(name)
-      b.closure(b.dependencies.map(nodes.map(_.name.ref).zip(values).toMap))
+      b.closure(b.dependencies.map(nodes.map(_.name.refSelf).zip(values).toMap))
     }
   }
 
@@ -107,14 +101,14 @@ object Value {
 
   case class Projection(make: Stuck, field: Int) extends Spine
 
-  case class Construct(name: Name.Ref, vs: Seq[Value]) extends Value
+  case class Construct(name: Tag, vs: Seq[Value]) extends Value
   // TODO sum should have a type, it can be indexed, so a pi type ends with type_i
   // TODO should have a field: recursive, and it must be recursive, also in case of indexed, use Constructor instead of value
-  case class Constructor(name: Name, nodes: Seq[MultiClosure]) {
+  case class Constructor(name: Tag, parameters: Int, nodes: Seq[MultiClosure]) {
     val maker: Value = {
       def rec(known: Seq[Value], remaining: Seq[MultiClosure]): Value = {
         remaining match {
-          case Seq() => Construct(name.ref, known)
+          case Seq() => Construct(name, known)
           case _ +: tail =>
             Lambda(p => rec(known :+ p.head, tail))
         }
@@ -140,8 +134,6 @@ object Value {
   }
   case class Sum(level: Int, constructors: Seq[Constructor]) extends Value {
 
-    def constructor(name: Name.Ref): Option[Constructor] = constructors.find(_.name.by(name))
-
     for (c <- constructors) {
       c._makerType = c.initMakerType(this)
     }
@@ -152,7 +144,14 @@ object Value {
       extract(pattern, v).map(closure)
     }
   }
-  
+
+  /**
+    * this lambda is transparent on the arguments
+    */
+  case class Lambda(closure: Closure) extends Value {
+    override def app(v: Stuck): Stuck = closure(Seq(v))
+  }
+
   case class PatternLambda(typ: Closure, cases: Seq[Case]) extends Value {
     // TODO overlapping patterns, we are now using first match
     override def app(v: Value): Value = {
@@ -183,8 +182,9 @@ object Value {
     def rec(p: Pattern, t: Value): Value = {
       p match {
         case Pattern.Atom =>
-          vs.append(OpenReference(gen(), t))
-          t
+          val ret = OpenReference(gen(), t)
+          vs.append(ret)
+          ret
         case Pattern.Make(maps) =>
           typ match {
             case r@Value.Record(_, nodes) =>
@@ -201,10 +201,10 @@ object Value {
               }
             case _ => throw new PatternExtractException.MakeIsNotRecordType()
           }
-        case Pattern.Constructor(name, maps) =>
+        case Pattern.Construct(name, maps) =>
           typ match {
             case Value.Sum(_, cs) =>
-              cs.find(_.name.by(name)) match {
+              cs.find(_.name == name) match {
                 case Some(c) =>
                   if (c.nodes.size == maps.size) {
                     val vs = new mutable.ArrayBuffer[Value]()
@@ -242,7 +242,7 @@ object Value {
             case _ =>
               false
           }
-        case Pattern.Constructor(name, pattern) =>
+        case Pattern.Construct(name, pattern) =>
           v match {
             case Construct(n, values) if name == n =>
               pattern.zip(values).forall(pair => rec(pair._1, pair._2))

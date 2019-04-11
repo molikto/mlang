@@ -1,7 +1,6 @@
 package mlang.core.checker
 
 import Value._
-import mlang.core.Name
 
 import scala.util.{Success, Try}
 
@@ -14,7 +13,7 @@ trait Conversion extends Context {
       n1.zip(n2).foldLeft(Some(Seq.empty[Value]) : Option[Seq[Value]]) { (as0, pair) =>
         as0 match {
           case Some(as) if pair._1.dependencies == pair._2.dependencies =>
-            val mm = n1.map(_.name.ref).zip(as).toMap
+            val mm = n1.map(_.name.refSelf).zip(as).toMap
             equalTypeMultiClosure(less, pair._1.dependencies.map(mm), pair._1.closure, pair._2.closure).map(as :+ _)
           case None =>
             None
@@ -29,7 +28,7 @@ trait Conversion extends Context {
     if (c1.eq(c2)) {
       true
     } else {
-      c1.name == c2.name && c1.nodes.size == c2.nodes.size && c1.nodes.zip(c2.nodes).foldLeft(Some(Seq.empty[Value]) : Option[Seq[Value]]) { (as0, pair) =>
+      c1.name == c2.name && c1.parameters == c2.parameters && c1.nodes.size == c2.nodes.size && c1.nodes.zip(c2.nodes).foldLeft(Some(Seq.empty[Value]) : Option[Seq[Value]]) { (as0, pair) =>
           as0 match {
             case Some(as) =>
               equalTypeMultiClosure(less, as, pair._1, pair._2).map(as :+ _)
@@ -141,7 +140,7 @@ trait Conversion extends Context {
           ns.size == v1.size && ns.size == v2.size && ns.zip(v1.zip(v2)).foldLeft(Some(Seq.empty) : Option[Seq[Value]]) { (as0, pair) =>
             as0 match {
               case Some(as) =>
-                val mm = ns.map(_.name.ref).zip(as).toMap
+                val mm = ns.map(_.name.refSelf).zip(as).toMap
                 val nm = pair._1.closure(pair._1.dependencies.map(mm))
                 if (equalTerm(nm, pair._2._1, pair._2._2)) {
                   Some(as :+ nm)
@@ -153,7 +152,7 @@ trait Conversion extends Context {
             }
           }.isDefined
         case (Sum(_, cs), Construct(n1, v1), Construct(n2, v2)) =>
-          n1 == n2 && cs.find(_.name.by(n1)).exists(c => {
+          n1 == n2 && cs.find(_.name == n1).exists(c => {
             if (c.nodes.size == v1.size && v2.size == v1.size) {
               c.nodes.zip(v1.zip(v2)).foldLeft(Some(Seq.empty): Option[Seq[Value]]) { (as0, pair) =>
                 as0 match {

@@ -1,13 +1,15 @@
-package mlang.core
+package mlang.core.name
 
-import mlang.core.Name.Ref
 import mlang.core.utils.Text
+
 
 case class Name(main: Text) {
 
   def intersect(name: Name): Boolean = name.main == main
-  def by(name: Ref): Boolean = name == main
-  def ref: Name.Ref = main
+  def by(name: Text): Boolean = name == main
+  def refSelf: Ref = main
+
+  def asRef: Option[Ref] = Some(main)
 
   override def equals(obj: Any): Boolean = {
     obj match {
@@ -18,13 +20,7 @@ case class Name(main: Text) {
 }
 
 object Name {
-  type Ref = Text
-
-  object Ref {
-    val empty: Ref = Text("")
-
-    val make: Ref = Text("make")
-  }
+  val empty: Name = Name("")
 
   type Opt = Option[Name]
 }
