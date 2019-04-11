@@ -1,6 +1,8 @@
 package mlang.core.checker
 
 import mlang.core.name._
+import mlang.core.utils.debug
+import mlang.core.varfield
 
 import scala.collection.mutable
 
@@ -18,6 +20,7 @@ object PatternExtractException {
 sealed trait Value {
   def app(v: Value): Value = throw new IllegalArgumentException()
   def project(name: Int): Value = throw new IllegalArgumentException()
+  def deref(): Value = this
 }
 
 
@@ -46,8 +49,13 @@ object Value {
     override def project(name: Int): Value = value.project(name)
   }
 
-  case class RecursiveReference(var value: Value) extends ClosedReference
-  case class Reference(override val value: Value) extends ClosedReference
+  // the var is a total hack!! but it is very beautiful!!!
+  case class RecursiveReference(@varfield var value: Value) extends ClosedReference {
+    debug("recursive reference created")
+  }
+  case class Reference(value: Value) extends ClosedReference {
+    override def deref(): Stuck = value
+  }
   case class OpenReference(id: Generic, typ: Value) extends AsStuck
 
   case class Universe(level: Int) extends Value

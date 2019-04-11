@@ -31,29 +31,33 @@ trait ContextBuilder extends Context {
 
   def newLayer(): Self = (Seq.empty : Layer) +: layers
 
-  def newDeclaration(name: Name, typ: Value) : Self = {
+  def newDeclaration(name: Name, typ: Value, genericValue: Boolean) : Self = {
     layers.head.find(_.name.intersect(name)) match {
       case Some(_) => throw new ContextBuilderException.AlreadyDeclared()
-      case _ => (layers.head :+ Binder(gen(), name, typ)) +: layers.tail
+      case _ =>
+        val g = gen()
+        (layers.head :+ Binder(g, name, typ, false, if (genericValue) Some(Value.OpenReference(g, typ)) else None)) +: layers.tail
     }
   }
 
-  def newDefinitionChecked(name: Name, v: Value) : Self = {
-    layers.head.find(_.name.intersect(name)) match {
-      case Some(Binder(id, _, typ, tv)) => tv match {
-        case Some(_) => throw new ContextBuilderException.AlreadyDefined()
-        case _ => layers.head.updated(layers.head.indexWhere(_.name.intersect(name)), Binder(id, name, typ, Some(v))) +: layers.tail
-      }
-      case _ => throw new ContextBuilderException.NotDeclared()
+  def newDefinitionChecked(index: Int, name: Name, v: Value) : Self = {
+    layers.head(index) match {
+      case Binder(id, n0, typ, defined, tv) =>
+        if (defined) {
+          throw new ContextBuilderException.AlreadyDefined()
+        } else {
+          assert(n0 == name)
+          layers.head.updated(index, Binder(id, name, typ, true, Some(v))) +: layers.tail
+        }
     }
   }
 
-  def newDefinition(name: Name, typ: Value, v: Value): Self = {
-    layers.head.find(_.name.intersect(name)) match {
-      case Some(_) => throw new ContextBuilderException.AlreadyDeclared()
-      case _ => (layers.head :+ Binder(gen(), name, typ, Some(v))) +: layers.tail
-    }
-  }
+//  def newDefinition(name: Name, typ: Value, v: Value): Self = {
+//    layers.head.find(_.name.intersect(name)) match {
+//      case Some(_) => throw new ContextBuilderException.AlreadyDeclared()
+//      case _ => (layers.head :+ Binder(gen(), name, typ, true, Some(v))) +: layers.tail
+//    }
+//  }
 
   def newAbstraction(name: Name, typ: Value) : (Self, Value) = {
     layers.head.find(_.name.intersect(name)) match {
@@ -61,7 +65,7 @@ trait ContextBuilder extends Context {
       case _ =>
         val g = gen()
         val v = Value.OpenReference(g, typ)
-        ((layers.head :+ Binder(g, name, typ, Some(v))) +: layers.tail, v)
+        ((layers.head :+ Binder(g, name, typ, true, Some(v))) +: layers.tail, v)
     }
   }
 
@@ -84,7 +88,7 @@ trait ContextBuilder extends Context {
           if (ret == null) {
             val open = Value.OpenReference(gen(), t)
             if (name.isDefined) {
-              vvv.append(Binder(gen(), name.get, t, Some(open)))
+              vvv.append(Binder(gen(), name.get, t, true, Some(open)))
             }
             ret = (open, Pattern.Atom)
           }

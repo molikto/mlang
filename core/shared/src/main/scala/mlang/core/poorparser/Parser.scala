@@ -31,7 +31,7 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
     override def whitespaceChar: Parser[Char] = elem("", _ == '│') | super.whitespaceChar
   }
 
-  lexical.reserved ++= List("ignored","define", "declare", "match", "make", "record", "type", "sum", "inductively", "with_constructors") ++ Primitives.keys
+  lexical.reserved ++= List("case", "field", "ignored", "define", "declare", "match", "make", "record", "type", "sum", "inductively", "with_constructors") ++ Primitives.keys
   lexical.delimiters ++= List("{", "}", "[", "]", ":", ",", "(", ")", "─", "┬", "┌", "⊏", "└", "├", "⇒", "→", "+", "-", ";", "=", "@", "\\", ".")
 
   def delimited[T](a: String, t: Parser[T], b: String): Parser[T] = a ~> t <~ b
@@ -126,14 +126,16 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
 
   lazy val app: PackratParser[Application] = term ~ delimited("(", repsep(term, ","), ")") ^^ {a => Application(a._1, a._2)}
 
-  lazy val record: PackratParser[Record] = keyword("record") ~> delimited("{", teleInner, "}") ^^ {a => Record(a) }
+  lazy val record: PackratParser[Record] = keyword("record") ~> delimited("{", rep(((keyword("field") ~> rep1(ident) <~ ":") ~ term) ^^ {a => NameType(a._1.map(k => Name(Text(k))), a._2)}), "}") ^^ {a => Record(a) }
 
   lazy val projection: PackratParser[Projection] = (term <~ ".") ~ ident ^^ {a => Projection(a._1, a._2)}
 
   lazy val sum: PackratParser[Sum] =
-    (keyword("sum") ~> delimited("[", repsep(ident ~ opt(tele),","),"]")) ^^ { a =>
-
-      Sum(a.map(b => Term.Constructor(Text(b._1), b._2.getOrElse(Seq.empty[NameType]))))
+    (keyword("sum") ~> delimited("[", rep(
+      (keyword("case") ~> ident ~ tele ^^ { a => Seq(Term.Constructor(a._1, a._2)) }) |
+      (keyword("case") ~> rep1(ident) ^^ { _.map(i => Term.Constructor(Text(i), Seq.empty)) : Seq[Term.Constructor] })
+    ),"]")) ^^ { a =>
+      Sum(a.flatten)
     }
 
 

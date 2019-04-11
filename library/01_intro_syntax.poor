@@ -13,14 +13,18 @@
 // ignored is a keyword to don't put the definition in the context at all, it just makes it type check
 
 define ignored _ = { // "{" starts a let expression
-  // TODO: have a case name()...?
-  define fin3 = sum [
-    one, two, three
+
+  define nat: type = sum [
+    case zero
+    case suc(nat)
   ]
 
-  // TODO: have a field name : ..?
+  define fin3 = sum [
+    case one two three
+  ]
+
   define fin3_pair = record {
-    a b : fin3
+    field a b: fin3
   }
 
   define inverse:

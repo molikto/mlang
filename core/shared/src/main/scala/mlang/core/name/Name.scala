@@ -11,6 +11,9 @@ case class Name(main: Text) {
 
   def asRef: Option[Ref] = Some(main)
 
+
+  override def toString: String = main.toString
+
   override def equals(obj: Any): Boolean = {
     obj match {
       case o: Name => o.main == main

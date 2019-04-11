@@ -2,7 +2,9 @@ package mlang.core.checker
 
 import mlang.core.concrete.{Pattern => Patt, _}
 import Context._
+import mlang.core.concrete.Declaration.Modifier
 import mlang.core.name._
+import mlang.core.utils
 import mlang.core.utils.debug
 
 import scala.collection.mutable
@@ -58,7 +60,7 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
         (Value.Universe(i + 1), Abstract.Universe(i))
       case Term.Reference(name) =>
         // should lookup always return a value? like a open reference?
-        val (Binder(_, _, t, _), abs) = lookup(name)
+        val (Binder(_, _, t, _, _), abs) = lookup(name)
         (t, abs)
       case Term.Cast(v, t) =>
         val (_, ta) = inferLevel(t)
@@ -91,7 +93,7 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
           }
         }
         // TODO in case of HIT, each time a constructor finished, we need to construct a partial sum and update the value
-        val fs = constructors.map(c => newLayer().inferLevel(c.term))
+        val fs = constructors.map(c => newLayer().newLayer().inferLevel(c.term))
         val fl = fs.map(_._1).max
         (Value.Universe(fl), Abstract.Sum(fl, fs.map(_._2.map(_._2)).zip(constructors).map(a => Abstract.Constructor(a._2.name, a._1))))
       case Term.PatternLambda(_) =>
@@ -125,9 +127,9 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
         val (lt, la) = infer(lambda)
         inferApplication(lt, la, arguments)
       case Term.Let(declarations, in) =>
-        val (ctx, da) = newLayer().checkDeclarations(declarations)
+        val (ctx, da, order) = newLayer().checkDeclarations(declarations)
         val (it, ia) = ctx.infer(in)
-        (it, Abstract.Let(da, ia))
+        (it, Abstract.Let(da, order, ia))
     }
     debug(s"infer result ${res._2}")
     res
@@ -206,6 +208,7 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
       case Term.PatternLambda(cases) =>
         cp match {
           case Value.Function(domain, codomain) =>
+            // TODO I think this is WRONG!!!!! how to rebind variables???
             Abstract.PatternLambda(codomain, cases.map(c => {
               val (ctx, v, pat) = newLayer().newAbstractions(c.pattern, domain)
               val ba = ctx.check(c.body, codomain(Seq(v)), tail)
@@ -220,23 +223,26 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
     res
   }
 
-  private def checkDeclaration(s: Declaration, abs: mutable.ArrayBuffer[Abstract]): Self = {
+
+  private def checkDeclaration(s: Declaration, abs: mutable.ArrayBuffer[DefinitionInfo]): Self = {
+    /**
+      * how to handle mutual recursive definitions
+      */
     s match {
       case Declaration.DefineInferred(name, ms, v) =>
         val index = layers.head.indexWhere(_.name == name)
         if (index < 0) {
           val (vt, va) = infer(v)
-          val ctx = newDefinition(name, vt, eval(va))
-          debug(s"defined $name")
-          abs.append(va)
+          val ctx = newDeclaration(name, vt, ms.contains(Modifier.Inductively))
+          debug(s"declared $name")
+          abs.append(DefinitionInfo(name, vt, va))
           ctx
         } else {
           val b = layers.head(index)
           val va = check(v, b.typ)
-          val ctx = newDefinitionChecked(name, eval(va))
-          debug(s"defined body $name")
-          abs.updated(index, va)
-          ctx
+          debug(s"declared $name")
+          abs.updated(index, DefinitionInfo(name, b.typ, va))
+          this
         }
       case Declaration.Define(name, ms, t, v) =>
         debug(s"check define $name")
@@ -247,16 +253,16 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
             Some(NameType.flatten(d).map(_._1))
           case _ => None
         }
-        var ctx = newDeclaration(name, tv) // allows recursive definitions
+        val ctx = newDeclaration(name, tv, ms.contains(Modifier.Inductively)) // allows recursive definitions
         val va = ctx.check(v, tv, lambdaNameHints)
-        ctx = ctx.newDefinitionChecked(name, eval(va))
-        debug(s"defined $name")
+        debug(s"declared $name")
+        abs.append(DefinitionInfo(name, tv, va))
         ctx
       case Declaration.Declare(name, ms, t) =>
         debug(s"check declare $name")
         if (ms.nonEmpty) throw new TypeCheckException.ForbiddenModifier()
         val (_, ta) = inferLevel(t)
-        val ctx = newDeclaration(name, eval(ta))
+        val ctx = newDeclaration(name, eval(ta), ms.contains(Modifier.Inductively))
         debug(s"declared $name")
         abs.append(null)
         ctx
@@ -264,18 +270,55 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
 
   }
 
-  private def checkDeclarations(seq: Seq[Declaration]): (Self, Seq[Abstract]) = {
-    // TODO recursive defines
+  private def checkDeclarations(seq: Seq[Declaration]): (Self, Seq[Abstract], Seq[Set[Int]]) = {
     var ctx = this
-    val abs = new mutable.ArrayBuffer[Abstract]()
+    val abs = new mutable.ArrayBuffer[DefinitionInfo]()
+    val definitionOrder = new mutable.ArrayBuffer[Set[Int]]()
     for (s <- seq) {
       if (s.modifiers.contains(Declaration.Modifier.Ignored)) {
-        ctx.checkDeclaration(s, mutable.ArrayBuffer[Abstract]())
+        ctx.checkDeclaration(s, abs.clone())
       } else {
         ctx = ctx.checkDeclaration(s, abs)
       }
+      val toCompile = mutable.ArrayBuffer[Int]()
+      for (i <- abs.indices) {
+        val t = abs(i)
+        if (t != null && t.value.isEmpty && t.directDependencies.forall(j => abs(j) != null)) {
+          toCompile.append(i)
+        }
+      }
+      if (toCompile.nonEmpty) {
+        val toCal = toCompile.map(i => i -> abs(i).directDependencies.filter(a => toCompile.contains(a))).toMap
+        val ccc = utils.graphs.tarjanCcc(toCal).toSeq.sortWith((l, r) => {
+          l.exists(ll => r.exists(rr => abs(ll).directDependencies.contains(rr)))
+        }).reverse
+        for (c <- ccc) {
+          assert(c.nonEmpty)
+          definitionOrder.append(c)
+          if (c.size == 1 && !abs(c.head).directDependencies.contains(c.head)) {
+            val g = abs(c.head)
+            val v = ctx.eval(g.code)
+            g.value = Some(v)
+            ctx = ctx.newDefinitionChecked(c.head, g.name, v)
+            debug(s"defined ${g.name}")
+          } else {
+            for (i <- c) {
+              abs(i).code.markRecursive(0, c)
+            }
+            val vs = ctx.evalMutualRecursive(c.map(i => i -> abs(i).code).toMap)
+            for (v <- vs) {
+              val ab = abs(v._1)
+              ab.value = Some(v._2)
+              val name = ab.name
+              ctx = ctx.newDefinitionChecked(v._1, name, v._2)
+              debug(s"defined recursively $name")
+            }
+          }
+        }
+      }
     }
-    (ctx, abs)
+    assert(abs.size == ctx.layers.head.size)
+    (ctx, abs.map(_.code), definitionOrder)
   }
 
 
@@ -283,10 +326,13 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
     var ctx = this
     var l = 0
     val fas = terms.flatMap(f => {
-      f.names.map(n => {
+      val fs = (if (f.names.isEmpty) Seq(Name.empty) else f.names)
+      var i = 0
+      fs.map(n => {
         val (fl, fa) = ctx.inferLevel(f.ty)
         l = l max fl
-        ctx = ctx.newAbstraction(n, eval(fa))._1
+        i += 1
+        if (i < fs.size) ctx = ctx.newAbstraction(n, eval(fa))._1
         (n, fa)
       })
     })
@@ -305,6 +351,16 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
   def check(m: Module): TypeChecker = checkDeclarations(m.declarations)._1
 }
 
+private case class DefinitionInfo(
+    name: Name,
+    typ: Value,
+    code: Abstract,
+    var value: Option[Value] = None,
+   ) {
+   val directDependencies: Set[Int] = code.dependencies(0)
+}
+
 object TypeChecker {
   val empty = new TypeChecker(Seq(Seq.empty))
 }
+

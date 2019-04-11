@@ -11,7 +11,7 @@ object ContextException {
 
 }
 
-case class Binder(id: Generic, name: Name, typ: Value, value: Option[Value] = None)
+case class Binder(id: Generic, name: Name, typ: Value, isDefined: Boolean, value: Option[Value] = None)
 
 object Context {
   type Layer = Seq[Binder]
