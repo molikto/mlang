@@ -68,7 +68,7 @@
 
 * path type, seems to be again a negative type
 
-* (higher) (indexed recursive-)inductive type are seen as positive types. introduction rule is user defined constants. their elimination rule is pattern matching (it should allows [a eta rule like positive record type](https://ncatlab.org/nlab/show/product+type#as_a_positive_type), right? does it? especially for higher one?)
+* (higher) (indexed recursive-)inductive type are seen as positive types. introduction rule is user defined constants. their elimination rule is pattern matching **it should allows [a eta rule like positive record type](https://ncatlab.org/nlab/show/product+type#as_a_positive_type) , right? does it? especially for higher one? what about [this](https://ncatlab.org/nlab/show/identity+type#EtaConversion)?**
     * categorical logic for basic inductive type
         1. firstly, we can replace a inductive type with a form of `F(X) = (a: A) * (B(a) => X)`, it is a endofunctor in the lccc
         2. then indexed-family is "functor of multiple variable of multiple equations"

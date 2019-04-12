@@ -28,6 +28,20 @@ define nat_is_even =
 ┌ zero → bool.true
 └ suc(m) → nat_is_odd(m)
 
+define id:
+ (a: type, x: a) ⇒ a =
+  ─        ─     → x
+
+define test0:
+ (a b: type, f: a ⇒ b, func: (a ⇒ b) ⇒ type, g: func(f)) ⇒ func(f) =
+  ─ ─        ─         ─                     ─           → g
+
+
+define test1:
+ (a b: type, f: a ⇒ b, func: (a ⇒ b) ⇒ type, g: func(f)) ⇒ func(id(a ⇒ b, f)) =
+  ─ ─        ─         ─                     ─           → g
+
+
 // ignored is a keyword to don't put the definition in the context at all, it just makes it type check
 
 define ignored _ = { // "{" starts a let expression

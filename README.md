@@ -10,10 +10,11 @@
     * ~~totally unsafe basics~~
     * ~~basic syntax and parser~~
     * ~~mutual recursive functions~~
-    * cubical features
     * conversion check
-        * eta rule
+        * ~~eta rule~~
+        * should we use pattern lambda or recursor?
         * recursive definitions
+    * cubical features
     * user defined eliminations
     * record calculus
     * evaluator control
@@ -69,7 +70,13 @@ the default evaluation strategy will NOT reduce on recursive definitions. this m
 
 ### conversion checking
 
-the conversion checking 
+the conversion checking compared to the literature is wired, because it doesn't have de Bruijn indices, so it uses a unique id for open variables, so we don't need to do index shuffling, I don't know if this is correct actually.
+
+the assumptions is: values is well typed, although values don't have type annotations, but for example a stuck term of application, if you know the left hand side has a function type, then you know that right hand side has the type of the domain
+
+so the algorithm is type directed is in this sense: the type is a **assertion** that both terms has a certain type, the level input of `equalType` is a **assertion** that both type is smaller than a certain level, the output of a equality check is a **assertion** that the term is definitional equal.
+
+in case of `equalNeutural`, there is no assertion that the two input is of the same type, it has a return type `Option[Value]` and `Some(v)` is a **assertion** that the two neutral type is of the same type, **and of the same value** and the type is `v`
 
 ## math
 
