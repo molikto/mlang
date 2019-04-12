@@ -37,7 +37,7 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
   def delimited[T](a: String, t: Parser[T], b: String): Parser[T] = a ~> t <~ b
 
 
-  lazy val declaration: PackratParser[Declaration] = define | defineInferred | declare
+  lazy val declaration: PackratParser[Declaration] =declare |  define | defineInferred
 
   lazy val defineModifiers: PackratParser[Seq[Declaration.Modifier]] =
     rep(
@@ -103,7 +103,7 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
   lazy val namedPattern: PackratParser[Pattern] =
     ident ~ delimited("(", rep1sep(pattern, ","),")") ^^ { a => Pattern.NamedGroup(Text(a._1), a._2) }
 
-  lazy val pattern: PackratParser[Pattern] = atomicPattern ^^ { a => Pattern.Atom(a) } | groupPattern | namedPattern
+  lazy val pattern: PackratParser[Pattern] = namedPattern | atomicPattern ^^ { a => Pattern.Atom(a) } | groupPattern
 
   lazy val patternContinue = ("→" ~> term) | patternLambda
 
@@ -131,10 +131,10 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
   lazy val projection: PackratParser[Projection] = (term <~ ".") ~ ident ^^ {a => Projection(a._1, a._2)}
 
   lazy val sum: PackratParser[Sum] =
-    (keyword("sum") ~> delimited("[", rep(
+    (keyword("sum") ~> delimited("{", rep(
       (keyword("case") ~> ident ~ tele ^^ { a => Seq(Term.Constructor(a._1, a._2)) }) |
       (keyword("case") ~> rep1(ident) ^^ { _.map(i => Term.Constructor(Text(i), Seq.empty)) : Seq[Term.Constructor] })
-    ),"]")) ^^ { a =>
+    ),"}")) ^^ { a =>
       Sum(a.flatten)
     }
 

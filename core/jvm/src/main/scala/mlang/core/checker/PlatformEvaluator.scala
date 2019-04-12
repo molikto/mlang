@@ -1,6 +1,5 @@
 package mlang.core.checker
 
-import mlang.core.checker.Value.OpenReference
 import mlang.core.name.Name
 import mlang.core.utils.{Text, debug}
 
@@ -36,7 +35,7 @@ trait PlatformEvaluator extends BaseEvaluator {
               s"rs($index)"
             } else {
               assert((up == depth + 1 && closed == 0) || closed == -1)
-              s"${tunnel(evalClosedReference(up - depth - 1, index))}.deref()"
+              s"${tunnel(evalOpenReference(up - depth - 1, index))}.rref()"
             }
           } else {
             if (closed == 1) {

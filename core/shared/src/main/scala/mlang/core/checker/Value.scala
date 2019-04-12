@@ -10,17 +10,33 @@ import scala.collection.mutable
 sealed trait PatternExtractException extends CoreException
 
 object PatternExtractException {
-  class MakeWrongSize() extends PatternExtractException
-  class MakeIsNotRecordType() extends PatternExtractException
-  class ConstructUnknownName() extends PatternExtractException
-  class ConstructWrongSize() extends PatternExtractException
-  class ConstructNotSumType() extends PatternExtractException
+  case class MakeWrongSize() extends PatternExtractException
+  case class MakeIsNotRecordType() extends PatternExtractException
+  case class ConstructUnknownName() extends PatternExtractException
+  case class ConstructWrongSize() extends PatternExtractException
+  case class ConstructNotSumType() extends PatternExtractException
 }
 
 sealed trait Value {
   def app(v: Value): Value = throw new IllegalArgumentException()
   def project(name: Int): Value = throw new IllegalArgumentException()
-  def deref(): Value = this
+  // this is considered a normal reduction now
+  def rref(): Value = this match {
+    case Value.Reference(v) => v
+    case _ => this
+  }
+
+  /**
+    * currently a recursive references reduces with app/project, so a head can not be a stuck head with recursive
+    * references
+    *
+    * so the problem is during typechecking, we need to dereference some of them, currently we only dereference
+    * before a match
+    */
+  def deRecursiveHead(): Value = this match {
+    case Value.RecursiveReference(v) => v.deRecursiveHead()
+    case _ => this
+  }
 }
 
 
@@ -53,9 +69,7 @@ object Value {
   case class RecursiveReference(@varfield var value: Value) extends ClosedReference {
     debug("recursive reference created")
   }
-  case class Reference(value: Value) extends ClosedReference {
-    override def deref(): Stuck = value
-  }
+  case class Reference(value: Value) extends ClosedReference
   case class OpenReference(id: Generic, typ: Value) extends AsStuck
 
   case class Universe(level: Int) extends Value
@@ -183,18 +197,19 @@ object Value {
 
   def extractTypes(
       pattern: Pattern,
-      typ: Value,
+      @canrecur typ: Value,
       gen: GenericGen
   ): (Seq[OpenReference], Value) = {
     val vs = mutable.ArrayBuffer[OpenReference]()
-    def rec(p: Pattern, t: Value): Value = {
+    def rec(p: Pattern, @canrecur t0: Value): Value = {
+      val t = t0.deRecursiveHead()
       p match {
         case Pattern.Atom =>
           val ret = OpenReference(gen(), t)
           vs.append(ret)
           ret
         case Pattern.Make(maps) =>
-          typ match {
+          t match {
             case r@Value.Record(_, nodes) =>
               if (maps.size == nodes.size) {
                 var vs =  Seq.empty[Value]
@@ -205,12 +220,12 @@ object Value {
                 }
                 Value.Make(vs)
               } else {
-                throw new PatternExtractException.MakeWrongSize()
+                throw PatternExtractException.MakeWrongSize()
               }
-            case _ => throw new PatternExtractException.MakeIsNotRecordType()
+            case _ => throw PatternExtractException.MakeIsNotRecordType()
           }
         case Pattern.Construct(name, maps) =>
-          typ match {
+          t match {
             case Value.Sum(_, cs) =>
               cs.find(_.name == name) match {
                 case Some(c) =>
@@ -223,12 +238,12 @@ object Value {
                     }
                     Value.Construct(name, vs)
                   } else {
-                    throw new PatternExtractException.ConstructWrongSize()
+                    throw PatternExtractException.ConstructWrongSize()
                   }
                 case _ =>
-                  throw new PatternExtractException.ConstructUnknownName()
+                  throw PatternExtractException.ConstructUnknownName()
               }
-            case _ => throw new PatternExtractException.ConstructNotSumType()
+            case _ => throw PatternExtractException.ConstructNotSumType()
           }
       }
     }

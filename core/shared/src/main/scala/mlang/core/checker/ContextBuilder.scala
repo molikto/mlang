@@ -11,9 +11,10 @@ sealed trait ContextBuilderException extends CoreException
 
 object ContextBuilderException {
 
-  class AlreadyDeclared() extends ContextBuilderException
-  class AlreadyDefined() extends ContextBuilderException
-  class NotDeclared() extends ContextBuilderException
+  
+  case class AlreadyDeclared() extends ContextBuilderException
+  case class AlreadyDefined() extends ContextBuilderException
+  case class NotDeclared() extends ContextBuilderException
 
 }
 
@@ -33,7 +34,7 @@ trait ContextBuilder extends Context {
 
   def newDeclaration(name: Name, typ: Value, genericValue: Boolean) : Self = {
     layers.head.find(_.name.intersect(name)) match {
-      case Some(_) => throw new ContextBuilderException.AlreadyDeclared()
+      case Some(_) => throw ContextBuilderException.AlreadyDeclared()
       case _ =>
         val g = gen()
         (layers.head :+ Binder(g, name, typ, false, if (genericValue) Some(Value.OpenReference(g, typ)) else None)) +: layers.tail
@@ -44,7 +45,7 @@ trait ContextBuilder extends Context {
     layers.head(index) match {
       case Binder(id, n0, typ, defined, tv) =>
         if (defined) {
-          throw new ContextBuilderException.AlreadyDefined()
+          throw ContextBuilderException.AlreadyDefined()
         } else {
           assert(n0 == name)
           layers.head.updated(index, Binder(id, name, typ, true, Some(v))) +: layers.tail
@@ -54,14 +55,14 @@ trait ContextBuilder extends Context {
 
 //  def newDefinition(name: Name, typ: Value, v: Value): Self = {
 //    layers.head.find(_.name.intersect(name)) match {
-//      case Some(_) => throw new ContextBuilderException.AlreadyDeclared()
+//      case Some(_) => throw ContextBuilderException.AlreadyDeclared()
 //      case _ => (layers.head :+ Binder(gen(), name, typ, true, Some(v))) +: layers.tail
 //    }
 //  }
 
   def newAbstraction(name: Name, typ: Value) : (Self, Value) = {
     layers.head.find(_.name.intersect(name)) match {
-      case Some(_) => throw new ContextBuilderException.AlreadyDeclared()
+      case Some(_) => throw ContextBuilderException.AlreadyDeclared()
       case _ =>
         val g = gen()
         val v = Value.OpenReference(g, typ)
@@ -72,7 +73,8 @@ trait ContextBuilder extends Context {
 
   def newAbstractions(pattern: Patt, typ: Value): (Self, Value, Pattern) = {
     val vvv = mutable.ArrayBuffer[Binder]()
-    def rec(p: Patt, t: Value): (Value, Pattern) = {
+    def rec(p: Patt, @canrecur t0: Value): (Value, Pattern) = {
+      val t = t0.deRecursiveHead()
       p match {
         case Patt.Atom(name) =>
           var ret: (Value, Pattern) = null
@@ -94,7 +96,7 @@ trait ContextBuilder extends Context {
           }
           ret
         case Patt.Group(maps) =>
-          typ match {
+          t match {
             case r@Value.Record(_, nodes) =>
               if (maps.size == nodes.size) {
                 var vs =  Seq.empty[(Value, Pattern)]
@@ -110,7 +112,7 @@ trait ContextBuilder extends Context {
             case _ => throw new PatternExtractException.MakeIsNotRecordType()
           }
         case Patt.NamedGroup(name, maps) =>
-          typ match {
+          t match {
             case Value.Sum(_, cs) =>
               cs.find(_.name == name) match {
                 case Some(c) =>

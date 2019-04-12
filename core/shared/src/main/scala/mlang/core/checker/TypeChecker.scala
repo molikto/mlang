@@ -19,29 +19,28 @@ object TypeCheckException {
 
 
   // names
-  class NamesDuplicated() extends TypeCheckException
-  class MustBeNamed() extends TypeCheckException
-  class EmptyTelescope() extends TypeCheckException
-  class EmptyArguments() extends TypeCheckException
-  class EmptyLambdaParameters() extends TypeCheckException
+  case class NamesDuplicated() extends TypeCheckException
+  case class MustBeNamed() extends TypeCheckException
+  case class EmptyTelescope() extends TypeCheckException
+  case class EmptyArguments() extends TypeCheckException
+  case class EmptyLambdaParameters() extends TypeCheckException
 
   // elimination mismatch
-  class UnknownAsType() extends TypeCheckException
-  class UnknownProjection() extends TypeCheckException
-  class UnknownAsFunction() extends TypeCheckException
+  case class UnknownAsType() extends TypeCheckException
+  case class UnknownProjection() extends TypeCheckException
+  case class UnknownAsFunction() extends TypeCheckException
 
-  class CheckingAgainstNonFunction() extends TypeCheckException
+  case class CheckingAgainstNonFunction() extends TypeCheckException
 
-  // pattern mismatch
+  case class CannotInferLambdaWithoutDomain() extends TypeCheckException
 
-  // not enough type information
-  class CannotInferLambdaWithoutDomain() extends TypeCheckException
+  case class TypeMismatch() extends TypeCheckException
 
-  class TypeMismatch() extends TypeCheckException
+  case class CannotInferReturningTypeWithPatterns() extends TypeCheckException
 
-  class CannotInferReturningTypeWithPatterns() extends TypeCheckException
+  case class ForbiddenModifier() extends TypeCheckException
 
-  class ForbiddenModifier() extends TypeCheckException
+  case class DeclarationWithoutDefinition(name: Name) extends TypeCheckException
 }
 
 
@@ -67,18 +66,18 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
         val tv = eval(ta)
         (tv, check(v, tv))
       case Term.Function(domain, codomain) =>
-        if (domain.isEmpty) throw new TypeCheckException.EmptyTelescope()
+        if (domain.isEmpty) throw TypeCheckException.EmptyTelescope()
         val (l, v) = inferFunction(NameType.flatten(domain), codomain)
         (Value.Universe(l), v)
       case r@Term.Record(fields) =>
         // TODO calculate real record dependencies
         for (f <- fields) {
-          if (f.names.isEmpty) throw new TypeCheckException.MustBeNamed()
+          if (f.names.isEmpty) throw TypeCheckException.MustBeNamed()
         }
         for (i <- r.names.indices) {
           for (j <- (i + 1) until r.names.size) {
-            if (r.names(i)intersect (r.names(j))) {
-              throw new TypeCheckException.NamesDuplicated()
+            if (r.names(i) intersect r.names(j)) {
+              throw TypeCheckException.NamesDuplicated()
             }
           }
         }
@@ -88,7 +87,7 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
         for (i <- constructors.indices) {
           for (j <- (i + 1) until constructors.size) {
             if (constructors(i).name == constructors(j).name) {
-              throw new TypeCheckException.NamesDuplicated()
+              throw TypeCheckException.NamesDuplicated()
             }
           }
         }
@@ -98,15 +97,16 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
         (Value.Universe(fl), Abstract.Sum(fl, fs.map(_._2.map(_._2)).zip(constructors).map(a => Abstract.Constructor(a._2.name, a._1))))
       case Term.PatternLambda(_) =>
         // TODO inferring the type of a lambda, the inferred type might not have the same branches as the lambda itself
-        throw new TypeCheckException.CannotInferLambdaWithoutDomain()
+        throw TypeCheckException.CannotInferLambdaWithoutDomain()
       case Term.Lambda(_, _) =>
         // TODO inferring the type of a lambda, the inferred type might not have the same branches as the lambda itself
-        throw new TypeCheckException.CannotInferLambdaWithoutDomain()
+        throw TypeCheckException.CannotInferLambdaWithoutDomain()
       case Term.Projection(left, right) =>
-        val (lt, la) = infer(left)
-        val lv = eval(la)
+        val (lt0, la) = infer(left)
+        val lt = lt0.deRecursiveHead()
+        val lv = eval(la).deRecursiveHead()
         def ltr = lt.asInstanceOf[Value.Record]
-        def error() = throw new TypeCheckException.UnknownProjection()
+        def error() = throw TypeCheckException.UnknownProjection()
         lv match {
           case m: Value.Make if ltr.nodes.exists(_.name.by(right)) =>
             val index = ltr.nodes.indexWhere(_.name.by(right))
@@ -123,7 +123,7 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
           case _ => error()
         }
       case Term.Application(lambda, arguments) =>
-        if (arguments.size == 0) throw new TypeCheckException.EmptyArguments()
+        if (arguments.size == 0) throw TypeCheckException.EmptyArguments()
         val (lt, la) = infer(lambda)
         inferApplication(lt, la, arguments)
       case Term.Let(declarations, in) =>
@@ -152,18 +152,19 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
     }
   }
 
-  private def inferApplication(lt: Value, la: Abstract, arguments: Seq[Term]): (Value, Abstract) = {
+  private def inferApplication(@canrecur lt0: Value, la: Abstract, arguments: Seq[Term]): (Value, Abstract) = {
+    val lt = lt0.deRecursiveHead()
     arguments match {
       case head +: tail =>
         lt match {
           case Value.Function(domain, codomain) =>
             val aa = check(head, domain)
             val av = eval(aa)
-            val lt1 = codomain(Seq(av))
+            val lt1 = codomain(Seq(av)).deRecursiveHead()
             val la1 = Abstract.Application(la, aa)
             inferApplication(lt1, la1, tail)
             // TODO user defined applications
-          case _ => throw new TypeCheckException.UnknownAsFunction()
+          case _ => throw TypeCheckException.UnknownAsFunction()
         }
       case Seq() =>
         (lt, la)
@@ -173,24 +174,11 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
   private def checkFallback(term: Term, cp: Value): Abstract = {
     val (tt, ta) = infer(term)
     if (equalType(Int.MaxValue, tt, cp)) ta
-    else throw new TypeCheckException.TypeMismatch()
+    else throw TypeCheckException.TypeMismatch()
   }
 
-  private def checkLambda(names: Seq[Name], body: Term, cp: Value): Abstract = {
-    names match {
-      case head +: tail =>
-        cp match {
-          case Value.Function(domain, codomain) =>
-            val (ctx, v) = newLayer().newAbstraction(head, domain)
-            Abstract.Lambda(ctx.checkLambda(tail, body, codomain(Seq(v))))
-          case _ => throw new TypeCheckException.CheckingAgainstNonFunction()
-        }
-      case Seq() =>
-        check(body, cp)
-    }
-  }
-
-  private def check(term: Term, cp: Value, lambdaNameHints: Option[Seq[Name.Opt]] = None): Abstract = {
+  private def check(term: Term, @canrecur cp0: Value, lambdaNameHints: Option[Seq[Name.Opt]] = None): Abstract = {
+    val cp = cp0.deRecursiveHead()
     debug(s"check $term")
     val (hint, tail) = lambdaNameHints match {
       case Some(head +: tail) => (head, Some(tail))
@@ -203,7 +191,7 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
             val (ctx, v) = newLayer().newAbstraction(n.orElse(hint).getOrElse(Name.empty), domain)
             val ba = ctx.check(body, codomain(Seq(v)), tail)
             Abstract.Lambda(ba)
-          case _ => throw new TypeCheckException.CheckingAgainstNonFunction()
+          case _ => throw TypeCheckException.CheckingAgainstNonFunction()
         }
       case Term.PatternLambda(cases) =>
         cp match {
@@ -214,7 +202,7 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
               val ba = ctx.check(c.body, codomain(Seq(v)), tail)
               Abstract.Case(pat, ba)
             }))
-          case _ => throw new TypeCheckException.CheckingAgainstNonFunction()
+          case _ => throw TypeCheckException.CheckingAgainstNonFunction()
         }
       case _ =>
         checkFallback(term, cp)
@@ -241,7 +229,7 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
           val b = layers.head(index)
           val va = check(v, b.typ)
           debug(s"declared $name")
-          abs.updated(index, DefinitionInfo(name, b.typ, va))
+          abs.update(index, DefinitionInfo(name, b.typ, va))
           this
         }
       case Declaration.Define(name, ms, t, v) =>
@@ -260,11 +248,12 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
         ctx
       case Declaration.Declare(name, ms, t) =>
         debug(s"check declare $name")
-        if (ms.nonEmpty) throw new TypeCheckException.ForbiddenModifier()
+        if (ms.nonEmpty) throw TypeCheckException.ForbiddenModifier()
         val (_, ta) = inferLevel(t)
-        val ctx = newDeclaration(name, eval(ta), ms.contains(Modifier.Inductively))
+        val tv = eval(ta)
+        val ctx = newDeclaration(name, tv, ms.contains(Modifier.Inductively))
         debug(s"declared $name")
-        abs.append(null)
+        abs.append(DefinitionInfo(name, tv, null))
         ctx
     }
 
@@ -283,7 +272,7 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
       val toCompile = mutable.ArrayBuffer[Int]()
       for (i <- abs.indices) {
         val t = abs(i)
-        if (t != null && t.value.isEmpty && t.directDependencies.forall(j => abs(j) != null)) {
+        if (t.code != null && t.value.isEmpty && t.directDependencies.forall(j => abs(j).code != null)) {
           toCompile.append(i)
         }
       }
@@ -318,6 +307,11 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
       }
     }
     assert(abs.size == ctx.layers.head.size)
+    abs.foreach(f => {
+      if (f.code == null) {
+        throw TypeCheckException.DeclarationWithoutDefinition(f.name)
+      }
+    })
     (ctx, abs.map(_.code), definitionOrder)
   }
 
@@ -327,12 +321,10 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
     var l = 0
     val fas = terms.flatMap(f => {
       val fs = (if (f.names.isEmpty) Seq(Name.empty) else f.names)
-      var i = 0
       fs.map(n => {
         val (fl, fa) = ctx.inferLevel(f.ty)
         l = l max fl
-        i += 1
-        if (i < fs.size) ctx = ctx.newAbstraction(n, eval(fa))._1
+        ctx = ctx.newAbstraction(n, eval(fa))._1
         (n, fa)
       })
     })
@@ -341,10 +333,10 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
 
   private def inferLevel(term: Term): (Int, Abstract) = {
     val (tt, ta) = infer(term)
-    tt match {
+    tt.deRecursiveHead() match {
       case Value.Universe(l) => (l, ta)
       // TODO user defined type coercion
-      case _ => throw new TypeCheckException.UnknownAsType()
+      case _ => throw TypeCheckException.UnknownAsType()
     }
   }
 
@@ -357,7 +349,7 @@ private case class DefinitionInfo(
     code: Abstract,
     var value: Option[Value] = None,
    ) {
-   val directDependencies: Set[Int] = code.dependencies(0)
+   lazy val directDependencies: Set[Int] = code.dependencies(0)
 }
 
 object TypeChecker {

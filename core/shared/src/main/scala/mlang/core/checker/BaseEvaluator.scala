@@ -43,10 +43,10 @@ trait BaseEvaluator extends Context {
   protected def platformEval(value: Abstract): Value
   protected def platformEvalRecursive(terms: Map[Int, Abstract]): Map[Int, Value]
 
-  protected def evalClosedReference(i: Int, index: Int): Value = {
+  protected def evalOpenReference(i: Int, index: Int): Value = {
     get(i, index).value.get match {
-      case o: Value.OpenReference => o
-      case v => Value.Reference(v)
+      case o: Value.OpenReference => o // a formal argument in context
+      case v => Value.Reference(v) // a definition in context
     }
   }
 
@@ -56,7 +56,7 @@ trait BaseEvaluator extends Context {
 
   protected def eval(term: Abstract): Value = {
     term match {
-      case Abstract.Reference(up, index, _) => evalClosedReference(up, index).deref()
+      case Abstract.Reference(up, index, _) => evalOpenReference(up, index).rref()
       case Abstract.Universe(i) => Value.Universe(i)
       case _ => platformEval(term)
     }

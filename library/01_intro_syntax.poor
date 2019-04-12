@@ -10,18 +10,33 @@
 "│" is just whitespace
 **/
 
+define inductively nat: type = sum {
+  case zero
+  case suc(nat)
+}
+
+define bool = sum { case true false }
+
+
+declare nat_is_even: nat ⇒ bool
+
+define nat_is_odd:
+  nat ⇒ bool =
+┌ zero → bool.false
+└ suc(m) → nat_is_even(m)
+
+define nat_is_even =
+┌ zero → bool.true
+└ suc(m) → nat_is_odd(m)
+
 // ignored is a keyword to don't put the definition in the context at all, it just makes it type check
 
 define ignored _ = { // "{" starts a let expression
 
-  define nat: type = sum [
-    case zero
-    case suc(nat)
-  ]
 
-  define fin3 = sum [
+  define fin3 = sum {
     case one two three
-  ]
+  }
 
   define fin3_pair = record {
     field a b: fin3
