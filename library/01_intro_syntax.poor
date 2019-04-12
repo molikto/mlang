@@ -10,13 +10,12 @@
 "│" is just whitespace
 **/
 
+define bool = sum { case true false }
+
 define inductively nat: type = sum {
   case zero
   case suc(nat)
 }
-
-define bool = sum { case true false }
-
 
 declare nat_is_even: nat ⇒ bool
 
@@ -32,7 +31,6 @@ define nat_is_even =
 // ignored is a keyword to don't put the definition in the context at all, it just makes it type check
 
 define ignored _ = { // "{" starts a let expression
-
 
   define fin3 = sum {
     case one two three

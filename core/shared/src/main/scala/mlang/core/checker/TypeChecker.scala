@@ -177,7 +177,17 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
     else throw TypeCheckException.TypeMismatch()
   }
 
-  private def check(term: Term, @canrecur cp0: Value, lambdaNameHints: Option[Seq[Name.Opt]] = None): Abstract = {
+  def hintCodomain(hint: Option[Abstract]):Option[Abstract] = hint match {
+    case Some(Abstract.Function(_, b)) => Some(b)
+    case _ => None
+  }
+
+  private def check(
+      term: Term,
+      @canrecur cp0: Value,
+      lambdaNameHints: Option[Seq[Name.Opt]] = None,
+      lambdaFunctionCodomainHint: Option[Abstract] = None
+  ): Abstract = {
     val cp = cp0.deRecursiveHead()
     debug(s"check $term")
     val (hint, tail) = lambdaNameHints match {
@@ -189,17 +199,16 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
         cp match {
           case Value.Function(domain, codomain) =>
             val (ctx, v) = newLayer().newAbstraction(n.orElse(hint).getOrElse(Name.empty), domain)
-            val ba = ctx.check(body, codomain(Seq(v)), tail)
+            val ba = ctx.check(body, codomain(Seq(v)), tail, hintCodomain(lambdaFunctionCodomainHint))
             Abstract.Lambda(ba)
           case _ => throw TypeCheckException.CheckingAgainstNonFunction()
         }
       case Term.PatternLambda(cases) =>
         cp match {
           case Value.Function(domain, codomain) =>
-            // TODO I think this is WRONG!!!!! how to rebind variables???
-            Abstract.PatternLambda(codomain, cases.map(c => {
+            Abstract.PatternLambda(lambdaFunctionCodomainHint.getOrElse(???), cases.map(c => {
               val (ctx, v, pat) = newLayer().newAbstractions(c.pattern, domain)
-              val ba = ctx.check(c.body, codomain(Seq(v)), tail)
+              val ba = ctx.check(c.body, codomain(Seq(v)), tail, hintCodomain(lambdaFunctionCodomainHint))
               Abstract.Case(pat, ba)
             }))
           case _ => throw TypeCheckException.CheckingAgainstNonFunction()
@@ -223,13 +232,13 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
           val (vt, va) = infer(v)
           val ctx = newDeclaration(name, vt, ms.contains(Modifier.Inductively))
           debug(s"declared $name")
-          abs.append(DefinitionInfo(name, vt, va))
+          abs.append(DefinitionInfo(name, vt, va, None))
           ctx
         } else {
           val b = layers.head(index)
-          val va = check(v, b.typ)
+          val va = check(v, b.typ, None, hintCodomain(abs(index).typCode))
           debug(s"declared $name")
-          abs.update(index, DefinitionInfo(name, b.typ, va))
+          abs.update(index, DefinitionInfo(name, b.typ, va, abs(index).typCode))
           this
         }
       case Declaration.Define(name, ms, t, v) =>
@@ -242,9 +251,9 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
           case _ => None
         }
         val ctx = newDeclaration(name, tv, ms.contains(Modifier.Inductively)) // allows recursive definitions
-        val va = ctx.check(v, tv, lambdaNameHints)
+        val va = ctx.check(v, tv, lambdaNameHints, hintCodomain(Some(ta)))
         debug(s"declared $name")
-        abs.append(DefinitionInfo(name, tv, va))
+        abs.append(DefinitionInfo(name, tv, va, Some(ta)))
         ctx
       case Declaration.Declare(name, ms, t) =>
         debug(s"check declare $name")
@@ -253,7 +262,7 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
         val tv = eval(ta)
         val ctx = newDeclaration(name, tv, ms.contains(Modifier.Inductively))
         debug(s"declared $name")
-        abs.append(DefinitionInfo(name, tv, null))
+        abs.append(DefinitionInfo(name, tv, null, Some(ta)))
         ctx
     }
 
@@ -347,6 +356,7 @@ private case class DefinitionInfo(
     name: Name,
     typ: Value,
     code: Abstract,
+    typCode: Option[Abstract],
     var value: Option[Value] = None,
    ) {
    lazy val directDependencies: Set[Int] = code.dependencies(0)

@@ -10,7 +10,7 @@
     * ~~totally unsafe basics~~
     * ~~basic syntax and parser~~
     * ~~mutual recursive functions~~
-    * pattern lambda readback
+    * unannotated pattern lambda and reify
     * eta rule
     * user defined eliminations
     * record calculus

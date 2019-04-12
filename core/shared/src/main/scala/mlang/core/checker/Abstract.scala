@@ -36,7 +36,8 @@ sealed trait Abstract {
     case Abstract.Let(definitions, _, in) =>
       definitions.foreach(_.markRecursive(i + 1, c))
       in.markRecursive(i + 1, c)
-    case Abstract.PatternLambda(_, cases) =>
+    case Abstract.PatternLambda(cd, cases) =>
+      cd.markRecursive(i + 1, c)
       cases.foreach(_.body.markRecursive(i + 1, c))
   }
 
@@ -52,7 +53,7 @@ sealed trait Abstract {
     case Abstract.Sum(_, constructors) => constructors.flatMap(_.params.flatMap(_.dependencies(i + 2))).toSet
     case Abstract.SumMaker(sum, _) => sum.dependencies(i)
     case Abstract.Let(definitions, _, in) => definitions.flatMap(_.dependencies(i + 1)).toSet ++ in.dependencies(i + 1)
-    case Abstract.PatternLambda(_, cases) => cases.flatMap(_.body.dependencies(i + 1)).toSet
+    case Abstract.PatternLambda(cd, cases) => cases.flatMap(_.body.dependencies(i + 1)).toSet
   }
 }
 
@@ -80,13 +81,10 @@ object Abstract {
 
   case class SumMaker(sum: Abstract, field: Int) extends Abstract
 
-  case class Let(definitions: Seq[Abstract], order: Seq[Set[Int]], in: Abstract) extends Abstract {
-    // mark closed references as closed/recursive, it is ok because we build up it in a recursive way, so once closed, always closed
-  }
-
+  case class Let(definitions: Seq[Abstract], order: Seq[Set[Int]], in: Abstract) extends Abstract
 
   case class Case(pattern: Pattern, body: Abstract)
-  case class PatternLambda(typ: Value.Closure, cases: Seq[Case]) extends Abstract {
+  case class PatternLambda(typ: Abstract, cases: Seq[Case]) extends Abstract {
     override def toString: String = s"PatternLambda(${cases.toString})"
   }
 }

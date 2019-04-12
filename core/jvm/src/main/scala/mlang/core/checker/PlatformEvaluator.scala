@@ -48,6 +48,11 @@ trait PlatformEvaluator extends BaseEvaluator {
               s"r${depth - up}($index)"
             }
           }
+        case Abstract.Let(definitions, order, in) =>
+          val d = depth + 1
+          s"{val r$d = new scala.collection.mutable.ArrayBuffer[Value](); " +
+              s"for (_ <- 0 until ${definitions.size}) r$d.append(RecursiveReference(null)); " +
+              s"${order.flatten.map(a => s"r$d.update($a, ${emit(definitions(a), d)})").mkString("; ")}; ${emit(in, d)}}"
         case Abstract.Function(domain, codomain) =>
           val d = depth + 1
           s"Function(${emit(domain, depth)}, r$d => ${emit(codomain, d)})"
@@ -68,14 +73,9 @@ trait PlatformEvaluator extends BaseEvaluator {
           s"""Sum($level, ${constructors.zipWithIndex.map(c => s"Constructor(${source(c._1.name)}, ${c._1.params.size}, Seq(${c._1.params.map(p => s"r$d => " + emit(p, d)).mkString(", ")}))")})"""
         case Abstract.SumMaker(sum, field) =>
           s"${emit(sum, depth)}.asInstanceOf[Sum].constructors($field).maker"
-        case Abstract.Let(definitions, order, in) =>
-          val d = depth + 1
-          s"{val r$d = new scala.collection.mutable.ArrayBuffer[Value](); " +
-              s"for (_ <- 0 until ${definitions.size}) r$d.append(RecursiveReference(null)); " +
-              s"${order.flatten.map(a => s"r$d.update($a, ${emit(definitions(a), d)})").mkString("; ")}; ${emit(in, d)}}"
         case Abstract.PatternLambda(codomain, cases) =>
           val d = depth + 1
-          s"PatternLambda(${tunnel(codomain)}, Seq(${cases.map(c => s"Case(${tunnel(c.pattern)}, r$d => ${emit(c.body, d)})").mkString(", ")}))"
+          s"PatternLambda(r$d => ${emit(codomain, d)}, Seq(${cases.map(c => s"Case(${tunnel(c.pattern)}, r$d => ${emit(c.body, d)})").mkString(", ")}))"
       }
     }
   }
