@@ -8,6 +8,8 @@ trait Conversion extends Context {
 
   private val gen: GenericGen = GenericGen.Negative
 
+  private implicit def optToBool[T](opt: Option[T]): Boolean = opt.isDefined
+
   private def equalRecordFields(less: Int, n1: Seq[RecordNode], n2: Seq[RecordNode]): Boolean = {
     if (n1.map(_.name) == n2.map(_.name)) {
       n1.zip(n2).foldLeft(Some(Seq.empty[Value]) : Option[Seq[Value]]) { (as0, pair) =>
@@ -18,7 +20,7 @@ trait Conversion extends Context {
           case None =>
             None
         }
-      }.isDefined
+      }
     } else {
       false
     }
@@ -35,7 +37,7 @@ trait Conversion extends Context {
             case None =>
               None
           }
-      }.isDefined
+      }
     }
   }
 
@@ -51,12 +53,13 @@ trait Conversion extends Context {
     }
   }
 
-  private def equalTypeClosure(less: Int, t: Value, c1: Closure, c2: Closure): Boolean = {
-    if (c1.eq(c2)) {
-      true
+  private def equalTypeClosure(less: Int, t: Value, c1: Closure, c2: Closure): Option[Value] = {
+    val c = OpenReference(gen(), t)
+    val tt = c1(Seq(c))
+    if (equalType(less, tt, c2(Seq(c)))) {
+      Some(tt)
     } else {
-      val c = OpenReference(gen(), t)
-      equalType(less, c1(Seq(c)), c2(Seq(c)))
+      None
     }
   }
 
@@ -111,7 +114,7 @@ trait Conversion extends Context {
         }
       case (PatternStuck(l1, s1), PatternStuck(l2, s2)) =>
         equalNeutral(s1, s2).flatMap(n => {
-          if (equalTerm(Function(n, l1.typ), l1, l2)) {
+          if (equalTypeClosure(Int.MaxValue, n, l1.typ, l2.typ) && equalCases(n, l1.typ, l1.cases, l2.cases)) {
             Some(l1.typ(Seq(n)))
           } else {
             None
@@ -142,7 +145,20 @@ trait Conversion extends Context {
         case None =>
           None
       }
-    }.isDefined
+    }
+  }
+
+
+  def equalCases(domain: Value, codomain: Value.Closure, c1: Seq[Case], c2: Seq[Case]): Boolean = {
+    c1.size == c2.size && c1.zip(c2).forall(pair => {
+      pair._1.pattern == pair._2.pattern && {
+        Try { Value.extractTypes(pair._1.pattern, domain, gen) } match {
+          case Success((ctx, itself)) =>
+            equalTerm(codomain(Seq(itself)), pair._1.closure(ctx), pair._2.closure(ctx))
+          case _ => false
+        }
+      }
+    })
   }
 
   /**
@@ -153,17 +169,6 @@ trait Conversion extends Context {
       true
     } else {
       (typ, t1, t2) match {
-        case (Function(domain, codomain), PatternLambda(_, c1), PatternLambda(_, c2)) =>
-          // TODO is it needed to check lambda type is equal?
-          c1.size == c2.size && c1.zip(c2).forall(pair => {
-            pair._1.pattern == pair._2.pattern && {
-              Try { Value.extractTypes(pair._1.pattern, domain, gen) } match {
-                case Success((ctx, itself)) =>
-                  equalTerm(codomain(Seq(itself)), pair._1.closure(ctx), pair._2.closure(ctx))
-                case _ => false
-              }
-            }
-          })
         case (Function(d, cd), s1, s2) =>
           // I think this implements eta rule?
           equalLambda(d, cd, s1, s2)
@@ -184,7 +189,7 @@ trait Conversion extends Context {
                   case None =>
                     None
                 }
-              }.isDefined
+              }
             } else {
               false
             }
@@ -192,7 +197,7 @@ trait Conversion extends Context {
         case _ =>
           typ match {
             case Universe(l) => equalType(l, t1, t2) // it will call equal neutral at then end
-            case _ => equalNeutral(t1, t2).isDefined
+            case _ => equalNeutral(t1, t2)
           }
       }
     }
