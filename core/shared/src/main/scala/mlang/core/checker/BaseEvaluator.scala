@@ -4,7 +4,7 @@ import scala.collection.mutable
 
 
 trait Holder {
-  def value(c: Context, r: Reduction, rr: Map[Int, Value], vs: Seq[Value], cs: Seq[Value.Closure], ps: Seq[Pattern]): Value
+  def value(c: Context, r: Reduction, rr: Seq[(Value, Value)], vs: Seq[Value], cs: Seq[Value.Closure], ps: Seq[Pattern]): Value
 }
 
 trait BaseEvaluator extends Context {
@@ -14,7 +14,7 @@ trait BaseEvaluator extends Context {
   private val cs = mutable.ArrayBuffer[Value.Closure]()
   private val ps = mutable.ArrayBuffer[Pattern]()
 
-  protected def extractFromHolder(h: Holder, reduction: Reduction, map: Map[Int, Value]): Value = {
+  protected def extractFromHolder(h: Holder, reduction: Reduction, map: Seq[(Value, Value)]): Value = {
     val res = h.value(this, reduction, map, Seq.empty ++ vs, Seq.empty ++ cs, Seq.empty ++ ps)
     vs.clear()
     cs.clear()
@@ -41,7 +41,7 @@ trait BaseEvaluator extends Context {
   }
 
   protected def platformEval(value: Abstract, reduction: Reduction ): Value
-  protected def platformEvalRecursive(terms: Map[Int, Abstract], reduction: Reduction): Map[Int, Value]
+  protected def platformEvalRecursive(terms: Map[Int, (Abstract, Value)], reduction: Reduction): Map[Int, Value]
 
   protected def evalOpenAsReference(i: Int, index: Int): Value = {
     get(i, index).value match {
@@ -50,15 +50,20 @@ trait BaseEvaluator extends Context {
     }
   }
 
-  protected def evalMutualRecursive(terms: Map[Int, Abstract], reduction: Reduction = Reduction.Default): Map[Int, Value] = {
-    platformEvalRecursive(terms, reduction)
+  protected def evalMutualRecursive(terms: Map[Int, (Abstract, Value)], reduction: Reduction = Reduction.Default): Map[Int, Value] = {
+    val ret = platformEvalRecursive(terms, reduction)
+    assert(ret.forall(_._2 != null))
+    ret
   }
 
   protected def eval(term: Abstract, reduction: Reduction = Reduction.Default): Value = {
     term match {
       case Abstract.Reference(up, index, _) => evalOpenAsReference(up, index).deref(reduction)
       case Abstract.Universe(i) => Value.Universe(i)
-      case _ => platformEval(term, reduction)
+      case _ =>
+        val ret = platformEval(term, reduction)
+        assert(ret != null)
+        ret
     }
   }
 }

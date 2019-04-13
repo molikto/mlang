@@ -27,6 +27,29 @@ define plus:
   ─     ┌ zero    → a
         └ suc(m)  → nat.suc(plus(a, m))
 
+define test001:
+ (x y: nat, b: nat ⇒ type, c: (i: nat) ⇒ b(i)) ⇒ b(plus(x, y)) =
+  ─ ─       ─              ─                   → c(plus(x, y))
+
+
+define ttt1:
+  nat ⇒ nat =
+  ─   → plus(two, four)
+
+define ttt2:
+  nat ⇒ nat =
+  ─   → plus(four, two)
+
+define assert_tt2_eq_holder:
+ (b: (nat ⇒ nat) ⇒ type, c: (i: nat ⇒ nat) ⇒ b(i)) ⇒ b(ttt1) =
+  ─                      ─                         → c(ttt2)
+
+
+define assert_nat_eq_holder2:
+ (x y: nat, b: (nat ⇒ nat) ⇒ type, c: (i: nat ⇒ nat) ⇒ b(i)) ⇒ b(─ → plus(x, y)) =
+  ─ ─       ─              ─                   → c(─ → plus(x, y))
+
+
 define multi:
  (a       b: nat) ⇒ nat =
   ─     ┌ zero    → nat.zero
@@ -59,6 +82,7 @@ define eight = plus(four, four)
 define sixteen = plus(eight, eight)
 
 define sixteen2 = multi(four, four)
+
 
 
 define assert_nat_eq_holder:

@@ -6,6 +6,8 @@ import scala.util.{Success, Try}
 
 trait Conversion extends Context {
 
+
+  val reduction = Reduction.NonRecursive
   private val gen: GenericGen = GenericGen.Negative
 
   private implicit def optToBool[T](opt: Option[T]): Boolean = opt.isDefined
@@ -89,7 +91,9 @@ trait Conversion extends Context {
   private def equalNeutral(t1: Value, t2: Value): Option[Value] = {
     (t1, t2) match {
         // TODO conversion check with recursive references, in this case
-      //case (RecursiveReference(v1), RecursiveReference(v2)) =>
+      case (RecursiveReference(v1, t1), RecursiveReference(v2, t2)) =>
+        if (v1.eq(v2)) Some(t1)
+        else None
       case (OpenReference(i1, v1), OpenReference(i2, v2)) =>
         if (i1 == i2) {
           assert(v1.eq(v2))
@@ -165,7 +169,7 @@ trait Conversion extends Context {
     * it is REQUIRED that t1 and t2 indeed has that type!!!!
     */
   private def equalTerm(typ: Value, t1: Value, t2: Value): Boolean = {
-    if (t1.eq(t1)) {
+    if (t1.eq(t2)) {
       true
     } else {
       (typ, t1, t2) match {
@@ -176,22 +180,19 @@ trait Conversion extends Context {
           equalMake(ns, v1, v2)
         case (Sum(_, cs), Construct(n1, v1), Construct(n2, v2)) =>
           n1 == n2 && cs.find(_.name == n1).exists(c => {
-            if (c.nodes.size == v1.size && v2.size == v1.size) {
-              c.nodes.zip(v1.zip(v2)).foldLeft(Some(Seq.empty): Option[Seq[Value]]) { (as0, pair) =>
-                as0 match {
-                  case Some(as) =>
-                    val nm = pair._1(as)
-                    if (equalTerm(nm, pair._2._1, pair._2._2)) {
-                      Some(as :+ nm)
-                    } else {
-                      None
-                    }
-                  case None =>
+            assert(c.nodes.size == v1.size && v2.size == v1.size)
+            c.nodes.zip(v1.zip(v2)).foldLeft(Some(Seq.empty): Option[Seq[Value]]) { (as0, pair) =>
+              as0 match {
+                case Some(as) =>
+                  val nm = pair._1(as)
+                  if (equalTerm(nm, pair._2._1, pair._2._2)) {
+                    Some(as :+ nm)
+                  } else {
                     None
-                }
+                  }
+                case None =>
+                  None
               }
-            } else {
-              false
             }
           })
         case _ =>

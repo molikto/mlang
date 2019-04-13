@@ -2,7 +2,6 @@ package mlang.core.checker
 
 import mlang.core.concrete.{Pattern => Patt, _}
 import Context._
-import mlang.core.concrete.Declaration.Modifier
 import mlang.core.name._
 import mlang.core.utils
 import mlang.core.utils.debug
@@ -122,7 +121,7 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
           case _ => error()
         }
       case Term.Application(lambda, arguments) =>
-        if (arguments.size == 0) throw TypeCheckException.EmptyArguments()
+        if (arguments.isEmpty) throw TypeCheckException.EmptyArguments()
         val (lt, la) = infer(lambda)
         inferApplication(lt, la, arguments)
       case Term.Let(declarations, in) =>
@@ -173,6 +172,7 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
     val (tt, ta) = infer(term)
     if (equalType(Int.MaxValue, tt, cp)) ta
     else throw TypeCheckException.TypeMismatch()
+
   }
 
   def hintCodomain(hint: Option[Abstract]):Option[Abstract] = hint match {
@@ -188,7 +188,7 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
   ): Abstract = {
     debug(s"check $term")
     val (hint, tail) = lambdaNameHints match {
-      case Some(head +: tail) => (head, Some(tail))
+      case Some(head +: tl) => (head, Some(tl))
       case _ => (None, None)
     }
     val res = term match {
@@ -265,7 +265,7 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
 
   }
 
-  private def checkDeclarations(seq: Seq[Declaration]): (Self, Seq[Abstract], Seq[Set[Int]]) = {
+  private def checkDeclarations(seq: Seq[Declaration]): (Self, Seq[Abstract.Let.Item], Seq[Set[Int]]) = {
     var ctx = this
     val abs = new mutable.ArrayBuffer[DefinitionInfo]()
     val definitionOrder = new mutable.ArrayBuffer[Set[Int]]()
@@ -300,7 +300,7 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
             for (i <- c) {
               abs(i).code.markRecursive(0, c)
             }
-            val vs = ctx.evalMutualRecursive(c.map(i => i -> abs(i).code).toMap)
+            val vs = ctx.evalMutualRecursive(c.map(i => (i, (abs(i).code, abs(i).typ))).toMap)
             for (v <- vs) {
               val ab = abs(v._1)
               ab.value = Some(v._2)
@@ -318,7 +318,7 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
         throw TypeCheckException.DeclarationWithoutDefinition(f.name)
       }
     })
-    (ctx, abs.map(_.code), definitionOrder)
+    (ctx, abs.map(a => Abstract.Let.Item(a.code, a.typCode)), definitionOrder)
   }
 
 
@@ -326,7 +326,7 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
     var ctx = this
     var l = 0
     val fas = terms.flatMap(f => {
-      val fs = (if (f.names.isEmpty) Seq(Name.empty) else f.names)
+      val fs = if (f.names.isEmpty) Seq(Name.empty) else f.names
       fs.map(n => {
         val (fl, fa) = ctx.inferLevel(f.ty)
         l = l max fl

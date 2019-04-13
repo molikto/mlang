@@ -2,7 +2,6 @@ package mlang.core.checker
 
 import mlang.core.name._
 import mlang.core.utils.debug
-import mlang.core.varfield
 
 import scala.collection.mutable
 
@@ -21,8 +20,6 @@ sealed trait Value {
   // also used to decide how
   def app(v: Value, env: Reduction = Reduction.Default): Value = env.app.map(r => {
     this match {
-      case _: Value.AsStuck =>
-        Value.Application(this, v)
       case Value.Lambda(closure) => closure(v, r)
       case p@Value.PatternLambda(_, cases) =>
         // TODO overlapping patterns, we are now using first match
@@ -37,19 +34,29 @@ sealed trait Value {
         } else {
           Value.PatternStuck(p, v)
         }
-      case _ => throw new IllegalArgumentException("")
+      case _ =>
+        Value.Application(this, v)
     }
   }).getOrElse(Value.Application(this, v))
 
   def project(name: Int, env: Reduction = Reduction.Default): Value = if (env.project) {
     this match {
-      case _: Value.AsStuck => Value.Projection(this, name)
       case Value.Make(vs) => vs(name)
-      case _ => throw new IllegalArgumentException("")
+      case _ => Value.Projection(this, name)
     }
   } else {
     Value.Projection(this, name)
   }
+
+  def delet(env: Reduction = Reduction.Default): Value =
+    if (env.delet) {
+      this match {
+        case v: Value.Let => v.body.delet(env)
+        case _ => this
+      }
+    } else {
+      this
+    }
 
   def deref(env: Reduction = Reduction.Default): Value =
     if (env.deref == Reduction.Deref.All) {
@@ -94,7 +101,7 @@ object Value {
   }
 
   // the var is a total hack!! but it is very beautiful!!!
-  case class RecursiveReference(@varfield var value: Value) extends ClosedReference {
+  case class RecursiveReference(value: Value, typ: Value) extends ClosedReference {
     debug("recursive reference created")
   }
   case class Reference(value: Value) extends ClosedReference
@@ -109,8 +116,7 @@ object Value {
   // TODO record should have a type
 
   case class RecordNode(name: Name, dependencies: Seq[Ref], closure: MultiClosure)
-  /**
-    */
+
   case class Record(level: Int, nodes: Seq[RecordNode]) extends Value { rthis =>
     assert(nodes.isEmpty || nodes.head.dependencies.isEmpty)
     // TODO what will they became when readback??
@@ -181,7 +187,6 @@ object Value {
     }
   }
   case class Sum(level: Int, constructors: Seq[Constructor]) extends Value {
-
     for (c <- constructors) {
       c._sum = this
     }
@@ -201,6 +206,11 @@ object Value {
   case class PatternLambda(typ: Closure, cases: Seq[Case]) extends Value
 
   case class PatternStuck(lambda: PatternLambda, stuck: Stuck) extends Spine
+
+  object Let {
+    case class Item(value: Value, typ: Option[Value])
+  }
+  case class Let(var items: Seq[Let.Item], body: Value) extends Value
 
 
 

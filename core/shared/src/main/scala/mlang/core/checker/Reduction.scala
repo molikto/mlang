@@ -4,7 +4,7 @@ package mlang.core.checker
 /**
   * app = Some(_) means evaluate a beta redex, and the closure itself will be evaluated using the reduction method given
   */
-case class Reduction(var app: Option[Reduction], project: Boolean, deref: Int)
+case class Reduction(var app: Option[Reduction], project: Boolean, deref: Int, delet: Boolean)
 
 object Reduction {
   object Deref {
@@ -15,13 +15,13 @@ object Reduction {
 
   // TODO proof this is ok with recursive definitions
   val Default: Reduction = {
-    val r = Reduction(null, true, Deref.All)
+    val r = Reduction(null, true, Deref.All, true)
     r.app = Some(r)
     r
   }
 
   val NonRecursive: Reduction = {
-    val r = Reduction(null, true, Deref.NonRecursive)
+    val r = Reduction(null, true, Deref.NonRecursive, true)
     r.app = Some(r)
     r
   }

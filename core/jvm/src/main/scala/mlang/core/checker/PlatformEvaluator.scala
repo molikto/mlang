@@ -29,7 +29,7 @@ trait PlatformEvaluator extends BaseEvaluator {
             if (up == depth + 1 && recursivelyDefining.contains(index)) {
               // eval recursive, this deref happens under a closure, so it will have a value
               assert(closed == 1)
-              s"rs($index).deref(r)"
+              s"RecursiveReference(rs($index)._1, rs($index)._2).deref(r)"
             } else {
               // this is a value inside the context
               assert((up == depth + 1 && closed == 0) || closed == -1)
@@ -38,8 +38,7 @@ trait PlatformEvaluator extends BaseEvaluator {
           } else {
             // a reference inside the emit context
             if (closed == 1) {
-              // recursive reference
-              s"RecursiveReference(r${depth - up}($index)).deref(r)"
+              s"RecursiveReference(r${depth - up}($index).value, r${depth - up}($index).typ.get).deref(r)"
             } else if (closed == 0) {
               // reference to a value directly
               s"Reference(r${depth - up}($index)).deref(r)"
@@ -50,9 +49,14 @@ trait PlatformEvaluator extends BaseEvaluator {
           }
         case Abstract.Let(definitions, order, in) =>
           val d = depth + 1
-          s"{val r$d = new scala.collection.mutable.ArrayBuffer[Value](); " +
-              s"for (_ <- 0 until ${definitions.size}) r$d.append(RecursiveReference(null)); " +
-              s"${order.flatten.map(a => s"r$d.update($a, ${emit(definitions(a), d)})").mkString("; ")}; ${emit(in, d)}}"
+          s"{val r$d = new scala.collection.mutable.ArrayBuffer[Let.Item](); " +
+          s"for (_ <- 0 until ${definitions.size}) r$d.append(null); " +
+          s"${order.flatten.map(a =>
+            s"r$d.update($a, Let.Item(${emit(definitions(a).value, d)}, ${definitions(a).typ.map(j => "Some(" + emit(j, d) + ")").getOrElse("None")}))"
+          ).mkString("; ")}; " +
+          s"val body = ${emit(in, d)}; " +
+          s"Let(r$d, body).delet(r)" +
+          s"}"
         case Abstract.Function(domain, codomain) =>
           val d = depth + 1
           s"Function(${emit(domain, depth)}, Closure((r$d, r) => ${emit(codomain, d)}))"
@@ -83,23 +87,21 @@ trait PlatformEvaluator extends BaseEvaluator {
   }
 
 
-  protected def platformEvalRecursive(terms: Map[Int, Abstract], reduction: Reduction): Map[Int, Value] = {
+  protected def platformEvalRecursive(terms: Map[Int, (Abstract, Value)], reduction: Reduction): Map[Int, Value] = {
     val emitter = new Emitter(terms.keySet)
-    val vs = Map.empty ++ terms.mapValues(_ => Value.RecursiveReference(null))
-    val nvs = Map.empty ++ terms.mapValues(abs => {
-      val res = emitter.emit(abs, -1)
+    val rr = new scala.collection.mutable.ArrayBuffer[(Value, Value)]()
+    for (_ <- 0 to terms.keySet.max) rr.append(null)
+    for (t <- terms) {
+      val res = emitter.emit(t._2._1, -1)
       val src = holderSrc(res)
       debug("==================")
-      debug(abs)
+      debug(t._2)
       debug("==================")
       debug(res)
       debug("==================")
-      extractFromHolder(compile[Holder](src), reduction, vs)
-    })
-    for (vv <- vs) {
-      vv._2.value = nvs(vv._1)
+      rr.update(t._1, (extractFromHolder(compile[Holder](src), reduction, rr), t._2._2))
     }
-    nvs
+    Map.empty ++ terms.transform((f, _) => rr(f)._1)
   }
 
   private def holderSrc(res: String): String = {
@@ -111,7 +113,7 @@ trait PlatformEvaluator extends BaseEvaluator {
          |
          |
          |new Holder {
-         |  def value(ctx: Context, r: Reduction, rs: Map[Int, Value], vs: Seq[Value], cs: Seq[Closure], ps: Seq[Pattern]) = $res
+         |  def value(ctx: Context, r: Reduction, rs: Seq[(Value, Value)], vs: Seq[Value], cs: Seq[Closure], ps: Seq[Pattern]) = $res
          |}
        """.stripMargin
   }
@@ -125,6 +127,6 @@ trait PlatformEvaluator extends BaseEvaluator {
     debug("==================")
     debug(res)
     debug("==================")
-    extractFromHolder(compile[Holder](src), reduction, Map.empty)
+    extractFromHolder(compile[Holder](src), reduction, Seq.empty)
   }
 }
