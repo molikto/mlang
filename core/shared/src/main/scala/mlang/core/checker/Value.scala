@@ -21,20 +21,8 @@ sealed trait Value {
   def app(v: Value): Value = throw new IllegalArgumentException()
   def project(name: Int): Value = throw new IllegalArgumentException()
   // this is considered a normal reduction now
-  def rref(): Value = this match {
-    case Value.Reference(v) => v
-    case _ => this
-  }
-
-  /**
-    * currently a recursive references reduces with app/project, so a head can not be a stuck head with recursive
-    * references
-    *
-    * so the problem is during typechecking, we need to dereference some of them, currently we only dereference
-    * before a match
-    */
-  def deRecursiveHead(): Value = this match {
-    case Value.RecursiveReference(v) => v.deRecursiveHead()
+  def deref(): Value = this match {
+    case v: Value.ClosedReference => v.value.deref()
     case _ => this
   }
 }
@@ -87,7 +75,7 @@ object Value {
     assert(nodes.isEmpty || nodes.head.dependencies.isEmpty)
     // TODO what will they became when readback??
 
-    val maker: Value = {
+    lazy val maker: Value = {
       def rec(known: Seq[Value], remaining: Seq[RecordNode]): Value = {
         remaining match {
           case Seq() => Make(known)
@@ -97,7 +85,7 @@ object Value {
       }
       rec(Seq.empty, nodes)
     }
-    val makerType: Value = {
+    lazy val makerType: Value = {
       def rec(known: Seq[(Ref, Value)], remaining: Seq[RecordNode]): Value = {
         remaining match {
           case Seq() => rthis
@@ -127,7 +115,7 @@ object Value {
   // TODO sum should have a type, it can be indexed, so a pi type ends with type_i
   // TODO should have a field: recursive, and it must be recursive, also in case of indexed, use Constructor instead of value
   case class Constructor(name: Tag, parameters: Int, nodes: Seq[MultiClosure]) {
-    val maker: Value = {
+    lazy val maker: Value = {
       def rec(known: Seq[Value], remaining: Seq[MultiClosure]): Value = {
         remaining match {
           case Seq() => Construct(name, known)
@@ -137,14 +125,13 @@ object Value {
       }
       rec(Seq.empty, nodes)
     }
-    lazy val makerType: Value = _makerType
-    private[Value] var _makerType: Value = _
-    private[Value] def initMakerType(rthis: Value): Value = {
+    private[Value] var _sum: Sum = _
+    lazy val makerType: Value = {
       def rec(known: Seq[Value], remaining: Seq[MultiClosure]): Value = {
         remaining match {
-          case Seq() => rthis
+          case Seq() => _sum
           case Seq(head) =>
-            Function(head(known), _ => rthis)
+            Function(head(known), _ => _sum)
           case head +: _ +: tail =>
             Function(head(known), p => {
               rec(known :+ p.head, tail)
@@ -157,7 +144,7 @@ object Value {
   case class Sum(level: Int, constructors: Seq[Constructor]) extends Value {
 
     for (c <- constructors) {
-      c._makerType = c.initMakerType(this)
+      c._sum = this
     }
   }
 
@@ -201,8 +188,7 @@ object Value {
       gen: GenericGen
   ): (Seq[OpenReference], Value) = {
     val vs = mutable.ArrayBuffer[OpenReference]()
-    def rec(p: Pattern, @canrecur t0: Value): Value = {
-      val t = t0.deRecursiveHead()
+    def rec(p: Pattern, @canrecur t: Value): Value = {
       p match {
         case Pattern.Atom =>
           val ret = OpenReference(gen(), t)

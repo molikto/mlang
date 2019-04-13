@@ -102,9 +102,8 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
         // TODO inferring the type of a lambda, the inferred type might not have the same branches as the lambda itself
         throw TypeCheckException.CannotInferLambdaWithoutDomain()
       case Term.Projection(left, right) =>
-        val (lt0, la) = infer(left)
-        val lt = lt0.deRecursiveHead()
-        val lv = eval(la).deRecursiveHead()
+        val (lt, la) = infer(left)
+        val lv = eval(la)
         def ltr = lt.asInstanceOf[Value.Record]
         def error() = throw TypeCheckException.UnknownProjection()
         lv match {
@@ -152,15 +151,14 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
     }
   }
 
-  private def inferApplication(@canrecur lt0: Value, la: Abstract, arguments: Seq[Term]): (Value, Abstract) = {
-    val lt = lt0.deRecursiveHead()
+  private def inferApplication(@canrecur lt: Value, la: Abstract, arguments: Seq[Term]): (Value, Abstract) = {
     arguments match {
       case head +: tail =>
         lt match {
           case Value.Function(domain, codomain) =>
             val aa = check(head, domain)
             val av = eval(aa)
-            val lt1 = codomain(Seq(av)).deRecursiveHead()
+            val lt1 = codomain(Seq(av))
             val la1 = Abstract.Application(la, aa)
             inferApplication(lt1, la1, tail)
             // TODO user defined applications
@@ -184,11 +182,10 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
 
   private def check(
       term: Term,
-      @canrecur cp0: Value,
+      @canrecur cp: Value,
       lambdaNameHints: Option[Seq[Name.Opt]] = None,
       lambdaFunctionCodomainHint: Option[Abstract] = None
   ): Abstract = {
-    val cp = cp0.deRecursiveHead()
     debug(s"check $term")
     val (hint, tail) = lambdaNameHints match {
       case Some(head +: tail) => (head, Some(tail))
@@ -230,7 +227,7 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
         val index = layers.head.indexWhere(_.name == name)
         if (index < 0) {
           val (vt, va) = infer(v)
-          val ctx = newDeclaration(name, vt, ms.contains(Modifier.Inductively))
+          val ctx = newDeclaration(name, vt)
           debug(s"declared $name")
           abs.append(DefinitionInfo(name, vt, va, None))
           ctx
@@ -250,7 +247,7 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
             Some(NameType.flatten(d).map(_._1))
           case _ => None
         }
-        val ctx = newDeclaration(name, tv, ms.contains(Modifier.Inductively)) // allows recursive definitions
+        val ctx = newDeclaration(name, tv) // allows recursive definitions
         val va = ctx.check(v, tv, lambdaNameHints, hintCodomain(Some(ta)))
         debug(s"declared $name")
         abs.append(DefinitionInfo(name, tv, va, Some(ta)))
@@ -260,7 +257,7 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
         if (ms.nonEmpty) throw TypeCheckException.ForbiddenModifier()
         val (_, ta) = inferLevel(t)
         val tv = eval(ta)
-        val ctx = newDeclaration(name, tv, ms.contains(Modifier.Inductively))
+        val ctx = newDeclaration(name, tv)
         debug(s"declared $name")
         abs.append(DefinitionInfo(name, tv, null, Some(ta)))
         ctx
@@ -342,7 +339,7 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
 
   private def inferLevel(term: Term): (Int, Abstract) = {
     val (tt, ta) = infer(term)
-    tt.deRecursiveHead() match {
+    tt match {
       case Value.Universe(l) => (l, ta)
       // TODO user defined type coercion
       case _ => throw TypeCheckException.UnknownAsType()

@@ -32,12 +32,12 @@ trait ContextBuilder extends Context {
 
   def newLayer(): Self = (Seq.empty : Layer) +: layers
 
-  def newDeclaration(name: Name, typ: Value, genericValue: Boolean) : Self = {
+  def newDeclaration(name: Name, typ: Value) : Self = {
     layers.head.find(_.name.intersect(name)) match {
       case Some(_) => throw ContextBuilderException.AlreadyDeclared()
       case _ =>
         val g = gen()
-        (layers.head :+ Binder(g, name, typ, false, if (genericValue) Some(Value.OpenReference(g, typ)) else None)) +: layers.tail
+        (layers.head :+ Binder(g, name, typ, false, Value.OpenReference(g, typ))) +: layers.tail
     }
   }
 
@@ -48,7 +48,7 @@ trait ContextBuilder extends Context {
           throw ContextBuilderException.AlreadyDefined()
         } else {
           assert(n0 == name)
-          layers.head.updated(index, Binder(id, name, typ, true, Some(v))) +: layers.tail
+          layers.head.updated(index, Binder(id, name, typ, true, v)) +: layers.tail
         }
     }
   }
@@ -66,15 +66,14 @@ trait ContextBuilder extends Context {
       case _ =>
         val g = gen()
         val v = Value.OpenReference(g, typ)
-        ((layers.head :+ Binder(g, name, typ, true, Some(v))) +: layers.tail, v)
+        ((layers.head :+ Binder(g, name, typ, true, v)) +: layers.tail, v)
     }
   }
 
 
   def newAbstractions(pattern: Patt, typ: Value): (Self, Value, Pattern) = {
     val vvv = mutable.ArrayBuffer[Binder]()
-    def rec(p: Patt, @canrecur t0: Value): (Value, Pattern) = {
-      val t = t0.deRecursiveHead()
+    def rec(p: Patt, @canrecur t: Value): (Value, Pattern) = {
       p match {
         case Patt.Atom(name) =>
           var ret: (Value, Pattern) = null
@@ -90,7 +89,7 @@ trait ContextBuilder extends Context {
           if (ret == null) {
             val open = Value.OpenReference(gen(), t)
             if (name.isDefined) {
-              vvv.append(Binder(gen(), name.get, t, true, Some(open)))
+              vvv.append(Binder(gen(), name.get, t, true, open))
             }
             ret = (open, Pattern.Atom)
           }

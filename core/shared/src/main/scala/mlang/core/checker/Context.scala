@@ -9,7 +9,7 @@ object ContextException {
   case class NonExistingReference(name: Ref) extends ContextException
 }
 
-case class Binder(id: Generic, name: Name, typ: Value, isDefined: Boolean, value: Option[Value] = None)
+case class Binder(id: Generic, name: Name, typ: Value, isDefined: Boolean, value: Value)
 
 object Context {
   type Layer = Seq[Binder]
