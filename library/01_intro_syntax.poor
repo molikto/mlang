@@ -32,6 +32,10 @@ define multi:
   ─     ┌ zero    → nat.zero
         └ suc(m)  → plus(a, multi(a, m))
 
+define ttt:
+ (a b: nat, c: nat ⇒ type, d: type ⇒ type) ⇒ type =
+  ─ ─       ─              ─               → d(c(plus(a, b)))
+
 
 declare nat_is_even: nat ⇒ bool
 

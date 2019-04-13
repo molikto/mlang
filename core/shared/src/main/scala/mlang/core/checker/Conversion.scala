@@ -55,8 +55,8 @@ trait Conversion extends Context {
 
   private def equalTypeClosure(less: Int, t: Value, c1: Closure, c2: Closure): Option[Value] = {
     val c = OpenReference(gen(), t)
-    val tt = c1(Seq(c))
-    if (equalType(less, tt, c2(Seq(c)))) {
+    val tt = c1(c)
+    if (equalType(less, tt, c2(c))) {
       Some(tt)
     } else {
       None
@@ -101,7 +101,7 @@ trait Conversion extends Context {
         equalNeutral(l1, l2).flatMap {
           case Function(d, c) =>
           if (equalTerm(d, a1, a2)) {
-            Some(c(Seq(a1)))
+            Some(c(a1))
           } else {
             None
           }
@@ -115,7 +115,7 @@ trait Conversion extends Context {
       case (PatternStuck(l1, s1), PatternStuck(l2, s2)) =>
         equalNeutral(s1, s2).flatMap(n => {
           if (equalTypeClosure(Int.MaxValue, n, l1.typ, l2.typ) && equalCases(n, l1.typ, l1.cases, l2.cases)) {
-            Some(l1.typ(Seq(n)))
+            Some(l1.typ(n))
           } else {
             None
           }
@@ -128,7 +128,7 @@ trait Conversion extends Context {
   def equalLambda(d: Value, cd: Closure, s1: Value, s2: Value): Boolean = {
     // I think this implements eta rule
     val c = OpenReference(gen(), d)
-    equalTerm(cd(Seq(c)), s1.app(c), s2.app(c))
+    equalTerm(cd(c), s1.app(c), s2.app(c))
   }
 
   def equalMake(ns: Seq[RecordNode], m1: Value, m2: Value): Boolean = {
@@ -154,7 +154,7 @@ trait Conversion extends Context {
       pair._1.pattern == pair._2.pattern && {
         Try { Value.extractTypes(pair._1.pattern, domain, gen) } match {
           case Success((ctx, itself)) =>
-            equalTerm(codomain(Seq(itself)), pair._1.closure(ctx), pair._2.closure(ctx))
+            equalTerm(codomain(itself), pair._1.closure(ctx), pair._2.closure(ctx))
           case _ => false
         }
       }

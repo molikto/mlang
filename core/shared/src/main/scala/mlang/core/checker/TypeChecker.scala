@@ -158,7 +158,7 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
           case Value.Function(domain, codomain) =>
             val aa = check(head, domain)
             val av = eval(aa)
-            val lt1 = codomain(Seq(av))
+            val lt1 = codomain(av)
             val la1 = Abstract.Application(la, aa)
             inferApplication(lt1, la1, tail)
             // TODO user defined applications
@@ -196,7 +196,7 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
         cp match {
           case Value.Function(domain, codomain) =>
             val (ctx, v) = newLayer().newAbstraction(n.orElse(hint).getOrElse(Name.empty), domain)
-            val ba = ctx.check(body, codomain(Seq(v)), tail, hintCodomain(lambdaFunctionCodomainHint))
+            val ba = ctx.check(body, codomain(v), tail, hintCodomain(lambdaFunctionCodomainHint))
             Abstract.Lambda(ba)
           case _ => throw TypeCheckException.CheckingAgainstNonFunction()
         }
@@ -205,7 +205,7 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
           case Value.Function(domain, codomain) =>
             Abstract.PatternLambda(lambdaFunctionCodomainHint.getOrElse(???), cases.map(c => {
               val (ctx, v, pat) = newLayer().newAbstractions(c.pattern, domain)
-              val ba = ctx.check(c.body, codomain(Seq(v)), tail, hintCodomain(lambdaFunctionCodomainHint))
+              val ba = ctx.check(c.body, codomain(v), tail, hintCodomain(lambdaFunctionCodomainHint))
               Abstract.Case(pat, ba)
             }))
           case _ => throw TypeCheckException.CheckingAgainstNonFunction()

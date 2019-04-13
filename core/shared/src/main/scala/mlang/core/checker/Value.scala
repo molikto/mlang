@@ -18,20 +18,65 @@ object PatternExtractException {
 }
 
 sealed trait Value {
-  def app(v: Value): Value = throw new IllegalArgumentException()
-  def project(name: Int): Value = throw new IllegalArgumentException()
-  // this is considered a normal reduction now
-  def deref(): Value = this match {
-    case v: Value.ClosedReference => v.value.deref()
-    case _ => this
+  // also used to decide how
+  def app(v: Value, env: Reduction = Reduction.Default): Value = env.app.map(r => {
+    this match {
+      case _: Value.AsStuck =>
+        Value.Application(this, v)
+      case Value.Lambda(closure) => closure(v, r)
+      case p@Value.PatternLambda(_, cases) =>
+        // TODO overlapping patterns, we are now using first match
+        var res: Value = null
+        var cs = cases
+        while (cs.nonEmpty && res == null) {
+          res = cs.head.tryApp(v, r).orNull
+          cs = cs.tail
+        }
+        if (res != null) {
+          res
+        } else {
+          Value.PatternStuck(p, v)
+        }
+      case _ => throw new IllegalArgumentException("")
+    }
+  }).getOrElse(Value.Application(this, v))
+
+  def project(name: Int, env: Reduction = Reduction.Default): Value = if (env.project) {
+    this match {
+      case _: Value.AsStuck => Value.Projection(this, name)
+      case Value.Make(vs) => vs(name)
+      case _ => throw new IllegalArgumentException("")
+    }
+  } else {
+    Value.Projection(this, name)
   }
+
+  def deref(env: Reduction = Reduction.Default): Value =
+    if (env.deref == Reduction.Deref.All) {
+      this match {
+        case v: Value.ClosedReference => v.value.deref(env)
+        case _ => this
+      }
+    } else if (env.deref == Reduction.Deref.NonRecursive) {
+      this match {
+        case v: Value.Reference => v.value.deref(env)
+        case _ => this
+      }
+    } else {
+      this
+    }
 }
 
 
 object Value {
 
-  type MultiClosure = Seq[Value] => Value
-  type Closure = MultiClosure
+  implicit class MultiClosure(private val func: (Seq[Value], Reduction) => Value) extends AnyVal {
+    def apply(seq: Seq[Value], reduction: Reduction = Reduction.Default): Value = func(seq, reduction)
+  }
+
+  implicit class Closure(private val func: (Seq[Value], Reduction) => Value) extends AnyVal {
+    def apply(seq: Value, reduction: Reduction = Reduction.Default): Value = func(Seq(seq), reduction)
+  }
 
   type Stuck = Value
 
@@ -40,17 +85,12 @@ object Value {
   }
 
 
-  sealed trait AsStuck extends Value {
-    override def app(v: Value): Stuck = Application(this, v)
-    override def project(name: Int): Stuck = Projection(this, name)
-  }
+  sealed trait AsStuck extends Value
 
   sealed trait Spine extends AsStuck
 
   sealed trait ClosedReference extends Value {
     def value: Value
-    override def app(v: Value): Value = value.app(v)
-    override def project(name: Int): Value = value.project(name)
   }
 
   // the var is a total hack!! but it is very beautiful!!!
@@ -76,28 +116,29 @@ object Value {
     // TODO what will they became when readback??
 
     lazy val maker: Value = {
-      def rec(known: Seq[Value], remaining: Seq[RecordNode]): Value = {
+      def rec(known: Seq[Value], remaining: Seq[RecordNode], r: Reduction): Value = {
         remaining match {
           case Seq() => Make(known)
           case _ +: tail =>
-            Lambda(p => rec(known :+ p.head, tail))
+            Lambda(Closure((p, r) => rec(known :+ p.head, tail, r)))
         }
       }
-      rec(Seq.empty, nodes)
+      rec(Seq.empty, nodes, Reduction.Default)
     }
+
     lazy val makerType: Value = {
-      def rec(known: Seq[(Ref, Value)], remaining: Seq[RecordNode]): Value = {
+      def rec(known: Seq[(Ref, Value)], remaining: Seq[RecordNode], r: Reduction): Value = {
         remaining match {
           case Seq() => rthis
           case Seq(head) =>
-            Function(head.closure(known.filter(n => head.dependencies.contains(n._1)).map(_._2)), _ => rthis)
+            Function(head.closure(known.filter(n => head.dependencies.contains(n._1)).map(_._2)), Closure((_, _) => rthis))
           case head +: more +: tail =>
-            Function(head.closure(known.filter(n => head.dependencies.contains(n._1)).map(_._2)), p => {
-              rec(known ++ Seq((more.name.refSelf, p.head)), tail)
-            })
+            Function(head.closure(known.filter(n => head.dependencies.contains(n._1)).map(_._2)), Closure((p, r) => {
+              rec(known ++ Seq((more.name.refSelf, p.head)), tail, r)
+            }))
         }
       }
-      rec(Seq.empty, nodes)
+      rec(Seq.empty, nodes, Reduction.Default)
     }
     def projectedType(values: Seq[Value], name: Int): Value = {
       val b = nodes(name)
@@ -105,9 +146,7 @@ object Value {
     }
   }
 
-  case class Make(values: Seq[Value]) extends Value {
-    override def project(name: Int): Stuck = values(name)
-  }
+  case class Make(values: Seq[Value]) extends Value
 
   case class Projection(make: Stuck, field: Int) extends Spine
 
@@ -116,29 +155,29 @@ object Value {
   // TODO should have a field: recursive, and it must be recursive, also in case of indexed, use Constructor instead of value
   case class Constructor(name: Tag, parameters: Int, nodes: Seq[MultiClosure]) {
     lazy val maker: Value = {
-      def rec(known: Seq[Value], remaining: Seq[MultiClosure]): Value = {
+      def rec(known: Seq[Value], remaining: Seq[MultiClosure], r: Reduction): Value = {
         remaining match {
           case Seq() => Construct(name, known)
           case _ +: tail =>
-            Lambda(p => rec(known :+ p.head, tail))
+            Lambda(Closure((p, r) => rec(known :+ p.head, tail, r)))
         }
       }
-      rec(Seq.empty, nodes)
+      rec(Seq.empty, nodes, Reduction.Default)
     }
     private[Value] var _sum: Sum = _
     lazy val makerType: Value = {
-      def rec(known: Seq[Value], remaining: Seq[MultiClosure]): Value = {
+      def rec(known: Seq[Value], remaining: Seq[MultiClosure], r: Reduction): Value = {
         remaining match {
           case Seq() => _sum
           case Seq(head) =>
-            Function(head(known), _ => _sum)
+            Function(head(known), Closure((_, _) => _sum))
           case head +: _ +: tail =>
-            Function(head(known), p => {
-              rec(known :+ p.head, tail)
-            })
+            Function(head(known), Closure((p, r) => {
+              rec(known :+ p.head, tail, r)
+            }))
         }
       }
-      rec(Seq.empty, nodes)
+      rec(Seq.empty, nodes, Reduction.Default)
     }
   }
   case class Sum(level: Int, constructors: Seq[Constructor]) extends Value {
@@ -149,34 +188,17 @@ object Value {
   }
 
   case class Case(pattern: Pattern, closure: MultiClosure) {
-    def tryApp(v: Value): Option[Value] = {
-      extract(pattern, v).map(closure)
+    def tryApp(v: Value, r: Reduction): Option[Value] = {
+      extract(pattern, v).map(a => closure(a, r))
     }
   }
 
   /**
     * this lambda is transparent on the arguments
     */
-  case class Lambda(closure: Closure) extends Value {
-    override def app(v: Stuck): Stuck = closure(Seq(v))
-  }
+  case class Lambda(closure: Closure) extends Value
 
-  case class PatternLambda(typ: Closure, cases: Seq[Case]) extends Value {
-    // TODO overlapping patterns, we are now using first match
-    override def app(v: Value): Value = {
-      var res: Value = null
-      var cs = cases
-      while (cs.nonEmpty && res == null) {
-        res = cs.head.tryApp(v).orNull
-        cs = cs.tail
-      }
-      if (res != null) {
-        res
-      } else {
-        PatternStuck(this, v)
-      }
-    }
-  }
+  case class PatternLambda(typ: Closure, cases: Seq[Case]) extends Value
 
   case class PatternStuck(lambda: PatternLambda, stuck: Stuck) extends Spine
 
@@ -251,10 +273,10 @@ object Value {
             case _ =>
               false
           }
-        case Pattern.Construct(name, pattern) =>
+        case Pattern.Construct(name, pt) =>
           v match {
             case Construct(n, values) if name == n =>
-              pattern.zip(values).forall(pair => rec(pair._1, pair._2))
+              pt.zip(values).forall(pair => rec(pair._1, pair._2))
             case _ =>
               false
           }
