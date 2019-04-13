@@ -10,12 +10,28 @@
 "│" is just whitespace
 **/
 
+define id:
+ (a: type, x: a) ⇒ a =
+  ─        ─     → x
+
 define bool = sum { case true false }
 
 define inductively nat: type = sum {
   case zero
   case suc(nat)
 }
+
+
+define plus:
+ (a       b: nat) ⇒ nat =
+  ─     ┌ zero    → a
+        └ suc(m)  → nat.suc(plus(a, m))
+
+define multi:
+ (a       b: nat) ⇒ nat =
+  ─     ┌ zero    → nat.zero
+        └ suc(m)  → plus(a, multi(a, m))
+
 
 declare nat_is_even: nat ⇒ bool
 
@@ -28,10 +44,25 @@ define nat_is_even =
 ┌ zero → bool.true
 └ suc(m) → nat_is_odd(m)
 
-define id:
- (a: type, x: a) ⇒ a =
-  ─        ─     → x
+define one = nat.suc(nat.zero)
 
+define two = nat.suc(one)
+
+define four = plus(two, two)
+
+define eight = plus(four, four)
+
+define sixteen = plus(eight, eight)
+
+define sixteen2 = multi(four, four)
+
+
+define assert_nat_eq_holder:
+ (b: nat ⇒ type, c: (i: nat) ⇒ b(i)) ⇒ b(sixteen) =
+  ─              ─                   → c(sixteen2)
+
+
+// TODO use def and fun syntax
 define test0:
  (a b: type, f: a ⇒ b, func: (a ⇒ b) ⇒ type, g: func(f)) ⇒ func(f) =
   ─ ─        ─         ─                     ─           → g

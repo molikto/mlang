@@ -31,7 +31,7 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
     override def whitespaceChar: Parser[Char] = elem("", _ == '│') | super.whitespaceChar
   }
 
-  lexical.reserved ++= List("case", "field", "ignored", "define", "declare", "match", "make", "record", "type", "sum", "inductively", "with_constructors") ++ Primitives.keys
+  lexical.reserved ++= List("case", "as", "field", "ignored", "define", "declare", "match", "make", "record", "type", "sum", "inductively", "with_constructors") ++ Primitives.keys
   lexical.delimiters ++= List("{", "}", "[", "]", ":", ",", "(", ")", "─", "┬", "┌", "⊏", "└", "├", "⇒", "→", "+", "-", ";", "=", "@", "\\", ".")
 
   def delimited[T](a: String, t: Parser[T], b: String): Parser[T] = a ~> t <~ b
@@ -75,9 +75,9 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
   //        } |
 
   lazy val term: PackratParser[Term] =
-    ascription |
         let |
         pi |
+        ascription |
         lambda |
         patternLambda |
         app|
@@ -87,10 +87,10 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
         universe |
         ident ^^ {a => Reference(a)}
 
-  lazy val ascription: PackratParser[Cast] = delimited("(", (term <~ ":") ~ term, ")") ^^ {a => Cast(a._1, a._2)}
+  lazy val ascription: PackratParser[Cast] = delimited("(", (term <~ keyword("as")) ~ term, ")") ^^ {a => Cast(a._1, a._2)}
 
-  lazy val pi: PackratParser[Function] = (term <~ "⇒") ~ term ^^ { a => Function(Seq(NameType(Seq.empty, a._1)), a._2)} |
-    tele ~ ("⇒" ~> term) ^^ {a => Function(a._1, a._2)}
+  lazy val pi: PackratParser[Function] = tele ~ ("⇒" ~> term) ^^ {a => Function(a._1, a._2)} |
+    (term <~ "⇒") ~ term ^^ { a => Function(Seq(NameType(Seq.empty, a._1)), a._2)}
 
   lazy val atomicPattern: PackratParser[Name.Opt] = "─" ^^ {_ => None: Option[Name]} | ident ^^ { a =>
     Some(Name(Text(a)))

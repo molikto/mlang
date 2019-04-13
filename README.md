@@ -12,8 +12,7 @@
     * ~~mutual recursive functions~~
     * conversion check
         * ~~eta rule~~
-        * should we use pattern lambda or recursor?
-        * recursive definitions
+        * in present of recursive
     * cubical features
     * user defined eliminations
     * record calculus
@@ -60,13 +59,31 @@
 
 ### values
 
-references is considered a redex. and evaluation strategy controls what to reduce.
+we represent recursive references directly by recursive data structure
 
-recursive references is explicitly a different redex.
+and application, projection, reference as redex
 
-recursive reference is directly recursive data structure, it is implemented using a clever trick with `var`
+for example `define a = a` will be of code `val r = RecursiveReference(null); val a = r.deref(); r.value = a; a`
 
-the default evaluation strategy will NOT reduce on recursive definitions. this means you need to explicitly unfold them in type checking and conversion checking, this is needed because recursive redex might unfold infinitely
+where `deref` is a redex and under normal evaluation rule, it will evaluate to `null` which will be rejected
+
+this means non-guarded recursive references will be rejected by evaluator
+
+for a guarded recursive reference, then it is ok, for example `val r = RecursiveReference(null); val a = Lambda(_ ⇒ r.deref()); r.value = a; a`
+
+when we evaluate `a(something)` we will get `a` again
+
+a recursive type like `nat` is ok because we consider the record and constructor fields as guarded
+
+`eval`, reductions and closures all take a parameter of reduction strategy
+
+so the default reduction strategy has the property:
+
+* it don't accept non-guarded value definitions, which is non-terminating anyway
+* it will always fully evaluate to normal forms, **except** under closures, this means the non-guarded part will not have any reference or recursive reference,
+and it will be exactly like a theory without recursive reference and references
+* one-time substitution is always terminating **?????** (really? assuming we have termination checker, can we have this property???)
+
 
 ### conversion checking
 
