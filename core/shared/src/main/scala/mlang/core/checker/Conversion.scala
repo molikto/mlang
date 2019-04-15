@@ -5,6 +5,8 @@ import Value._
 import scala.collection.mutable
 import scala.util.{Success, Try}
 
+// TODO is it true what one step reduction with default reduction is terminating?
+// TODO is our way of handling recursive definitions sound? (id pattern lambda, with assumptions)
 class Conversion {
 
 
@@ -108,10 +110,6 @@ class Conversion {
 
   private def equalNeutral(t1: Value, t2: Value): Option[Value] = {
     (t1, t2) match {
-        // TODO conversion check with recursive references, in this case
-      case (RecursiveReference(v1, t1), RecursiveReference(v2, t2)) =>
-        if (v1.eq(v2)) Some(t1)
-        else None
       case (OpenReference(i1, v1), OpenReference(i2, v2)) =>
         if (i1 == i2) {
           assert(v1.eq(v2))

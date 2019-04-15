@@ -10,9 +10,9 @@
     * ~~totally unsafe basics~~
     * ~~basic syntax and parser~~
     * ~~mutual recursive functions~~
-    * conversion check
+    * ~~conversion check~~
         * ~~eta rule~~
-        * in present of recursive
+        * ~~in present of recursive~~
     * cubical features
     * user defined eliminations
     * record calculus
@@ -53,6 +53,7 @@
          * *A simple type-theoretic language: Mini-TT*
          * http://davidchristiansen.dk/tutorials/nbe/
     * but the above reference is not incremental, and to do it incrementally: *Decidability of conversion for type theory in type theory*
+      * this don't handle recursive definitions, see bellow
     * the idea of using JVM as evaluator is from: *Full reduction at full throttle*
 
 

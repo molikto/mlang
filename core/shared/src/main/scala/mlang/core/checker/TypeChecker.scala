@@ -222,9 +222,6 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
 
 
   private def checkDeclaration(s: Declaration, abs: mutable.ArrayBuffer[DefinitionInfo]): Self = {
-    /**
-      * how to handle mutual recursive definitions
-      */
     s match {
       case Declaration.DefineInferred(name, ms, v) =>
         val index = layers.head.indexWhere(_.name == name)
@@ -269,6 +266,7 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
   }
 
   private def checkDeclarations(seq: Seq[Declaration]): (Self, Seq[Abstract.Let.Item], Seq[Set[Int]]) = {
+    // how to handle mutual recursive definitions, calculate strong components
     var ctx = this
     val abs = new mutable.ArrayBuffer[DefinitionInfo]()
     val definitionOrder = new mutable.ArrayBuffer[Set[Int]]()
