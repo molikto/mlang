@@ -13,7 +13,7 @@ class Conversion {
   private val assumps = new mutable.HashMap[Long, mutable.Set[Long]] with mutable.MultiMap[Long, Long]
 
 
-  def equalPositionalOrAssumeWhenTypeEqual(l1: PatternLambda, l2: PatternLambda): Boolean = {
+  def equalPatternLambdaOfSameTypeWithAssumptions(domain: Value, l1: PatternLambda, l2: PatternLambda): Boolean = {
     if (l1.id == l2.id) {
       true
     } else {
@@ -21,7 +21,7 @@ class Conversion {
         true
       } else {
         assumps.addBinding(l1.id, l2.id)
-        false
+        equalCases(domain, l1.typ, l1.cases, l2.cases)
       }
     }
   }
@@ -138,7 +138,7 @@ class Conversion {
         equalNeutral(s1, s2).flatMap(n => {
           // TODO give an example why this is needed
           if (equalTypeClosure(Int.MaxValue, n, l1.typ, l2.typ)
-              && (equalPositionalOrAssumeWhenTypeEqual(l1, l2) || equalCases(n, l1.typ, l1.cases, l2.cases))) {
+              && (equalPatternLambdaOfSameTypeWithAssumptions(n, l1, l2))) {
             Some(l1.typ(n))
           } else {
             None

@@ -10,16 +10,10 @@
     * ~~totally unsafe basics~~
     * ~~basic syntax and parser~~
     * ~~mutual recursive functions~~
-    * ~~conversion check~~
-        * ~~eta rule~~
-        * ~~in present of recursive~~
+    * ~~conversion check with eta and recursive definitions~~
     * cubical features
     * user defined eliminations
     * record calculus
-    * evaluator control
-        * error reporting
-        * reify
-            * local unannotated pattern
     * recursive types
         * inductive families of two flavor
         * hit
@@ -30,6 +24,10 @@
     * small features
         * HTML pretty print
         * naming shadowing
+    * reify
+        * "maker" values
+        * error reporting (seems not hard!)
+        * local unannotated pattern
     * coverage checker
         * overlapping patterns
     * termination checking

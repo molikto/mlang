@@ -17,8 +17,9 @@ sealed trait TypeCheckException extends CoreException
 object TypeCheckException {
 
 
-  // names
-  case class NamesDuplicated() extends TypeCheckException
+  // syntax
+  case class FieldsDuplicated() extends TypeCheckException
+  case class TagsDuplicated() extends TypeCheckException
   case class MustBeNamed() extends TypeCheckException
   case class EmptyTelescope() extends TypeCheckException
   case class EmptyArguments() extends TypeCheckException
@@ -31,11 +32,10 @@ object TypeCheckException {
 
   case class CheckingAgainstNonFunction() extends TypeCheckException
 
-  case class CannotInferLambdaWithoutDomain() extends TypeCheckException
+  case class CannotInferLambda() extends TypeCheckException
+  case class CannotInferReturningTypeWithPatterns() extends TypeCheckException
 
   case class TypeMismatch() extends TypeCheckException
-
-  case class CannotInferReturningTypeWithPatterns() extends TypeCheckException
 
   case class ForbiddenModifier() extends TypeCheckException
 
@@ -79,7 +79,7 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
         for (i <- r.names.indices) {
           for (j <- (i + 1) until r.names.size) {
             if (r.names(i) intersect r.names(j)) {
-              throw TypeCheckException.NamesDuplicated()
+              throw TypeCheckException.FieldsDuplicated()
             }
           }
         }
@@ -89,7 +89,7 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
         for (i <- constructors.indices) {
           for (j <- (i + 1) until constructors.size) {
             if (constructors(i).name == constructors(j).name) {
-              throw TypeCheckException.NamesDuplicated()
+              throw TypeCheckException.TagsDuplicated()
             }
           }
         }
@@ -99,10 +99,10 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
         (Value.Universe(fl), Abstract.Sum(fl, fs.map(_._2.map(_._2)).zip(constructors).map(a => Abstract.Constructor(a._2.name, a._1))))
       case Term.PatternLambda(_) =>
         // TODO inferring the type of a lambda, the inferred type might not have the same branches as the lambda itself
-        throw TypeCheckException.CannotInferLambdaWithoutDomain()
+        throw TypeCheckException.CannotInferReturningTypeWithPatterns()
       case Term.Lambda(_, _) =>
         // TODO inferring the type of a lambda, the inferred type might not have the same branches as the lambda itself
-        throw TypeCheckException.CannotInferLambdaWithoutDomain()
+        throw TypeCheckException.CannotInferLambda()
       case Term.Projection(left, right) =>
         val (lt, la) = infer(left)
         val lv = eval(la)
