@@ -10,6 +10,8 @@ object Reduction {
   object Deref {
     val No = 0
     val NonRecursive = 1
+    // this means if the
+    //val ProgressRecursive = 2
     val All = 3
   }
 
@@ -25,4 +27,10 @@ object Reduction {
     r.app = Some(r)
     r
   }
+
+//  val ProgressRecursive: Reduction = {
+//    val r = Reduction(null, true, Deref.ProgressRecursive, true)
+//    r.app = Some(r)
+//    r
+//  }
 }

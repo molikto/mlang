@@ -21,7 +21,7 @@ sealed trait Value {
   def app(v: Value, env: Reduction = Reduction.Default): Value = env.app.map(r => {
     this match {
       case Value.Lambda(closure) => closure(v, r)
-      case p@Value.PatternLambda(_, cases) =>
+      case p@Value.PatternLambda(_, _, cases) =>
         // TODO overlapping patterns, we are now using first match
         var res: Value = null
         var cs = cases
@@ -203,7 +203,7 @@ object Value {
     */
   case class Lambda(closure: Closure) extends Value
 
-  case class PatternLambda(typ: Closure, cases: Seq[Case]) extends Value
+  case class PatternLambda(id: Generic, typ: Closure, cases: Seq[Case]) extends Value
 
   case class PatternStuck(lambda: PatternLambda, stuck: Stuck) extends Spine
 

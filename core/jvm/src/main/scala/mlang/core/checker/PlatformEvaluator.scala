@@ -79,9 +79,9 @@ trait PlatformEvaluator extends BaseEvaluator {
             s"Constructor(${source(c._1.name)}, ${c._1.params.size}, Seq(${c._1.params.map(p => s"MultiClosure((r$d, r) => " + emit(p, d) + ")").mkString(", ")}))")})"""
         case Abstract.SumMaker(sum, field) =>
           s"${emit(sum, depth)}.asInstanceOf[Sum].constructors($field).maker"
-        case Abstract.PatternLambda(codomain, cases) =>
+        case Abstract.PatternLambda(id, codomain, cases) =>
           val d = depth + 1
-          s"PatternLambda(Closure((r$d, r) => ${emit(codomain, d)}), Seq(${cases.map(c => s"Case(${tunnel(c.pattern)}, MultiClosure((r$d, r) => ${emit(c.body, d)}))").mkString(", ")}))"
+          s"PatternLambda($id, Closure((r$d, r) => ${emit(codomain, d)}), Seq(${cases.map(c => s"Case(${tunnel(c.pattern)}, MultiClosure((r$d, r) => ${emit(c.body, d)}))").mkString(", ")}))"
       }
     }
   }

@@ -21,11 +21,16 @@ object ContextBuilderException {
 
 import Context._
 
+
+object ContextBuilder {
+  private val gen = new GenericGen.Positive()
+}
+
+import ContextBuilder._
+
 trait ContextBuilder extends Context {
 
   type Self <: ContextBuilder
-
-  private val gen = GenericGen.Positive
 
   protected implicit def create(a: Layers): Self
 

@@ -8,12 +8,12 @@ trait GenericGen {
 }
 
 object GenericGen {
-  object Positive extends GenericGen  {
+  class Positive extends GenericGen  {
     private val con= new AtomicLong(1)
     override def apply(): Generic = con.getAndIncrement()
   }
 
-  object Negative extends GenericGen {
+  class Negative extends GenericGen {
     private val abs = new AtomicLong(-1)
     override def apply(): Generic = abs.getAndDecrement()
   }

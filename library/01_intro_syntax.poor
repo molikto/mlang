@@ -27,9 +27,44 @@ define plus:
   ─     ┌ zero    → a
         └ suc(m)  → nat.suc(plus(a, m))
 
+define plus_defined_twice:
+ (a       b: nat) ⇒ nat =
+  ─     ┌ zero    → a
+        └ suc(m)  → nat.suc(plus_defined_twice(a, m))
+
 define test001:
  (x y: nat, b: nat ⇒ type, c: (i: nat) ⇒ b(i)) ⇒ b(plus(x, y)) =
-  ─ ─       ─              ─                   → c(plus(x, y))
+  ─ ─       ─              ─                   → c(plus_defined_twice(x, y))
+
+define plus2:
+ (a       b: nat) ⇒ nat =
+  ─     ┌ zero    → a
+        └ suc(m)  → plus2(nat.suc(a), m)
+
+
+
+define multi:
+ (a       b: nat) ⇒ nat =
+  ─     ┌ zero    → nat.zero
+        └ suc(m)  → plus(a, multi(a, m))
+
+define one = nat.suc(nat.zero)
+
+define two = nat.suc(one)
+
+define four = plus(two, two)
+
+define eight = plus(four, four)
+
+define sixteen = plus(eight, eight)
+
+define sixteen2 = multi(four, four)
+
+
+
+define test002:
+ (x y: nat, b: nat ⇒ type, c: (i: nat) ⇒ b(i)) ⇒ b(plus2(nat.suc(x), y)) =
+  ─ ─       ─              ─                   → c(plus2(nat.suc(x), y))
 
 
 define ttt1:
@@ -40,20 +75,24 @@ define ttt2:
   nat ⇒ nat =
   ─   → plus(four, two)
 
+
+define ttt3:
+  nat ⇒ nat =
+  ─   → plus2(four, two)
+
 define assert_tt2_eq_holder:
  (b: (nat ⇒ nat) ⇒ type, c: (i: nat ⇒ nat) ⇒ b(i)) ⇒ b(ttt1) =
   ─                      ─                         → c(ttt2)
+
 
 
 define assert_nat_eq_holder2:
  (x y: nat, b: (nat ⇒ nat) ⇒ type, c: (i: nat ⇒ nat) ⇒ b(i)) ⇒ b(─ → plus(x, y)) =
   ─ ─       ─              ─                   → c(─ → plus(x, y))
 
-
-define multi:
- (a       b: nat) ⇒ nat =
-  ─     ┌ zero    → nat.zero
-        └ suc(m)  → plus(a, multi(a, m))
+define assert_tt2_eq_holder3:
+ (b: (nat ⇒ nat) ⇒ type, c: (i: nat ⇒ nat) ⇒ b(i)) ⇒ b(ttt1) =
+  ─                      ─                         → c(ttt3)
 
 define ttt:
  (a b: nat, c: nat ⇒ type, d: type ⇒ type) ⇒ type =
@@ -70,18 +109,6 @@ define nat_is_odd:
 define nat_is_even =
 ┌ zero → bool.true
 └ suc(m) → nat_is_odd(m)
-
-define one = nat.suc(nat.zero)
-
-define two = nat.suc(one)
-
-define four = plus(two, two)
-
-define eight = plus(four, four)
-
-define sixteen = plus(eight, eight)
-
-define sixteen2 = multi(four, four)
 
 
 

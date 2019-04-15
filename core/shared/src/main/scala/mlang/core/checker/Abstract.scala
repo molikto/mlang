@@ -39,7 +39,7 @@ sealed trait Abstract {
         a.typ.foreach(_.markRecursive(i + 1, c))
       })
       in.markRecursive(i + 1, c)
-    case Abstract.PatternLambda(cd, cases) =>
+    case Abstract.PatternLambda(_, cd, cases) =>
       cd.markRecursive(i + 1, c)
       cases.foreach(_.body.markRecursive(i + 1, c))
   }
@@ -57,7 +57,7 @@ sealed trait Abstract {
     case Abstract.SumMaker(sum, _) => sum.dependencies(i)
     case Abstract.Let(definitions, _, in) => definitions.flatMap(a =>
       a.value.dependencies(i + 1) ++ a.typ.map(_.dependencies(i + 1)).getOrElse(Set.empty)).toSet ++ in.dependencies(i + 1)
-    case Abstract.PatternLambda(cd, cases) => cd.dependencies(i + 1) ++ cases.flatMap(_.body.dependencies(i + 1)).toSet
+    case Abstract.PatternLambda(_, cd, cases) => cd.dependencies(i + 1) ++ cases.flatMap(_.body.dependencies(i + 1)).toSet
   }
 }
 
@@ -91,7 +91,7 @@ object Abstract {
   case class Let(definitions: Seq[Let.Item], order: Seq[Set[Int]], in: Abstract) extends Abstract
 
   case class Case(pattern: Pattern, body: Abstract)
-  case class PatternLambda(typ: Abstract, cases: Seq[Case]) extends Abstract {
+  case class PatternLambda(id: Generic, typ: Abstract, cases: Seq[Case]) extends Abstract {
     override def toString: String = s"PatternLambda(${cases.toString})"
   }
 }

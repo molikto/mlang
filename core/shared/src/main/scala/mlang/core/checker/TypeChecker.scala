@@ -3,7 +3,7 @@ package mlang.core.checker
 import mlang.core.concrete.{Pattern => Patt, _}
 import Context._
 import mlang.core.name._
-import mlang.core.utils
+import mlang.core.{checker, utils}
 import mlang.core.utils.debug
 
 import scala.collection.mutable
@@ -43,9 +43,12 @@ object TypeCheckException {
 }
 
 
+object TypeChecker {
+  private val gen = new GenericGen.Positive()
+  val empty = new TypeChecker(Seq(Seq.empty))
+}
 
-
-class TypeChecker private (protected override val layers: Layers) extends ContextBuilder with Conversion with BaseEvaluator with PlatformEvaluator {
+class TypeChecker private (protected override val layers: Layers) extends ContextBuilder with BaseEvaluator with PlatformEvaluator {
   override type Self = TypeChecker
 
   override protected implicit def create(a: Layers): Self = new TypeChecker(a)
@@ -121,7 +124,7 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
           case _ => error()
         }
       case Term.Application(lambda, arguments) =>
-        if (arguments.isEmpty) throw TypeCheckException.EmptyArguments()
+        if (arguments.size == 0) throw TypeCheckException.EmptyArguments()
         val (lt, la) = infer(lambda)
         inferApplication(lt, la, arguments)
       case Term.Let(declarations, in) =>
@@ -170,7 +173,7 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
 
   private def checkFallback(term: Term, cp: Value): Abstract = {
     val (tt, ta) = infer(term)
-    if (equalType(Int.MaxValue, tt, cp)) ta
+    if (new Conversion().equalType(Int.MaxValue, tt, cp)) ta
     else throw TypeCheckException.TypeMismatch()
 
   }
@@ -188,7 +191,7 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
   ): Abstract = {
     debug(s"check $term")
     val (hint, tail) = lambdaNameHints match {
-      case Some(head +: tl) => (head, Some(tl))
+      case Some(head +: tail) => (head, Some(tail))
       case _ => (None, None)
     }
     val res = term match {
@@ -203,7 +206,7 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
       case Term.PatternLambda(cases) =>
         cp match {
           case Value.Function(domain, codomain) =>
-            Abstract.PatternLambda(lambdaFunctionCodomainHint.getOrElse(???), cases.map(c => {
+            Abstract.PatternLambda(TypeChecker.gen(), lambdaFunctionCodomainHint.getOrElse(???), cases.map(c => {
               val (ctx, v, pat) = newLayer().newAbstractions(c.pattern, domain)
               val ba = ctx.check(c.body, codomain(v), tail, hintCodomain(lambdaFunctionCodomainHint))
               Abstract.Case(pat, ba)
@@ -326,7 +329,7 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
     var ctx = this
     var l = 0
     val fas = terms.flatMap(f => {
-      val fs = if (f.names.isEmpty) Seq(Name.empty) else f.names
+      val fs = (if (f.names.isEmpty) Seq(Name.empty) else f.names)
       fs.map(n => {
         val (fl, fa) = ctx.inferLevel(f.ty)
         l = l max fl
@@ -359,7 +362,4 @@ private case class DefinitionInfo(
    lazy val directDependencies: Set[Int] = code.dependencies(0)
 }
 
-object TypeChecker {
-  val empty = new TypeChecker(Seq(Seq.empty))
-}
 

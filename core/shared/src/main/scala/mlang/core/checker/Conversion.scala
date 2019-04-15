@@ -2,13 +2,30 @@ package mlang.core.checker
 
 import Value._
 
+import scala.collection.mutable
 import scala.util.{Success, Try}
 
-trait Conversion extends Context {
+class Conversion {
 
 
-  val reduction = Reduction.NonRecursive
-  private val gen: GenericGen = GenericGen.Negative
+  private val assumps = new mutable.HashMap[Long, mutable.Set[Long]] with mutable.MultiMap[Long, Long]
+
+
+  def equalPositionalOrAssumeWhenTypeEqual(l1: PatternLambda, l2: PatternLambda): Boolean = {
+    if (l1.id == l2.id) {
+      true
+    } else {
+      if (assumps.entryExists(l1.id, _ == l2.id)) {
+        true
+      } else {
+        assumps.addBinding(l1.id, l2.id)
+        false
+      }
+    }
+  }
+
+  private val reduction = Reduction.Default
+  private val gen: GenericGen = new GenericGen.Negative()
 
   private implicit def optToBool[T](opt: Option[T]): Boolean = opt.isDefined
 
@@ -47,8 +64,8 @@ trait Conversion extends Context {
 
   private def equalTypeMultiClosure(less: Int, ts: Seq[Value], c1: MultiClosure, c2: MultiClosure): Option[Value] = {
     val cs = ts.map(t => OpenReference(gen(), t))
-    val t = c1(cs)
-    if (equalType(less, t, c2(cs))) {
+    val t = c1(cs, reduction)
+    if (equalType(less, t, c2(cs, reduction))) {
       Some(t)
     } else {
       None
@@ -57,15 +74,15 @@ trait Conversion extends Context {
 
   private def equalTypeClosure(less: Int, t: Value, c1: Closure, c2: Closure): Option[Value] = {
     val c = OpenReference(gen(), t)
-    val tt = c1(c)
-    if (equalType(less, tt, c2(c))) {
+    val tt = c1(c, reduction)
+    if (equalType(less, tt, c2(c, reduction))) {
       Some(tt)
     } else {
       None
     }
   }
 
-  protected def equalType(less: Int, tm1: Value, tm2: Value): Boolean = {
+  def equalType(less: Int, tm1: Value, tm2: Value): Boolean = {
     if (tm1.eq(tm2)) {
       true
     } else {
@@ -88,6 +105,7 @@ trait Conversion extends Context {
   }
 
 
+
   private def equalNeutral(t1: Value, t2: Value): Option[Value] = {
     (t1, t2) match {
         // TODO conversion check with recursive references, in this case
@@ -101,6 +119,8 @@ trait Conversion extends Context {
         } else {
           None
         }
+//      case (Application(RecursiveReference(v1, t1), a1), Application(RecursiveReference(v2, t2), a2)) =>
+//        assumptions
       case (Application(l1, a1), Application(l2, a2)) =>
         equalNeutral(l1, l2).flatMap {
           case Function(d, c) =>
@@ -118,7 +138,9 @@ trait Conversion extends Context {
         }
       case (PatternStuck(l1, s1), PatternStuck(l2, s2)) =>
         equalNeutral(s1, s2).flatMap(n => {
-          if (equalTypeClosure(Int.MaxValue, n, l1.typ, l2.typ) && equalCases(n, l1.typ, l1.cases, l2.cases)) {
+          // TODO give an example why this is needed
+          if (equalTypeClosure(Int.MaxValue, n, l1.typ, l2.typ)
+              && (equalPositionalOrAssumeWhenTypeEqual(l1, l2) || equalCases(n, l1.typ, l1.cases, l2.cases))) {
             Some(l1.typ(n))
           } else {
             None
@@ -132,7 +154,7 @@ trait Conversion extends Context {
   def equalLambda(d: Value, cd: Closure, s1: Value, s2: Value): Boolean = {
     // I think this implements eta rule
     val c = OpenReference(gen(), d)
-    equalTerm(cd(c), s1.app(c), s2.app(c))
+    equalTerm(cd(c), s1.app(c, reduction), s2.app(c, reduction))
   }
 
   def equalMake(ns: Seq[RecordNode], m1: Value, m2: Value): Boolean = {
@@ -141,7 +163,7 @@ trait Conversion extends Context {
         case Some(as) =>
           val mm = ns.map(_.name.refSelf).zip(as).toMap
           val nm = pair._1.closure(pair._1.dependencies.map(mm))
-          if (equalTerm(nm, m1.project(pair._2), m2.project(pair._2))) {
+          if (equalTerm(nm, m1.project(pair._2, reduction), m2.project(pair._2, reduction))) {
             Some(as :+ nm)
           } else {
             None
@@ -158,7 +180,7 @@ trait Conversion extends Context {
       pair._1.pattern == pair._2.pattern && {
         Try { Value.extractTypes(pair._1.pattern, domain, gen) } match {
           case Success((ctx, itself)) =>
-            equalTerm(codomain(itself), pair._1.closure(ctx), pair._2.closure(ctx))
+            equalTerm(codomain(itself), pair._1.closure(ctx, reduction), pair._2.closure(ctx, reduction))
           case _ => false
         }
       }

@@ -82,7 +82,7 @@ so the default reduction strategy has the property:
 * it don't accept non-guarded value definitions, which is non-terminating anyway
 * it will always fully evaluate to normal forms, **except** under closures, this means the non-guarded part will not have any reference or recursive reference,
 and it will be exactly like a theory without recursive reference and references
-* one-time substitution is always terminating **?????** (really? assuming we have termination checker, can we have this property???)
+* one-time substitution is always terminating **?????** (TODO really? assuming we have termination checker, can we have this property???)
 
 
 ### conversion checking
@@ -94,6 +94,13 @@ the assumptions is: values is well typed, although values don't have type annota
 so the algorithm is type directed is in this sense: the type is a **assertion** that both terms has a certain type, the level input of `equalType` is a **assertion** that both type is smaller than a certain level, the output of a equality check is a **assertion** that the term is definitional equal.
 
 in case of `equalNeutural`, there is no assertion that the two input is of the same type, it has a return type `Option[Value]` and `Some(v)` is a **assertion** that the two neutral type is of the same type, **and of the same value** and the type is `v`
+
+#### how to handle recursive definitions
+
+it seems to me Agda and Mini-TT handles the problem of readback recursive definitions by: when reading back (or conversion checking) pattern matching neutral value, instead of reading back all the cases (add thus ends up in an infinite loop, for example when reading back `(plus a b)` where a, b is open variable), it only reads back an id of the pattern matching lambda, since a pattern matching lambda is uniquely defined by its src position. (about Agda is only guessing, because Agda seems to have a nominal definitional equality for pattern matching) 
+
+
+it is extended in our case, by also allowing the id to be different, but as an assumption see `Conversion.scala`
 
 ## math
 
