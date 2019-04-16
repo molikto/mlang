@@ -12,22 +12,27 @@
     * ~~mutual recursive functions~~
     * ~~conversion check with eta and recursive definitions~~
     * cubical features
+        * ~~path~~
+        * coe
+        * com
+        * univalance
         * hit
+    * reify
+        * "maker" values
+        * local unannotated pattern
+        * unannotated path type
+        * error reporting (seems not hard!)
     * user defined eliminations
+    * implicit arguments
     * record calculus
     * more recursive types
         * inductive families of two flavor
         * inductive-inductive
         * inductive-recursive
-    * implicit arguments
     * implicit conversions
     * small features
         * HTML pretty print
         * naming shadowing
-    * reify
-        * "maker" values
-        * error reporting (seems not hard!)
-        * local unannotated pattern
     * positivity checker
     * coverage checker
         * overlapping patterns

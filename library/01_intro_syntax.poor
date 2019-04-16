@@ -16,31 +16,47 @@ define id:
 
 define bool = sum { case true false }
 
-define inductively nat: type = sum {
-  case zero
-  case suc(nat)
-}
-
 define list: (a: type) ⇒ type = a → sum {
   case nil
   case cons(a, list(a))
 }
 
+define inductively nat: type = sum {
+  case zero
+  case suc(nat)
+}
+
+define suc: (a: nat) ⇒ nat = ─ → nat.suc(a)
+
 define plus:
  (a       b: nat) ⇒ nat =
   ─     ┌ zero    → a
-        └ suc(m)  → nat.suc(plus(a, m))
+        └ suc(m)  → suc(plus(a, m))
 
 
 define plus2:
  (a       b: nat) ⇒ nat =
   ─     ┌ zero    → a
-        └ suc(m)  → plus2(nat.suc(a), m)
+        └ suc(m)  → plus2(suc(a), m)
 
-//define plus_pointwise:
-// (a: nat) ⇒ plus(a) ≡(─ ↪ nat) plus2(a) =
-//┌
-//└
+define fun_ext:
+ (a: type, b: a ⇒ type, f g: (x: a) ⇒ b(x), p: (x: a) ⇒ f(x) ≡(─ ↪ b(x)) g(x)) ⇒ f ≡(─ ↪ (x: a) ⇒ b(x)) g =
+  ─        ─            ─ ─                 ─                                  → i ↪ x → p(x)[i]
+
+
+define plus_pointwise_lemma:
+ (a   m: nat) ⇒ plus2(suc(a), m) ≡(─ ↪ nat) suc(plus2(a, m)) =
+  ─ ┌ zero    → ─ ↪ suc(a)
+    └ suc(n)  → i ↪ plus_pointwise_lemma(suc(a), n)[i]
+
+/*
+define plus_pointwise:
+ (a       b: nat) ⇒ plus(a, b) ≡(─ ↪ nat) plus2(a, b) =
+  ─     ┌ zero    → ─ ↪ b
+        └ suc(m)  → plus_pointwise() // suc(plus(a, m)) ≡ plus2(suc(a), m)
+
+define path_plus12: plus ≡(─ ↪ nat ⇒ nat) plus2 = fun_ext(nat, ─ → nat, plus, plus2,
+*/
 
 define plus_defined_twice:
  (a       b: nat) ⇒ nat =
@@ -52,11 +68,6 @@ define test001:
   ─ ─       ─              ─                   → c(plus_defined_twice(x, y))
 
 
-define fun_ext:
- (a: type, b: a ⇒ type, f g: (x: a) ⇒ b(x), p: (x: a) ⇒ f(x) ≡(─ ↪ b(x)) g(x)) ⇒ f ≡(─ ↪ (x: a) ⇒ b(x)) g =
-  ─        ─            ─ ─                 ─                                  → i ↪ x → p(x)[i]
-
-//define path_plus12: plus ≡(─ ↪ nat ⇒ nat) plus2 = fun_ext(nat, ─ → nat, plus, plus2,
 
 define multi:
  (a       b: nat) ⇒ nat =
