@@ -31,8 +31,8 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
     override def whitespaceChar: Parser[Char] = elem("", _ == '│') | super.whitespaceChar
   }
 
-  lexical.reserved ++= List("case", "as", "field", "ignored", "define", "declare", "match", "make", "record", "type", "sum", "inductively", "with_constructors") ++ Primitives.keys
-  lexical.delimiters ++= List("{", "}", "[", "]", ":", ",", "(", ")", "≡", "─", "┬", "↪", "┌", "⊏", "└", "├", "⇒", "→", "+", "-", ";", "=", "@", "\\", ".")
+  lexical.reserved ++= List("case", "as", "coe", "hcom", "field", "ignored", "define", "declare", "match", "make", "record", "type", "sum", "inductively", "with_constructors") ++ Primitives.keys
+  lexical.delimiters ++= List("{", "}", "[", "]", ":", ",", "(", ")", "≡", "─", "┬", "↪", "⇝","┌", "⊏", "└", "├", "⇒", "→", "+", "-", ";", "=", "@", "\\", ".")
 
   def delimited[T](a: String, t: Parser[T], b: String): Parser[T] = a ~> t <~ b
 
@@ -87,6 +87,7 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
         record |
         projection |
         sum |
+        coe |
         universe |
         absDimension |
         ident ^^ {a => Reference(a)}
@@ -96,6 +97,16 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
 
 
   lazy val pathApp: PackratParser[Term] = term ~ delimited("[", term, "]") ^^ {a => PathApplication(a._1, a._2)}
+
+  lazy val coe: PackratParser[Term] = keyword("coe") ~> delimited("(", (term <~ "⇝") ~ term ,")") ~ delimited("]" , pathLambdaData ,"]") ~ delimited("(", term ,")") ^^ {a => {
+    Coe(DimensionPair(a._1._1._1, a._1._1._2), (a._1._2._1, a._1._2._2), a._2)
+  }}
+
+  lazy val restriction: PackratParser[Term.Restriction] = (term <~ "=") ~ (term <~ "↪") ~ term ^^ {a => Restriction(DimensionPair(a._1._1, a._1._2), a._2) }
+
+  lazy val hcom: PackratParser[Term] = keyword("hcom") ~> delimited("(", (term <~ "⇝") ~ term ,")") ~ delimited("[", term,"]") ~ delimited("(", term, ")") ~ delimited("[", repsep(restriction, ",") ,"]") ^^ { a =>
+    Hcom(DimensionPair(a._1._1._1._1, a._1._1._1._1), a._1._1._2, a._1._2, a._2)
+  }
 
   lazy val ascription: PackratParser[Cast] = delimited("(", (term <~ keyword("as")) ~ term, ")") ^^ {a => Cast(a._1, a._2)}
 

@@ -112,6 +112,11 @@ object Abstract {
   case class PathType(typ: Abstract, left: Abstract, right: Abstract) extends Abstract
   case class PathApplication(let: Abstract, r: Dimension) extends Abstract
 
+  case class Coe(direction: DimensionPair, tp: Abstract, base: Abstract) extends Abstract
+  case class Hcom(direction: DimensionPair, tp: Abstract, base: Abstract) extends Abstract
+
+  case class DimensionPair(from: Dimension, to: Dimension)
+
   sealed trait Dimension
   object Dimension {
     case class Reference(up: Int) extends Dimension

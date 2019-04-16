@@ -24,12 +24,12 @@
         * error reporting (seems not hard!)
     * user defined eliminations
     * implicit arguments
+    * implicit conversions
     * record calculus
     * more recursive types
         * inductive families of two flavor
         * inductive-inductive
         * inductive-recursive
-    * implicit conversions
     * small features
         * HTML pretty print
         * naming shadowing

@@ -14,7 +14,7 @@ class Conversion {
   private val assumps = new mutable.HashMap[Long, mutable.Set[Long]] with mutable.MultiMap[Long, Long]
 
 
-  def equalPatternLambdaOfSameTypeWithAssumptions(domain: Value, l1: PatternLambda, l2: PatternLambda): Boolean = {
+  private def equalPatternLambdaOfSameTypeWithAssumptions(domain: Value, l1: PatternLambda, l2: PatternLambda): Boolean = {
     if (l1.id == l2.id) {
       true
     } else {
@@ -86,7 +86,7 @@ class Conversion {
     }
   }
 
-  def equalType(less: Int, tm1: Value, tm2: Value): Boolean = {
+  private def equalType(less: Int, tm1: Value, tm2: Value): Boolean = {
     if (tm1.eq(tm2)) {
       true
     } else {
@@ -170,7 +170,7 @@ class Conversion {
     }
   }
 
-  def equalCases(domain: Value, codomain: Value.Closure, c1: Seq[Case], c2: Seq[Case]): Boolean = {
+  private def equalCases(domain: Value, codomain: Value.Closure, c1: Seq[Case], c2: Seq[Case]): Boolean = {
     c1.size == c2.size && c1.zip(c2).forall(pair => {
       pair._1.pattern == pair._2.pattern && {
         Try { Value.extractTypes(pair._1.pattern, domain, gen) } match {
@@ -185,7 +185,7 @@ class Conversion {
   /**
     * it is REQUIRED that t1 and t2 indeed has that type!!!!
     */
-  def equalTerm(typ: Value, t1: Value, t2: Value): Boolean = {
+  private def equalTerm(typ: Value, t1: Value, t2: Value): Boolean = {
     if (t1.eq(t2)) {
       true
     } else {
@@ -235,5 +235,15 @@ class Conversion {
           }
       }
     }
+  }
+}
+
+object Conversion {
+  def equalTerm(typ: Value, t1: Value, t2: Value): Boolean = {
+    new Conversion().equalTerm(typ, t1, t2)
+  }
+
+  def equalType(less: Int, tm1: Value, tm2: Value): Boolean = {
+    new Conversion().equalType(less, tm1, tm2)
   }
 }
