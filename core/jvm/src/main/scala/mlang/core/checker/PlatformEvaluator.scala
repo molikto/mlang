@@ -1,5 +1,6 @@
 package mlang.core.checker
 
+import mlang.core.checker.Value.Dimension
 import mlang.core.name.Name
 import mlang.core.utils.{Text, debug}
 
@@ -24,7 +25,7 @@ trait PlatformEvaluator extends BaseEvaluator {
       term match {
         case Abstract.Universe(l) =>
           s"Universe($l)"
-        case Abstract.Reference(up, index, closed) =>
+        case Abstract.TermReference(up, index, closed) =>
           if (up > depth) {
             if (up == depth + 1 && recursivelyDefining.contains(index)) {
               // eval recursive, this deref happens under a closure, so it will have a value
@@ -33,7 +34,7 @@ trait PlatformEvaluator extends BaseEvaluator {
             } else {
               // this is a value inside the context
               assert((up == depth + 1 && closed == 0) || closed == -1)
-              s"${tunnel(evalOpenAsReference(up - depth - 1, index))}.deref(r)"
+              s"${tunnel(evalOpenTermReferenceAsReference(up - depth - 1, index))}.deref(r)"
             }
           } else {
             // a reference inside the emit context
@@ -82,11 +83,36 @@ trait PlatformEvaluator extends BaseEvaluator {
         case Abstract.PatternLambda(id, codomain, cases) =>
           val d = depth + 1
           s"PatternLambda($id, Closure((r$d, r) => ${emit(codomain, d)}), Seq(${cases.map(c => s"Case(${tunnel(c.pattern)}, MultiClosure((r$d, r) => ${emit(c.body, d)}))").mkString(", ")}))"
+        case Abstract.PathApplication(left, r) =>
+          s"${emit(left, depth)}.papp(${emit(r, depth)}, r)"
+        case Abstract.PathLambda(body) =>
+          val d = depth + 1
+          s"PathLambda(PathClosure((dm$d, r) => ${emit(body, d)}))"
+        case Abstract.PathType(typ, left, right) =>
+          val d = depth + 1
+          s"PathType(PathClosure((dm$d, r) => ${emit(typ, d)}), ${emit(left, depth)}, ${emit(right, depth)})"
+      }
+    }
+
+
+    private def emit(dim: Abstract.Dimension, depth: Int): String = {
+      dim match {
+        case Abstract.Dimension.Reference(up) =>
+          if (up > depth) {
+            getDimension(up - depth - 1) match {
+              case Dimension.OpenReference(id) =>
+                s"Dimension.OpenReference($id)"
+              case Dimension.Constant(isOne) =>
+                s"Dimension.Constant($isOne)"
+            }
+          } else {
+            s"dm${depth - up}"
+          }
+        case Abstract.Dimension.Constant(isOne) =>
+          s"Dimension.Constant($isOne)"
       }
     }
   }
-
-
   protected def platformEvalRecursive(terms: Map[Int, (Abstract, Value)], reduction: Reduction): Map[Int, Value] = {
     val emitter = new Emitter(terms.keySet)
     val rr = new scala.collection.mutable.ArrayBuffer[(Value, Value)]()

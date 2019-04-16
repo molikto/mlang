@@ -21,11 +21,26 @@ define inductively nat: type = sum {
   case suc(nat)
 }
 
+define list: (a: type) ⇒ type = a → sum {
+  case nil
+  case cons(a, list(a))
+}
 
 define plus:
  (a       b: nat) ⇒ nat =
   ─     ┌ zero    → a
         └ suc(m)  → nat.suc(plus(a, m))
+
+
+define plus2:
+ (a       b: nat) ⇒ nat =
+  ─     ┌ zero    → a
+        └ suc(m)  → plus2(nat.suc(a), m)
+
+define plus_pointwise:
+ (a: nat) ⇒ plus(a) ≡(─ ↪ nat) plus2(a) =
+┌ 
+└
 
 define plus_defined_twice:
  (a       b: nat) ⇒ nat =
@@ -36,12 +51,12 @@ define test001:
  (x y: nat, b: nat ⇒ type, c: (i: nat) ⇒ b(i)) ⇒ b(plus(x, y)) =
   ─ ─       ─              ─                   → c(plus_defined_twice(x, y))
 
-define plus2:
- (a       b: nat) ⇒ nat =
-  ─     ┌ zero    → a
-        └ suc(m)  → plus2(nat.suc(a), m)
 
+define fun_ext:
+ (a: type, b: a ⇒ type, f g: (x: a) ⇒ b(x), p: (x: a) ⇒ f(x) ≡(─ ↪ b(x)) g(x)) ⇒ f ≡(─ ↪ (x: a) ⇒ b(x)) g =
+  ─        ─            ─ ─                 ─                                  → i ↪ x → p(x)[i]
 
+define path_plus12: plus ≡(─ ↪ nat ⇒ nat) plus2 = fun_ext(nat, ─ → nat, plus, plus2,
 
 define multi:
  (a       b: nat) ⇒ nat =
@@ -83,6 +98,8 @@ define ttt3:
 define assert_tt2_eq_holder:
  (b: (nat ⇒ nat) ⇒ type, c: (i: nat ⇒ nat) ⇒ b(i)) ⇒ b(ttt1) =
   ─                      ─                         → c(ttt2)
+
+
 
 
 

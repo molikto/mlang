@@ -39,6 +39,23 @@ sealed trait Value {
     }
   }).getOrElse(Value.Application(this, v))
 
+  def papp(d: Value.Dimension, env: Reduction = Reduction.Default): Value = env.papp.map(r => {
+    d match {
+      case Value.Dimension.Constant(i) =>
+        this match {
+          case Value.PathLambda(c) => c(d, r)
+          case _ =>
+            Value.infer(this) match {
+              case Value.PathType(_, left, right) =>
+                if (i) right else left
+              case _ => throw new IllegalArgumentException("")
+            }
+        }
+      case _: Value.Dimension.OpenReference =>
+        Value.PathApplication(this, d)
+    }
+  }).getOrElse(Value.PathApplication(this, d))
+
   def project(name: Int, env: Reduction = Reduction.Default): Value = if (env.project) {
     this match {
       case Value.Make(vs) => vs(name)
@@ -85,6 +102,17 @@ object Value {
     def apply(seq: Value, reduction: Reduction = Reduction.Default): Value = func(Seq(seq), reduction)
   }
 
+  implicit class PathClosure(private val func: (Dimension, Reduction) => Value) extends AnyVal {
+    def apply(seq: Dimension, reduction: Reduction = Reduction.Default): Value = func(seq, reduction)
+  }
+
+
+  sealed trait Dimension
+  object Dimension {
+    case class OpenReference(id: Long) extends Dimension
+    case class Constant(isOne: Boolean) extends Dimension
+  }
+
   type Stuck = Value
 
   sealed trait Elimination {
@@ -100,6 +128,7 @@ object Value {
     def value: Value
   }
 
+  // TODO remove typ? what about infer?
   // the var is a total hack!! but it is very beautiful!!!
   case class RecursiveReference(value: Value, typ: Value) extends ClosedReference {
     debug("recursive reference created")
@@ -213,14 +242,52 @@ object Value {
   case class Let(var items: Seq[Let.Item], body: Value) extends Value
 
 
+  case class PathType(typ: PathClosure, left: Value, right: Value) extends Value
+
+  case class PathLambda(body: PathClosure) extends Value
+
+  // even when left is a value, it will not stuck, because only open dimension can stuck
+  case class PathApplication(left: Value, stuck: Dimension) extends Value
+
+
+
+
+
+  private def infer(t1: Value): Value = {
+    t1 match {
+      case OpenReference(_, v1) =>
+        v1
+      case Application(l1, a1) =>
+        infer(l1) match {
+          case Function(_, c) =>
+            c(a1)
+          case _ => throw new IllegalArgumentException("")
+        }
+      case Projection(m1, f1) =>
+        infer(m1) match {
+          case r: Record  => r.projectedType(r.nodes.indices.map(n => Projection(m1, n)), f1)
+          case _ => throw new IllegalArgumentException("")
+        }
+      case PatternStuck(l1, s1) =>
+        l1.typ(infer(s1))
+      case PathApplication(l1, d1) =>
+        infer(l1) match {
+          case PathType(typ, _, _) =>
+            typ(d1)
+          case _ => throw new IllegalArgumentException("")
+        }
+      case _ => throw new  IllegalArgumentException("")
+    }
+  }
+
 
   def extractTypes(
       pattern: Pattern,
-      @canrecur typ: Value,
+      typ: Value,
       gen: GenericGen
   ): (Seq[OpenReference], Value) = {
     val vs = mutable.ArrayBuffer[OpenReference]()
-    def rec(p: Pattern, @canrecur t: Value): Value = {
+    def rec(p: Pattern, t: Value): Value = {
       p match {
         case Pattern.Atom =>
           val ret = OpenReference(gen(), t)

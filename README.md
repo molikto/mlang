@@ -12,11 +12,11 @@
     * ~~mutual recursive functions~~
     * ~~conversion check with eta and recursive definitions~~
     * cubical features
+        * hit
     * user defined eliminations
     * record calculus
-    * recursive types
+    * more recursive types
         * inductive families of two flavor
-        * hit
         * inductive-inductive
         * inductive-recursive
     * implicit arguments
@@ -28,6 +28,7 @@
         * "maker" values
         * error reporting (seems not hard!)
         * local unannotated pattern
+    * positivity checker
     * coverage checker
         * overlapping patterns
     * termination checking
@@ -51,7 +52,7 @@
          * *A simple type-theoretic language: Mini-TT*
          * http://davidchristiansen.dk/tutorials/nbe/
     * but the above reference is not incremental, and to do it incrementally: *Decidability of conversion for type theory in type theory*
-      * this don't handle recursive definitions, see bellow
+      * this don't handle recursive definitions, and we use a way inspired by Mini-TT
     * the idea of using JVM as evaluator is from: *Full reduction at full throttle*
 
 

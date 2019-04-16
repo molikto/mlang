@@ -1,5 +1,6 @@
 package mlang.core.checker
 
+import mlang.core.checker
 import mlang.core.concrete.{Pattern => Patt}
 import mlang.core.name._
 
@@ -24,6 +25,7 @@ import Context._
 
 object ContextBuilder {
   private val gen = new GenericGen.Positive()
+  private val dgen = new GenericGen.Positive()
 }
 
 import ContextBuilder._
@@ -35,25 +37,48 @@ trait ContextBuilder extends Context {
   protected implicit def create(a: Layers): Self
 
 
-  def newLayer(): Self = (Seq.empty : Layer) +: layers
+  def newLayer(): Self = Layer.Terms(Seq.empty) +: layers
+
+  def newDimension(n: Name): (Self, Value.Dimension) = {
+    val gen = dgen()
+    val v = Value.Dimension.OpenReference(gen)
+    val ctx: Self = Layer.Dimension(gen, n, v) +: layers
+    (ctx, v)
+  }
+
+  def newDimension(n: Name, v: Value.Dimension.Constant): Self = {
+    val gen = dgen()
+    Layer.Dimension(gen, n, v) +: layers
+  }
+
+  protected def headTerms: Seq[Binder] = layers.head.asInstanceOf[Layer.Terms].terms
 
   def newDeclaration(name: Name, typ: Value) : Self = {
-    layers.head.find(_.name.intersect(name)) match {
+    headTerms.find(_.name.intersect(name)) match {
       case Some(_) => throw ContextBuilderException.AlreadyDeclared()
       case _ =>
         val g = gen()
-        (layers.head :+ Binder(g, name, typ, false, Value.OpenReference(g, typ))) +: layers.tail
+        Layer.Terms(headTerms :+ Binder(g, name, typ, false, Value.OpenReference(g, typ))) +: layers.tail
+    }
+  }
+
+  def newDefinition(name: Name, typ: Value, v: Value) : Self = {
+    headTerms.find(_.name.intersect(name)) match {
+      case Some(_) => throw ContextBuilderException.AlreadyDeclared()
+      case _ =>
+        val g = gen()
+        Layer.Terms(headTerms :+ Binder(g, name, typ, false, v)) +: layers.tail
     }
   }
 
   def newDefinitionChecked(index: Int, name: Name, v: Value) : Self = {
-    layers.head(index) match {
-      case Binder(id, n0, typ, defined, tv) =>
+    headTerms(index) match {
+      case Binder(id, n0, typ, defined, _) =>
         if (defined) {
           throw ContextBuilderException.AlreadyDefined()
         } else {
           assert(n0 == name)
-          layers.head.updated(index, Binder(id, name, typ, true, v)) +: layers.tail
+          Layer.Terms(headTerms.updated(index, Binder(id, name, typ, true, v))) +: layers.tail
         }
     }
   }
@@ -66,19 +91,19 @@ trait ContextBuilder extends Context {
 //  }
 
   def newAbstraction(name: Name, typ: Value) : (Self, Value) = {
-    layers.head.find(_.name.intersect(name)) match {
+    headTerms.find(_.name.intersect(name)) match {
       case Some(_) => throw ContextBuilderException.AlreadyDeclared()
       case _ =>
         val g = gen()
         val v = Value.OpenReference(g, typ)
-        ((layers.head :+ Binder(g, name, typ, true, v)) +: layers.tail, v)
+        (Layer.Terms(headTerms :+ Binder(g, name, typ, true, v)) +: layers.tail, v)
     }
   }
 
 
   def newAbstractions(pattern: Patt, typ: Value): (Self, Value, Pattern) = {
     val vvv = mutable.ArrayBuffer[Binder]()
-    def rec(p: Patt, @canrecur t: Value): (Value, Pattern) = {
+    def rec(p: Patt, t: Value): (Value, Pattern) = {
       p match {
         case Patt.Atom(name) =>
           var ret: (Value, Pattern) = null
@@ -111,9 +136,9 @@ trait ContextBuilder extends Context {
                 }
                 (Value.Make(vs.map(_._1)), Pattern.Make(vs.map(_._2)))
               } else {
-                throw new PatternExtractException.MakeWrongSize()
+                throw PatternExtractException.MakeWrongSize()
               }
-            case _ => throw new PatternExtractException.MakeIsNotRecordType()
+            case _ => throw PatternExtractException.MakeIsNotRecordType()
           }
         case Patt.NamedGroup(name, maps) =>
           t match {
@@ -129,17 +154,17 @@ trait ContextBuilder extends Context {
                     }
                     (Value.Construct(name, vs.map(_._1)), Pattern.Construct(name, vs.map(_._2)))
                   } else {
-                    throw new PatternExtractException.ConstructWrongSize()
+                    throw PatternExtractException.ConstructWrongSize()
                   }
                 case _ =>
-                  throw new PatternExtractException.ConstructUnknownName()
+                  throw PatternExtractException.ConstructUnknownName()
               }
-            case _ => throw new PatternExtractException.ConstructNotSumType()
+            case _ => throw PatternExtractException.ConstructNotSumType()
           }
       }
     }
     val (os, p) = rec(pattern, typ)
-    val ctx: Self = (layers.head ++ vvv) +: layers.tail
+    val ctx: Self = Layer.Terms(headTerms ++ vvv) +: layers.tail
     (ctx, os, p)
   }
 }

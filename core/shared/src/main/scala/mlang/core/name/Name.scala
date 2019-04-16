@@ -3,12 +3,16 @@ package mlang.core.name
 import mlang.core.utils.Text
 
 
+// you create names by giving a non empty text or by referring to `Name.empty`, you test them by using method defined
+// so an empty name is not something concerning the user of this class at all
 case class Name(main: Text) {
 
-  def intersect(name: Name): Boolean = name.main == main
-  def by(name: Text): Boolean = name == main
+  def intersect(name: Name): Boolean = this.main.nonEmpty && name.main.nonEmpty && name.main == main
+  def by(name: Text): Boolean = this.main.nonEmpty && name.nonEmpty && name == main
   def refSelf: Ref = main
 
+  // what's the difference? sometimes, during parsing, a name can be the same thing as a ref, so this tests
+  // if this name can actually representing a ref
   def asRef: Option[Ref] = Some(main)
 
 

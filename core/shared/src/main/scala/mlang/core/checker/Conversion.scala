@@ -10,6 +10,7 @@ import scala.util.{Success, Try}
 class Conversion {
 
 
+  // TODO seems this can be globally shared
   private val assumps = new mutable.HashMap[Long, mutable.Set[Long]] with mutable.MultiMap[Long, Long]
 
 
@@ -28,6 +29,7 @@ class Conversion {
 
   private val reduction = Reduction.Default
   private val gen: GenericGen = new GenericGen.Negative()
+  private val dgen: GenericGen = new GenericGen.Negative()
 
   private implicit def optToBool[T](opt: Option[T]): Boolean = opt.isDefined
 
@@ -97,6 +99,17 @@ class Conversion {
           l1 == l2 && l1 <= less && equalRecordFields(l1, n1, n2)
         case (Sum(l1, c1), Sum(l2, c2)) =>
           l1 == l2 && l1 <= less && c1.size == c2.size && c1.zip(c2).forall(p => equalConstructor(l1, p._1, p._2))
+        case (PathType(t1, l1, r1), PathType(t2, l2, r2)) =>
+          val a = t1(Value.Dimension.Constant(false))
+          val b = t2(Value.Dimension.Constant(false))
+          // we can call equal term here because we know tm1 and tm2 is well typed
+          if (equalType(less, a, b) && equalTerm(a, l1, l2)) {
+            val c = t1(Value.Dimension.Constant(true))
+            val d = t2(Value.Dimension.Constant(true))
+            equalType(less, c, d) && equalTerm(c, r1, r2)
+          } else {
+            false
+          }
         case (t1, t2) =>
           equalNeutral(t1, t2) match {
             case Some(Universe(l)) => l <= less
@@ -137,41 +150,25 @@ class Conversion {
       case (PatternStuck(l1, s1), PatternStuck(l2, s2)) =>
         equalNeutral(s1, s2).flatMap(n => {
           // TODO give an example why this is needed
-          if (equalTypeClosure(Int.MaxValue, n, l1.typ, l2.typ)
-              && (equalPatternLambdaOfSameTypeWithAssumptions(n, l1, l2))) {
+          if (equalTypeClosure(Int.MaxValue, n, l1.typ, l2.typ) && equalPatternLambdaOfSameTypeWithAssumptions(n, l1, l2)) {
             Some(l1.typ(n))
           } else {
             None
           }
         })
+      case (PathApplication(l1, d1), PathApplication(l2, d2)) =>
+        if (d1 == d2) {
+          equalNeutral(l1, l2).map(_ match {
+            case PathType(typ, _, _) =>
+              typ(d1)
+            case _ => throw new IllegalArgumentException("")
+          })
+        } else {
+          None
+        }
       case _ => None
     }
   }
-
-
-  def equalLambda(d: Value, cd: Closure, s1: Value, s2: Value): Boolean = {
-    // I think this implements eta rule
-    val c = OpenReference(gen(), d)
-    equalTerm(cd(c), s1.app(c, reduction), s2.app(c, reduction))
-  }
-
-  def equalMake(ns: Seq[RecordNode], m1: Value, m2: Value): Boolean = {
-    ns.zipWithIndex.foldLeft(Some(Seq.empty) : Option[Seq[Value]]) { (as0, pair) =>
-      as0 match {
-        case Some(as) =>
-          val mm = ns.map(_.name.refSelf).zip(as).toMap
-          val nm = pair._1.closure(pair._1.dependencies.map(mm))
-          if (equalTerm(nm, m1.project(pair._2, reduction), m2.project(pair._2, reduction))) {
-            Some(as :+ nm)
-          } else {
-            None
-          }
-        case None =>
-          None
-      }
-    }
-  }
-
 
   def equalCases(domain: Value, codomain: Value.Closure, c1: Seq[Case], c2: Seq[Case]): Boolean = {
     c1.size == c2.size && c1.zip(c2).forall(pair => {
@@ -188,16 +185,32 @@ class Conversion {
   /**
     * it is REQUIRED that t1 and t2 indeed has that type!!!!
     */
-  private def equalTerm(typ: Value, t1: Value, t2: Value): Boolean = {
+  def equalTerm(typ: Value, t1: Value, t2: Value): Boolean = {
     if (t1.eq(t2)) {
       true
     } else {
       (typ, t1, t2) match {
         case (Function(d, cd), s1, s2) =>
-          // I think this implements eta rule?
-          equalLambda(d, cd, s1, s2)
-        case (Record(_, ns), v1, v2) =>
-          equalMake(ns, v1, v2)
+          val c = OpenReference(gen(), d)
+          equalTerm(cd(c), s1.app(c, reduction), s2.app(c, reduction))
+        case (PathType(typ, _, _), s1, s2) =>
+          val c = Dimension.OpenReference(dgen())
+          equalTerm(typ(c), s1.papp(c, reduction), s2.papp(c, reduction))
+        case (Record(_, ns), m1, m2) =>
+          ns.zipWithIndex.foldLeft(Some(Seq.empty) : Option[Seq[Value]]) { (as0, pair) =>
+            as0 match {
+              case Some(as) =>
+                val mm = ns.map(_.name.refSelf).zip(as).toMap
+                val nm = pair._1.closure(pair._1.dependencies.map(mm))
+                if (equalTerm(nm, m1.project(pair._2, reduction), m2.project(pair._2, reduction))) {
+                  Some(as :+ nm)
+                } else {
+                  None
+                }
+              case None =>
+                None
+            }
+          }
         case (Sum(_, cs), Construct(n1, v1), Construct(n2, v2)) =>
           n1 == n2 && cs.find(_.name == n1).exists(c => {
             assert(c.nodes.size == v1.size && v2.size == v1.size)

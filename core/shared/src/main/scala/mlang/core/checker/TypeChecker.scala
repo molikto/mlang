@@ -29,23 +29,34 @@ object TypeCheckException {
   case class UnknownAsType() extends TypeCheckException
   case class UnknownProjection() extends TypeCheckException
   case class UnknownAsFunction() extends TypeCheckException
+  case class UnknownAsPathType() extends TypeCheckException
 
   case class CheckingAgainstNonFunction() extends TypeCheckException
 
+  case class CheckingAgainstNonPathFunction() extends TypeCheckException
+
   case class CannotInferLambda() extends TypeCheckException
   case class CannotInferReturningTypeWithPatterns() extends TypeCheckException
+  case class CannotInferPathLambda() extends TypeCheckException
+
 
   case class TypeMismatch() extends TypeCheckException
 
   case class ForbiddenModifier() extends TypeCheckException
 
   case class DeclarationWithoutDefinition(name: Name) extends TypeCheckException
+
+  case class ExpectingTermButFoundDimension() extends TypeCheckException
+
+  case class ApplyingToNonDimension() extends TypeCheckException
+
+  case class PathEndPointsNotMatching() extends TypeCheckException
 }
 
 
 object TypeChecker {
   private val gen = new GenericGen.Positive()
-  val empty = new TypeChecker(Seq(Seq.empty))
+  val empty = new TypeChecker(Seq(Layer.Terms(Seq.empty)))
 }
 
 class TypeChecker private (protected override val layers: Layers) extends ContextBuilder with BaseEvaluator with PlatformEvaluator {
@@ -63,6 +74,8 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
         // should lookup always return a value? like a open reference?
         val (Binder(_, _, t, _, _), abs) = lookup(name)
         (t, abs)
+      case Term.ConstantDimension(i) =>
+        throw ContextException.ConstantSortWrong()
       case Term.Cast(v, t) =>
         val (_, ta) = inferLevel(t)
         val tv = eval(ta)
@@ -97,12 +110,36 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
         val fs = constructors.map(c => newLayer().newLayer().inferLevel(c.term))
         val fl = fs.map(_._1).max
         (Value.Universe(fl), Abstract.Sum(fl, fs.map(_._2.map(_._2)).zip(constructors).map(a => Abstract.Constructor(a._2.name, a._1))))
+      case t@Term.PathType(typ, left, right) =>
+        typ match {
+          case Some(tp) =>
+            tp._1 match {
+              case None =>
+                val ctx = newLayer()
+                val (tl, ta) = ctx.inferLevel(tp._2)
+                val tv = ctx.eval(ta)
+                val la = check(left, tv)
+                val ra = check(right, tv)
+                (Value.Universe(tl), Abstract.PathType(ta, la, ra))
+              case Some(n) =>
+                val ctx = newDimension(n)._1
+                val (tl, ta) = ctx.inferLevel(tp._2)
+                val tv = ctx.eval(Abstract.PathLambda(ta))
+                val la = check(left, tv.papp(Value.Dimension.Constant(false)))
+                val ra = check(right, tv.papp(Value.Dimension.Constant(true)))
+                (Value.Universe(tl), Abstract.PathType(ta, la, ra))
+            }
+          case None =>
+            throw new IllegalStateException("Not implemneted yet")
+        }
       case Term.PatternLambda(_) =>
         // TODO inferring the type of a lambda, the inferred type might not have the same branches as the lambda itself
         throw TypeCheckException.CannotInferReturningTypeWithPatterns()
       case Term.Lambda(_, _) =>
         // TODO inferring the type of a lambda, the inferred type might not have the same branches as the lambda itself
         throw TypeCheckException.CannotInferLambda()
+      case Term.PathLambda(_, _) =>
+        throw TypeCheckException.CannotInferPathLambda()
       case Term.Projection(left, right) =>
         val (lt, la) = infer(left)
         val lv = eval(la)
@@ -124,13 +161,29 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
           case _ => error()
         }
       case Term.Application(lambda, arguments) =>
-        if (arguments.size == 0) throw TypeCheckException.EmptyArguments()
+        if (arguments.isEmpty) throw TypeCheckException.EmptyArguments()
         val (lt, la) = infer(lambda)
         inferApplication(lt, la, arguments)
       case Term.Let(declarations, in) =>
         val (ctx, da, order) = newLayer().checkDeclarations(declarations)
         val (it, ia) = ctx.infer(in)
         (it, Abstract.Let(da, order, ia))
+      case Term.PathApplication(let, r) =>
+        val dim = r match {
+          case Term.Reference(name) =>
+            val (v, a) = lookupDimension(name)
+            (v.value, a)
+          case Term.ConstantDimension(i) =>
+            (Value.Dimension.Constant(i), Abstract.Dimension.Constant(i))
+          case _ => throw TypeCheckException.ApplyingToNonDimension()
+        }
+        val (lt, la) = infer(let)
+        lt match {
+          case Value.PathType(typ, _, _) =>
+            (typ(dim._1), Abstract.PathApplication(la, dim._2))
+          case _ => throw TypeCheckException.UnknownAsPathType()
+        }
+
     }
     debug(s"infer result ${res._2}")
     res
@@ -153,7 +206,7 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
     }
   }
 
-  private def inferApplication(@canrecur lt: Value, la: Abstract, arguments: Seq[Term]): (Value, Abstract) = {
+  private def inferApplication(lt: Value, la: Abstract, arguments: Seq[Term]): (Value, Abstract) = {
     arguments match {
       case head +: tail =>
         lt match {
@@ -178,20 +231,20 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
 
   }
 
-  def hintCodomain(hint: Option[Abstract]):Option[Abstract] = hint match {
+  private def hintCodomain(hint: Option[Abstract]):Option[Abstract] = hint match {
     case Some(Abstract.Function(_, b)) => Some(b)
     case _ => None
   }
 
   private def check(
       term: Term,
-      @canrecur cp: Value,
+      cp: Value,
       lambdaNameHints: Option[Seq[Name.Opt]] = None,
       lambdaFunctionCodomainHint: Option[Abstract] = None
   ): Abstract = {
     debug(s"check $term")
     val (hint, tail) = lambdaNameHints match {
-      case Some(head +: tail) => (head, Some(tail))
+      case Some(head +: tl) => (head, Some(tl))
       case _ => (None, None)
     }
     val res = term match {
@@ -213,6 +266,24 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
             }))
           case _ => throw TypeCheckException.CheckingAgainstNonFunction()
         }
+      case Term.PathLambda(name, term) =>
+        cp match {
+          case Value.PathType(typ, left, right) =>
+            val (c1, dv) = newDimension(name.getOrElse(Name.empty))
+            val t1 = typ(dv)
+            import Value.Dimension._
+            val a1 = c1.check(term, t1)
+            val ps = Abstract.PathLambda(a1)
+            val pv = eval(ps)
+            val leftEq = new Conversion().equalTerm(typ(Constant(false)), pv.papp(Constant(false)), left)
+            val rightEq = new Conversion().equalTerm(typ(Constant(true)), pv.papp(Constant(true)), right)
+            if (leftEq && rightEq) {
+              ps
+            } else {
+              throw TypeCheckException.PathEndPointsNotMatching()
+            }
+          case _ => throw TypeCheckException.CheckingAgainstNonPathFunction()
+        }
       case _ =>
         checkFallback(term, cp)
     }
@@ -224,7 +295,7 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
   private def checkDeclaration(s: Declaration, abs: mutable.ArrayBuffer[DefinitionInfo]): Self = {
     s match {
       case Declaration.DefineInferred(name, ms, v) =>
-        val index = layers.head.indexWhere(_.name == name)
+        val index = headTerms.indexWhere(_.name == name)
         if (index < 0) {
           val (vt, va) = infer(v)
           val ctx = newDeclaration(name, vt)
@@ -232,7 +303,7 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
           abs.append(DefinitionInfo(name, vt, va, None))
           ctx
         } else {
-          val b = layers.head(index)
+          val b = headTerms(index)
           val va = check(v, b.typ, None, hintCodomain(abs(index).typCode))
           debug(s"declared $name")
           abs.update(index, DefinitionInfo(name, b.typ, va, abs(index).typCode))
@@ -313,7 +384,7 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
         }
       }
     }
-    assert(abs.size == ctx.layers.head.size)
+    assert(abs.size == ctx.headTerms.size)
     abs.foreach(f => {
       if (f.code == null) {
         throw TypeCheckException.DeclarationWithoutDefinition(f.name)
@@ -327,7 +398,7 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
     var ctx = this
     var l = 0
     val fas = terms.flatMap(f => {
-      val fs = (if (f.names.isEmpty) Seq(Name.empty) else f.names)
+      val fs = if (f.names.isEmpty) Seq(Name.empty) else f.names
       fs.map(n => {
         val (fl, fa) = ctx.inferLevel(f.ty)
         l = l max fl

@@ -32,7 +32,7 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
   }
 
   lexical.reserved ++= List("case", "as", "field", "ignored", "define", "declare", "match", "make", "record", "type", "sum", "inductively", "with_constructors") ++ Primitives.keys
-  lexical.delimiters ++= List("{", "}", "[", "]", ":", ",", "(", ")", "─", "┬", "┌", "⊏", "└", "├", "⇒", "→", "+", "-", ";", "=", "@", "\\", ".")
+  lexical.delimiters ++= List("{", "}", "[", "]", ":", ",", "(", ")", "≡", "─", "┬", "↪", "┌", "⊏", "└", "├", "⇒", "→", "+", "-", ";", "=", "@", "\\", ".")
 
   def delimited[T](a: String, t: Parser[T], b: String): Parser[T] = a ~> t <~ b
 
@@ -79,13 +79,23 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
         pi |
         ascription |
         lambda |
+        pathLambda |
         patternLambda |
-        app|
+        app |
+       pathApp |
+        pathType |
         record |
         projection |
         sum |
         universe |
+        absDimension |
         ident ^^ {a => Reference(a)}
+
+
+  lazy val absDimension: PackratParser[Term] = numericLit  ^^ { i => Term.ConstantDimension(if (i == "0") false else if (i == "1") true else throw new Exception("...")) }
+
+
+  lazy val pathApp: PackratParser[Term] = term ~ delimited("[", term, "]") ^^ {a => PathApplication(a._1, a._2)}
 
   lazy val ascription: PackratParser[Cast] = delimited("(", (term <~ keyword("as")) ~ term, ")") ^^ {a => Cast(a._1, a._2)}
 
@@ -95,6 +105,14 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
   lazy val atomicPattern: PackratParser[Name.Opt] = "─" ^^ {_ => None: Option[Name]} | ident ^^ { a =>
     Some(Name(Text(a)))
   }
+
+  lazy val pathType: PackratParser[PathType] = term ~ ("≡" ~> opt(delimited("(", pathLambdaData,")")) ~ term) ^^ {a =>
+    PathType(a._2._1.map(p => (p._1, p._2)), a._1, a._2._2)
+  }
+
+  lazy val pathLambdaData: PackratParser[Name.Opt ~ Term] = atomicPattern ~ ("↪" ~> term)
+
+  lazy val pathLambda: PackratParser[PathLambda] = pathLambdaData ^^ {a => PathLambda(a._1, a._2) }
 
   lazy val lambda: PackratParser[Lambda] = atomicPattern ~ ("→" ~> term) ^^ {a => Lambda(a._1, a._2) }
 
@@ -125,6 +143,7 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
   lazy val patternLambda : PackratParser[Term] =  "─" ~> patternContinue ^^ { a => Term.Lambda(None, a) } |  patternCases
 
   lazy val app: PackratParser[Application] = term ~ delimited("(", repsep(term, ","), ")") ^^ {a => Application(a._1, a._2)}
+
 
   lazy val record: PackratParser[Record] = keyword("record") ~> delimited("{", rep(((keyword("field") ~> rep1(ident) <~ ":") ~ term) ^^ {a => NameType(a._1.map(k => Name(Text(k))), a._2)}), "}") ^^ {a => Record(a) }
 
