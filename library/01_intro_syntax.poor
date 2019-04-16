@@ -37,10 +37,10 @@ define plus2:
   ─     ┌ zero    → a
         └ suc(m)  → plus2(nat.suc(a), m)
 
-define plus_pointwise:
- (a: nat) ⇒ plus(a) ≡(─ ↪ nat) plus2(a) =
-┌ 
-└
+//define plus_pointwise:
+// (a: nat) ⇒ plus(a) ≡(─ ↪ nat) plus2(a) =
+//┌
+//└
 
 define plus_defined_twice:
  (a       b: nat) ⇒ nat =
@@ -56,7 +56,7 @@ define fun_ext:
  (a: type, b: a ⇒ type, f g: (x: a) ⇒ b(x), p: (x: a) ⇒ f(x) ≡(─ ↪ b(x)) g(x)) ⇒ f ≡(─ ↪ (x: a) ⇒ b(x)) g =
   ─        ─            ─ ─                 ─                                  → i ↪ x → p(x)[i]
 
-define path_plus12: plus ≡(─ ↪ nat ⇒ nat) plus2 = fun_ext(nat, ─ → nat, plus, plus2,
+//define path_plus12: plus ≡(─ ↪ nat ⇒ nat) plus2 = fun_ext(nat, ─ → nat, plus, plus2,
 
 define multi:
  (a       b: nat) ⇒ nat =
