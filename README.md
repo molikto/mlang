@@ -4,6 +4,12 @@
 [![Join the chat at https://gitter.im/mlang-discuess/community](https://badges.gitter.im/mlang-discuess/community.svg)](https://gitter.im/mlang-discuess/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
 
+* main blocking problems
+    * how the "terrible way" of implementing face restrictions done
+         * how to implement if efficiently?
+    * interval and extension types: are they Kan? do we need a multi sort system?
+    * read more code, is the idea of "implicit argument on the right" enough for most cases?
+
 * when you are not sure, implement the one that is 1. easy to implement 2. restricted 3. enough for now
 
 * roadmap
@@ -12,7 +18,6 @@
     * ~~mutual recursive functions~~
     * ~~conversion check with eta and recursive definitions~~
     * cubical features
-        * ~~path~~
         * coe
         * com
         * univalance
@@ -25,6 +30,7 @@
     * user defined eliminations
     * implicit arguments
     * implicit conversions
+        * user defined implicit form
     * record calculus
     * more recursive types
         * inductive families of two flavor
@@ -42,6 +48,9 @@
     * universe polymorphism
     * coinductive types
     
+* read cubical agda code
+    * is our schema of implicit variables useful?
+    * is sort needed, what syntax for cubical is good?
 
 ## internals
 
