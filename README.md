@@ -13,10 +13,10 @@
 * when you are not sure, implement the one that is 1. easy to implement 2. restricted 3. enough for now
 
 * roadmap
-    * ~~totally unsafe basics~~
-    * ~~basic syntax and parser~~
-    * ~~mutual recursive functions~~
-    * ~~conversion check with eta and recursive definitions~~
+    * DONE: totally unsafe MLTT basics
+        * bidirectional elaborating type checker with mutual recursive definitions
+        * type directed conversion check with eta and recursive definitions
+        * basic `.poor` syntax and parser
     * cubical features
         * coe
         * com
