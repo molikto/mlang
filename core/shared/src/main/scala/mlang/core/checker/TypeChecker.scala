@@ -348,7 +348,7 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
 
   }
 
-  private def checkDeclarations(seq: Seq[Declaration]): (Self, Seq[Abstract.Let.Item], Seq[Set[Int]]) = {
+  private def checkDeclarations(seq: Seq[Declaration]): (Self, Seq[Abstract], Seq[Set[Int]]) = {
     // how to handle mutual recursive definitions, calculate strong components
     var ctx = this
     val abs = new mutable.ArrayBuffer[DefinitionInfo]()
@@ -402,7 +402,7 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
         throw TypeCheckException.DeclarationWithoutDefinition(f.name)
       }
     })
-    (ctx, abs.map(a => Abstract.Let.Item(a.code, a.typCode)), definitionOrder)
+    (ctx, abs.map(a => a.code), definitionOrder)
   }
 
 

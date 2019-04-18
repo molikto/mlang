@@ -30,7 +30,7 @@ trait PlatformEvaluator extends BaseEvaluator {
             if (up == depth + 1 && recursivelyDefining.contains(index)) {
               // eval recursive, this deref happens under a closure, so it will have a value
               assert(closed == 1)
-              s"RecursiveReference(rs($index)._1, rs($index)._2).deref(r)"
+              s"RecursiveReference(rs($index)).deref(r)"
             } else {
               // this is a value inside the context
               assert((up == depth + 1 && closed == 0) || closed == -1)
@@ -39,7 +39,7 @@ trait PlatformEvaluator extends BaseEvaluator {
           } else {
             // a reference inside the emit context
             if (closed == 1) {
-              s"RecursiveReference(r${depth - up}($index).value, r${depth - up}($index).typ.get).deref(r)"
+              s"RecursiveReference(r${depth - up}($index)).deref(r)"
             } else if (closed == 0) {
               // reference to a value directly
               s"Reference(r${depth - up}($index)).deref(r)"
@@ -50,10 +50,10 @@ trait PlatformEvaluator extends BaseEvaluator {
           }
         case Abstract.Let(definitions, order, in) =>
           val d = depth + 1
-          s"{val r$d = new scala.collection.mutable.ArrayBuffer[Let.Item](); " +
+          s"{val r$d = new scala.collection.mutable.ArrayBuffer[Value](); " +
           s"for (_ <- 0 until ${definitions.size}) r$d.append(null); " +
           s"${order.flatten.map(a =>
-            s"r$d.update($a, Let.Item(${emit(definitions(a).value, d)}, ${definitions(a).typ.map(j => "Some(" + emit(j, d) + ")").getOrElse("None")}))"
+            s"r$d.update($a, ${emit(definitions(a), d)})"
           ).mkString("; ")}; " +
           s"val body = ${emit(in, d)}; " +
           s"Let(r$d, body).delet(r)" +
@@ -115,7 +115,7 @@ trait PlatformEvaluator extends BaseEvaluator {
   }
   protected def platformEvalRecursive(terms: Map[Int, (Abstract, Value)], reduction: Reduction): Map[Int, Value] = {
     val emitter = new Emitter(terms.keySet)
-    val rr = new scala.collection.mutable.ArrayBuffer[(Value, Value)]()
+    val rr = new scala.collection.mutable.ArrayBuffer[Value]()
     for (_ <- 0 to terms.keySet.max) rr.append(null)
     for (t <- terms) {
       val res = emitter.emit(t._2._1, -1)
@@ -125,9 +125,9 @@ trait PlatformEvaluator extends BaseEvaluator {
       debug("==================")
       debug(res)
       debug("==================")
-      rr.update(t._1, (extractFromHolder(compile[Holder](src), reduction, rr), t._2._2))
+      rr.update(t._1, extractFromHolder(compile[Holder](src), reduction, rr))
     }
-    Map.empty ++ terms.transform((f, _) => rr(f)._1)
+    Map.empty ++ terms.transform((f, _) => rr(f))
   }
 
   private def holderSrc(res: String): String = {
@@ -139,7 +139,7 @@ trait PlatformEvaluator extends BaseEvaluator {
          |
          |
          |new Holder {
-         |  def value(ctx: Context, r: Reduction, rs: Seq[(Value, Value)], vs: Seq[Value], cs: Seq[Closure], ps: Seq[Pattern]) = $res
+         |  def value(ctx: Context, r: Reduction, rs: Seq[Value], vs: Seq[Value], cs: Seq[Closure], ps: Seq[Pattern]) = $res
          |}
        """.stripMargin
   }

@@ -4,7 +4,7 @@ import scala.collection.mutable
 
 
 trait Holder {
-  def value(c: Context, r: Reduction, rr: Seq[(Value, Value)], vs: Seq[Value], cs: Seq[Value.Closure], ps: Seq[Pattern]): Value
+  def value(c: Context, r: Reduction, rr: Seq[Value], vs: Seq[Value], cs: Seq[Value.Closure], ps: Seq[Pattern]): Value
 }
 
 trait BaseEvaluator extends Context {
@@ -14,7 +14,7 @@ trait BaseEvaluator extends Context {
   private val cs = mutable.ArrayBuffer[Value.Closure]()
   private val ps = mutable.ArrayBuffer[Pattern]()
 
-  protected def extractFromHolder(h: Holder, reduction: Reduction, map: Seq[(Value, Value)]): Value = {
+  protected def extractFromHolder(h: Holder, reduction: Reduction, map: Seq[Value]): Value = {
     val res = h.value(this, reduction, map, Seq.empty ++ vs, Seq.empty ++ cs, Seq.empty ++ ps)
     vs.clear()
     cs.clear()

@@ -7,8 +7,11 @@
 * main blocking problems
     * how the "terrible way" of implementing face restrictions done
          * how to implement if efficiently?
-    * interval and extension types: are they Kan? do we need a multi sort system?
     * read more code, is the idea of "implicit argument on the right" enough for most cases?
+    * why redtt has cumulative universes?? how??
+    
+* read cubical agda code
+    * is our schema of implicit variables useful?
 
 * when you are not sure, implement the one that is 1. easy to implement 2. restricted 3. enough for now
 
@@ -18,6 +21,7 @@
         * type directed conversion check with eta and recursive definitions
         * basic `.poor` syntax and parser
     * cubical features
+        * extension types (they are Kan; interval "type" is a syntax sugar)
         * coe
         * com
         * univalance
@@ -28,9 +32,9 @@
         * unannotated path type
         * error reporting (seems not hard!)
     * user defined eliminations
-    * implicit arguments
-    * implicit conversions
+    * implicit arguments on the right
         * user defined implicit form
+    * implicit conversions
     * record calculus
     * more recursive types
         * inductive families of two flavor
@@ -47,10 +51,9 @@
         * modules and compile unit
     * universe polymorphism
     * coinductive types
+    * is [this](https://arend.readthedocs.io/en/latest/language-reference/definitions/hits/#conditions) sound?
     
-* read cubical agda code
-    * is our schema of implicit variables useful?
-    * is sort needed, what syntax for cubical is good?
+    
 
 ## internals
 
@@ -115,6 +118,19 @@ it seems to me Agda and Mini-TT handles the problem of readback recursive defini
 
 
 it is extended in our case, by also allowing the id to be different, but as an assumption see `Conversion.scala`
+
+
+## implicit on the right
+
+problems:
+
+* cannot handle `refl`, or any other that don't already contains the information
+* how to define `reverse`?
+    * type predicate `project list(/a/).reverse = `
+    * value predicate
+    * `\a\≡_{x ⇒ \A[x]\}\b\.reverse = `
+cong: `f: /A/ ⇒ /B[A]/, p: /x/ ≡_A /y/, f(x) ≡B(p) f(y)`
+
 
 ## math
 

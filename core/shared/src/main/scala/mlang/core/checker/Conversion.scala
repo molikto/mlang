@@ -130,8 +130,6 @@ class Conversion {
         } else {
           None
         }
-//      case (Application(RecursiveReference(v1, t1), a1), Application(RecursiveReference(v2, t2), a2)) =>
-//        assumptions
       case (Application(l1, a1), Application(l2, a2)) =>
         equalNeutral(l1, l2).flatMap {
           case Function(d, c) =>

@@ -130,7 +130,7 @@ object Value {
 
   // TODO remove typ? what about infer?
   // the var is a total hack!! but it is very beautiful!!!
-  case class RecursiveReference(value: Value, typ: Value) extends ClosedReference {
+  case class RecursiveReference(value: Value) extends ClosedReference {
     debug("recursive reference created")
   }
   case class Reference(value: Value) extends ClosedReference

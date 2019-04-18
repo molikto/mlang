@@ -37,8 +37,7 @@ sealed trait Abstract {
       sum.markRecursive(i, c)
     case Let(definitions, _, in) =>
       definitions.foreach(a => {
-        a.value.markRecursive(i + 1, c)
-        a.typ.foreach(_.markRecursive(i + 1, c))
+        a.markRecursive(i + 1, c)
       })
       in.markRecursive(i + 1, c)
     case PatternLambda(_, cd, cases) =>
@@ -65,8 +64,7 @@ sealed trait Abstract {
     case Projection(left, _) => left.dependencies(i)
     case Sum(_, constructors) => constructors.flatMap(_.params.flatMap(_.dependencies(i + 2))).toSet
     case SumMaker(sum, _) => sum.dependencies(i)
-    case Let(definitions, _, in) => definitions.flatMap(a =>
-      a.value.dependencies(i + 1) ++ a.typ.map(_.dependencies(i + 1)).getOrElse(Set.empty)).toSet ++ in.dependencies(i + 1)
+    case Let(definitions, _, in) => definitions.flatMap(a => a.dependencies(i + 1)).toSet ++ in.dependencies(i + 1)
     case PatternLambda(_, cd, cases) => cd.dependencies(i + 1) ++ cases.flatMap(_.body.dependencies(i + 1)).toSet
     case PathLambda(body) => body.dependencies(i + 1)
     case PathType(typ, left, right) => typ.dependencies(i + 1) ++ left.dependencies(i) ++ right.dependencies(i)
@@ -98,10 +96,7 @@ object Abstract {
 
   case class SumMaker(sum: Abstract, field: Int) extends Abstract
 
-  object Let {
-    case class Item(value: Abstract, typ: Option[Abstract])
-  }
-  case class Let(definitions: Seq[Let.Item], order: Seq[Set[Int]], in: Abstract) extends Abstract
+  case class Let(definitions: Seq[Abstract], order: Seq[Set[Int]], in: Abstract) extends Abstract
 
   case class Case(pattern: Pattern, body: Abstract)
   case class PatternLambda(id: Generic, typ: Abstract, cases: Seq[Case]) extends Abstract {
