@@ -14,6 +14,18 @@ define id:
  (a: type, x: a) ⇒ a =
   ─        ─     → x
 
+
+define err: type = record {
+  field a: err
+}
+
+/* this loops, just like Agda, eta for recursive record, maybe we should mark non-guarded records and just say they are empty
+define test_err:
+ (a b: err) ⇒ a ≡(─ ↪ err) b =
+  ─ ─       → ─ ↪ a
+*/
+
+
 define bool = sum { case true false }
 
 define list: (a: type) ⇒ type = a → sum {

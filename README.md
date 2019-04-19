@@ -7,51 +7,46 @@
 * main blocking problems
     * how the "terrible way" of implementing face restrictions done
          * how to implement if efficiently?
-    * read more code, is the idea of "implicit argument on the right" enough for most cases?
-    * why redtt has cumulative universes?? how??
     
-* read cubical agda code
-    * is our schema of implicit variables useful?
-
-* when you are not sure, implement the one that is 1. easy to implement 2. restricted 3. enough for now
-
 * roadmap
-    * DONE: totally unsafe MLTT basics
+    * **DONE** totally unsafe MLTT basics
+        * function types with eta, record types with eta, inductive types, 
         * bidirectional elaborating type checker with mutual recursive definitions
         * type directed conversion check with eta and recursive definitions
         * basic `.poor` syntax and parser
-    * cubical features
-        * extension types (they are Kan; interval "type" is a syntax sugar)
-        * coe
-        * com
-        * univalance
-        * hit
+    * separate elaborator and type checker
+    * extension types (they are Kan; interval "type" is a syntax sugar)
     * reify
         * "maker" values
         * local unannotated pattern
         * unannotated path type
         * error reporting (seems not hard!)
+    * implicit arguments on the right: *at least I think it is useful, and also it can be seen as a subset of implicit arguments a la Agda, so no harm implementing at all*
+    * cubical features
+        * coe
+        * com
+        * univalance
+        * hit
     * user defined eliminations
-    * implicit arguments on the right
         * user defined implicit form
     * implicit conversions
     * record calculus
+    * small features
+        * HTML pretty print
+        * naming shadowing
+    * **SOUNDNESS** positivity checker
+    * **SOUNDNESS** coverage checker
+    * **SOUNDNESS** termination checking
     * more recursive types
         * inductive families of two flavor
         * inductive-inductive
         * inductive-recursive
-    * small features
-        * HTML pretty print
-        * naming shadowing
-    * positivity checker
-    * coverage checker
         * overlapping patterns
-    * termination checking
+        * is [this](https://arend.readthedocs.io/en/latest/language-reference/definitions/hits/#conditions) sound?
     * structural editor
         * modules and compile unit
-    * universe polymorphism
+    * universe polymorphism: do we want Agda style (no cumulative), or redtt style, or Coq style?
     * coinductive types
-    * is [this](https://arend.readthedocs.io/en/latest/language-reference/definitions/hits/#conditions) sound?
     
     
 
@@ -124,12 +119,13 @@ it is extended in our case, by also allowing the id to be different, but as an a
 
 problems:
 
-* cannot handle `refl`, or any other that don't already contains the information
+* special handle for `refl`
 * how to define `reverse`?
     * type predicate `project list(/a/).reverse = `
     * value predicate
     * `\a\≡_{x ⇒ \A[x]\}\b\.reverse = `
 cong: `f: /A/ ⇒ /B[A]/, p: /x/ ≡_A /y/, f(x) ≡B(p) f(y)`
+* how to make inductive type parameters injective?
 
 
 ## math
