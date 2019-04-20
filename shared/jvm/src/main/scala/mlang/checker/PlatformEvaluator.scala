@@ -133,8 +133,8 @@ trait PlatformEvaluator extends BaseEvaluator {
   private def holderSrc(res: String): String = {
       s"""
          |import mlang.name.Name
-         |import mlang.checker._
-         |import mlang.checker.Value._
+         |import mlang.core._
+         |import mlang.core.Value._
          |import mlang.utils.Text
          |
          |

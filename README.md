@@ -8,32 +8,36 @@
     * how the "terrible way" of implementing face restrictions done
          * how to implement if efficiently?
     
-* roadmap
-    * **DONE** totally unsafe MLTT basics
-        * function types with eta, record types with eta, inductive types, 
-        * bidirectional elaborating type checker with mutual recursive definitions
-        * type directed conversion check with eta and recursive definitions
-        * basic `.poor` syntax and parser
-    * separate elaborator and type checker
-    * extension types (they are Kan; interval "type" is a syntax sugar)
-    * reify
-        * "maker" values
-        * local unannotated pattern
-        * unannotated path type
-        * error reporting (seems not hard!)
-    * implicit arguments on the right: *at least I think it is useful, and also it can be seen as a subset of implicit arguments a la Agda, so no harm implementing at all*
+ * roadmap
+     * **DONE** totally unsafe MLTT basics
+         * function types with eta, record types with eta, inductive types, 
+         * bidirectional elaborating type checker with mutual recursive definitions
+         * type directed conversion check with eta and recursive definitions
+         * basic `.poor` syntax and parser
     * cubical features
+        * **QUESTION** path? extension? (they are Kan; interval "type" is a syntax sugar). also they seems to requires sub-typing
         * coe
-        * com
-        * univalance
-        * hit
-    * user defined eliminations
+        * com -- restrict operator
+     * reify
+         * "maker" values
+         * local unannotated pattern
+         * unannotated path type
+         * error reporting (seems not hard!)
+    * syntax sugars
+    * implicit arguments on the right: *at least I think it is useful, and also it can be seen as a subset of implicit arguments a la Agda, so no harm implementing at all*
+         * **QUESTION** what's the problem of unification under restricted context?
+    * ~~~~~~~~~~
+    * more cubical features
+         * univalance
+         * hit
+   * user defined eliminations
         * user defined implicit form
     * implicit conversions
     * record calculus
     * small features
         * HTML pretty print
         * naming shadowing
+        * non-dependent closures
     * **SOUNDNESS** positivity checker
     * **SOUNDNESS** coverage checker
     * **SOUNDNESS** termination checking

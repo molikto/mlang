@@ -3,6 +3,7 @@ package mlang.core
 import mlang.concrete.{Pattern => Patt, _}
 import Context._
 import mlang.name._
+import mlang.utils
 import mlang.utils.debug
 
 import scala.collection.mutable
@@ -81,7 +82,7 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
         (tv, check(v, tv))
       case Term.Function(domain, codomain) =>
         if (domain.isEmpty) throw TypeCheckException.EmptyTelescope()
-        val (l, v) = inferFunction(NameType.flatten(domain), codomain)
+        val (l, v) = inferTelescope(NameType.flatten(domain), codomain)
         (Value.Universe(l), v)
       case r@Term.Record(fields) =>
         // TODO calculate real record dependencies
@@ -200,7 +201,7 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
     }
   }
 
-  private def inferFunction(domain: NameType.FlatSeq, codomain: Term): (Int, Abstract) = {
+  private def inferTelescope(domain: NameType.FlatSeq, codomain: Term): (Int, Abstract) = {
     domain match {
       case head +: tail =>
         val (dl, da) = inferLevel(head._2)
@@ -210,10 +211,11 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
             ctx = ctx.newAbstraction(n, eval(da))._1
           case _ =>
         }
-        val (cl, ca) = ctx.inferFunction(tail, codomain)
+        val (cl, ca) = ctx.inferTelescope(tail, codomain)
         (dl max cl, Abstract.Function(da, ca))
       case Seq() =>
-        inferLevel(codomain)
+        val (l, a) = inferLevel(codomain)
+        (l, a)
     }
   }
 
@@ -235,13 +237,6 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
     }
   }
 
-  private def checkFallback(term: Term, cp: Value): Abstract = {
-    val (tt, ta) = infer(term)
-    if (Conversion.equalType(Int.MaxValue, tt, cp)) ta
-    else throw TypeCheckException.TypeMismatch()
-
-  }
-
   private def hintCodomain(hint: Option[Abstract]):Option[Abstract] = hint match {
     case Some(Abstract.Function(_, b)) => Some(b)
     case _ => None
@@ -250,13 +245,13 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
   private def check(
       term: Term,
       cp: Value,
-      lambdaNameHints: Option[Seq[Name.Opt]] = None,
+      lambdaNameHints: Seq[Name.Opt] = Seq.empty,
       lambdaFunctionCodomainHint: Option[Abstract] = None
   ): Abstract = {
     debug(s"check $term")
     val (hint, tail) = lambdaNameHints match {
-      case Some(head +: tl) => (head, Some(tl))
-      case _ => (None, None)
+      case head +: tl => (head, tl)
+      case _ => (None, Seq.empty)
     }
     val res = term match {
       case Term.Lambda(n, body) =>
@@ -296,48 +291,55 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
           case _ => throw TypeCheckException.CheckingAgainstNonPathFunction()
         }
       case _ =>
-        checkFallback(term, cp)
+        val (tt, ta) = infer(term)
+        if (Conversion.equalType(Int.MaxValue, tt, cp)) ta
+        else throw TypeCheckException.TypeMismatch()
     }
     debug(s"check result $res")
     res
   }
 
-
   private def checkDeclaration(s: Declaration, abs: mutable.ArrayBuffer[DefinitionInfo]): Self = {
+    def wrapBody(t: Term, n: Int): Term = if (n == 0) t else wrapBody(Term.Lambda(None, t), n - 1)
     s match {
-      case Declaration.DefineInferred(name, ms, v) =>
-        val index = headTerms.indexWhere(_.name == name)
-        if (index < 0) {
-          val (vt, va) = infer(v)
-          val ctx = newDeclaration(name, vt)
-          debug(s"declared $name")
-          abs.append(DefinitionInfo(name, vt, va, None))
-          ctx
-        } else {
-          val b = headTerms(index)
-          val va = check(v, b.typ, None, hintCodomain(abs(index).typCode))
-          debug(s"declared $name")
-          abs.update(index, DefinitionInfo(name, b.typ, va, abs(index).typCode))
-          this
+      case Declaration.Define(ms, name, ps, t0, v) =>
+        t0 match {
+          case Some(t) =>
+            debug(s"check define $name")
+            val pps = NameType.flatten(ps)
+            val (_, ta) = inferTelescope(pps, t)
+            val tv = eval(ta)
+            val lambdaNameHints = pps.map(_._1) ++(t match {
+              case Term.Function(d, _) =>
+                NameType.flatten(d).map(_._1)
+              case _ => Seq.empty
+            })
+            val ctx = newDeclaration(name, tv) // allows recursive definitions
+          val va = ctx.check(wrapBody(v, pps.size), tv, lambdaNameHints, hintCodomain(Some(ta)))
+            debug(s"declared $name")
+            abs.append(DefinitionInfo(name, tv, va, Some(ta)))
+            ctx
+          case None =>
+            if (ps.nonEmpty) throw new Exception("Not implemented")
+            val index = headTerms.indexWhere(_.name == name)
+            if (index < 0) {
+              val (vt, va) = infer(v)
+              val ctx = newDeclaration(name, vt)
+              debug(s"declared $name")
+              abs.append(DefinitionInfo(name, vt, va, None))
+              ctx
+            } else {
+              val b = headTerms(index)
+              val va = check(v, b.typ, Seq.empty, hintCodomain(abs(index).typCode))
+              debug(s"declared $name")
+              abs.update(index, DefinitionInfo(name, b.typ, va, abs(index).typCode))
+              this
+            }
         }
-      case Declaration.Define(name, ms, t, v) =>
-        debug(s"check define $name")
-        val (_, ta) = inferLevel(t)
-        val tv = eval(ta)
-        val lambdaNameHints = t match {
-          case Term.Function(d, _) =>
-            Some(NameType.flatten(d).map(_._1))
-          case _ => None
-        }
-        val ctx = newDeclaration(name, tv) // allows recursive definitions
-        val va = ctx.check(v, tv, lambdaNameHints, hintCodomain(Some(ta)))
-        debug(s"declared $name")
-        abs.append(DefinitionInfo(name, tv, va, Some(ta)))
-        ctx
-      case Declaration.Declare(name, ms, t) =>
+      case Declaration.Declare(ms, name, ps, t) =>
         debug(s"check declare $name")
         if (ms.nonEmpty) throw TypeCheckException.ForbiddenModifier()
-        val (_, ta) = inferLevel(t)
+        val (_, ta) = inferTelescope(NameType.flatten(ps), t)
         val tv = eval(ta)
         val ctx = newDeclaration(name, tv)
         debug(s"declared $name")

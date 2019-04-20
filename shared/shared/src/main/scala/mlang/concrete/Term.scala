@@ -83,10 +83,9 @@ object Declaration {
     case object Inductively extends Modifier
     case object Ignored extends Modifier
   }
-  case class DefineInferred(name: Name, modifiers: Seq[Modifier], term: Term) extends Declaration
-  case class Define(name: Name, modifiers: Seq[Modifier], typ: Term, term: Term) extends Declaration
+  case class Define(modifiers: Seq[Modifier],name: Name, parameters: Seq[NameType], typ: Option[Term], term: Term) extends Declaration
   // depending on our algorithm, recursive ones might not need to declare first
-  case class Declare(name: Name, modifiers: Seq[Modifier], typ: Term) extends Declaration
+  case class Declare( modifiers: Seq[Modifier],name: Name, parameters: Seq[NameType], typ: Term) extends Declaration
 }
 
 

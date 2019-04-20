@@ -36,7 +36,7 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
   def delimited[T](a: String, t: Parser[T], b: String): Parser[T] = a ~> t <~ b
 
 
-  lazy val declaration: PackratParser[Declaration] =declare |  define | defineInferred
+  lazy val declaration: PackratParser[Declaration] =declare |  define
 
   lazy val defineModifiers: PackratParser[Seq[Declaration.Modifier]] =
     rep(
@@ -45,16 +45,12 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
       keyword("with_constructor") ^^ { _ => Declaration.Modifier.WithConstructor}
     )
 
-  lazy val define: PackratParser[Declaration.Define] = (keyword("define") ~> defineModifiers ~ ident <~ ":") ~ (term <~ "=") ~ term ^^ { a =>
-    Declaration.Define(Name(Text(a._1._1._2)), a._1._1._1, a._1._2, a._2)
+  lazy val define: PackratParser[Declaration.Define] = (keyword("define") ~> defineModifiers ~ ident) ~ opt(tele) ~ opt(":" ~> term) ~ ("=" ~> term) ^^ { a =>
+    Declaration.Define(a._1._1._1._1, Name(Text(a._1._1._1._2)), a._1._1._2.getOrElse(Seq.empty), a._1._2, a._2)
   }
 
-  lazy val defineInferred: PackratParser[Declaration.DefineInferred] = (keyword("define") ~> defineModifiers ~ ident <~ "=") ~ term ^^ { a =>
-    Declaration.DefineInferred(Name(Text(a._1._2)), a._1._1, a._2)
-  }
-
-  lazy val declare: PackratParser[Declaration.Declare] = (keyword("declare") ~> defineModifiers ~ ident <~ ":") ~ term ^^ { a =>
-    Declaration.Declare(Name(Text(a._1._2)), a._1._1, a._2)
+  lazy val declare: PackratParser[Declaration.Declare] = (keyword("declare") ~> defineModifiers ~ ident) ~ opt(tele) ~ (":" ~> term) ^^ { a =>
+    Declaration.Declare( a._1._1._1, Name(Text(a._1._1._2)), a._1._2.getOrElse(Seq.empty), a._2)
   }
 
 
