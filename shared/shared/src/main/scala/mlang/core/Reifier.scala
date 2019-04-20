@@ -1,7 +1,9 @@
 package mlang.core
 
-trait Reify extends Context {
+trait Reifier extends Context {
 
 
   def reify(v: Value): Abstract
+
+  def reify(v: Value.Closure): Abstract
 }

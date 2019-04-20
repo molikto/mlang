@@ -14,15 +14,15 @@
          * bidirectional elaborating type checker with mutual recursive definitions
          * type directed conversion check with eta and recursive definitions
          * basic `.poor` syntax and parser
-    * cubical features
-        * **QUESTION** path? extension? (they are Kan; interval "type" is a syntax sugar). also they seems to requires sub-typing
-        * coe
-        * com -- restrict operator
      * reify
-         * "maker" values
          * local unannotated pattern
+         * "maker" values
          * unannotated path type
          * error reporting (seems not hard!)
+    * cubical features
+        * **QUESTION** path? extension? (they are Kan; interval "type" is a syntax sugar). also extension type seems works better with subtyping
+        * coe
+        * com -- restrict operator
     * syntax sugars
     * implicit arguments on the right: *at least I think it is useful, and also it can be seen as a subset of implicit arguments a la Agda, so no harm implementing at all*
          * **QUESTION** what's the problem of unification under restricted context?

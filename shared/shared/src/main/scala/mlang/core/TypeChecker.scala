@@ -59,7 +59,8 @@ object TypeChecker {
   val empty = new TypeChecker(Seq(Layer.Terms(Seq.empty)))
 }
 
-class TypeChecker private (protected override val layers: Layers) extends ContextBuilder with BaseEvaluator with PlatformEvaluator {
+class TypeChecker private (protected override val layers: Layers)
+    extends ContextBuilder with BaseEvaluator with PlatformEvaluator with Reifier {
   override type Self = TypeChecker
 
   override protected implicit def create(a: Layers): Self = new TypeChecker(a)
@@ -265,7 +266,7 @@ class TypeChecker private (protected override val layers: Layers) extends Contex
       case Term.PatternLambda(cases) =>
         cp match {
           case Value.Function(domain, codomain) =>
-            Abstract.PatternLambda(TypeChecker.gen(), lambdaFunctionCodomainHint.getOrElse(???), cases.map(c => {
+            Abstract.PatternLambda(TypeChecker.gen(), lambdaFunctionCodomainHint.getOrElse(reify(codomain)), cases.map(c => {
               val (ctx, v, pat) = newLayer().newAbstractions(c.pattern, domain)
               val ba = ctx.check(c.body, codomain(v), tail, hintCodomain(lambdaFunctionCodomainHint))
               Abstract.Case(pat, ba)

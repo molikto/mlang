@@ -71,41 +71,44 @@ sealed trait Abstract {
 }
 
 object Abstract {
+  type Closure = Abstract
+  type MultiClosure = Abstract
+  type PathClosure = Abstract
   case class Universe(i: Int) extends Abstract
 
   /* -1: formal, 0: closed, 1: closed & recursive */
   case class TermReference(up: Int, index: Int, @varfield var closed: Int  = -1) extends Abstract
 
-  case class Function(domain: Abstract, codomain: Abstract) extends Abstract
+  case class Function(domain: Abstract, codomain: Closure) extends Abstract
 
-  case class Lambda(closure: Abstract) extends Abstract
+  case class Lambda(closure: Closure) extends Abstract
 
   case class Application(left: Abstract, right: Abstract) extends Abstract
 
-  case class RecordNode(name: Name, typ: Abstract)
+  case class RecordNode(name: Name, typ: MultiClosure)
   case class Record(level: Int, nodes: Seq[RecordNode]) extends Abstract
 
   case class RecordMaker(record: Abstract) extends Abstract
 
   case class Projection(left: Abstract, field: Int) extends Abstract
 
-  case class Constructor(name: Tag, params: Seq[Abstract])
+  case class Constructor(name: Tag, params: Seq[MultiClosure])
   case class Sum(level: Int, constructors: Seq[Constructor]) extends Abstract
 
   case class SumMaker(sum: Abstract, field: Int) extends Abstract
 
   case class Let(definitions: Seq[Abstract], order: Seq[Set[Int]], in: Abstract) extends Abstract
 
-  case class Case(pattern: Pattern, body: Abstract)
-  case class PatternLambda(id: Generic, typ: Abstract, cases: Seq[Case]) extends Abstract {
+  case class Case(pattern: Pattern, body: MultiClosure)
+  case class PatternLambda(id: Generic, typ: Closure, cases: Seq[Case]) extends Abstract {
     override def toString: String = s"PatternLambda(${cases.toString})"
   }
 
-  case class PathLambda(body: Abstract) extends Abstract
-  case class PathType(typ: Abstract, left: Abstract, right: Abstract) extends Abstract
+  case class PathLambda(body: PathClosure) extends Abstract
+  case class PathType(typ: PathClosure, left: Abstract, right: Abstract) extends Abstract
   case class PathApplication(let: Abstract, r: Dimension) extends Abstract
 
-  case class Coe(direction: DimensionPair, tp: Abstract, base: Abstract) extends Abstract
+  case class Coe(direction: DimensionPair, tp: PathClosure, base: Abstract) extends Abstract
   case class Hcom(direction: DimensionPair, tp: Abstract, base: Abstract) extends Abstract
 
   case class DimensionPair(from: Dimension, to: Dimension)
