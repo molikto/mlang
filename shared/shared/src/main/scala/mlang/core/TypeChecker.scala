@@ -293,7 +293,7 @@ class TypeChecker private (protected override val layers: Layers)
         }
       case _ =>
         val (tt, ta) = infer(term)
-        if (Conversion.equalType(Int.MaxValue, tt, cp)) ta
+        if (Conversion.equalType(tt, cp)) ta
         else throw TypeCheckException.TypeMismatch()
     }
     debug(s"check result $res")

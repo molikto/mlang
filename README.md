@@ -14,13 +14,13 @@
          * bidirectional elaborating type checker with mutual recursive definitions
          * type directed conversion check with eta and recursive definitions
          * basic `.poor` syntax and parser
-     * reify
+     * **QUESTION** reify
          * local unannotated pattern
          * "maker" values
          * unannotated path type
          * error reporting (seems not hard!)
     * cubical features
-        * **QUESTION** path? extension? (they are Kan; interval "type" is a syntax sugar). also extension type seems works better with subtyping
+        * **QUESTION** path? extension? (they are Kan; interval "type" is a syntax sugar). also extension type seems works better with sub-typing
         * coe
         * com -- restrict operator
     * syntax sugars

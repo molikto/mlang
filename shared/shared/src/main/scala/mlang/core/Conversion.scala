@@ -5,23 +5,25 @@ import Value._
 import scala.collection.mutable
 import scala.util.{Success, Try}
 
+private case class Assumption(left: Generic, right: Generic, domain: Value, codomain: Value.Closure)
+
 // TODO is it true what one step reduction with default reduction is terminating?
 // TODO is our way of handling recursive definitions sound? (id pattern lambda, with assumptions)
 class Conversion {
 
 
   // TODO seems this can be globally shared
-  private val assumps = new mutable.HashMap[Long, mutable.Set[Long]] with mutable.MultiMap[Long, Long]
+  private val assumps = mutable.ArrayBuffer[Assumption]()
 
 
-  private def equalPatternLambdaOfSameTypeWithAssumptions(domain: Value, l1: PatternLambda, l2: PatternLambda): Boolean = {
+  private def equalSameTypePatternLambdaWithAssumptions(domain: Value, l1: PatternLambda, l2: PatternLambda): Boolean = {
     if (l1.id == l2.id) {
       true
     } else {
-      if (assumps.entryExists(l1.id, _ == l2.id)) {
+      if (assumps.exists(a => a.left == l1.id && a.right == l2.id && equalType(a.domain, domain) && equalTypeClosure(Int.MaxValue, a.domain, a.codomain, l1.typ))) {
         true
       } else {
-        assumps.addBinding(l1.id, l2.id)
+        assumps.append(Assumption(l1.id, l2.id, domain, l1.typ))
         equalCases(domain, l1.typ, l1.cases, l2.cases)
       }
     }
@@ -86,6 +88,8 @@ class Conversion {
     }
   }
 
+  private def equalType(tm1: Value, tm2: Value): Boolean = equalType(Int.MaxValue, tm1, tm2)
+
   private def equalType(less: Int, tm1: Value, tm2: Value): Boolean = {
     if (tm1.eq(tm2)) {
       true
@@ -148,7 +152,7 @@ class Conversion {
       case (PatternStuck(l1, s1), PatternStuck(l2, s2)) =>
         equalNeutral(s1, s2).flatMap(n => {
           // TODO give an example why this is needed
-          if (equalTypeClosure(Int.MaxValue, n, l1.typ, l2.typ) && equalPatternLambdaOfSameTypeWithAssumptions(n, l1, l2)) {
+          if (equalTypeClosure(Int.MaxValue, n, l1.typ, l2.typ) && equalSameTypePatternLambdaWithAssumptions(n, l1, l2)) {
             Some(l1.typ(n))
           } else {
             None
@@ -241,7 +245,7 @@ object Conversion {
     new Conversion().equalTerm(typ, t1, t2)
   }
 
-  def equalType(less: Int, tm1: Value, tm2: Value): Boolean = {
-    new Conversion().equalType(less, tm1, tm2)
+  def equalType(tm1: Value, tm2: Value): Boolean = {
+    new Conversion().equalType(tm1, tm2)
   }
 }
