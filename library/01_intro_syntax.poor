@@ -10,6 +10,47 @@
 "│" is just whitespace
 **/
 
+
+define inductively nat: type = sum {
+  case zero
+  case suc(nat)
+}
+
+
+define suc(a: nat): nat = nat.suc(a)
+
+define plus:
+ (a       b: nat) ⇒ nat =
+  ─     ┌ zero    → a
+        └ suc(m)  → suc(plus(a, m))
+
+
+define multi:
+ (a       b: nat) ⇒ nat =
+  ─     ┌ zero    → nat.zero
+        └ suc(m)  → plus(a, multi(a, m))
+
+define one = nat.suc(nat.zero)
+
+define two = nat.suc(one)
+
+define four = plus(two, two)
+
+define eight = plus(four, four)
+
+define sixteen = plus(eight, eight)
+
+define sixteen2 = multi(four, four)
+
+define ttt1(a: nat): nat = plus(two, four)
+
+define ttt2(a: nat): nat = plus(four, two)
+
+define assert_tt2_eq_holder(b: (nat ⇒ nat) ⇒ type, c: (i: nat ⇒ nat) ⇒ b(i)): b(ttt1) = c(ttt2)
+
+define __debug assert_nat_eq_holder2(x y: nat, b: (nat ⇒ nat) ⇒ type, c: (i: nat ⇒ nat) ⇒ b(i)): b(─ → plus(x, y)) =
+  c(─ → plus(x, y))
+
 define id(a: type, x: a): a = x
 
 
@@ -29,17 +70,6 @@ define list(a: type): type = sum {
   case cons(a, list(a))
 }
 
-define inductively nat: type = sum {
-  case zero
-  case suc(nat)
-}
-
-define suc(a: nat): nat = nat.suc(a)
-
-define plus:
- (a       b: nat) ⇒ nat =
-  ─     ┌ zero    → a
-        └ suc(m)  → suc(plus(a, m))
 
 
 define plus2:
@@ -74,43 +104,18 @@ define test001(x y: nat, b: nat ⇒ type, c: (i: nat) ⇒ b(i)): b(plus(x, y)) =
 
 
 
-define multi:
- (a       b: nat) ⇒ nat =
-  ─     ┌ zero    → nat.zero
-        └ suc(m)  → plus(a, multi(a, m))
-
-define one = nat.suc(nat.zero)
-
-define two = nat.suc(one)
-
-define four = plus(two, two)
-
-define eight = plus(four, four)
-
-define sixteen = plus(eight, eight)
-
-define sixteen2 = multi(four, four)
 
 
 
 define test002(x y: nat, b: nat ⇒ type, c: (i: nat) ⇒ b(i)): b(plus2(nat.suc(x), y)) = c(plus2(nat.suc(x), y))
 
 
-define ttt1(a: nat): nat = plus(two, four)
-
-define ttt2(a: nat): nat = plus(four, two)
-
-
 define ttt3(a: nat): nat = plus2(four, two)
 
-define assert_tt2_eq_holder(b: (nat ⇒ nat) ⇒ type, c: (i: nat ⇒ nat) ⇒ b(i)): b(ttt1) = c(ttt2)
 
 
 
 
-
-define assert_nat_eq_holder2(x y: nat, b: (nat ⇒ nat) ⇒ type, c: (i: nat ⇒ nat) ⇒ b(i)): b(─ → plus(x, y)) =
-  c(─ → plus(x, y))
 
 define assert_tt2_eq_holder3(b: (nat ⇒ nat) ⇒ type, c: (i: nat ⇒ nat) ⇒ b(i)): b(ttt1) = c(ttt3)
 

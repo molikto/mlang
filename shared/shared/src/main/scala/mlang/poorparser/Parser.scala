@@ -30,7 +30,7 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
     override def whitespaceChar: Parser[Char] = elem("", _ == '│') | super.whitespaceChar
   }
 
-  lexical.reserved ++= List("define", "declare", "case", "as", "coe", "hcom", "field", "ignored", "match", "make", "record", "type", "sum", "inductively", "with_constructors")
+  lexical.reserved ++= List("define", "declare", "case", "__debug", "as", "coe", "hcom", "field", "ignored", "match", "make", "record", "type", "sum", "inductively", "with_constructors")
   lexical.delimiters ++= List("{", "}", "[", "]", ":", ",", "(", ")", "≡", "─", "┬", "↪", "⇝","┌", "⊏", "└", "├", "⇒", "→", "+", "-", ";", "=", "@", "\\", ".")
 
   def delimited[T](a: String, t: Parser[T], b: String): Parser[T] = a ~> t <~ b
@@ -42,7 +42,8 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
     rep(
       keyword("inductively") ^^ { _ => Declaration.Modifier.Inductively : Declaration.Modifier } |
       keyword("ignored") ^^ { _ => Declaration.Modifier.Ignored } |
-      keyword("with_constructor") ^^ { _ => Declaration.Modifier.WithConstructor}
+      keyword("with_constructor") ^^ { _ => Declaration.Modifier.WithConstructor} |
+      keyword("__debug") ^^ { _ => Declaration.Modifier.__Debug }
     )
 
   lazy val define: PackratParser[Declaration.Define] = (keyword("define") ~> defineModifiers ~ ident) ~ opt(tele) ~ opt(":" ~> term) ~ ("=" ~> term) ^^ { a =>

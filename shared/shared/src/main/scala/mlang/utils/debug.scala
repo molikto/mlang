@@ -2,5 +2,6 @@ package mlang.utils
 
 object debug {
 
- def apply(s: => Any) = if (true) println(s"debug: $s")
+ val enabled = true
+ def apply(s: => Any) = if (enabled) println(s"debug: $s")
 }

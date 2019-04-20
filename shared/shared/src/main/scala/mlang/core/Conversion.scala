@@ -1,16 +1,35 @@
 package mlang.core
 
 import Value._
+import mlang.utils.debug
 
 import scala.collection.mutable
 import scala.util.{Success, Try}
 
 private case class Assumption(left: Generic, right: Generic, domain: Value, codomain: Value.Closure)
 
+
+
+object Conversion {
+  def equalTerm(typ: Value, t1: Value, t2: Value): Boolean = {
+    new Conversion().equalTerm(typ.normalize, t1.normalize, t2.normalize)
+  }
+
+  def equalType(tm1: Value, tm2: Value): Boolean = {
+    new Conversion().equalType(tm1.normalize, tm2.normalize)
+  }
+
+
+  private val vr = Reduction.Normalize
+  private val dr = Reduction.Normalize
+}
+
 // TODO is it true what one step reduction with default reduction is terminating?
 // TODO is our way of handling recursive definitions sound? (id pattern lambda, with assumptions)
 class Conversion {
 
+  import Conversion.vr
+  import Conversion.dr
 
   // TODO seems this can be globally shared
   private val assumps = mutable.ArrayBuffer[Assumption]()
@@ -29,7 +48,6 @@ class Conversion {
     }
   }
 
-  private val reduction = Reduction.Default
   private val gen: GenericGen = new GenericGen.Negative()
   private val dgen: GenericGen = new GenericGen.Negative()
 
@@ -70,8 +88,8 @@ class Conversion {
 
   private def equalTypeMultiClosure(less: Int, ts: Seq[Value], c1: MultiClosure, c2: MultiClosure): Option[Value] = {
     val cs = ts.map(t => OpenReference(gen(), t))
-    val t = c1(cs, reduction)
-    if (equalType(less, t, c2(cs, reduction))) {
+    val t = c1(cs, vr)
+    if (equalType(less, t, c2(cs, vr))) {
       Some(t)
     } else {
       None
@@ -80,8 +98,8 @@ class Conversion {
 
   private def equalTypeClosure(less: Int, t: Value, c1: Closure, c2: Closure): Option[Value] = {
     val c = OpenReference(gen(), t)
-    val tt = c1(c, reduction)
-    if (equalType(less, tt, c2(c, reduction))) {
+    val tt = c1(c, vr)
+    if (equalType(less, tt, c2(c, vr))) {
       Some(tt)
     } else {
       None
@@ -104,12 +122,12 @@ class Conversion {
         case (Sum(l1, c1), Sum(l2, c2)) =>
           l1 == l2 && l1 <= less && c1.size == c2.size && c1.zip(c2).forall(p => equalConstructor(l1, p._1, p._2))
         case (PathType(t1, l1, r1), PathType(t2, l2, r2)) =>
-          val a = t1(Value.Dimension.Constant(false))
-          val b = t2(Value.Dimension.Constant(false))
+          val a = t1(Value.Dimension.Constant(false), vr)
+          val b = t2(Value.Dimension.Constant(false), vr)
           // we can call equal term here because we know tm1 and tm2 is well typed
           if (equalType(less, a, b) && equalTerm(a, l1, l2)) {
-            val c = t1(Value.Dimension.Constant(true))
-            val d = t2(Value.Dimension.Constant(true))
+            val c = t1(Value.Dimension.Constant(true), vr)
+            val d = t2(Value.Dimension.Constant(true), vr)
             equalType(less, c, d) && equalTerm(c, r1, r2)
           } else {
             false
@@ -129,7 +147,11 @@ class Conversion {
     (t1, t2) match {
       case (OpenReference(i1, v1), OpenReference(i2, v2)) =>
         if (i1 == i2) {
-          assert(v1.eq(v2))
+          if (debug.enabled) {
+            if (!equalType(v1, v2)) {
+              throw new IllegalArgumentException("")
+            }
+          }
           Some(v1)
         } else {
           None
@@ -138,7 +160,7 @@ class Conversion {
         equalNeutral(l1, l2).flatMap {
           case Function(d, c) =>
           if (equalTerm(d, a1, a2)) {
-            Some(c(a1))
+            Some(c(a1, dr))
           } else {
             None
           }
@@ -146,14 +168,14 @@ class Conversion {
         }
       case (Projection(m1, f1), Projection(m2, f2)) =>
         equalNeutral(m1, m2).flatMap {
-          case r: Record if f1 == f2 => Some(r.projectedType(r.nodes.indices.map(n => Projection(m1, n)), f2))
+          case r: Record if f1 == f2 => Some(r.projectedType(r.nodes.indices.map(n => Projection(m1, n)), f2, dr))
           case _ => throw new IllegalArgumentException("")
         }
       case (PatternStuck(l1, s1), PatternStuck(l2, s2)) =>
         equalNeutral(s1, s2).flatMap(n => {
           // TODO give an example why this is needed
           if (equalTypeClosure(Int.MaxValue, n, l1.typ, l2.typ) && equalSameTypePatternLambdaWithAssumptions(n, l1, l2)) {
-            Some(l1.typ(n))
+            Some(l1.typ(n, dr))
           } else {
             None
           }
@@ -162,7 +184,7 @@ class Conversion {
         if (d1 == d2) {
           equalNeutral(l1, l2).map(_ match {
             case PathType(typ, _, _) =>
-              typ(d1)
+              typ(d1, dr)
             case _ => throw new IllegalArgumentException("")
           })
         } else {
@@ -175,14 +197,15 @@ class Conversion {
   private def equalCases(domain: Value, codomain: Value.Closure, c1: Seq[Case], c2: Seq[Case]): Boolean = {
     c1.size == c2.size && c1.zip(c2).forall(pair => {
       pair._1.pattern == pair._2.pattern && {
-        Try { Value.extractTypes(pair._1.pattern, domain, gen) } match {
+        Try { extractTypes(pair._1.pattern, domain) } match {
           case Success((ctx, itself)) =>
-            equalTerm(codomain(itself), pair._1.closure(ctx, reduction), pair._2.closure(ctx, reduction))
+            equalTerm(codomain(itself, dr), pair._1.closure(ctx, vr), pair._2.closure(ctx, vr))
           case _ => false
         }
       }
     })
   }
+
 
   /**
     * it is REQUIRED that t1 and t2 indeed has that type!!!!
@@ -194,17 +217,17 @@ class Conversion {
       (typ, t1, t2) match {
         case (Function(d, cd), s1, s2) =>
           val c = OpenReference(gen(), d)
-          equalTerm(cd(c), s1.app(c, reduction), s2.app(c, reduction))
+          equalTerm(cd(c, dr), s1.app(c, vr), s2.app(c, vr))
         case (PathType(typ, _, _), s1, s2) =>
           val c = Dimension.OpenReference(dgen())
-          equalTerm(typ(c), s1.papp(c, reduction), s2.papp(c, reduction))
+          equalTerm(typ(c, dr), s1.papp(c, vr), s2.papp(c, vr))
         case (Record(_, ns), m1, m2) =>
           ns.zipWithIndex.foldLeft(Some(Seq.empty) : Option[Seq[Value]]) { (as0, pair) =>
             as0 match {
               case Some(as) =>
                 val mm = ns.map(_.name.refSelf).zip(as).toMap
-                val nm = pair._1.closure(pair._1.dependencies.map(mm))
-                if (equalTerm(nm, m1.project(pair._2, reduction), m2.project(pair._2, reduction))) {
+                val nm = pair._1.closure(pair._1.dependencies.map(mm), dr)
+                if (equalTerm(nm, m1.project(pair._2, vr), m2.project(pair._2, vr))) {
                   Some(as :+ nm)
                 } else {
                   None
@@ -219,7 +242,7 @@ class Conversion {
             c.nodes.zip(v1.zip(v2)).foldLeft(Some(Seq.empty): Option[Seq[Value]]) { (as0, pair) =>
               as0 match {
                 case Some(as) =>
-                  val nm = pair._1(as)
+                  val nm = pair._1(as, dr)
                   if (equalTerm(nm, pair._2._1, pair._2._2)) {
                     Some(as :+ nm)
                   } else {
@@ -230,22 +253,68 @@ class Conversion {
               }
             }
           })
-        case _ =>
-          typ match {
-            case Universe(l) => equalType(l, t1, t2) // it will call equal neutral at then end
-            case _ => equalNeutral(t1, t2)
+        case (ttt, tt1, tt2) =>
+          ttt match {
+            case Universe(l) => equalType(l, tt1, tt2) // it will call equal neutral at then end
+            case _ => equalNeutral(tt1, tt2)
           }
       }
     }
   }
-}
 
-object Conversion {
-  def equalTerm(typ: Value, t1: Value, t2: Value): Boolean = {
-    new Conversion().equalTerm(typ, t1, t2)
-  }
-
-  def equalType(tm1: Value, tm2: Value): Boolean = {
-    new Conversion().equalType(tm1, tm2)
+  private def extractTypes(
+      pattern: Pattern,
+      typ: Value
+  ): (Seq[OpenReference], Value) = {
+    val vs = mutable.ArrayBuffer[OpenReference]()
+    def rec(p: Pattern, t: Value): Value = {
+      p match {
+        case Pattern.Atom =>
+          val ret = OpenReference(gen(), t)
+          vs.append(ret)
+          ret
+        case Pattern.Make(maps) =>
+          t match {
+            case r@Value.Record(_, nodes) =>
+              if (maps.size == nodes.size) {
+                var vs =  Seq.empty[Value]
+                for (m  <- maps) {
+                  val it = r.projectedType(vs, vs.size, vr)
+                  val tv = rec(m, it)
+                  vs = vs :+ tv
+                }
+                Value.Make(vs)
+              } else {
+                throw new IllegalStateException("")
+              }
+            case _ =>
+              throw new IllegalStateException("")
+          }
+        case Pattern.Construct(name, maps) =>
+          t match {
+            case Value.Sum(_, cs) =>
+              cs.find(_.name == name) match {
+                case Some(c) =>
+                  if (c.nodes.size == maps.size) {
+                    val vs = new mutable.ArrayBuffer[Value]()
+                    for ((m, n) <- maps.zip(c.nodes)) {
+                      val it = n(vs, vr)
+                      val tv = rec(m, it)
+                      vs.append(tv)
+                    }
+                    Value.Construct(name, vs)
+                  } else {
+                    throw new IllegalStateException("")
+                  }
+                case _ =>
+                  throw new IllegalStateException("")
+              }
+            case _ =>
+              throw new IllegalStateException("")
+          }
+      }
+    }
+    val t = rec(pattern, typ)
+    (vs, t)
   }
 }

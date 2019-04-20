@@ -82,6 +82,7 @@ object Declaration {
     case object WithConstructor extends Modifier
     case object Inductively extends Modifier
     case object Ignored extends Modifier
+    case object __Debug extends Modifier
   }
   case class Define(modifiers: Seq[Modifier],name: Name, parameters: Seq[NameType], typ: Option[Term], term: Term) extends Declaration
   // depending on our algorithm, recursive ones might not need to declare first

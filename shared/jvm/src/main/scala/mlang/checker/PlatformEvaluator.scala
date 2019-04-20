@@ -34,7 +34,7 @@ trait PlatformEvaluator extends BaseEvaluator {
             } else {
               // this is a value inside the context
               assert((up == depth + 1 && closed == 0) || closed == -1)
-              s"${tunnel(evalOpenTermReferenceAsReference(up - depth - 1, index))}.deref(r)"
+              s"${tunnel(evalOpenTermReferenceAsReference(up - depth - 1, index))}.renormalize(r)"
             }
           } else {
             // a reference inside the emit context
@@ -45,7 +45,7 @@ trait PlatformEvaluator extends BaseEvaluator {
               s"Reference(r${depth - up}($index)).deref(r)"
             } else {
               // formal parameters of a closure
-              s"r${depth - up}($index)"
+              s"r${depth - up}($index).renormalize(r)"
             }
           }
         case Abstract.Let(definitions, order, in) =>
@@ -71,7 +71,7 @@ trait PlatformEvaluator extends BaseEvaluator {
           s"""Record($level, ${nodes.zipWithIndex.map(c =>
             s"RecordNode(${source(c._1.name)}, Seq(${nodes.take(c._2).map(a => source(a.name.refSelf)).mkString(", ")}), MultiClosure((r$d, r) => ${emit(c._1.typ, d)}))")})"""
         case Abstract.RecordMaker(record) =>
-          s"${emit(record, depth)}.asInstanceOf[Record].maker"
+          s"${emit(record, depth)}.demaker(0, r)"
         case Abstract.Projection(left, field) =>
           s"${emit(left, depth)}.project($field, r)"
         case Abstract.Sum(level, constructors) =>
@@ -79,7 +79,7 @@ trait PlatformEvaluator extends BaseEvaluator {
           s"""Sum($level, ${constructors.zipWithIndex.map(c =>
             s"Constructor(${source(c._1.name)}, ${c._1.params.size}, Seq(${c._1.params.map(p => s"MultiClosure((r$d, r) => " + emit(p, d) + ")").mkString(", ")}))")})"""
         case Abstract.SumMaker(sum, field) =>
-          s"${emit(sum, depth)}.asInstanceOf[Sum].constructors($field).maker"
+          s"${emit(sum, depth)}.demaker($field, r)"
         case Abstract.PatternLambda(id, codomain, cases) =>
           val d = depth + 1
           s"PatternLambda($id, Closure((r$d, r) => ${emit(codomain, d)}), Seq(${cases.map(c => s"Case(${tunnel(c.pattern)}, MultiClosure((r$d, r) => ${emit(c.body, d)}))").mkString(", ")}))"

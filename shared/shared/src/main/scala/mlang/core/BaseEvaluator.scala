@@ -50,13 +50,13 @@ trait BaseEvaluator extends Context {
     }
   }
 
-  protected def evalMutualRecursive(terms: Map[Int, (Abstract, Value)], reduction: Reduction = Reduction.Default): Map[Int, Value] = {
+  protected def evalMutualRecursive(terms: Map[Int, (Abstract, Value)], reduction: Reduction /* REDUCTION */): Map[Int, Value] = {
     val ret = platformEvalRecursive(terms, reduction)
     assert(ret.forall(_._2 != null))
     ret
   }
 
-  protected def eval(term: Abstract, reduction: Reduction = Reduction.Default): Value = {
+  protected def eval(term: Abstract, reduction: Reduction /* REDUCTION */): Value = {
     term match {
       case Abstract.TermReference(up, index, _) => evalOpenTermReferenceAsReference(up, index).deref(reduction)
       case Abstract.Universe(i) => Value.Universe(i)

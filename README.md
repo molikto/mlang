@@ -15,9 +15,9 @@
          * type directed conversion check with eta and recursive definitions
          * basic `.poor` syntax and parser
      * **QUESTION** reify
-         * local unannotated pattern
-         * "maker" values
+         * local unannotated motive: simple it is a closure
          * unannotated path type
+         * "maker" values
          * error reporting (seems not hard!)
     * cubical features
         * **QUESTION** path? extension? (they are Kan; interval "type" is a syntax sugar). also extension type seems works better with sub-typing

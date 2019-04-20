@@ -109,7 +109,7 @@ trait ContextBuilder extends Context {
           var ret: (Value, Pattern) = null
           name.flatMap(_.asRef) match {
             case Some(ref) =>
-              t match {
+              t.whnf match {
                 case Value.Sum(_, cs) if cs.exists(c => c.name == ref && c.parameters == 0) =>
                   ret = (Value.Construct(ref, Seq.empty), Pattern.Construct(ref, Seq.empty))
                 case _ =>
@@ -125,12 +125,12 @@ trait ContextBuilder extends Context {
           }
           ret
         case Patt.Group(maps) =>
-          t match {
+          t.whnf match {
             case r@Value.Record(_, nodes) =>
               if (maps.size == nodes.size) {
                 var vs =  Seq.empty[(Value, Pattern)]
                 for (m  <- maps) {
-                  val it = r.projectedType(vs.map(_._1), vs.size)
+                  val it = r.projectedType(vs.map(_._1), vs.size, Reduction.No)
                   val tv = rec(m, it)
                   vs = vs :+ tv
                 }
@@ -141,14 +141,14 @@ trait ContextBuilder extends Context {
             case _ => throw PatternExtractException.MakeIsNotRecordType()
           }
         case Patt.NamedGroup(name, maps) =>
-          t match {
+          t.whnf match {
             case Value.Sum(_, cs) =>
               cs.find(_.name == name) match {
                 case Some(c) =>
                   if (c.nodes.size == maps.size) {
                     val vs = new mutable.ArrayBuffer[(Value, Pattern)]()
                     for ((m, n) <- maps.zip(c.nodes)) {
-                      val it = n(vs.map(_._1))
+                      val it = n(vs.map(_._1), Reduction.No)
                       val tv = rec(m, it)
                       vs.append(tv)
                     }
