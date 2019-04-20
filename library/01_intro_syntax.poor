@@ -10,13 +10,21 @@
 "│" is just whitespace
 **/
 
-define id:
- (a: type, x: a) ⇒ a =
-  ─        ─     → x
+define id(a: type, x: a): a = x
+
+
+define err: type = record {
+  field a: err
+}
+
+/* this loops, just like Agda, eta for recursive record, maybe we should mark non-guarded records and just say they are empty
+define test_err(a b: err): a ≡(─ ↪ err) b = ─ ↪ a
+*/
+
 
 define bool = sum { case true false }
 
-define list: (a: type) ⇒ type = a → sum {
+define list(a: type): type = sum {
   case nil
   case cons(a, list(a))
 }
@@ -26,7 +34,7 @@ define inductively nat: type = sum {
   case suc(nat)
 }
 
-define suc: (a: nat) ⇒ nat = ─ → nat.suc(a)
+define suc(a: nat): nat = nat.suc(a)
 
 define plus:
  (a       b: nat) ⇒ nat =
@@ -39,9 +47,8 @@ define plus2:
   ─     ┌ zero    → a
         └ suc(m)  → plus2(suc(a), m)
 
-define fun_ext:
- (a: type, b: a ⇒ type, f g: (x: a) ⇒ b(x), p: (x: a) ⇒ f(x) ≡(─ ↪ b(x)) g(x)) ⇒ f ≡(─ ↪ (x: a) ⇒ b(x)) g =
-  ─        ─            ─ ─                 ─                                  → i ↪ x → p(x)[i]
+define fun_ext(a: type, b: a ⇒ type, f g: (x: a) ⇒ b(x), p: (x: a) ⇒ f(x) ≡(─ ↪ b(x)) g(x)): f ≡(─ ↪ (x: a) ⇒ b(x)) g =
+  i ↪ x → p(x)[i]
 
 
 define plus_pointwise_lemma:
@@ -63,9 +70,7 @@ define plus_defined_twice:
   ─     ┌ zero    → a
         └ suc(m)  → nat.suc(plus_defined_twice(a, m))
 
-define test001:
- (x y: nat, b: nat ⇒ type, c: (i: nat) ⇒ b(i)) ⇒ b(plus(x, y)) =
-  ─ ─       ─              ─                   → c(plus_defined_twice(x, y))
+define test001(x y: nat, b: nat ⇒ type, c: (i: nat) ⇒ b(i)): b(plus(x, y)) = c(plus_defined_twice(x, y))
 
 
 
@@ -88,43 +93,28 @@ define sixteen2 = multi(four, four)
 
 
 
-define test002:
- (x y: nat, b: nat ⇒ type, c: (i: nat) ⇒ b(i)) ⇒ b(plus2(nat.suc(x), y)) =
-  ─ ─       ─              ─                   → c(plus2(nat.suc(x), y))
+define test002(x y: nat, b: nat ⇒ type, c: (i: nat) ⇒ b(i)): b(plus2(nat.suc(x), y)) = c(plus2(nat.suc(x), y))
 
 
-define ttt1:
-  nat ⇒ nat =
-  ─   → plus(two, four)
+define ttt1(a: nat): nat = plus(two, four)
 
-define ttt2:
-  nat ⇒ nat =
-  ─   → plus(four, two)
+define ttt2(a: nat): nat = plus(four, two)
 
 
-define ttt3:
-  nat ⇒ nat =
-  ─   → plus2(four, two)
+define ttt3(a: nat): nat = plus2(four, two)
 
-define assert_tt2_eq_holder:
- (b: (nat ⇒ nat) ⇒ type, c: (i: nat ⇒ nat) ⇒ b(i)) ⇒ b(ttt1) =
-  ─                      ─                         → c(ttt2)
+define assert_tt2_eq_holder(b: (nat ⇒ nat) ⇒ type, c: (i: nat ⇒ nat) ⇒ b(i)): b(ttt1) = c(ttt2)
 
 
 
 
 
-define assert_nat_eq_holder2:
- (x y: nat, b: (nat ⇒ nat) ⇒ type, c: (i: nat ⇒ nat) ⇒ b(i)) ⇒ b(─ → plus(x, y)) =
-  ─ ─       ─              ─                   → c(─ → plus(x, y))
+define assert_nat_eq_holder2(x y: nat, b: (nat ⇒ nat) ⇒ type, c: (i: nat ⇒ nat) ⇒ b(i)): b(─ → plus(x, y)) =
+  c(─ → plus(x, y))
 
-define assert_tt2_eq_holder3:
- (b: (nat ⇒ nat) ⇒ type, c: (i: nat ⇒ nat) ⇒ b(i)) ⇒ b(ttt1) =
-  ─                      ─                         → c(ttt3)
+define assert_tt2_eq_holder3(b: (nat ⇒ nat) ⇒ type, c: (i: nat ⇒ nat) ⇒ b(i)): b(ttt1) = c(ttt3)
 
-define ttt:
- (a b: nat, c: nat ⇒ type, d: type ⇒ type) ⇒ type =
-  ─ ─       ─              ─               → d(c(plus(a, b)))
+define ttt(a b: nat, c: nat ⇒ type, d: type ⇒ type): type = d(c(plus(a, b)))
 
 
 declare nat_is_even: nat ⇒ bool
@@ -140,20 +130,14 @@ define nat_is_even =
 
 
 
-define assert_nat_eq_holder:
- (b: nat ⇒ type, c: (i: nat) ⇒ b(i)) ⇒ b(sixteen) =
-  ─              ─                   → c(sixteen2)
+define assert_nat_eq_holder(b: nat ⇒ type, c: (i: nat) ⇒ b(i)): b(sixteen) = c(sixteen2)
 
 
 // TODO use def and fun syntax
-define test0:
- (a b: type, f: a ⇒ b, func: (a ⇒ b) ⇒ type, g: func(f)) ⇒ func(f) =
-  ─ ─        ─         ─                     ─           → g
+define test0(a b: type, f: a ⇒ b, func: (a ⇒ b) ⇒ type, g: func(f)): func(f) = g
 
 
-define test1:
- (a b: type, f: a ⇒ b, func: (a ⇒ b) ⇒ type, g: func(f)) ⇒ func(id(a ⇒ b, f)) =
-  ─ ─        ─         ─                     ─           → g
+define test1(a b: type, f: a ⇒ b, func: (a ⇒ b) ⇒ type, g: func(f)): func(id(a ⇒ b, f)) = g
 
 
 // ignored is a keyword to don't put the definition in the context at all, it just makes it type check

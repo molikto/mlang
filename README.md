@@ -7,50 +7,52 @@
 * main blocking problems
     * how the "terrible way" of implementing face restrictions done
          * how to implement if efficiently?
-    * interval and extension types: are they Kan? do we need a multi sort system?
-    * read more code, is the idea of "implicit argument on the right" enough for most cases?
-
-* when you are not sure, implement the one that is 1. easy to implement 2. restricted 3. enough for now
-
-* roadmap
-    * DONE: totally unsafe MLTT basics
-        * bidirectional elaborating type checker with mutual recursive definitions
-        * type directed conversion check with eta and recursive definitions
-        * basic `.poor` syntax and parser
+    
+ * roadmap
+     * **DONE** totally unsafe MLTT basics
+         * function types with eta, record types with eta, inductive types, 
+         * bidirectional elaborating type checker with mutual recursive definitions
+         * type directed conversion check with eta and recursive definitions
+         * basic `.poor` syntax and parser
     * cubical features
+        * **QUESTION** path? extension? (they are Kan; interval "type" is a syntax sugar). also they seems to requires sub-typing
         * coe
-        * com
-        * univalance
-        * hit
-    * reify
-        * "maker" values
-        * local unannotated pattern
-        * unannotated path type
-        * error reporting (seems not hard!)
-    * user defined eliminations
-    * implicit arguments
-    * implicit conversions
+        * com -- restrict operator
+     * reify
+         * "maker" values
+         * local unannotated pattern
+         * unannotated path type
+         * error reporting (seems not hard!)
+    * syntax sugars
+    * implicit arguments on the right: *at least I think it is useful, and also it can be seen as a subset of implicit arguments a la Agda, so no harm implementing at all*
+         * **QUESTION** what's the problem of unification under restricted context?
+    * ~~~~~~~~~~
+    * more cubical features
+         * univalance
+         * hit
+   * user defined eliminations
         * user defined implicit form
+    * implicit conversions
     * record calculus
+    * small features
+        * HTML pretty print
+        * naming shadowing
+        * non-dependent closures
+    * **SOUNDNESS** positivity checker
+    * **SOUNDNESS** coverage checker
+    * **SOUNDNESS** termination checking
     * more recursive types
         * inductive families of two flavor
         * inductive-inductive
         * inductive-recursive
-    * small features
-        * HTML pretty print
-        * naming shadowing
-    * positivity checker
-    * coverage checker
         * overlapping patterns
-    * termination checking
+        * is [this](https://arend.readthedocs.io/en/latest/language-reference/definitions/hits/#conditions) sound?
     * structural editor
         * modules and compile unit
-    * universe polymorphism
+    * universe polymorphism: do we want Agda style (no cumulative), or redtt style, or Coq style?
     * coinductive types
     
-* read cubical agda code
-    * is our schema of implicit variables useful?
-    * is sort needed, what syntax for cubical is good?
+    
 
 ## internals
 
@@ -115,6 +117,20 @@ it seems to me Agda and Mini-TT handles the problem of readback recursive defini
 
 
 it is extended in our case, by also allowing the id to be different, but as an assumption see `Conversion.scala`
+
+
+## implicit on the right
+
+problems:
+
+* special handle for `refl`
+* how to define `reverse`?
+    * type predicate `project list(/a/).reverse = `
+    * value predicate
+    * `\a\≡_{x ⇒ \A[x]\}\b\.reverse = `
+cong: `f: /A/ ⇒ /B[A]/, p: /x/ ≡_A /y/, f(x) ≡B(p) f(y)`
+* how to make inductive type parameters injective?
+
 
 ## math
 

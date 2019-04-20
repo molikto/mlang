@@ -1,8 +1,8 @@
 package mlang.client.web
 import org.scalajs.dom
-import mlang.core.editor
-import mlang.core.editor._
-import mlang.core.utils.{Text, _}
+import mlang.editor
+import mlang.editor._
+import mlang.utils.{Text, _}
 
 import scalatags.JsDom.all._
 
@@ -16,7 +16,7 @@ object Main {
   }
 }
 
-class Editor() extends editor.Editor {
+class Editor() extends mlang.editor.Editor {
 
   val textMeasure = div(cls := "text", color := "#00000000").render
   dom.document.body.appendChild(textMeasure)
