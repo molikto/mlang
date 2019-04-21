@@ -1,7 +1,6 @@
 package mlang.core
 
 import mlang.name._
-import mlang.utils.debug
 
 import scala.collection.mutable
 
@@ -20,6 +19,9 @@ object PatternExtractException {
 import Value._
 
 sealed trait Value {
+
+
+
 
   private var _whnf: Value = _
   private var _nf: Value = _
@@ -132,6 +134,7 @@ sealed trait Value {
     _nf
   }
 
+
   // also used to decide how
   def app(v: Value, env: Reduction /* REDUCTION */, whnf: Boolean = false): Value = env.app.map(r => {
     this match {
@@ -176,6 +179,13 @@ sealed trait Value {
         }
     }
   }).getOrElse(PathApplication(this, d))
+
+
+  def makerType(i: Int): Value = this.whnf match {
+    case s: Sum => s.constructors(i).makerType
+    case v: Record => v.makerType
+    case _ => throw new IllegalArgumentException("")
+  }
 
   def demaker(i: Int, env: Reduction /* REDUCTION */): Value = if (env.demaker) {
     this match {
@@ -239,6 +249,10 @@ object Value {
 
   implicit class Closure(private val func: (Seq[Value], Reduction) => Value) extends AnyVal {
     def apply(seq: Value, reduction: Reduction /* REDUCTION */): Value = func(Seq(seq), reduction)
+  }
+
+  object Closure {
+    def apply(a: Value): Closure = Closure((_, r) => a.renormalize(r))
   }
 
   implicit class PathClosure(private val func: (Dimension, Reduction) => Value) extends AnyVal {
@@ -378,13 +392,30 @@ object Value {
   case class PathApplication(left: Value, stuck: Dimension) extends Value
 
 
+  private val gen = new GenericGen.Negative()
 
+  def inferLevel(t1: Value): Int = infer(t1, Reduction.Normalize) match {
+    case Universe(l) => l
+    case _ => throw new IllegalArgumentException("")
+  }
 
-
-  private def infer(t1: Value, r: Reduction): Value = {
+  // only works for values of path type and universe types
+  def infer(t1: Value, r: Reduction): Value = {
     t1.whnf match {
       case OpenReference(_, v1) =>
         v1
+      case Universe(level) => Universe(level + 1)
+      case Function(domain, codomain) =>
+        (infer(domain, r), infer(codomain(OpenReference(gen(), domain), r), r)) match {
+          case (Universe(l1), Universe(l2)) => Universe(l1 max l2)
+          case _ => throw new IllegalArgumentException("")
+        }
+      case Record(level, _) =>
+        Universe(level)
+      case Sum(level, _) =>
+        Universe(level)
+      case PathType(typ, _, _) =>
+        infer(typ.apply(Dimension.OpenReference(gen()), r), r)
       case Application(l1, a1) =>
         infer(l1, r).whnf match {
           case Function(_, c) =>
@@ -404,7 +435,7 @@ object Value {
             typ(d1, r)
           case _ => throw new IllegalArgumentException("")
         }
-      case _ => throw new  IllegalArgumentException("")
+      case _ => throw new IllegalArgumentException("")
     }
   }
 

@@ -36,7 +36,7 @@ private trait ReifierContext extends ContextBuilder {
       case Value.Universe(level) =>
         Universe(level)
       case Value.Function(domain, codomain) =>
-        val (ctx, tm) = newAbstraction(Name.empty, domain)
+        val (ctx, tm) = newLayer().newAbstraction(Name.empty, domain)
         Function(reify(domain), ctx.reify(codomain(tm, rd)))
       case Value.Record(level, nodes) =>
         val (ctx, vs) = nodes.foldLeft((newLayer().asInstanceOf[ReifierContext], Seq.empty[Value])) { (as, _) =>

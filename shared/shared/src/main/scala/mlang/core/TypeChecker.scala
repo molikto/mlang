@@ -4,7 +4,7 @@ import mlang.concrete.{Pattern => Patt, _}
 import Context._
 import mlang.name._
 import mlang.utils
-import mlang.utils.debug
+import mlang.utils._
 
 import scala.collection.mutable
 import scala.language.implicitConversions
@@ -51,6 +51,8 @@ object TypeCheckException {
   case class ApplyingToNonDimension() extends TypeCheckException
 
   case class PathEndPointsNotMatching() extends TypeCheckException
+
+  case class InferPathEndPointsTypeNotMatching() extends TypeCheckException
 }
 
 
@@ -143,7 +145,15 @@ class TypeChecker private (protected override val layers: Layers)
             val ra = check(right, tv.body(Value.Dimension.Constant(true), rd))
             (Value.Universe(tl), Abstract.PathType(ta, la, ra))
           case None =>
-            throw new IllegalStateException("Not implemented yet")
+            val (lt, la) = infer(left)
+            val (rt, ra) = infer(right)
+            if (Conversion.equalType(lt, rt)) {
+              val ta = newLayer().reify(lt)
+              if (debug.enabled) debug(s"infer path type: $ta")
+              (Value.Universe(Value.inferLevel(lt)), Abstract.PathType(ta, la, ra))
+            } else {
+              throw TypeCheckException.InferPathEndPointsTypeNotMatching()
+            }
         }
       case Term.PatternLambda(_) =>
         // TODO inferring the type of a lambda, the inferred type might not have the same branches as the lambda itself
@@ -270,10 +280,7 @@ class TypeChecker private (protected override val layers: Layers)
       case Term.PatternLambda(cases) =>
         cp.whnf match {
           case Value.Function(domain, codomain) =>
-            Abstract.PatternLambda(TypeChecker.gen(), lambdaFunctionCodomainHint.getOrElse({
-              val (ctx, v) = newAbstraction(Name.empty, domain)
-              ctx.reify(codomain(v, rd))
-            }), cases.map(c => {
+            Abstract.PatternLambda(TypeChecker.gen(), lambdaFunctionCodomainHint.getOrElse(reifyClosure(domain, codomain)), cases.map(c => {
               val (ctx, v, pat) = newLayer().newAbstractions(c.pattern, domain)
               val ba = ctx.check(c.body, codomain(v, rd), tail, hintCodomain(lambdaFunctionCodomainHint))
               Abstract.Case(pat, ba)
@@ -305,6 +312,11 @@ class TypeChecker private (protected override val layers: Layers)
     }
     debug(s"check result $res")
     res
+  }
+
+  private def reifyClosure(domain: Value, codomain: Value.Closure): Abstract = {
+    val (ctx, v) = newAbstraction(Name.empty, domain)
+    ctx.reify(codomain(v, rd))
   }
 
   private def checkDeclaration(s: Declaration, abs: mutable.ArrayBuffer[DefinitionInfo]): Self = {
@@ -391,7 +403,7 @@ class TypeChecker private (protected override val layers: Layers)
             val v = ctx.eval(g.code, rd)
             g.value = Some(v)
             ctx = ctx.newDefinitionChecked(c.head, g.name, v)
-            debug(s"defined ${g.name}")
+            info(s"defined ${g.name}")
             if (debug.enabled) {
               val abs = reify(v)
               assert(Conversion.equalTerm(ctx.lookupTerm(g.name.refSelf)._1.typ, eval(abs, rd), v))
@@ -406,7 +418,7 @@ class TypeChecker private (protected override val layers: Layers)
               ab.value = Some(v._2)
               val name = ab.name
               ctx = ctx.newDefinitionChecked(v._1, name, v._2)
-              debug(s"defined recursively $name")
+              info(s"defined recursively $name")
               if (debug.enabled) {
                 val abd = reify(v._2)
                 assert(Conversion.equalTerm(ctx.lookupTerm(ab.name.refSelf)._1.typ, eval(abd, rd), v._2))
@@ -449,6 +461,7 @@ class TypeChecker private (protected override val layers: Layers)
       case _ => throw TypeCheckException.UnknownAsType()
     }
   }
+
 
   def check(m: Module): TypeChecker = checkDeclarations(m.declarations)._1
 }

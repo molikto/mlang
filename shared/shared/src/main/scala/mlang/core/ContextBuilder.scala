@@ -24,7 +24,7 @@ import Context._
 
 
 object ContextBuilder {
-  private val gen = new GenericGen.Positive()
+  private val gen =new GenericGen.Positive()
   private val dgen = new GenericGen.Positive()
 }
 
