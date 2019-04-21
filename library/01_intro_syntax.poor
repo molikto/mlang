@@ -11,16 +11,32 @@
 **/
 
 
+define inductively nat: type = sum {
+  case zero
+  case suc(:nat)
+}
+
+define bool = sum { case true false }
+
+declare nat_is_even: nat ⇒ bool
+
+define __debug nat_is_odd:
+  nat ⇒ bool =
+┌ zero → bool.false
+└ suc(m) → nat_is_even(m)
+
+define nat_is_even =
+┌ zero → bool.true
+└ suc(m) → nat_is_odd(m)
+
+define fun_ext(a: type, b: a ⇒ type, f g: (x: a) ⇒ b(x), p: (x: a) ⇒ f(x) ≡(─ ↪ b(x)) g(x)): f ≡(─ ↪ (x: a) ⇒ b(x)) g =
+  i ↪ x → p(x)[i]
+
 define record_test = record {
   field a: type
   field b: a
   field c: a ⇒ type
   field d: c(b)
-}
-
-define inductively nat: type = sum {
-  case zero
-  case suc(:nat)
 }
 
 
@@ -55,7 +71,7 @@ define ttt2(a: nat): nat = plus(four, two)
 
 define assert_tt2_eq_holder(b: (nat ⇒ nat) ⇒ type, c: (i: nat ⇒ nat) ⇒ b(i)): b(ttt1) = c(ttt2)
 
-define __debug assert_nat_eq_holder2(x y: nat, b: (nat ⇒ nat) ⇒ type, c: (i: nat ⇒ nat) ⇒ b(i)): b(─ → plus(x, y)) =
+define assert_nat_eq_holder2(x y: nat, b: (nat ⇒ nat) ⇒ type, c: (i: nat ⇒ nat) ⇒ b(i)): b(─ → plus(x, y)) =
   c(─ → plus(x, y))
 
 define id(a: type, x: a): a = x
@@ -70,12 +86,6 @@ define test_err(a b: err): a ≡(─ ↪ err) b = ─ ↪ a
 */
 
 
-define bool = sum { case true false }
-
-define list(a: type): type = sum {
-  case nil
-  case cons(:a, :list(a))
-}
 
 
 
@@ -84,8 +94,6 @@ define plus2:
   ─     ┌ zero    → a
         └ suc(m)  → plus2(suc(a), m)
 
-define fun_ext(a: type, b: a ⇒ type, f g: (x: a) ⇒ b(x), p: (x: a) ⇒ f(x) ≡(─ ↪ b(x)) g(x)): f ≡(─ ↪ (x: a) ⇒ b(x)) g =
-  i ↪ x → p(x)[i]
 
 
 define plus_pointwise_lemma:
@@ -129,16 +137,7 @@ define assert_tt2_eq_holder3(b: (nat ⇒ nat) ⇒ type, c: (i: nat ⇒ nat) ⇒ 
 define ttt(a b: nat, c: nat ⇒ type, d: type ⇒ type): type = d(c(plus(a, b)))
 
 
-declare nat_is_even: nat ⇒ bool
 
-define nat_is_odd:
-  nat ⇒ bool =
-┌ zero → bool.false
-└ suc(m) → nat_is_even(m)
-
-define nat_is_even =
-┌ zero → bool.true
-└ suc(m) → nat_is_odd(m)
 
 
 
@@ -181,3 +180,9 @@ define ignored _ = { // "{" starts a let expression
 
   test
 }
+
+define list(a: type): type = sum {
+  case nil
+  case cons(:a, :list(a))
+}
+

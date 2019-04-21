@@ -1,6 +1,7 @@
 package mlang.core
 
 
+import mlang.core.Value.Reference
 import mlang.name._
 
 sealed trait ContextException extends CoreException
@@ -35,7 +36,91 @@ trait Context {
 
   def getDimension(depth: Int): Value.Dimension = layers(depth).asInstanceOf[Layer.Dimension].value
 
-  def lookup(name: Ref): (Binder, Abstract.TermReference) = {
+  def rebindReference(v: Reference): Option[Abstract.TermReference] = {
+    var up = 0
+    var index = -1
+    var ls = layers
+    var binder: Abstract.TermReference= null
+    while (ls.nonEmpty && binder == null) {
+      var i = 0
+      ls.head match {
+        case Layer.Terms(ll0) =>
+          var ll = ll0
+          while (ll.nonEmpty && binder == null) {
+            if (ll.head.value.eq(v.value)) {
+              index = i
+              binder = Abstract.TermReference(up, index, v.closed)
+            }
+            i += 1
+            ll = ll.tail
+          }
+        case _ =>
+      }
+      if (binder == null) {
+        ls = ls.tail
+        up += 1
+      }
+    }
+    Option(binder)
+  }
+
+  def rebindDimensionOpenReference(id: Generic): Abstract.Dimension.Reference = {
+    var up = 0
+    var ls = layers
+    var binder: Abstract.Dimension.Reference = null
+    while (ls.nonEmpty && binder == null) {
+      ls.head match {
+        case Layer.Dimension(idd, _, _) =>
+          if (idd == id) {
+            binder = Abstract.Dimension.Reference(up)
+          }
+        case _ =>
+      }
+      if (binder == null) {
+        ls = ls.tail
+        up += 1
+      }
+    }
+    if (binder == null) {
+      throw new IllegalArgumentException("")
+    } else {
+      binder
+    }
+  }
+
+  def rebindOpenReference(id: Generic): Abstract.TermReference = {
+    var up = 0
+    var index = -1
+    var ls = layers
+    var binder: Abstract.TermReference = null
+    while (ls.nonEmpty && binder == null) {
+      var i = 0
+      ls.head match {
+        case Layer.Terms(ll0) =>
+          var ll = ll0
+          while (ll.nonEmpty && binder == null) {
+            if (ll.head.id == id) {
+              index = i
+              binder = Abstract.TermReference(up, index)
+            }
+            i += 1
+            ll = ll.tail
+          }
+        case _ =>
+      }
+      if (binder == null) {
+        ls = ls.tail
+        up += 1
+      }
+    }
+    if (binder == null) {
+      throw new IllegalArgumentException("")
+    } else {
+      binder
+    }
+  }
+
+  def lookupTerm(name: Ref): (Binder, Abstract.TermReference) = {
     lookup0(name) match {
       case (t: Binder, j: Abstract.TermReference) =>
         (t, j)

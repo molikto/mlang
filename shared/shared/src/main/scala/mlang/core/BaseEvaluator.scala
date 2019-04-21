@@ -4,7 +4,7 @@ import scala.collection.mutable
 
 
 trait Holder {
-  def value(c: Context, r: Reduction, rr: Seq[Value], vs: Seq[Value], cs: Seq[Value.Closure], ps: Seq[Pattern]): Value
+  def value(c: Context, r: Reduction, rs: Seq[Value], vs: Seq[Value], cs: Seq[Value.Closure], ps: Seq[Pattern]): Value
 }
 
 trait BaseEvaluator extends Context {
@@ -41,16 +41,16 @@ trait BaseEvaluator extends Context {
   }
 
   protected def platformEval(value: Abstract, reduction: Reduction ): Value
-  protected def platformEvalRecursive(terms: Map[Int, (Abstract, Value)], reduction: Reduction): Map[Int, Value]
+  protected def platformEvalRecursive(terms: Map[Int, Abstract], reduction: Reduction): Map[Int, Value]
 
   protected def evalOpenTermReferenceAsReference(i: Int, index: Int): Value = {
     getTerm(i, index).value match {
       case o: Value.OpenReference => o // a formal argument in context
-      case v => Value.Reference(v) // a definition in context
+      case v => Value.Reference(v, 0) // a definition in context, cannot be recursive
     }
   }
 
-  protected def evalMutualRecursive(terms: Map[Int, (Abstract, Value)], reduction: Reduction /* REDUCTION */): Map[Int, Value] = {
+  protected def evalMutualRecursive(terms: Map[Int, Abstract], reduction: Reduction /* REDUCTION */): Map[Int, Value] = {
     val ret = platformEvalRecursive(terms, reduction)
     assert(ret.forall(_._2 != null))
     ret

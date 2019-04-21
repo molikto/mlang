@@ -53,15 +53,6 @@ trait ContextBuilder extends Context {
 
   protected def headTerms: Seq[Binder] = layers.head.asInstanceOf[Layer.Terms].terms
 
-  def newDeclaration(name: Name, typ: Value) : Self = {
-    headTerms.find(_.name.intersect(name)) match {
-      case Some(_) => throw ContextBuilderException.AlreadyDeclared()
-      case _ =>
-        val g = gen()
-        Layer.Terms(headTerms :+ Binder(g, name, typ, false, Value.OpenReference(g, typ))) +: layers.tail
-    }
-  }
-
   def newDefinition(name: Name, typ: Value, v: Value) : Self = {
     headTerms.find(_.name.intersect(name)) match {
       case Some(_) => throw ContextBuilderException.AlreadyDeclared()
@@ -82,6 +73,16 @@ trait ContextBuilder extends Context {
         }
     }
   }
+
+  def newDeclaration(name: Name, typ: Value) : Self = {
+    headTerms.find(_.name.intersect(name)) match {
+      case Some(_) => throw ContextBuilderException.AlreadyDeclared()
+      case _ =>
+        val g = gen()
+        Layer.Terms(headTerms :+ Binder(g, name, typ, false, Value.OpenReference(g, typ))) +: layers.tail
+    }
+  }
+
 
 //  def newDefinition(name: Name, typ: Value, v: Value): Self = {
 //    layers.head.find(_.name.intersect(name)) match {

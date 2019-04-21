@@ -12,17 +12,14 @@
      * **DONE** totally unsafe MLTT basics
          * function types with eta, record types with eta, inductive types, 
          * bidirectional elaborating type checker with mutual recursive definitions
+         * type directed readback
          * type directed conversion check with eta and recursive definitions
          * basic `.poor` syntax and parser
-     * **QUESTION** reify
-         * local unannotated motive: simple it is a closure
-         * unannotated path type
-         * error reporting (seems not hard!)
     * cubical features
         * **QUESTION** path? extension? (they are Kan; interval "type" is a syntax sugar). also extension type seems works better with sub-typing
+            * syntax sugars?
         * coe
         * com -- restrict operator
-    * syntax sugars
     * implicit arguments on the right: *at least I think it is useful, and also it can be seen as a subset of implicit arguments a la Agda, so no harm implementing at all*
          * **QUESTION** what's the problem of unification under restricted context?
     * ~~~~~~~~~~
@@ -46,6 +43,7 @@
         * inductive-recursive
         * overlapping patterns
         * is [this](https://arend.readthedocs.io/en/latest/language-reference/definitions/hits/#conditions) sound?
+    * better error reporting
     * structural editor
         * modules and compile unit
     * universe polymorphism: do we want Agda style (no cumulative), or redtt style, or Coq style?

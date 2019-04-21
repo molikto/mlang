@@ -76,7 +76,7 @@ class TypeChecker private (protected override val layers: Layers)
         (Value.Universe(i + 1), Abstract.Universe(i))
       case Term.Reference(name) =>
         // should lookup always return a value? like a open reference?
-        val (Binder(_, _, t, _, _), abs) = lookup(name)
+        val (Binder(_, _, t, _, _), abs) = lookupTerm(name)
         (t, abs)
       case Term.ConstantDimension(i) =>
         throw ContextException.ConstantSortWrong()
@@ -112,7 +112,7 @@ class TypeChecker private (protected override val layers: Layers)
           }
         }
         // TODO in case of HIT, each time a constructor finished, we need to construct a partial sum and update the value
-        val fs = constructors.map(c => newLayer().newLayer().inferLevel(c.term))
+        val fs = constructors.map(c => newLayer().inferLevel(c.term))
         val fl = fs.map(_._1).max
         (Value.Universe(fl), Abstract.Sum(fl, fs.map(_._2.map(_._2)).zip(constructors).map(a => Abstract.Constructor(a._2.name, a._1))))
       case Term.Coe(direction, tp, base) =>
@@ -180,7 +180,7 @@ class TypeChecker private (protected override val layers: Layers)
       case Term.Let(declarations, in) =>
         val (ctx, da, order) = newLayer().checkDeclarations(declarations)
         val (it, ia) = ctx.infer(in)
-        (it, Abstract.Let(da, order, ia))
+        (it, Abstract.Let(da, order.flatten, ia))
       case Term.PathApplication(let, r) =>
         val (lt, la) = infer(let)
         val dim = checkDimension(r)
@@ -270,7 +270,10 @@ class TypeChecker private (protected override val layers: Layers)
       case Term.PatternLambda(cases) =>
         cp.whnf match {
           case Value.Function(domain, codomain) =>
-            Abstract.PatternLambda(TypeChecker.gen(), lambdaFunctionCodomainHint.getOrElse(???), cases.map(c => {
+            Abstract.PatternLambda(TypeChecker.gen(), lambdaFunctionCodomainHint.getOrElse({
+              val (ctx, v) = newAbstraction(Name.empty, domain)
+              ctx.reify(codomain(v, rd))
+            }), cases.map(c => {
               val (ctx, v, pat) = newLayer().newAbstractions(c.pattern, domain)
               val ba = ctx.check(c.body, codomain(v, rd), tail, hintCodomain(lambdaFunctionCodomainHint))
               Abstract.Case(pat, ba)
@@ -389,17 +392,25 @@ class TypeChecker private (protected override val layers: Layers)
             g.value = Some(v)
             ctx = ctx.newDefinitionChecked(c.head, g.name, v)
             debug(s"defined ${g.name}")
+            if (debug.enabled) {
+              val abs = reify(v)
+              assert(Conversion.equalTerm(ctx.lookupTerm(g.name.refSelf)._1.typ, eval(abs, rd), v))
+            }
           } else {
             for (i <- c) {
               abs(i).code.markRecursive(0, c)
             }
-            val vs = ctx.evalMutualRecursive(c.map(i => (i, (abs(i).code, abs(i).typ))).toMap, rd)
+            val vs = ctx.evalMutualRecursive(c.map(i => (i, abs(i).code)).toMap, rd)
             for (v <- vs) {
               val ab = abs(v._1)
               ab.value = Some(v._2)
               val name = ab.name
               ctx = ctx.newDefinitionChecked(v._1, name, v._2)
               debug(s"defined recursively $name")
+              if (debug.enabled) {
+                val abd = reify(v._2)
+                assert(Conversion.equalTerm(ctx.lookupTerm(ab.name.refSelf)._1.typ, eval(abd, rd), v._2))
+              }
             }
           }
         }

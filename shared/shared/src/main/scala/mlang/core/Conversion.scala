@@ -32,17 +32,18 @@ class Conversion {
   import Conversion.dr
 
   // TODO seems this can be globally shared
-  private val assumps = mutable.ArrayBuffer[Assumption]()
+  private val patternAssumps = mutable.ArrayBuffer[Assumption]()
 
+  private val typAssumeps = mutable.ArrayBuffer[(Value, Value)]()
 
   private def equalSameTypePatternLambdaWithAssumptions(domain: Value, l1: PatternLambda, l2: PatternLambda): Boolean = {
     if (l1.id == l2.id) {
       true
     } else {
-      if (assumps.exists(a => a.left == l1.id && a.right == l2.id && equalType(a.domain, domain) && equalTypeClosure(Int.MaxValue, a.domain, a.codomain, l1.typ))) {
+      if (patternAssumps.exists(a => a.left == l1.id && a.right == l2.id && equalType(a.domain, domain) && equalTypeClosure(Int.MaxValue, a.domain, a.codomain, l1.typ))) {
         true
       } else {
-        assumps.append(Assumption(l1.id, l2.id, domain, l1.typ))
+        patternAssumps.append(Assumption(l1.id, l2.id, domain, l1.typ))
         equalCases(domain, l1.typ, l1.cases, l2.cases)
       }
     }
@@ -110,7 +111,10 @@ class Conversion {
   private def equalType(less: Int, tm1: Value, tm2: Value): Boolean = {
     if (tm1.eq(tm2)) {
       true
+    } else if (typAssumeps.exists(a => a._1.eq(tm1) && a._2.eq(tm2))) { // recursive defined sum and record
+      true
     } else {
+      typAssumeps.append((tm1, tm2))
       (tm1, tm2) match {
         case (Function(d1, c1), Function(d2, c2)) =>
           equalType(less, d1, d2) && equalTypeClosure(less, d1, c1, c2)
@@ -174,7 +178,7 @@ class Conversion {
         equalNeutral(s1, s2).flatMap(n => {
           // TODO give an example why this is needed
           if (equalTypeClosure(Int.MaxValue, n, l1.typ, l2.typ) && equalSameTypePatternLambdaWithAssumptions(n, l1, l2)) {
-            Some(l1.typ(n, dr))
+            Some(l1.typ(s1, dr))
           } else {
             None
           }
@@ -218,7 +222,7 @@ class Conversion {
           val c = OpenReference(gen(), d)
           equalTerm(cd(c, dr), s1.app(c, vr), s2.app(c, vr))
         case (PathType(typ, _, _), s1, s2) =>
-          val c = Dimension.OpenReference(dgen())
+          val c = Value.Dimension.OpenReference(dgen())
           equalTerm(typ(c, dr), s1.papp(c, vr), s2.papp(c, vr))
         case (Record(_, ns), m1, m2) =>
           ns.zipWithIndex.foldLeft(Some(Seq.empty) : Option[Seq[Value]]) { (as0, pair) =>

@@ -22,6 +22,7 @@ case class Reduction(
     delet: Boolean,
     demaker: Boolean,
     renormalize: Boolean
+    // deref is for syntaxal closed references. renormalize is for formal references that applied by outer closure
 )
 
 object Reduction {

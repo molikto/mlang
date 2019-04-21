@@ -8,6 +8,7 @@ import scala.collection.mutable
 
 sealed trait PatternExtractException extends CoreException
 
+
 object PatternExtractException {
   case class MakeWrongSize() extends PatternExtractException
   case class MakeIsNotRecordType() extends PatternExtractException
@@ -20,16 +21,18 @@ import Value._
 
 sealed trait Value {
 
-
   private var _whnf: Value = _
   private var _nf: Value = _
 
+  // LATER what's the relationship between whnf and reduction class?
+  // reduction mainly used to determine the way a closure is evaluated
+  // a value itself that contains redux can be evaluated by whnf and normalize two method
   def whnf: Value = {
     if (_whnf == null) {
       _whnf = this match {
         case _: HeadCanonical =>
           this
-        case _: ClosedReference =>
+        case _: Reference =>
           this.deref(Reduction.Deref.All).whnf
         case _: OpenReference =>
           this
@@ -55,12 +58,14 @@ sealed trait Value {
             lambda.app(wh, Reduction.App.Once, true)
           }
         case Maker(r, i) =>
+          // this is a lambda or make expression so in whnf
           r.whnf.demaker(i, Reduction.Normalize)
-        case Let(_, body) =>
+        case Let(_, _, body) =>
           body.whnf
         case PathApplication(left, stuck) =>
           left.whnf.papp(stuck, Reduction.Papp.Once, true)
       }
+      _whnf._whnf = _whnf
     }
     _whnf
   }
@@ -113,7 +118,7 @@ sealed trait Value {
           Construct(name, vs.map(_.normalize))
         case PathType(typ, left, right) =>
           PathType(typ, left.normalize, right.normalize)
-        case _: ClosedReference =>
+        case _: Reference =>
           throw new IllegalStateException("Not possible")
         case _: Maker =>
           throw new IllegalStateException("Not possible")
@@ -122,6 +127,7 @@ sealed trait Value {
         case a =>
           normalizeWhnfStuck(a)
       }
+      _nf._nf = _nf
     }
     _nf
   }
@@ -152,25 +158,22 @@ sealed trait Value {
 
 
   def papp(d: Dimension, env: Reduction /* REDUCTION */, whnf: Boolean = false): Value = env.papp.map(r => {
-    d match {
-      case Dimension.Constant(i) =>
-        // usage of whnf is because papp on a constant MUST reduce
-        // this is not ture however in case of extension type. let's see
-        this.whnf match {
-          case PathLambda(c) =>
-            val res = c(d, r)
-            if (whnf) res.whnf else res
-          case a =>
-            // right? no reduction? because references is considered not reduced
-            infer(a).whnf match {
+    this match {
+      case PathLambda(c) =>
+        val res = c(d, r)
+        if (whnf) res.whnf else res
+      case a =>
+        d match {
+          case Dimension.Constant(i) =>
+            infer(a, env).whnf match {
               case PathType(_, left, right) =>
                 val res = if (i) right else left
                 if (whnf) res.whnf else res
               case _ => throw new IllegalArgumentException("")
             }
+          case _: Dimension.OpenReference =>
+            PathApplication(this, d)
         }
-      case _: Dimension.OpenReference =>
-        PathApplication(this, d)
     }
   }).getOrElse(PathApplication(this, d))
 
@@ -208,18 +211,18 @@ sealed trait Value {
   def deref(env: Reduction /* REDUCTION */): Value =
     if (env.deref == Deref.Normalize) {
       this match {
-        case v: ClosedReference => v.value.deref(env).normalize
+        case v: Reference => v.value.deref(env).normalize
         case o: OpenReference => o.copy(typ = o.typ.normalize)
         case _ => this
       }
     } else if (env.deref == Deref.All) {
       this match {
-        case v: ClosedReference => v.value.deref(env)
+        case v: Reference => v.value.deref(env)
         case _ => this
       }
     } else if (env.deref == Deref.NonRecursive) {
       this match {
-        case v: Reference => v.value.deref(env)
+        case v: Reference if v.closed == 0 => v.value.deref(env)
         case _ => this
       }
     } else {
@@ -253,22 +256,8 @@ object Value {
   
   sealed trait HeadCanonical extends Value
 
-  sealed trait ClosedReference extends Value {
-    def value: Value
-  }
-
-  // TODO remove typ? what about infer?
-  // the var is a total hack!! but it is very beautiful!!!
-  //id: Generic,
-  case class RecursiveReference(value: Value) extends ClosedReference {
-    debug("recursive reference created")
-  }
-  case class Reference( value: Value) extends ClosedReference
-  case class OpenReference(id: Generic, typ: Value) extends Value {
-    if (typ.isInstanceOf[Reference]) {
-      val a = 1
-    }
-  }
+  case class Reference(value: Value, closed: Int) extends Value
+  case class OpenReference(id: Generic, typ: Value) extends Value
 
   case class Universe(level: Int) extends HeadCanonical
 
@@ -378,10 +367,7 @@ object Value {
 
   case class PatternStuck(lambda: PatternLambda, stuck: StuckPos) extends Value
 
-  object Let {
-    case class Item(value: Value, typ: Option[Value])
-  }
-  case class Let(var items: Seq[Let.Item], body: Value) extends Value
+  case class Let(var items: Seq[Value], order: Seq[Int], body: Value) extends Value
 
 
   case class PathType(typ: PathClosure, left: Value, right: Value) extends HeadCanonical
@@ -395,7 +381,7 @@ object Value {
 
 
 
-  private def infer(t1: Value, r: Reduction = Reduction.No): Value = {
+  private def infer(t1: Value, r: Reduction): Value = {
     t1.whnf match {
       case OpenReference(_, v1) =>
         v1
@@ -411,7 +397,7 @@ object Value {
           case _ => throw new IllegalArgumentException("")
         }
       case PatternStuck(l1, s1) =>
-        l1.typ(infer(s1, r), r)
+        l1.typ(s1, r)
       case PathApplication(l1, d1) =>
         infer(l1, r).whnf match {
           case PathType(typ, _, _) =>

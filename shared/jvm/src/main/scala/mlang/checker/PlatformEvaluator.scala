@@ -21,6 +21,8 @@ trait PlatformEvaluator extends BaseEvaluator {
 
   private def source(a: Name): String = "Name(\"" + a.main + "\")"
 
+
+
   private class Emitter(recursivelyDefining: Set[Int]) {
     def emit(term: Abstract, depth: Int): String = {
       term match {
@@ -31,7 +33,7 @@ trait PlatformEvaluator extends BaseEvaluator {
             if (up == depth + 1 && recursivelyDefining.contains(index)) {
               // eval recursive, this deref happens under a closure, so it will have a value
               assert(closed == 1)
-              s"RecursiveReference(rs($index)).deref(r)"
+              s"Reference(rs($index), $closed).deref(r)"
             } else {
               // this is a value inside the context
               assert((up == depth + 1 && closed == 0) || closed == -1)
@@ -39,26 +41,28 @@ trait PlatformEvaluator extends BaseEvaluator {
             }
           } else {
             // a reference inside the emit context
-            if (closed == 1) {
-              s"RecursiveReference(r${depth - up}($index)).deref(r)"
-            } else if (closed == 0) {
+            if (closed >= 0) {
               // reference to a value directly
-              s"Reference(r${depth - up}($index)).deref(r)"
+              s"Reference(r${depth - up}($index), $closed).deref(r)"
             } else {
               // formal parameters of a closure
               s"r${depth - up}($index).renormalize(r)"
             }
           }
         case Abstract.Let(definitions, order, in) =>
-          val d = depth + 1
-          s"{val r$d = new scala.collection.mutable.ArrayBuffer[Value](); " +
-          s"for (_ <- 0 until ${definitions.size}) r$d.append(null); " +
-          s"${order.flatten.map(a =>
-            s"r$d.update($a, ${emit(definitions(a), d)})"
-          ).mkString("; ")}; " +
-          s"val body = ${emit(in, d)}; " +
-          s"Let(r$d, body).delet(r)" +
-          s"}"
+          if (definitions.isEmpty) {
+            emit(in, depth + 1)
+          } else {
+            val d = depth + 1
+            s"{val r$d = new scala.collection.mutable.ArrayBuffer[Value](); " +
+                s"for (_ <- 0 until ${definitions.size}) r$d.append(null); " +
+                s"${order.map(a =>
+                  s"r$d.update($a, ${emit(definitions(a), d)})"
+                ).mkString("; ")}; " +
+                s"val body = ${emit(in, d)}; " +
+                s"Let(r$d, Seq(${order.mkString(", ")}), body).delet(r)" +
+                s"}"
+          }
         case Abstract.Function(domain, codomain) =>
           val d = depth + 1
           s"Function(${emit(domain, depth)}, Closure((r$d, r) => ${emit(codomain, d)}))"
@@ -78,7 +82,7 @@ trait PlatformEvaluator extends BaseEvaluator {
         case Abstract.Projection(left, field) =>
           s"${emit(left, depth)}.project($field, r)"
         case Abstract.Sum(level, constructors) =>
-          val d = depth + 2 // we some how have have one layer for the constructor names
+          val d = depth + 1 // we some how have have one layer for the constructor names
           s"""Sum($level, ${constructors.zipWithIndex.map(c =>
             s"Constructor(${source(c._1.name)}, ${c._1.params.size}, Seq(${c._1.params.map(p => s"MultiClosure((r$d, r) => " + emit(p, d) + ")").mkString(", ")}))")})"""
         case Abstract.Maker(sum, field) =>
@@ -116,12 +120,12 @@ trait PlatformEvaluator extends BaseEvaluator {
       }
     }
   }
-  protected def platformEvalRecursive(terms: Map[Int, (Abstract, Value)], reduction: Reduction): Map[Int, Value] = {
+  protected def platformEvalRecursive(terms: Map[Int, Abstract], reduction: Reduction): Map[Int, Value] = {
     val emitter = new Emitter(terms.keySet)
     val rr = new scala.collection.mutable.ArrayBuffer[Value]()
     for (_ <- 0 to terms.keySet.max) rr.append(null)
     for (t <- terms) {
-      val res = emitter.emit(t._2._1, -1)
+      val res = emitter.emit(t._2, -1)
       val src = holderSrc(res)
       debug("==================")
       debug(t._2)

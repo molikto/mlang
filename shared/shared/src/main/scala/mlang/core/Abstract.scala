@@ -1,9 +1,11 @@
 package mlang.core
 
+import mlang.core.Abstract.{Dimension, DimensionPair}
 import mlang.name._
 
 
 sealed trait Abstract {
+
   import Abstract._
   def markRecursive(i: Int, c: Set[Int]): Unit = this match {
     case Universe(_) => 
@@ -28,7 +30,7 @@ sealed trait Abstract {
     case Projection(left, _) =>
       left.markRecursive(i, c)
     case Sum(_, constructors) =>
-      constructors.foreach(_.params.foreach(_.markRecursive(i + 2, c)))
+      constructors.foreach(_.params.foreach(_.markRecursive(i + 1, c)))
     case Maker(sum, _) =>
       sum.markRecursive(i, c)
     case Let(definitions, _, in) =>
@@ -57,7 +59,7 @@ sealed trait Abstract {
     case Application(left, right) => left.dependencies(i) ++ right.dependencies(i)
     case Record(_, nodes) => nodes.flatMap(_.typ.dependencies(i + 1)).toSet
     case Projection(left, _) => left.dependencies(i)
-    case Sum(_, constructors) => constructors.flatMap(_.params.flatMap(_.dependencies(i + 2))).toSet
+    case Sum(_, constructors) => constructors.flatMap(_.params.flatMap(_.dependencies(i + 1))).toSet
     case Maker(sum, _) => sum.dependencies(i)
     case Let(definitions, _, in) => definitions.flatMap(a => a.dependencies(i + 1)).toSet ++ in.dependencies(i + 1)
     case PatternLambda(_, cd, cases) => cd.dependencies(i + 1) ++ cases.flatMap(_.body.dependencies(i + 1)).toSet
@@ -93,12 +95,10 @@ object Abstract {
 
   case class Maker(sum: Abstract, field: Int) extends Abstract
 
-  case class Let(definitions: Seq[Abstract], order: Seq[Set[Int]], in: Abstract) extends Abstract
+  case class Let(definitions: Seq[Abstract], order: Seq[Int], in: Abstract) extends Abstract
 
   case class Case(pattern: Pattern, body: MultiClosure)
-  case class PatternLambda(id: Generic, typ: Closure, cases: Seq[Case]) extends Abstract {
-    override def toString: String = s"PatternLambda(${cases.toString})"
-  }
+  case class PatternLambda(id: Generic, typ: Closure, cases: Seq[Case]) extends Abstract
 
   case class PathLambda(body: PathClosure) extends Abstract
   case class PathType(typ: PathClosure, left: Abstract, right: Abstract) extends Abstract
