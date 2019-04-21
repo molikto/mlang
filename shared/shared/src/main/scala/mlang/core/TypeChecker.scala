@@ -101,7 +101,8 @@ class TypeChecker private (protected override val layers: Layers)
           }
         }
         val (fl, fs) = newLayer().inferLevel(fields)
-        (Value.Universe(fl), Abstract.Record(fl, fs.map(pair => Abstract.RecordNode(pair._1, pair._2))))
+        val ns = fs.map(pair => Abstract.RecordNode(pair._1, pair._2.dependencies(0).toSeq.sorted, pair._2))
+        (Value.Universe(fl), Abstract.Record(fl, ns))
       case Term.Sum(constructors) =>
         for (i <- constructors.indices) {
           for (j <- (i + 1) until constructors.size) {
@@ -163,11 +164,11 @@ class TypeChecker private (protected override val layers: Layers)
             (ltr.projectedType(m.values, index, rd), Abstract.Projection(la, index))
           // TODO user defined projections
           case r: Value.Record if right == Ref.make =>
-            (r.makerType, Abstract.RecordMaker(la))
+            (r.makerType, Abstract.Maker(la, -1))
           case r: Value.Sum if r.constructors.exists(_.name == right) =>
             r.constructors.find(_.name == right) match {
               case Some(br) =>
-                (br.makerType, Abstract.SumMaker(la, r.constructors.indexWhere(_.name == right)))
+                (br.makerType, Abstract.Maker(la, r.constructors.indexWhere(_.name == right)))
               case _ => error()
             }
           case _ => error()
@@ -422,7 +423,7 @@ class TypeChecker private (protected override val layers: Layers)
       fs.map(n => {
         val (fl, fa) = ctx.inferLevel(f.ty)
         l = l max fl
-        ctx = ctx.newAbstraction(n, eval(fa, rd))._1
+        ctx = ctx.newAbstraction(n, ctx.eval(fa, rd))._1
         (n, fa)
       })
     })

@@ -20,6 +20,7 @@ import Value._
 
 sealed trait Value {
 
+
   private var _whnf: Value = _
   private var _nf: Value = _
 
@@ -176,7 +177,9 @@ sealed trait Value {
   def demaker(i: Int, env: Reduction /* REDUCTION */): Value = if (env.demaker) {
     this match {
       case s: Sum => s.constructors(i).maker
-      case r: Record if i == 0 => r.maker
+      case r: Record =>
+        assert(i == -1)
+        r.maker
       case _ => Maker(this, i)
     }
   } else {
@@ -275,7 +278,7 @@ object Value {
   // TODO should have a field: recursive, and it must be recursive
   // TODO record should have a type
 
-  case class RecordNode(name: Name, dependencies: Seq[Ref], closure: MultiClosure)
+  case class RecordNode(name: Name, dependencies: Seq[Int], closure: MultiClosure)
 
   case class Record(level: Int, nodes: Seq[RecordNode]) extends HeadCanonical {
     assert(nodes.isEmpty || nodes.head.dependencies.isEmpty)
@@ -294,15 +297,15 @@ object Value {
     }
 
     lazy val makerType: Value = {
-      def rec(known: Seq[(Ref, Value)], remaining: Seq[RecordNode], r: Reduction): Value = {
+      def rec(known: Seq[Value], remaining: Seq[RecordNode], r: Reduction): Value = {
         remaining match {
           case Seq() => rthis(r)
           case Seq(head) =>
-            Function(head.closure(known.filter(n => head.dependencies.contains(n._1)).map(_._2), r),
+            Function(head.closure(head.dependencies.map(known), r),
               Closure((_, r) => rthis(r)))
           case head +: more +: tail =>
-            Function(head.closure(known.filter(n => head.dependencies.contains(n._1)).map(_._2), r), Closure((p, r) => {
-              rec(known ++ Seq((more.name.refSelf, p.head)), tail, r)
+            Function(head.closure(head.dependencies.map(known), r), Closure((p, r) => {
+              rec(known ++ Seq(p.head), tail, r)
             }))
         }
       }
@@ -310,7 +313,7 @@ object Value {
     }
     def projectedType(values: Seq[Value], name: Int, reduction: Reduction /* REDUCTION */): Value = {
       val b = nodes(name)
-      b.closure(b.dependencies.map(nodes.map(_.name.refSelf).zip(values).toMap), reduction)
+      b.closure(b.dependencies.map(values), reduction)
     }
   }
 

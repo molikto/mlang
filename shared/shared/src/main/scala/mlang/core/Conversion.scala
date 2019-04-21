@@ -58,8 +58,7 @@ class Conversion {
       n1.zip(n2).foldLeft(Some(Seq.empty[Value]) : Option[Seq[Value]]) { (as0, pair) =>
         as0 match {
           case Some(as) if pair._1.dependencies == pair._2.dependencies =>
-            val mm = n1.map(_.name.refSelf).zip(as).toMap
-            equalTypeMultiClosure(less, pair._1.dependencies.map(mm), pair._1.closure, pair._2.closure).map(as :+ _)
+            equalTypeMultiClosure(less, pair._1.dependencies.map(as), pair._1.closure, pair._2.closure).map(as :+ _)
           case None =>
             None
         }
@@ -225,8 +224,7 @@ class Conversion {
           ns.zipWithIndex.foldLeft(Some(Seq.empty) : Option[Seq[Value]]) { (as0, pair) =>
             as0 match {
               case Some(as) =>
-                val mm = ns.map(_.name.refSelf).zip(as).toMap
-                val nm = pair._1.closure(pair._1.dependencies.map(mm), dr)
+                val nm = pair._1.closure(pair._1.dependencies.map(as), dr)
                 if (equalTerm(nm, m1.project(pair._2, vr), m2.project(pair._2, vr))) {
                   Some(as :+ nm)
                 } else {

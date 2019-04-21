@@ -11,9 +11,16 @@
 **/
 
 
+define record_test = record {
+  field a: type
+  field b: a
+  field c: a ⇒ type
+  field d: c(b)
+}
+
 define inductively nat: type = sum {
   case zero
-  case suc(nat)
+  case suc(:nat)
 }
 
 
@@ -67,7 +74,7 @@ define bool = sum { case true false }
 
 define list(a: type): type = sum {
   case nil
-  case cons(a, list(a))
+  case cons(:a, :list(a))
 }
 
 
@@ -156,6 +163,7 @@ define ignored _ = { // "{" starts a let expression
   define fin3_pair = record {
     field a b: fin3
   }
+
 
   define inverse:
     fin3  ⇒ fin3 =

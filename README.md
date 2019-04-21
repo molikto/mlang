@@ -17,7 +17,6 @@
      * **QUESTION** reify
          * local unannotated motive: simple it is a closure
          * unannotated path type
-         * "maker" values
          * error reporting (seems not hard!)
     * cubical features
         * **QUESTION** path? extension? (they are Kan; interval "type" is a syntax sugar). also extension type seems works better with sub-typing

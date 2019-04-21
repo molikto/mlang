@@ -61,7 +61,7 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
 
   lazy val let: PackratParser[Let] = delimited("{", rep(declaration) ~ term, "}") ^^ { a => Let(a._1, a._2)}
 
-  lazy val teleInner =  rep1sep(opt(rep1(ident) <~ ":") ~ term, ",") ^^ {
+  lazy val teleInner =  rep1sep(opt(rep1(ident)) ~  (":" ~> term), ",") ^^ {
     a => a.map(a => NameType(a._1.getOrElse(Seq.empty).map(a => Name(Text(a))), a._2)) }
 
   lazy val tele: PackratParser[Seq[NameType]] = delimited("(", teleInner, ")")
@@ -85,6 +85,7 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
         sum |
         coe |
         universe |
+        delimited("(", term, ")") |
         absDimension |
         ident ^^ {a => Reference(a)}
 

@@ -8,6 +8,7 @@ import scala.reflect.runtime.currentMirror
 import scala.tools.reflect.ToolBox
 
 
+
 trait PlatformEvaluator extends BaseEvaluator {
 
   private def compile[A](string: String): A = {
@@ -34,7 +35,7 @@ trait PlatformEvaluator extends BaseEvaluator {
             } else {
               // this is a value inside the context
               assert((up == depth + 1 && closed == 0) || closed == -1)
-              s"${tunnel(evalOpenTermReferenceAsReference(up - depth - 1, index))}.renormalize(r)"
+              s"${tunnel(evalOpenTermReferenceAsReference(up - depth - 1, index))}.deref(r)"
             }
           } else {
             // a reference inside the emit context
@@ -68,17 +69,19 @@ trait PlatformEvaluator extends BaseEvaluator {
           s"${emit(left, depth)}.app(${emit(right, depth)}, r)"
         case Abstract.Record(level, nodes) =>
           val d = depth + 1
-          s"""Record($level, ${nodes.zipWithIndex.map(c =>
-            s"RecordNode(${source(c._1.name)}, Seq(${nodes.take(c._2).map(a => source(a.name.refSelf)).mkString(", ")}), MultiClosure((r$d, r) => ${emit(c._1.typ, d)}))")})"""
-        case Abstract.RecordMaker(record) =>
-          s"${emit(record, depth)}.demaker(0, r)"
+          s"""Record($level, Seq(${nodes.zipWithIndex.map(c =>
+            s"{ val ds = Seq[Int](${c._1.dependencies.mkString(", ")}); " +
+                s"RecordNode(" +
+                s"${source(c._1.name)}, " +
+                s"ds, " +
+                s"MultiClosure((jd, r) => { def r$d(i: Int): Value = jd(ds.indexOf(i)); ${emit(c._1.typ, d)}}))}").mkString(", ")}))"""
         case Abstract.Projection(left, field) =>
           s"${emit(left, depth)}.project($field, r)"
         case Abstract.Sum(level, constructors) =>
           val d = depth + 2 // we some how have have one layer for the constructor names
           s"""Sum($level, ${constructors.zipWithIndex.map(c =>
             s"Constructor(${source(c._1.name)}, ${c._1.params.size}, Seq(${c._1.params.map(p => s"MultiClosure((r$d, r) => " + emit(p, d) + ")").mkString(", ")}))")})"""
-        case Abstract.SumMaker(sum, field) =>
+        case Abstract.Maker(sum, field) =>
           s"${emit(sum, depth)}.demaker($field, r)"
         case Abstract.PatternLambda(id, codomain, cases) =>
           val d = depth + 1

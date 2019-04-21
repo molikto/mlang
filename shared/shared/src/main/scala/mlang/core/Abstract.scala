@@ -25,13 +25,11 @@ sealed trait Abstract {
       right.markRecursive(i, c)
     case Record(_, nodes) =>
       nodes.foreach(_.typ.markRecursive(i + 1, c))
-    case RecordMaker(record) =>
-      record.markRecursive(i, c)
     case Projection(left, _) =>
       left.markRecursive(i, c)
     case Sum(_, constructors) =>
       constructors.foreach(_.params.foreach(_.markRecursive(i + 2, c)))
-    case SumMaker(sum, _) =>
+    case Maker(sum, _) =>
       sum.markRecursive(i, c)
     case Let(definitions, _, in) =>
       definitions.foreach(a => {
@@ -58,10 +56,9 @@ sealed trait Abstract {
     case Lambda(closure) => closure.dependencies(i + 1)
     case Application(left, right) => left.dependencies(i) ++ right.dependencies(i)
     case Record(_, nodes) => nodes.flatMap(_.typ.dependencies(i + 1)).toSet
-    case RecordMaker(record) => record.dependencies(i)
     case Projection(left, _) => left.dependencies(i)
     case Sum(_, constructors) => constructors.flatMap(_.params.flatMap(_.dependencies(i + 2))).toSet
-    case SumMaker(sum, _) => sum.dependencies(i)
+    case Maker(sum, _) => sum.dependencies(i)
     case Let(definitions, _, in) => definitions.flatMap(a => a.dependencies(i + 1)).toSet ++ in.dependencies(i + 1)
     case PatternLambda(_, cd, cases) => cd.dependencies(i + 1) ++ cases.flatMap(_.body.dependencies(i + 1)).toSet
     case PathLambda(body) => body.dependencies(i + 1)
@@ -85,17 +82,16 @@ object Abstract {
 
   case class Application(left: Abstract, right: Abstract) extends Abstract
 
-  case class RecordNode(name: Name, typ: MultiClosure)
+  case class RecordNode(name: Name, dependencies: Seq[Int], typ: MultiClosure)
   case class Record(level: Int, nodes: Seq[RecordNode]) extends Abstract
 
-  case class RecordMaker(record: Abstract) extends Abstract
 
   case class Projection(left: Abstract, field: Int) extends Abstract
 
   case class Constructor(name: Tag, params: Seq[MultiClosure])
   case class Sum(level: Int, constructors: Seq[Constructor]) extends Abstract
 
-  case class SumMaker(sum: Abstract, field: Int) extends Abstract
+  case class Maker(sum: Abstract, field: Int) extends Abstract
 
   case class Let(definitions: Seq[Abstract], order: Seq[Set[Int]], in: Abstract) extends Abstract
 
