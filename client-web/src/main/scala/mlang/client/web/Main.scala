@@ -1,8 +1,6 @@
 package mlang.client.web
 import org.scalajs.dom
-import mlang.editor
 import mlang.editor._
-import mlang.utils.{Text, _}
 
 import scalatags.JsDom.all._
 

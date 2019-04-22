@@ -32,6 +32,16 @@ define nat_is_even =
 define fun_ext(a: type, b: a ⇒ type, f g: (x: a) ⇒ b(x), p: (x: a) ⇒ f(x) ≡ g(x)): f ≡ g =
   i ↪ x → p(x)[i]
 
+
+/*
+
+define fun_ext(f g: (x: /a/) ⇒ /b(x)/, p: (x: a) ⇒ f(x) ≡ g(x)): f ≡ g =
+  i ↪ x → p(x)[i]
+
+projection (p: /x/ ≡ /y/).reverse: y ≡ x =
+
+*/
+
 define record_test = record {
   field a: type
   field b: a
@@ -150,10 +160,11 @@ define test0(a b: type, f: a ⇒ b, func: (a ⇒ b) ⇒ type, g: func(f)): func(
 
 define test1(a b: type, f: a ⇒ b, func: (a ⇒ b) ⇒ type, g: func(f)): func(id(a ⇒ b, f)) = g
 
+define fin3_copy = sum {
+  case one two three
+}
 
-// ignored is a keyword to don't put the definition in the context at all, it just makes it type check
-
-define ignored _ = { // "{" starts a let expression
+define ig = { // "{" starts a let expression
 
   define fin3 = sum {
     case one two three
@@ -180,6 +191,8 @@ define ignored _ = { // "{" starts a let expression
 
   test
 }
+
+define ignored_again = ig(fin3_copy.one, fin3_copy.one, fin3_copy.three)
 
 define list(a: type): type = sum {
   case nil

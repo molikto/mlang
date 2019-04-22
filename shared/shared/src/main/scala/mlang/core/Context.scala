@@ -82,7 +82,7 @@ trait Context {
       }
     }
     if (binder == null) {
-      throw new IllegalArgumentException("")
+      logicError()
     } else {
       binder
     }
@@ -114,7 +114,7 @@ trait Context {
       }
     }
     if (binder == null) {
-      throw new IllegalArgumentException("")
+      logicError()
     } else {
       binder
     }

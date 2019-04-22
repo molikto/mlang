@@ -12,7 +12,7 @@
      * **DONE** totally unsafe MLTT basics
          * function types with eta, record types with eta, inductive types, 
          * bidirectional elaborating type checker with mutual recursive definitions
-         * type directed readback
+         * readback
          * type directed conversion check with eta and recursive definitions
          * basic `.poor` syntax and parser
     * cubical features
@@ -116,7 +116,7 @@ it seems to me Agda and Mini-TT handles the problem of readback recursive defini
 it is extended in our case, by also allowing the id to be different, but as an assumption see `Conversion.scala`
 
 
-## implicit on the right
+### implicit on the right
 
 problems:
 
@@ -128,6 +128,11 @@ problems:
 cong: `f: /A/ ⇒ /B[A]/, p: /x/ ≡_A /y/, f(x) ≡B(p) f(y)`
 * how to make inductive type parameters injective?
 
+we lost the ability to infer type `a: (x) ⇒ f(x) ≡ g(x)` by application
+
+### inductive type
+
+we don't have special syntax for parameterized inductive type, parameters is done by lambdas, and recursion is done by sum + recursion. this saves syntax. we have restrictions though: like inductive type are likely can only be defined in a global context (for example the conversion checking might loop), we don't know if you can define a inductive type in a restricted context. anyway. the idea is inductive definitions is globally defined `define inductively a(...) = sum ...` just this syntax. we can extend latter to parameterized by more telescope etc. the same applies for inductively defined records.
 
 ## math
 

@@ -3,7 +3,6 @@ package mlang.core
 import mlang.concrete.{Pattern => Patt, _}
 import Context._
 import mlang.name._
-import mlang.utils
 import mlang.utils._
 
 import scala.collection.mutable
@@ -343,7 +342,7 @@ class TypeChecker private (protected override val layers: Layers)
             abs.append(DefinitionInfo(name, tv, va, Some(ta)))
             ctx
           case None =>
-            if (ps.nonEmpty) throw new Exception("Not implemented")
+            if (ps.nonEmpty) ???
             val index = headTerms.indexWhere(_.name == name)
             if (index < 0) {
               val (vt, va) = infer(v)
@@ -392,7 +391,7 @@ class TypeChecker private (protected override val layers: Layers)
       }
       if (toCompile.nonEmpty) {
         val toCal = toCompile.map(i => i -> abs(i).directDependencies.filter(a => toCompile.contains(a))).toMap
-        val ccc = utils.graphs.tarjanCcc(toCal).toSeq.sortWith((l, r) => {
+        val ccc = mlang.utils.graphs.tarjanCcc(toCal).toSeq.sortWith((l, r) => {
           l.exists(ll => r.exists(rr => abs(ll).directDependencies.contains(rr)))
         }).reverse
         for (c <- ccc) {

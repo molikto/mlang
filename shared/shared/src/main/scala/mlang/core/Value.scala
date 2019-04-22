@@ -21,7 +21,9 @@ import Value._
 sealed trait Value {
 
 
-
+  final override def equals(obj: Any): Boolean = {
+    throw new IllegalArgumentException("Values don't have equal. Either call eq or do conversion checking")
+  }
 
   private var _whnf: Value = _
   private var _nf: Value = _
@@ -93,7 +95,7 @@ sealed trait Value {
         PatternStuck(lambda, normalizeWhnfStuck(stuck))
       case PathApplication(left, stuck) =>
         PathApplication(left.normalize, stuck)
-      case _ => throw new IllegalArgumentException("")
+      case _ => logicError()
     }
   }
 
@@ -120,12 +122,9 @@ sealed trait Value {
           Construct(name, vs.map(_.normalize))
         case PathType(typ, left, right) =>
           PathType(typ, left.normalize, right.normalize)
-        case _: Reference =>
-          throw new IllegalStateException("Not possible")
-        case _: Maker =>
-          throw new IllegalStateException("Not possible")
-        case _: Let =>
-          throw new IllegalStateException("Not possible")
+        case _: Reference => logicError()
+        case _: Maker => logicError()
+        case _: Let => logicError()
         case a =>
           normalizeWhnfStuck(a)
       }
@@ -172,7 +171,7 @@ sealed trait Value {
               case PathType(_, left, right) =>
                 val res = if (i) right else left
                 if (whnf) res.whnf else res
-              case _ => throw new IllegalArgumentException("")
+              case _ => logicError()
             }
           case _: Dimension.OpenReference =>
             PathApplication(this, d)
@@ -184,7 +183,7 @@ sealed trait Value {
   def makerType(i: Int): Value = this.whnf match {
     case s: Sum => s.constructors(i).makerType
     case v: Record => v.makerType
-    case _ => throw new IllegalArgumentException("")
+    case _ => logicError()
   }
 
   def demaker(i: Int, env: Reduction /* REDUCTION */): Value = if (env.demaker) {
@@ -396,7 +395,7 @@ object Value {
 
   def inferLevel(t1: Value): Int = infer(t1, Reduction.Normalize) match {
     case Universe(l) => l
-    case _ => throw new IllegalArgumentException("")
+    case _ => logicError()
   }
 
   // only works for values of path type and universe types
@@ -408,7 +407,7 @@ object Value {
       case Function(domain, codomain) =>
         (infer(domain, r), infer(codomain(OpenReference(gen(), domain), r), r)) match {
           case (Universe(l1), Universe(l2)) => Universe(l1 max l2)
-          case _ => throw new IllegalArgumentException("")
+          case _ => logicError()
         }
       case Record(level, _) =>
         Universe(level)
@@ -420,12 +419,12 @@ object Value {
         infer(l1, r).whnf match {
           case Function(_, c) =>
             c(a1, r)
-          case _ => throw new IllegalArgumentException("")
+          case _ => logicError()
         }
       case Projection(m1, f1) =>
         infer(m1, r).whnf match {
           case rr: Record  => rr.projectedType(rr.nodes.indices.map(n => Projection(m1, n)), f1, r)
-          case _ => throw new IllegalArgumentException("")
+          case _ => logicError()
         }
       case PatternStuck(l1, s1) =>
         l1.typ(s1, r)
@@ -433,9 +432,9 @@ object Value {
         infer(l1, r).whnf match {
           case PathType(typ, _, _) =>
             typ(d1, r)
-          case _ => throw new IllegalArgumentException("")
+          case _ => logicError()
         }
-      case _ => throw new IllegalArgumentException("")
+      case _ => logicError()
     }
   }
 

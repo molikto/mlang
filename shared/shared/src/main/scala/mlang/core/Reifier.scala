@@ -59,9 +59,10 @@ private trait ReifierContext extends ContextBuilder {
         val (ctx, d) = newDimension(Name.empty)
         PathType(ctx.reify(ty(d, rd)), reify(left), reify(right))
       case Value.Make(_) =>
-        throw new IllegalArgumentException("")
+        // we believe at least values from typechecker don't have these stuff
+        logicError()
       case Value.Construct(_, _) =>
-        throw new IllegalArgumentException("")
+        logicError()
       case Value.Lambda(closure) =>
         val (ctx, n) = newLayer().newAbstraction(Name.empty, null)
         Lambda(ctx.reify(closure(n, rd)))

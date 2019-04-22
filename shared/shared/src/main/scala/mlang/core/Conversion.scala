@@ -152,7 +152,7 @@ class Conversion {
         if (i1 == i2) {
           if (debug.enabled) {
             if (!equalType(v1, v2)) {
-              throw new IllegalArgumentException("")
+              logicError()
             }
           }
           Some(v1)
@@ -167,12 +167,12 @@ class Conversion {
           } else {
             None
           }
-          case _ => throw new IllegalArgumentException("")
+          case _ => logicError()
         }
       case (Projection(m1, f1), Projection(m2, f2)) =>
         equalNeutral(m1, m2).flatMap {
           case r: Record if f1 == f2 => Some(r.projectedType(r.nodes.indices.map(n => Projection(m1, n)), f2, dr))
-          case _ => throw new IllegalArgumentException("")
+          case _ => logicError()
         }
       case (PatternStuck(l1, s1), PatternStuck(l2, s2)) =>
         equalNeutral(s1, s2).flatMap(n => {
@@ -188,7 +188,7 @@ class Conversion {
           equalNeutral(l1, l2).map(_ match {
             case PathType(typ, _, _) =>
               typ(d1, dr)
-            case _ => throw new IllegalArgumentException("")
+            case _ => logicError()
           })
         } else {
           None
@@ -287,10 +287,9 @@ class Conversion {
                 }
                 Value.Make(vs)
               } else {
-                throw new IllegalStateException("")
+                logicError()
               }
-            case _ =>
-              throw new IllegalStateException("")
+            case _ => logicError()
           }
         case Pattern.Construct(name, maps) =>
           t match {
@@ -306,13 +305,11 @@ class Conversion {
                     }
                     Value.Construct(name, vs)
                   } else {
-                    throw new IllegalStateException("")
+                    logicError()
                   }
-                case _ =>
-                  throw new IllegalStateException("")
+                case _ => logicError()
               }
-            case _ =>
-              throw new IllegalStateException("")
+            case _ => logicError()
           }
       }
     }
