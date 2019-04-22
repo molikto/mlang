@@ -1,6 +1,5 @@
 package mlang.core
 
-import mlang.core
 import mlang.concrete.{Pattern => Patt}
 import mlang.name._
 
@@ -39,6 +38,15 @@ trait ContextBuilder extends Context {
 
   def newLayer(): Self = Layer.Terms(Seq.empty) +: layers
 
+  def newRestriction(pair: Value.DimensionPair): Option[Self] = {
+    pair match {
+      case Value.DimensionPair(Value.Dimension.Constant(a), Value.Dimension.Constant(b)) if a != b =>
+        None
+      case _ =>
+        Some(Layer.Restriction(pair) +: layers)
+    }
+  }
+
   def newDimension(n: Name): (Self, Value.Dimension) = {
     val gen = dgen()
     val v = Value.Dimension.OpenReference(gen)
@@ -46,7 +54,7 @@ trait ContextBuilder extends Context {
     (ctx, v)
   }
 
-  def newDimension(n: Name, v: Value.Dimension.Constant): Self = {
+  def newDimension(n: Name, v: Value.Dimension): Self = {
     val gen = dgen()
     Layer.Dimension(gen, n, v) +: layers
   }
@@ -58,18 +66,18 @@ trait ContextBuilder extends Context {
       case Some(_) => throw ContextBuilderException.AlreadyDeclared()
       case _ =>
         val g = gen()
-        Layer.Terms(headTerms :+ Binder(g, name, typ, false, v)) +: layers.tail
+        Layer.Terms(headTerms :+ Binder(g, name, typ, false, false, v)) +: layers.tail
     }
   }
 
   def newDefinitionChecked(index: Int, name: Name, v: Value) : Self = {
     headTerms(index) match {
-      case Binder(id, n0, typ, defined, _) =>
+      case Binder(id, n0, typ, defined, _, _) =>
         if (defined) {
           throw ContextBuilderException.AlreadyDefined()
         } else {
           assert(n0 == name)
-          Layer.Terms(headTerms.updated(index, Binder(id, name, typ, true, v))) +: layers.tail
+          Layer.Terms(headTerms.updated(index, Binder(id, name, typ, true, false, v))) +: layers.tail
         }
     }
   }
@@ -79,7 +87,7 @@ trait ContextBuilder extends Context {
       case Some(_) => throw ContextBuilderException.AlreadyDeclared()
       case _ =>
         val g = gen()
-        Layer.Terms(headTerms :+ Binder(g, name, typ, false, Value.OpenReference(g, typ))) +: layers.tail
+        Layer.Terms(headTerms :+ Binder(g, name, typ, false, false, Value.OpenReference(g, typ))) +: layers.tail
     }
   }
 
@@ -97,7 +105,7 @@ trait ContextBuilder extends Context {
       case _ =>
         val g = gen()
         val v = Value.OpenReference(g, typ)
-        (Layer.Terms(headTerms :+ Binder(g, name, typ, true, v)) +: layers.tail, v)
+        (Layer.Terms(headTerms :+ Binder(g, name, typ, true, true, v)) +: layers.tail, v)
     }
   }
 
@@ -119,7 +127,7 @@ trait ContextBuilder extends Context {
           if (ret == null) {
             val open = Value.OpenReference(gen(), t)
             if (name.isDefined) {
-              vvv.append(Binder(gen(), name.get, t, true, open))
+              vvv.append(Binder(gen(), name.get, t, true, true, open))
             }
             ret = (open, Pattern.Atom)
           }

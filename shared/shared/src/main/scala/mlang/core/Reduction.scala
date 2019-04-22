@@ -18,23 +18,25 @@ case class Reduction(
     var app: Option[Reduction],
     project: Boolean,
     var papp: Option[Reduction],
+    var kan: Option[Reduction], // coe, hcom
     deref: Int,
     delet: Boolean,
     demaker: Boolean,
-    renormalize: Boolean
-    // deref is for syntaxal closed references. renormalize is for formal references that applied by outer closure
+    renor: Boolean
+    // deref is for syntaxal closed references. renor is for formal references that applied by outer closure
 )
 
 object Reduction {
 
   val Normalize: Reduction = {
-    val r = Reduction(null, true, null, mlang.core.Deref.Normalize, true, true, true)
+    val r = Reduction(null, true, null, null, mlang.core.Deref.Normalize, true, true, true)
     r.app = Some(r)
     r.papp = Some(r)
+    r.kan = Some(r)
     r
   }
 
-  val No = Reduction(None, false, None, mlang.core.Deref.No, false, false, false)
+  val No = Reduction(None, false, None, None, mlang.core.Deref.No, false, false, false)
 
   val Project = No.copy(project = true)
 
@@ -43,11 +45,15 @@ object Reduction {
   }
 
   object App {
-    val Once = No.copy(app = Some(No))
+    val Once = No.copy(app = Some(No)) // not evaluating inside the lambda closure
+  }
+
+  object Kan {
+    val Once = No.copy(kan = Some(No)) // not evaluating inside the lambda closure
   }
 
   object Papp {
-    val Once = No.copy(papp = Some(No))
+    val Once = No.copy(papp = Some(No)) // not evaluating inside the lambda closure
   }
 
 }

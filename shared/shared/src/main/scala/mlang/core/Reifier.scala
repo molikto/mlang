@@ -2,6 +2,7 @@ package mlang.core
 
 import Abstract._
 import mlang.core.Context.Layers
+import mlang.core.Value.Dimension
 import mlang.name.Name
 
 import scala.collection.mutable
@@ -20,14 +21,6 @@ private trait ReifierContext extends ContextBuilder {
       case None =>
         base.saveOutOfScopeValue(r)
         rebindReference(r).get
-    }
-  }
-
-  def reify(a: Value.Dimension): Abstract.Dimension = {
-    a match {
-      case Value.Dimension.OpenReference(stuck) =>
-        rebindDimensionOpenReference(stuck)
-      case Value.Dimension.Constant(isOne) => Dimension.Constant(isOne)
     }
   }
 
@@ -98,7 +91,23 @@ private trait ReifierContext extends ContextBuilder {
         Let(abs, order, ctx.reify(body))
       case Value.PathApplication(left, stuck) =>
         PathApplication(reify(left), reify(stuck))
+      case Value.Coe(dir, tp, base) =>
+        val (ctx, n) = newLayer().newDimension(Name.empty)
+        Coe(reify(dir), ctx.reify(tp(n, rd)), reify(base))
+      case Value.Hcom(dir, tp, base, restrictions) =>
+        val (ctx, n) = newLayer().newLayer().newDimension(Name.empty)
+        Hcom(reify(dir), reify(tp), reify(base), restrictions.map(r => Restriction(reify(r.pair), ctx.reify(r.body(n, rd)))))
+      case Value.Restricted(a, pair) =>
+        Restricted(reify(a), reify(pair))
     }
+  }
+
+  def reify(a: Value.DimensionPair): Abstract.DimensionPair = {
+    Abstract.DimensionPair(reify(a.from), reify(a.to))
+  }
+
+  def reify(a: Value.Dimension): Abstract.Dimension = {
+    rebindDimension(a)
   }
 }
 
@@ -120,7 +129,7 @@ private class ReifierContextBase(layersBefore: Context.Layers) extends ReifierCo
 
   def saveOutOfScopeValue(r: Value.Reference): Unit = {
     val index = terms.size
-    terms.append(Binder(0, Name.empty, null, true, r.value))
+    terms.append(Binder(0, Name.empty, null, true, false, r.value))
     val abs = if (r.value.eq(self)) {
       None : Option[Abstract]
     } else {

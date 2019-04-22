@@ -45,10 +45,13 @@ object TypeCheckException {
   case class ExpectingDimension() extends TypeCheckException
 
   case class PathEndPointsNotMatching() extends TypeCheckException
-
   case class InferPathEndPointsTypeNotMatching() extends TypeCheckException
 
   case class ExpectingLambdaTerm() extends TypeCheckException
+
+  case class RemoveFalseFace() extends TypeCheckException
+  case class CapNotMatching() extends TypeCheckException
+  case class FacesNotMatching() extends TypeCheckException
 }
 
 
@@ -125,14 +128,54 @@ class TypeChecker private (protected override val layers: Layers)
             (tv.papp(to._1, rd), Abstract.Coe(Abstract.DimensionPair(from._2, to._2), ta, la))
           case _ => throw TypeCheckException.ExpectingLambdaTerm()
         }
-      case Term.Hcom(direction, base, restrictions) =>
-        val from = checkDimension(direction.from)
-        val to = checkDimension(direction.to)
-        val (tv, la) = infer(base)
+      case Term.Hcom(direction, base, ident, restrictions) =>
+        val rnn = Reduction.Normalize
+        val (dfv, dfa)= checkDimension(direction.from)
+        val (_, dta) = checkDimension(direction.to)
+        val (bt, ba) = infer(base)
+        val bv = eval(ba, rnn)
+        // we use this context to evaluate body of restrictions, it is only used to keep the dimension binding to the same
+        // one, but as restrictions is already present in abstract terms, it is ok to use this instead of others
+        val fContext = newLayer().newDimension(ident.getOrElse(Name.empty))._1
+        val res = restrictions.map(a => {
+          val df = checkDimension(a.dimension.from)
+          val dr = checkDimension(a.dimension.to)
+          val pair = Value.DimensionPair(df._1, dr._1)
+          newRestriction(pair) match {
+            case Some(ctx0) =>
+              val ctx = ctx0.newDimension(ident.getOrElse(Name.empty))._1
+              val btr = bt.restrict(pair)
+              val na = ctx.check(a.term, btr)
+              val nv = ctx0.newDimension(ident.getOrElse(Name.empty), dfv).eval(na, rnn)
+              if (!Conversion.equalTerm(btr, bv.restrict(pair), nv)) {
+                throw TypeCheckException.CapNotMatching()
+              }
+              (Abstract.Restriction(Abstract.DimensionPair(df._2, dr._2), na), fContext.eval(na, Reduction.No), pair, ctx0)
+            case None =>
+              throw TypeCheckException.RemoveFalseFace()
+          }
+        })
+        for (i <- restrictions.indices) {
+          val l = res(i)
+          for (j <- 0 until i) {
+            val r = res(j)
+            val rj = restrictions(j)
+            // this might evaluate the dimensions to new values
+            val df = l._4.checkDimension(rj.dimension.from)
+            val dr = l._4.checkDimension(rj.dimension.to)
+            val pr = Value.DimensionPair(df._1, dr._1)
+            l._4.newRestriction(pr) match {
+              case Some(_) =>
+                Conversion.equalTerm(
+                  bt.restrict(l._3).restrict(pr),
+                  l._2.restrict(pr),
+                  r._2.restrict(l._3))
+            }
+          }
+        }
         // check restrictions is valid
-        // check restrictions each over overlapping valid
-        // check restrictions with base is valid
-        (tv, Abstract.Coe(Abstract.DimensionPair(from._2, to._2), reify(tv), la))
+        //res.exists(a => a._3.from == a._3.to) || res
+        (bv, Abstract.Coe(Abstract.DimensionPair(dfa, dta), reify(bv), ba))
       case Term.PathType(typ, left, right) =>
         typ match {
           case Some(tp) =>
@@ -141,8 +184,8 @@ class TypeChecker private (protected override val layers: Layers)
                 val ctx = newDimension(name.getOrElse(Name.empty))._1
                 val (tl, ta) = ctx.inferLevel(body)
                 val tv = eval(Abstract.PathLambda(ta), rd).asInstanceOf[Value.PathLambda]
-                val la = check(left, tv.body(Value.Dimension.Constant(false), rd))
-                val ra = check(right, tv.body(Value.Dimension.Constant(true), rd))
+                val la = check(left, tv.body(Value.Dimension.False, rd))
+                val ra = check(right, tv.body(Value.Dimension.True, rd))
                 (Value.Universe(tl), Abstract.PathType(ta, la, ra))
               case _ => throw TypeCheckException.ExpectingLambdaTerm()
             }
@@ -201,7 +244,7 @@ class TypeChecker private (protected override val layers: Layers)
     r match {
       case Term.Reference(name) =>
         val (v, a) = lookupDimension(name)
-        (v.value, a)
+        (v, a)
       case Term.ConstantDimension(i) =>
         (Value.Dimension.Constant(i), Abstract.Dimension.Constant(i))
       case _ => throw TypeCheckException.ExpectingDimension()
@@ -279,8 +322,8 @@ class TypeChecker private (protected override val layers: Layers)
             val a1 = c1.check(body, t1)
             val ps = Abstract.PathLambda(a1)
             val pv = eval(ps, rd)
-            val leftEq = Conversion.equalTerm(typ(Constant(false), rd), pv.papp(Constant(false), rd), left)
-            val rightEq = Conversion.equalTerm(typ(Constant(true), rd), pv.papp(Constant(true), rd), right)
+            val leftEq = Conversion.equalTerm(typ(False, rd), pv.papp(False, rd), left)
+            val rightEq = Conversion.equalTerm(typ(True, rd), pv.papp(True, rd), right)
             if (leftEq && rightEq) {
               ps
             } else {
@@ -399,7 +442,7 @@ class TypeChecker private (protected override val layers: Layers)
             info(s"defined ${g.name}")
             if (debug.enabled) {
               val abs = reify(v)
-              assert(Conversion.equalTerm(ctx.lookupTerm(g.name.refSelf)._1.typ, eval(abs, rd), v))
+              assert(Conversion.equalTerm(ctx.lookupTerm(g.name.refSelf)._1, eval(abs, rd), v))
             }
           } else {
             for (i <- c) {
@@ -414,7 +457,7 @@ class TypeChecker private (protected override val layers: Layers)
               info(s"defined recursively $name")
               if (debug.enabled) {
                 val abd = reify(v._2)
-                assert(Conversion.equalTerm(ctx.lookupTerm(ab.name.refSelf)._1.typ, eval(abd, rd), v._2))
+                assert(Conversion.equalTerm(ctx.lookupTerm(ab.name.refSelf)._1, eval(abd, rd), v._2))
               }
             }
           }

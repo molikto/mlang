@@ -124,12 +124,12 @@ class Conversion {
         case (Sum(l1, c1), Sum(l2, c2)) =>
           l1 == l2 && l1 <= less && c1.size == c2.size && c1.zip(c2).forall(p => equalConstructor(l1, p._1, p._2))
         case (PathType(t1, l1, r1), PathType(t2, l2, r2)) =>
-          val a = t1(Value.Dimension.Constant(false), vr)
-          val b = t2(Value.Dimension.Constant(false), vr)
+          val a = t1(Value.Dimension.False, vr)
+          val b = t2(Value.Dimension.False, vr)
           // we can call equal term here because we know tm1 and tm2 is well typed
           if (equalType(less, a, b) && equalTerm(a, l1, l2)) {
-            val c = t1(Value.Dimension.Constant(true), vr)
-            val d = t2(Value.Dimension.Constant(true), vr)
+            val c = t1(Value.Dimension.True, vr)
+            val d = t2(Value.Dimension.True, vr)
             equalType(less, c, d) && equalTerm(c, r1, r2)
           } else {
             false
@@ -192,6 +192,8 @@ class Conversion {
         } else {
           None
         }
+      case (Hcom(d1, t1, b1, r1), Hcom(d2, t2, b2, r2)) =>
+        ???
       case _ => None
     }
   }
@@ -220,9 +222,9 @@ class Conversion {
         case (Function(d, cd), s1, s2) =>
           val c = OpenReference(gen(), d)
           equalTerm(cd(c, dr), s1.app(c, vr), s2.app(c, vr))
-        case (PathType(typ, _, _), s1, s2) =>
+        case (PathType(ty, _, _), s1, s2) =>
           val c = Value.Dimension.OpenReference(dgen())
-          equalTerm(typ(c, dr), s1.papp(c, vr), s2.papp(c, vr))
+          equalTerm(ty(c, dr), s1.papp(c, vr), s2.papp(c, vr))
         case (Record(_, ns), m1, m2) =>
           ns.zipWithIndex.foldLeft(Some(Seq.empty) : Option[Seq[Value]]) { (as0, pair) =>
             as0 match {

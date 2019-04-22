@@ -7,6 +7,9 @@ trait Holder {
   def value(c: Context, r: Reduction, rs: Seq[Value], vs: Seq[Value], cs: Seq[Value.Closure], ps: Seq[Pattern]): Value
 }
 
+// the evaluator perform a direct translation of abstract terms under a context to a
+// context independent value, the only thing that is complicated is how to handle references and recursion
+// recursion is represented by object graph where recursion handles inside a closure
 trait BaseEvaluator extends Context {
 
 

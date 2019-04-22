@@ -7,6 +7,13 @@
 * main blocking problems
     * how the "terrible way" of implementing face restrictions done
          * how to implement if efficiently?
+
+* **CURRENT**: coe and hcom
+    * ~~type checking rules~~
+    * computation rules
+    * conversion checking
+* Then: `universe`
+* Then HITs
     
 * roadmap
     * **DONE** totally unsafe MLTT basics
@@ -59,7 +66,6 @@
          * *Cubical Type Theory: a constructive interpretation of the univalence axiom*
          * *On Higher Inductive Types in Cubical Type Theory*
          * *Higher inductive types in cubical computational type theory*
-         * *Syntax and Models of Cartesian Cubical Type Theory*
 * implementation
     * the type checker is written in a bidirectional way, some reference is
          * *A simple type-theoretic language: Mini-TT*
@@ -97,6 +103,7 @@ so the default reduction strategy has the property:
 and it will be exactly like a theory without recursive reference and references
 * one-time substitution is always terminating **?????** (TODO really? assuming we have termination checker, can we have this property???)
 
+renormalize: it is because a closure has been applied to some value that is not normal form, then these values will not be normalized even if you only perform heredity substitution. it is a bit wired.
 
 ### conversion checking
 
@@ -133,6 +140,12 @@ we lost the ability to infer type `a: (x) ⇒ f(x) ≡ g(x)` by application
 ### inductive type
 
 we don't have special syntax for parameterized inductive type, parameters is done by lambdas, and recursion is done by sum + recursion. this saves syntax. we have restrictions though: like inductive type are likely can only be defined in a global context (for example the conversion checking might loop), we don't know if you can define a inductive type in a restricted context. anyway. the idea is inductive definitions is globally defined `define inductively a(...) = sum ...` just this syntax. we can extend latter to parameterized by more telescope etc. the same applies for inductively defined records.
+
+### kan types
+
+context restrictions is done by quoting any **reference** not defined in the restricted context by a restriction. restriction works for all stuff, and it don't further evaluate terms at all. it is the one that calls the restriction will evaluate them further?
+
+we have `hcom`, `coe` as eliminations, in a normalized closed value, they should not appear. they interact with restrictions, just like a path lambda interact with dimensions, then they are inductively defined on all type formers
 
 ## math
 

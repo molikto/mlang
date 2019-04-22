@@ -61,7 +61,7 @@ object Term {
   case class DimensionPair(from: Term, to: Term)
   case class Restriction(dimension: DimensionPair, term: Term)
   case class Coe(direction: DimensionPair, typ: Term, base: Term) extends Term
-  case class Hcom(direction: DimensionPair, base: Term, restrictions: Seq[Restriction]) extends Term
+  case class Hcom(direction: DimensionPair, base: Term, ident: Name.Opt, restrictions: Seq[Restriction]) extends Term
 }
 
 case class Module(declarations: Seq[Declaration])

@@ -18,7 +18,54 @@ object PatternExtractException {
 
 import Value._
 
+
+
 sealed trait Value {
+
+
+  def restrict(lv: DimensionPair): Value = this match {
+    case u: Universe => u
+    case Function(domain, codomain) =>
+      Function(domain.restrict(lv), codomain.restrict(lv))
+    case Record(level, nodes) =>
+      Record(level, nodes.map(n => RecordNode(n.name, n.dependencies, n.closure.restrict(lv))))
+    case Make(values) =>
+      Make(values.map(_.restrict(lv)))
+    case Construct(name, vs) =>
+      Construct(name, vs.map(_.restrict(lv)))
+    case Sum(level, constructors) =>
+      Sum(level, constructors.map(n => Constructor(n.name, n.parameters, n.nodes.map(_.restrict(lv)))))
+    case Lambda(closure) =>
+      Lambda(closure.restrict(lv))
+    case PatternLambda(id, typ, cases) =>
+      PatternLambda(id, typ.restrict(lv), cases.map(a => Case(a.pattern, a.closure.restrict(lv))))
+    case PathType(typ, left, right) =>
+      PathType(typ.restrict(lv), left.restrict(lv), right.restrict(lv))
+    case PathLambda(body) =>
+      PathLambda(body.restrict(lv))
+    case Application(lambda, argument) =>
+      Application(lambda.restrict(lv), argument.restrict(lv))
+    case Restricted(a, restriction) =>
+      Restricted(a.restrict(lv), restriction)
+    case Coe(direction, tp, base) =>
+      Coe(direction, tp.restrict(lv), base.restrict(lv))
+    case Hcom(direction, tp, base, restrictions) =>
+      Hcom(direction, tp.restrict(lv), base.restrict(lv), restrictions.map(n => Restriction(n.pair, n.body.restrict(lv))))
+    case Maker(value, field) =>
+      Maker(value.restrict(lv), field)
+    case Projection(make, field) =>
+      Projection(make.restrict(lv), field)
+    case PatternStuck(lambda, stuck) =>
+      PatternStuck(lambda.restrict(lv).asInstanceOf[PatternLambda], stuck.restrict(lv))
+    case Let(items, order, body) =>
+      Let(items.map(_.restrict(lv)), order, body.restrict(lv))
+    case PathApplication(left, stuck) =>
+      PathApplication(left.restrict(lv), stuck.restrict(lv))
+    case o: Reference =>
+      Restricted(o, lv)
+    case o: OpenReference =>
+      Restricted(o, lv)
+  }
 
 
   final override def equals(obj: Any): Boolean = {
@@ -34,33 +81,24 @@ sealed trait Value {
   def whnf: Value = {
     if (_whnf == null) {
       _whnf = this match {
-        case _: HeadCanonical =>
-          this
-        case _: Reference =>
-          this.deref(Reduction.Deref.All).whnf
-        case _: OpenReference =>
-          this
+        case a: HeadCanonical =>
+          a
+        case r: Reference =>
+          r.deref(Reduction.Deref.All).whnf
+        case o: OpenReference =>
+          o
         case Application(lambda, argument) =>
-          val wh = lambda.whnf
-          if (wh.eq(lambda)) {
-            this
-          } else {
-            wh.app(argument, Reduction.App.Once, true)
-          }
+          lambda.whnf.app(argument, Reduction.App.Once, true)
         case Projection(make, field) =>
-          val wh = make.whnf
-          if (wh.eq(make)) {
-            this
-          } else {
-            wh.project(field, Reduction.Project, true)
-          }
+          make.whnf.project(field, Reduction.Project, true)
         case PatternStuck(lambda, stuck) =>
-          val wh = stuck.whnf
-          if (wh.eq(stuck)) {
-            this
-          } else {
-            lambda.app(wh, Reduction.App.Once, true)
-          }
+          lambda.app(stuck.whnf, Reduction.App.Once, true)
+        case Coe(direction, tp, stuck) =>
+          stuck.whnf.coe(direction, tp, Reduction.Kan.Once, true)
+        case Hcom(direction, tp, stuck, restrictions) =>
+          stuck.whnf.hcom(direction, tp, restrictions, Reduction.Kan.Once, true)
+        case Restricted(a, restriction) =>
+          a.whnf.restrict(restriction)
         case Maker(r, i) =>
           // this is a lambda or make expression so in whnf
           r.whnf.demaker(i, Reduction.Normalize)
@@ -74,8 +112,9 @@ sealed trait Value {
     _whnf
   }
 
-  def renormalize(r: Reduction): Value = {
-    if (r.renormalize) {
+  // renormalize. save some evaluator string
+  def renor(r: Reduction): Value = {
+    if (r.renor) {
       this.normalize
     } else {
       this
@@ -133,13 +172,13 @@ sealed trait Value {
     _nf
   }
 
+  private def wh(a: Value, b: Boolean): Value = if (b) a.whnf else a
 
   // also used to decide how
   def app(v: Value, env: Reduction /* REDUCTION */, whnf: Boolean = false): Value = env.app.map(r => {
     this match {
       case Lambda(closure) =>
-        val ret = closure(v, r)
-        if (whnf) ret.whnf else ret
+        wh(closure(v, r), whnf)
       case p@PatternLambda(_, _, cases) =>
         // TODO overlapping patterns, we are now using first match
         var res: Value = null
@@ -149,7 +188,7 @@ sealed trait Value {
           cs = cs.tail
         }
         if (res != null) {
-          if (whnf) res.whnf else res
+          wh(res, whnf)
         } else {
           PatternStuck(p, v)
         }
@@ -159,18 +198,62 @@ sealed trait Value {
   }).getOrElse(Application(this, v))
 
 
+  def coe(pair: DimensionPair, typ: PathClosure, env: Reduction, whnf: Boolean = false): Value =  env.kan.map({ r =>
+    if (pair.from == pair.to) { // just to base
+      wh(this, whnf)
+    } else {
+      // this is ok?
+      typ(Dimension.True, env).whnf match {
+        case Function(_, _) =>
+          def func(a: Value): Function = a.whnf match {
+            case f@Function(_, _) => f
+            case _ => logicError()
+          }
+          Lambda(Value.Closure((a, r) => {
+            val a_ = a.head.coe(pair.reverse, typ.map(a => func(a).domain), r)
+            val app_ = this.app(a_, r)
+            app_.coe(pair, typ.mapd((f, d) => func(f).codomain(a.head.coe(DimensionPair(pair.to, d), typ.map(a => func(a).domain), r), r)), r)
+          }))
+        case _ =>
+          ???
+      }
+    }
+  }).getOrElse(Coe(pair, typ, this))
+
+  def hcom(pair: DimensionPair, typ: Value, restriction0: Seq[Restriction], env: Reduction, whnf: Boolean = false): Value = {
+    val restriction = restriction0.filter(_.pair.isFalse)
+    env.kan.map({ r =>
+      if (pair.from == pair.to) {
+        wh(this, whnf)
+      } else  {
+        restriction.find(a => a.pair.from == a.pair.to) match { // always true face
+          case Some(n) =>
+            wh(n.body(pair.to, r), whnf)
+          case None =>
+            typ.whnf match {
+              case Function(_, codomain) =>
+                Lambda(Value.Closure((a, r) => this.app(a.head, r).hcom(
+                  pair,
+                  codomain(a.head, r),
+                  restriction.map(n => Restriction(n.pair, n.body.map(_.app(a.head, r)))), r)))
+              case _ =>
+                ???
+            }
+        }
+      }
+    }).getOrElse(Hcom(pair, typ, this, restriction))
+  }
+
   def papp(d: Dimension, env: Reduction /* REDUCTION */, whnf: Boolean = false): Value = env.papp.map(r => {
     this match {
       case PathLambda(c) =>
-        val res = c(d, r)
-        if (whnf) res.whnf else res
+        wh(c(d, r), whnf)
       case a =>
         d match {
           case Dimension.Constant(i) =>
             infer(a, env).whnf match {
               case PathType(_, left, right) =>
-                val res = if (i) right else left
-                if (whnf) res.whnf else res
+                wh(if (i) right else left, whnf)
               case _ => logicError()
             }
           case _: Dimension.OpenReference =>
@@ -200,7 +283,7 @@ sealed trait Value {
 
   def project(name: Int, env: Reduction /* REDUCTION */, whnf: Boolean = false): Value = if (env.project) {
     this match {
-      case Make(vs) => vs(name).whnf
+      case Make(vs) => wh(vs(name), whnf)
       case _ => Projection(this, name)
     }
   } else {
@@ -244,38 +327,92 @@ object Value {
 
   implicit class MultiClosure(private val func: (Seq[Value], Reduction) => Value) extends AnyVal {
     def apply(seq: Seq[Value], reduction: Reduction /* REDUCTION */): Value = func(seq, reduction)
+    def restrict(lv: DimensionPair) = Value.MultiClosure((v, r) => this(v, r).restrict(lv))
   }
 
   implicit class Closure(private val func: (Seq[Value], Reduction) => Value) extends AnyVal {
     def apply(seq: Value, reduction: Reduction /* REDUCTION */): Value = func(Seq(seq), reduction)
+    def restrict(lv: DimensionPair) = Value.Closure((v, r) => this(v.head, r).restrict(lv))
   }
 
   object Closure {
-    def apply(a: Value): Closure = Closure((_, r) => a.renormalize(r))
+    def apply(a: Value): Closure = Closure((_, r) => a.renor(r))
+  }
+
+  object PathClosure {
+    def apply(a: Value): PathClosure = PathClosure((_, r) => a.renor(r))
   }
 
   implicit class PathClosure(private val func: (Dimension, Reduction) => Value) extends AnyVal {
     def apply(seq: Dimension, reduction: Reduction /* REDUCTION */): Value = func(seq, reduction)
+    def restrict(lv: DimensionPair): PathClosure = Value.PathClosure((v, r) => this(v, r).restrict(lv))
+    def mapd(a: (Value, Dimension) => Value): PathClosure = PathClosure((d, r) => a(this(d, r), d))
+    def map(a: Value => Value): PathClosure = PathClosure((d, r) => a(this(d, r)))
   }
 
 
-  sealed trait Dimension
+  case class DimensionPair(from: Dimension, to: Dimension) {
+    def reverse: DimensionPair = DimensionPair(to, from)
+
+    def isFalse: Boolean = (from == Dimension.False && to == Dimension.True) || (from == Dimension.True && to == Dimension.False)
+
+  }
+
+  sealed trait Dimension extends {
+    def matches(id: Generic): Boolean = this match {
+      case Dimension.OpenReference(iid) => iid == id
+      case Dimension.Constant(_) => false
+    }
+
+    def max(t: Dimension): Dimension = (this, t) match {
+      case (Dimension.OpenReference(a), Dimension.OpenReference(b)) =>
+        Dimension.OpenReference(a max b)
+      case (c: Dimension.Constant, _: Dimension.OpenReference) =>
+        c
+      case ( _: Dimension.OpenReference,c: Dimension.Constant) =>
+        c
+      case (Dimension.Constant(a), Dimension.Constant(b)) =>
+        assert(a == b, "You should trim false faces")
+        t
+    }
+
+    def restrict(pair: DimensionPair): Dimension = this match {
+      case Dimension.OpenReference(id) =>
+        if (pair.from.matches(id) || pair.to.matches(id)) {
+          pair.from max pair.to
+        } else {
+          this
+        }
+      case Dimension.Constant(_) => this
+    }
+  }
+
   object Dimension {
     case class OpenReference(id: Long) extends Dimension
+    // TODO make it a destructor
     case class Constant(isOne: Boolean) extends Dimension
+
+    val True = Constant(true)
+    val False = Constant(false)
   }
 
   type StuckPos = Value
-  
-  sealed trait HeadCanonical extends Value
 
-  case class Reference(value: Value, closed: Int) extends Value
-  case class OpenReference(id: Generic, typ: Value) extends Value
+  sealed trait Whnf extends Value
+  // these serve the purpose of recovering syntax
+  sealed trait Syntaxial extends Value
+
+  sealed trait HeadCanonical extends Whnf
+
+  sealed trait Stuck extends Whnf
+
+  case class Reference(value: Value, closed: Int) extends Syntaxial
+  case class OpenReference(id: Generic, typ: Value) extends Stuck
 
   case class Universe(level: Int) extends HeadCanonical
 
   case class Function(domain: Value, codomain: Closure) extends HeadCanonical
-  case class Application(lambda: StuckPos, argument: Value) extends Value
+  case class Application(lambda: StuckPos, argument: Value) extends Stuck
 
   // TODO should have a field: recursive, and it must be recursive
   // TODO record should have a type
@@ -319,11 +456,20 @@ object Value {
     }
   }
 
+  case class Restriction(pair: DimensionPair, body: PathClosure)
+
+  case class Restricted(a: Value, restriction: DimensionPair) extends Syntaxial
+
+  case class Coe(direction: DimensionPair, tp: PathClosure, base: Value) extends Stuck
+
+  case class Hcom(direction: DimensionPair, tp: Value, base: Value, restrictions: Seq[Restriction]) extends Stuck
+
   case class Make(values: Seq[Value]) extends HeadCanonical
 
-  case class Maker(value: StuckPos, field: Int) extends Value
+  // it cannot actually stuck. it is a syntaxal value
+  case class Maker(value: Value, field: Int) extends Syntaxial
 
-  case class Projection(make: StuckPos, field: Int) extends Value
+  case class Projection(make: StuckPos, field: Int) extends Stuck
 
   case class Construct(name: Tag, vs: Seq[Value]) extends HeadCanonical
   // TODO sum should have a type, it can be indexed, so a pi type ends with type_i
@@ -358,7 +504,7 @@ object Value {
       rec(Seq.empty, nodes, Reduction.No)
     }
   }
-  
+
   case class Sum(level: Int, constructors: Seq[Constructor]) extends HeadCanonical {
     for (c <- constructors) {
       c._sum = this
@@ -378,9 +524,9 @@ object Value {
 
   case class PatternLambda(id: Generic, typ: Closure, cases: Seq[Case]) extends HeadCanonical
 
-  case class PatternStuck(lambda: PatternLambda, stuck: StuckPos) extends Value
+  case class PatternStuck(lambda: PatternLambda, stuck: StuckPos) extends Stuck
 
-  case class Let(var items: Seq[Value], order: Seq[Int], body: Value) extends Value
+  case class Let(var items: Seq[Value], order: Seq[Int], body: Value) extends Syntaxial
 
 
   case class PathType(typ: PathClosure, left: Value, right: Value) extends HeadCanonical
@@ -388,7 +534,7 @@ object Value {
   case class PathLambda(body: PathClosure) extends HeadCanonical
 
   // even when left is a value, it will not stuck, because only open dimension can stuck
-  case class PathApplication(left: Value, stuck: Dimension) extends Value
+  case class PathApplication(left: Value, stuck: Dimension) extends Stuck
 
 
   private val gen = new GenericGen.Negative()

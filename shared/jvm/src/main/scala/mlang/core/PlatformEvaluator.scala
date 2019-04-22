@@ -46,7 +46,7 @@ trait PlatformEvaluator extends BaseEvaluator {
               s"Reference(r${depth - up}($index), $closed).deref(r)"
             } else {
               // formal parameters of a closure
-              s"r${depth - up}($index).renormalize(r)"
+              s"r${depth - up}($index).renor(r)"
             }
           }
         case Abstract.Let(definitions, order, in) =>
@@ -98,9 +98,23 @@ trait PlatformEvaluator extends BaseEvaluator {
         case Abstract.PathType(typ, left, right) =>
           val d = depth + 1
           s"PathType(PathClosure((dm$d, r) => ${emit(typ, d)}), ${emit(left, depth)}, ${emit(right, depth)})"
+        case Abstract.Coe(dir, tp, base) =>
+          val d = depth + 1
+          s"${emit(base, depth)}.coe(${emit(dir, depth)}, PathClosure((dm$d, r) => ${emit(tp, d)}), r)"
+        case Abstract.Hcom(dir, tp, base, restrictions) =>
+          val d = depth + 2
+          s"${emit(base, depth)}.hcom(${emit(dir, depth)}, " +
+              s"${emit(tp, depth)}, " +
+              s"Seq(${restrictions.map(a => s"Restriction(${emit(a.pair, depth)}, PathClosure((dm$d, r) => ${emit(tp, d)}))").mkString(", ")}), " +
+              s"r)"
+        case Abstract.Restricted(term, dir) =>
+          s"${emit(term, depth)}.restrict(${emit(dir, depth)}).renor(r)"
       }
     }
 
+    private def emit(pair: Abstract.DimensionPair, depth: Int): String = {
+      s"DimensionPair(${emit(pair.from, depth)}, ${emit(pair.to, depth)})"
+    }
 
     private def emit(dim: Abstract.Dimension, depth: Int): String = {
       dim match {
@@ -117,6 +131,8 @@ trait PlatformEvaluator extends BaseEvaluator {
           }
         case Abstract.Dimension.Constant(isOne) =>
           s"Dimension.Constant($isOne)"
+        case Abstract.Dimension.Restricted(d, pair) =>
+          s"${emit(d, depth)}.restrict(${emit(pair, depth)})"
       }
     }
   }

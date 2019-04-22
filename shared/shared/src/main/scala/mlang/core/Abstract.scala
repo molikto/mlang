@@ -1,6 +1,5 @@
 package mlang.core
 
-import mlang.core.Abstract.{Dimension, DimensionPair}
 import mlang.name._
 
 
@@ -49,6 +48,15 @@ sealed trait Abstract {
       right.markRecursive(i, c)
     case PathApplication(lef, _) =>
       lef.markRecursive(i, c)
+    case Coe(_, tp, base) =>
+      tp.markRecursive(i + 1, c)
+      base.markRecursive(i, c)
+    case Hcom(_, tp, base, restrictions) =>
+      tp.markRecursive(i, c)
+      base.markRecursive(i, c)
+      restrictions.foreach(_.body.markRecursive(i + 2, c))
+    case Restricted(term, _) =>
+      term.markRecursive(i, c)
   }
 
   def dependencies(i: Int): Set[Int] = this match {
@@ -66,9 +74,13 @@ sealed trait Abstract {
     case PathLambda(body) => body.dependencies(i + 1)
     case PathType(typ, left, right) => typ.dependencies(i + 1) ++ left.dependencies(i) ++ right.dependencies(i)
     case PathApplication(lef, _) => lef.dependencies(i)
+    case Coe(_, tp, base) => tp.dependencies(i + 1) ++ base.dependencies(i)
+    case Hcom(_, tp, base, restrictions) => tp.dependencies(i) ++ base.dependencies(i) ++ restrictions.flatMap(_.body.dependencies(i + 2)).toSet
+    case Restricted(term, _) => term.dependencies(i)
   }
 }
 
+// abstract terms will have restricted terms annotated
 object Abstract {
   type Closure = Abstract
   type MultiClosure = Abstract
@@ -105,13 +117,20 @@ object Abstract {
   case class PathApplication(let: Abstract, r: Dimension) extends Abstract
 
   case class Coe(direction: DimensionPair, tp: PathClosure, base: Abstract) extends Abstract
-  case class Hcom(direction: DimensionPair, tp: Abstract, base: Abstract) extends Abstract
+  case class Hcom(direction: DimensionPair, tp: Abstract, base: Abstract, restrictions: Seq[Restriction]) extends Abstract
+
+  case class Restricted(term: Abstract, restriction: DimensionPair) extends Abstract
+
+  // restriction doesn't take binding, but they have a level non-the-less
+  case class Restriction(pair: DimensionPair, body: PathClosure)
 
   case class DimensionPair(from: Dimension, to: Dimension)
 
   sealed trait Dimension
   object Dimension {
     case class Reference(up: Int) extends Dimension
+    // TODO make it a destructor
     case class Constant(isOne: Boolean) extends Dimension
+    case class Restricted(a: Dimension, restriction: DimensionPair) extends Dimension
   }
 }

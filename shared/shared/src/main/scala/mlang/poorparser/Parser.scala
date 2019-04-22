@@ -99,10 +99,10 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
     Coe(DimensionPair(a._1._1._1, a._1._1._2), a._1._2, a._2)
   }}
 
-  lazy val restriction: PackratParser[Term.Restriction] = ("|" ~> term <~ "=") ~ (term <~ ":") ~ term ^^ {a => Restriction(DimensionPair(a._1._1, a._1._2), a._2) }
+  lazy val restriction: PackratParser[Term.Restriction] = ("|" ~> term <~ "=") ~ (term <~ "→") ~ term ^^ {a => Restriction(DimensionPair(a._1._1, a._1._2), a._2) }
 
-  lazy val hcom: PackratParser[Term] = keyword("hcom") ~> delimited("(", term ~ delimited(",", term, ",") ~ term,")")  ~ delimited("[", repsep(restriction, ",") ,"]") ^^ { a =>
-    Hcom(DimensionPair(a._1._1._1, a._1._2), a._1._2, a._2)
+  lazy val hcom: PackratParser[Term] = keyword("hcom") ~> delimited("(", term ~ delimited(",", term, ",") ~ term,")")  ~ delimited("[", atomicPattern ~ repsep(restriction, ",") ,"]") ^^ { a =>
+    Hcom(DimensionPair(a._1._1._1, a._1._1._2), a._1._2, a._2._1, a._2._2)
   }
 
   // normal
