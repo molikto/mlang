@@ -31,7 +31,7 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
   }
 
   lexical.reserved ++= List("define", "declare", "case", "__debug", "as", "coe", "hcom", "field", "ignored", "match", "make", "record", "type", "sum", "inductively", "with_constructors")
-  lexical.delimiters ++= List("{", "}", "[", "]", ":", ",", "(", ")", "≡", "─", "┬", "↪", "┌", "⊏", "└", "├", "⇒", "→", "+", "-", ";", "=", "@", "\\", ".")
+  lexical.delimiters ++= List("{", "}", "[", "]", ":", ",", "(", ")", "≡", "─", "┬", "┌", "⊏", "└", "├", "⇒", "→", "+", "-", ";", "=", "@", "\\", ".")
 
   def delimited[T](a: String, t: Parser[T], b: String): Parser[T] = a ~> t <~ b
 
@@ -75,10 +75,8 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
         pi |
         ascription |
         lambda |
-        pathLambda |
         patternLambda |
         app |
-       pathApp |
         pathType |
         record |
         projection |
@@ -90,21 +88,15 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
         ident ^^ {a => Reference(a)}
 
   // path type
-  lazy val pathType: PackratParser[PathType] = term ~ ("≡" ~> opt(delimited("(", pathLambdaData,")")) ~ term) ^^ {a =>
-    PathType(a._2._1.map(p => (p._1, p._2)), a._1, a._2._2)
+  lazy val pathType: PackratParser[PathType] = term ~ ("≡" ~> opt(delimited("(", term ,")")) ~ term) ^^ {a =>
+    PathType(a._2._1, a._1, a._2._2)
   }
-
-  lazy val pathLambdaData: PackratParser[Name.Opt ~ Term] = atomicPattern ~ ("↪" ~> term)
-
-  lazy val pathLambda: PackratParser[PathLambda] = pathLambdaData ^^ {a => PathLambda(a._1, a._2) }
 
   lazy val absDimension: PackratParser[Term] = numericLit  ^^ { i => Term.ConstantDimension(if (i == "0") false else if (i == "1") true else throw new Exception("...")) }
 
-  lazy val pathApp: PackratParser[Term] = term ~ delimited("[", term, "]") ^^ {a => PathApplication(a._1, a._2)}
-
   // kan
-  lazy val coe: PackratParser[Term] = keyword("coe") ~> delimited("(", term ~ delimited(",", term, ",") ~ pathLambdaData ~ ("," ~> term), ")")  ^^ {a => {
-    Coe(DimensionPair(a._1._1._1, a._1._1._2), (a._1._2._1, a._1._2._2), a._2)
+  lazy val coe: PackratParser[Term] = keyword("coe") ~> delimited("(", term ~ delimited(",", term, ",") ~ term ~ ("," ~> term), ")")  ^^ {a => {
+    Coe(DimensionPair(a._1._1._1, a._1._1._2), a._1._2, a._2)
   }}
 
   lazy val restriction: PackratParser[Term.Restriction] = ("|" ~> term <~ "=") ~ (term <~ ":") ~ term ^^ {a => Restriction(DimensionPair(a._1._1, a._1._2), a._2) }

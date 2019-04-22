@@ -101,7 +101,6 @@ trait ContextBuilder extends Context {
     }
   }
 
-
   def newAbstractions(pattern: Patt, typ: Value): (Self, Value, Pattern) = {
     val vvv = mutable.ArrayBuffer[Binder]()
     def rec(p: Patt, t: Value): (Value, Pattern) = {

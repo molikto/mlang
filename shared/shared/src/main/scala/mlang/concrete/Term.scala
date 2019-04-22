@@ -55,14 +55,12 @@ object Term {
   // TODO make small syntax with various stuff, type is inferred as non-dependent
   // TODO local match and local tree split
 
-  case class PathLambda(name: Name.Opt, body: Term) extends Term
-  case class PathType(typ: Option[(Name.Opt, Term)], left: Term, right: Term) extends Term
-  case class PathApplication(let: Term, r: Term) extends Term
+  case class PathType(typ: Option[Term], left: Term, right: Term) extends Term
   case class ConstantDimension(isOne: Boolean) extends Term
 
   case class DimensionPair(from: Term, to: Term)
   case class Restriction(dimension: DimensionPair, term: Term)
-  case class Coe(direction: DimensionPair, typ: (Name.Opt, Term), base: Term) extends Term
+  case class Coe(direction: DimensionPair, typ: Term, base: Term) extends Term
   case class Hcom(direction: DimensionPair, base: Term, restrictions: Seq[Restriction]) extends Term
 }
 

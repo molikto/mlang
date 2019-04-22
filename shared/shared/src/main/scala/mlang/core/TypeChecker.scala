@@ -32,11 +32,8 @@ object TypeCheckException {
 
   case class CheckingAgainstNonFunction() extends TypeCheckException
 
-  case class CheckingAgainstNonPathFunction() extends TypeCheckException
-
   case class CannotInferLambda() extends TypeCheckException
   case class CannotInferReturningTypeWithPatterns() extends TypeCheckException
-  case class CannotInferPathLambda() extends TypeCheckException
 
 
   case class TypeMismatch() extends TypeCheckException
@@ -45,13 +42,13 @@ object TypeCheckException {
 
   case class DeclarationWithoutDefinition(name: Name) extends TypeCheckException
 
-  case class ExpectingTermButFoundDimension() extends TypeCheckException
-
-  case class ApplyingToNonDimension() extends TypeCheckException
+  case class ExpectingDimension() extends TypeCheckException
 
   case class PathEndPointsNotMatching() extends TypeCheckException
 
   case class InferPathEndPointsTypeNotMatching() extends TypeCheckException
+
+  case class ExpectingLambdaTerm() extends TypeCheckException
 }
 
 
@@ -79,7 +76,7 @@ class TypeChecker private (protected override val layers: Layers)
         // should lookup always return a value? like a open reference?
         val (Binder(_, _, t, _, _), abs) = lookupTerm(name)
         (t, abs)
-      case Term.ConstantDimension(i) =>
+      case Term.ConstantDimension(_) =>
         throw ContextException.ConstantSortWrong()
       case Term.Cast(v, t) =>
         val (_, ta) = inferLevel(t)
@@ -117,32 +114,38 @@ class TypeChecker private (protected override val layers: Layers)
         val fl = fs.map(_._1).max
         (Value.Universe(fl), Abstract.Sum(fl, fs.map(_._2.map(_._2)).zip(constructors).map(a => Abstract.Constructor(a._2.name, a._1))))
       case Term.Coe(direction, tp, base) =>
+        tp match {
+          case Term.Lambda(n, body) =>
+            val from = checkDimension(direction.from)
+            val to = checkDimension(direction.to)
+            val ctx = newDimension(n.getOrElse(Name.empty))._1
+            val (_, ta) = ctx.inferLevel(body)
+            val tv = eval(Abstract.PathLambda(ta), rd)
+            val la = check(base, tv.papp(from._1, rd))
+            (tv.papp(to._1, rd), Abstract.Coe(Abstract.DimensionPair(from._2, to._2), ta, la))
+          case _ => throw TypeCheckException.ExpectingLambdaTerm()
+        }
+      case Term.Hcom(direction, base, restrictions) =>
         val from = checkDimension(direction.from)
         val to = checkDimension(direction.to)
-        val ctx = newDimension(tp._1.getOrElse(Name.empty))._1
-        val (_, ta) = ctx.inferLevel(tp._2)
-        val tv = eval(Abstract.PathLambda(ta), rd)
-        val la = check(base, tv.papp(from._1, rd))
-        (tv.papp(to._1, rd), Abstract.Coe(Abstract.DimensionPair(from._2, to._2), ta, la))
-      case Term.Hcom(direction, tp, base, restrictions) =>
-        val from = checkDimension(direction.from)
-        val to = checkDimension(direction.to)
-        val (_, ta) = inferLevel(tp)
-        val tv = eval(ta, rd)
-        val la = check(base, tv)
+        val (tv, la) = infer(base)
         // check restrictions is valid
         // check restrictions each over overlapping valid
         // check restrictions with base is valid
-        (tv, Abstract.Coe(Abstract.DimensionPair(from._2, to._2), ta, la))
+        (tv, Abstract.Coe(Abstract.DimensionPair(from._2, to._2), reify(tv), la))
       case Term.PathType(typ, left, right) =>
         typ match {
           case Some(tp) =>
-            val ctx = newDimension(tp._1.getOrElse(Name.empty))._1
-            val (tl, ta) = ctx.inferLevel(tp._2)
-            val tv = eval(Abstract.PathLambda(ta), rd).asInstanceOf[Value.PathLambda]
-            val la = check(left, tv.body(Value.Dimension.Constant(false), rd))
-            val ra = check(right, tv.body(Value.Dimension.Constant(true), rd))
-            (Value.Universe(tl), Abstract.PathType(ta, la, ra))
+            tp match {
+              case Term.Lambda(name, body) =>
+                val ctx = newDimension(name.getOrElse(Name.empty))._1
+                val (tl, ta) = ctx.inferLevel(body)
+                val tv = eval(Abstract.PathLambda(ta), rd).asInstanceOf[Value.PathLambda]
+                val la = check(left, tv.body(Value.Dimension.Constant(false), rd))
+                val ra = check(right, tv.body(Value.Dimension.Constant(true), rd))
+                (Value.Universe(tl), Abstract.PathType(ta, la, ra))
+              case _ => throw TypeCheckException.ExpectingLambdaTerm()
+            }
           case None =>
             val (lt, la) = infer(left)
             val (rt, ra) = infer(right)
@@ -160,8 +163,6 @@ class TypeChecker private (protected override val layers: Layers)
       case Term.Lambda(_, _) =>
         // TODO inferring the type of a lambda, the inferred type might not have the same branches as the lambda itself
         throw TypeCheckException.CannotInferLambda()
-      case Term.PathLambda(_, _) =>
-        throw TypeCheckException.CannotInferPathLambda()
       case Term.Projection(left, right) =>
         val (lt, la) = infer(left)
         val lv = eval(la, rd)
@@ -190,14 +191,6 @@ class TypeChecker private (protected override val layers: Layers)
         val (ctx, da, order) = newLayer().checkDeclarations(declarations)
         val (it, ia) = ctx.infer(in)
         (it, Abstract.Let(da, order.flatten, ia))
-      case Term.PathApplication(let, r) =>
-        val (lt, la) = infer(let)
-        val dim = checkDimension(r)
-        lt.whnf match {
-          case Value.PathType(typ, _, _) =>
-            (typ(dim._1, rd), Abstract.PathApplication(la, dim._2))
-          case _ => throw TypeCheckException.UnknownAsPathType()
-        }
 
     }
     debug(s"infer result ${res._2}")
@@ -211,7 +204,7 @@ class TypeChecker private (protected override val layers: Layers)
         (v.value, a)
       case Term.ConstantDimension(i) =>
         (Value.Dimension.Constant(i), Abstract.Dimension.Constant(i))
-      case _ => throw TypeCheckException.ApplyingToNonDimension()
+      case _ => throw TypeCheckException.ExpectingDimension()
     }
   }
 
@@ -243,7 +236,12 @@ class TypeChecker private (protected override val layers: Layers)
             val lt1 = codomain(av, rd)
             val la1 = Abstract.Application(la, aa)
             inferApplication(lt1, la1, tail)
-            // TODO user defined applications
+          case Value.PathType(typ, _, _) =>
+            val (dv, da) = checkDimension(head)
+            val lt1 = typ(dv, rd)
+            val la1 = Abstract.PathApplication(la, da)
+            inferApplication(lt1, la1, tail)
+          // TODO user defined applications
           case _ => throw TypeCheckException.UnknownAsFunction()
         }
       case Seq() =>
@@ -274,6 +272,20 @@ class TypeChecker private (protected override val layers: Layers)
             val (ctx, v) = newLayer().newAbstraction(n.orElse(hint).getOrElse(Name.empty), domain)
             val ba = ctx.check(body, codomain(v, rd), tail, hintCodomain(lambdaFunctionCodomainHint))
             Abstract.Lambda(ba)
+          case Value.PathType(typ, left, right) =>
+            val (c1, dv) = newDimension(n.getOrElse(Name.empty))
+            val t1 = typ(dv, rd)
+            import Value.Dimension._
+            val a1 = c1.check(body, t1)
+            val ps = Abstract.PathLambda(a1)
+            val pv = eval(ps, rd)
+            val leftEq = Conversion.equalTerm(typ(Constant(false), rd), pv.papp(Constant(false), rd), left)
+            val rightEq = Conversion.equalTerm(typ(Constant(true), rd), pv.papp(Constant(true), rd), right)
+            if (leftEq && rightEq) {
+              ps
+            } else {
+              throw TypeCheckException.PathEndPointsNotMatching()
+            }
           case _ => throw TypeCheckException.CheckingAgainstNonFunction()
         }
       case Term.PatternLambda(cases) =>
@@ -285,24 +297,6 @@ class TypeChecker private (protected override val layers: Layers)
               Abstract.Case(pat, ba)
             }))
           case _ => throw TypeCheckException.CheckingAgainstNonFunction()
-        }
-      case Term.PathLambda(name, term) =>
-        cp.whnf match {
-          case Value.PathType(typ, left, right) =>
-            val (c1, dv) = newDimension(name.getOrElse(Name.empty))
-            val t1 = typ(dv, rd)
-            import Value.Dimension._
-            val a1 = c1.check(term, t1)
-            val ps = Abstract.PathLambda(a1)
-            val pv = eval(ps, rd)
-            val leftEq = Conversion.equalTerm(typ(Constant(false), rd), pv.papp(Constant(false), rd), left)
-            val rightEq = Conversion.equalTerm(typ(Constant(true), rd), pv.papp(Constant(true), rd), right)
-            if (leftEq && rightEq) {
-              ps
-            } else {
-              throw TypeCheckException.PathEndPointsNotMatching()
-            }
-          case _ => throw TypeCheckException.CheckingAgainstNonPathFunction()
         }
       case _ =>
         val (tt, ta) = infer(term)

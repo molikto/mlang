@@ -30,13 +30,13 @@ define nat_is_even =
 └ suc(m) → nat_is_odd(m)
 
 define fun_ext(a: type, b: a ⇒ type, f g: (x: a) ⇒ b(x), p: (x: a) ⇒ f(x) ≡ g(x)): f ≡ g =
-  i ↪ x → p(x)[i]
+  i → x → p(x, i)
 
 
 /*
 
 define fun_ext(f g: (x: /a/) ⇒ /b(x)/, p: (x: a) ⇒ f(x) ≡ g(x)): f ≡ g =
-  i ↪ x → p(x)[i]
+  i → x → p(x, i)
 
 projection (p: /x/ ≡ /y/).reverse: y ≡ x =
 
@@ -92,7 +92,7 @@ define err: type = record {
 }
 
 /* this loops, just like Agda, eta for recursive record, maybe we should mark non-guarded records and just say they are empty
-define test_err(a b: err): a ≡ b = ─ ↪ a
+define test_err(a b: err): a ≡ b = ─ → a
 */
 
 
@@ -108,16 +108,18 @@ define plus2:
 
 define plus_pointwise_lemma:
  (a   m: nat) ⇒ plus2(suc(a), m) ≡ suc(plus2(a, m)) =
-  ─ ┌ zero    → ─ ↪ suc(a)
-    └ suc(n)  → i ↪ plus_pointwise_lemma(suc(a), n)[i]
+  ─ ┌ zero    → ─ → suc(a)
+    └ suc(n)  → i → plus_pointwise_lemma(suc(a), n, i)
 
 /*
+
 define plus_pointwise:
  (a       b: nat) ⇒ plus(a, b) ≡ plus2(a, b) =
-  ─     ┌ zero    → ─ ↪ b
+  ─     ┌ zero    → ─ → b
         └ suc(m)  → plus_pointwise() // suc(plus(a, m)) ≡ plus2(suc(a), m)
 
 define path_plus12: plus ≡ plus2 = fun_ext(nat, ─ → nat, plus, plus2,
+
 */
 
 define plus_defined_twice:
