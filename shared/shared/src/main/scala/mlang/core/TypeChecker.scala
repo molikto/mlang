@@ -74,8 +74,8 @@ class TypeChecker private (protected override val layers: Layers)
         (Value.Universe(i + 1), Abstract.Universe(i))
       case Term.Reference(name) =>
         // should lookup always return a value? like a open reference?
-        val (Binder(_, _, t, _, _), abs) = lookupTerm(name)
-        (t, abs)
+        val (binder, abs) = lookupTerm(name)
+        (binder, abs)
       case Term.ConstantDimension(_) =>
         throw ContextException.ConstantSortWrong()
       case Term.Cast(v, t) =>

@@ -24,8 +24,6 @@ object Conversion {
   private val dr = Reduction.Normalize
 }
 
-// TODO is it true what one step reduction with default reduction is terminating?
-// TODO is our way of handling recursive definitions sound? (id pattern lambda, with assumptions)
 class Conversion {
 
   import Conversion.vr
@@ -112,6 +110,7 @@ class Conversion {
     if (tm1.eq(tm2)) {
       true
     } else if (typAssumeps.exists(a => a._1.eq(tm1) && a._2.eq(tm2))) { // recursive defined sum and record
+      // TODO handle parameterized recursively defined ones, we only allow them in top level
       true
     } else {
       typAssumeps.append((tm1, tm2))

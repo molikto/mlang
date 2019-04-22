@@ -8,26 +8,26 @@
     * how the "terrible way" of implementing face restrictions done
          * how to implement if efficiently?
     
- * roadmap
-     * **DONE** totally unsafe MLTT basics
-         * function types with eta, record types with eta, inductive types, 
-         * bidirectional elaborating type checker with mutual recursive definitions
-         * readback
-         * type directed conversion check with eta and recursive definitions
-         * basic `.poor` syntax and parser
+* roadmap
+    * **DONE** totally unsafe MLTT basics
+        * function types with eta, record types with eta, inductive types, 
+        * bidirectional elaborating type checker with mutual recursive definitions
+        * readback
+        * type directed conversion check with eta and recursive definitions
+        * basic `.poor` syntax and parser
     * cubical features
-        * **QUESTION** path? extension? (they are Kan; interval "type" is a syntax sugar). also extension type seems works better with sub-typing
-            * syntax sugars?
+        * **DONE** path type
         * coe
-        * com -- restrict operator
+        * com
     * implicit arguments on the right: *at least I think it is useful, and also it can be seen as a subset of implicit arguments a la Agda, so no harm implementing at all*
-         * **QUESTION** what's the problem of unification under restricted context?
+        * **QUESTION** what's the problem of unification under restricted context?
+        * user defined implicit right form
     * ~~~~~~~~~~
     * more cubical features
-         * univalance
-         * hit
-   * user defined eliminations
-        * user defined implicit form
+        * univalance
+        * hit
+        * extension type?
+    * user defined eliminations
     * implicit conversions
     * record calculus
     * small features
