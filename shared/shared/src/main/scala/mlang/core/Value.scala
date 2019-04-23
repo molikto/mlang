@@ -225,7 +225,7 @@ sealed trait Value {
     env.kan.map({ r =>
       if (pair.from == pair.to) {
         wh(this, whnf)
-      } else  {
+      } else {
         restriction.find(a => a.pair.from == a.pair.to) match { // always true face
           case Some(n) =>
             wh(n.body(pair.to, r), whnf)

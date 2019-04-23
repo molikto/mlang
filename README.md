@@ -4,9 +4,9 @@
 [![Join the chat at https://gitter.im/mlang-discuess/community](https://badges.gitter.im/mlang-discuess/community.svg)](https://gitter.im/mlang-discuess/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
 
-* main blocking problems
-    * how the "terrible way" of implementing face restrictions done
-         * how to implement if efficiently?
+
+* higher order value `normalize()`
+* is restricted context implementation sound?
 
 * **CURRENT**: coe and hcom
     * ~~type checking rules~~
@@ -17,7 +17,7 @@
     
 * roadmap
     * **DONE** totally unsafe MLTT basics
-        * function types with eta, record types with eta, inductive types, 
+        * function types with eta, record types with eta, inductive types (structural)
         * bidirectional elaborating type checker with mutual recursive definitions
         * readback
         * type directed conversion check with eta and recursive definitions

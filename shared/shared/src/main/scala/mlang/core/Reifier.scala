@@ -1,8 +1,7 @@
 package mlang.core
 
-import Abstract._
+import mlang.core.Abstract._
 import mlang.core.Context.Layers
-import mlang.core.Value.Dimension
 import mlang.name.Name
 
 import scala.collection.mutable

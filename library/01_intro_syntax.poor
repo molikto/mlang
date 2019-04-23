@@ -20,7 +20,7 @@ define bool = sum { case true false }
 
 declare nat_is_even: nat ⇒ bool
 
-define __debug nat_is_odd:
+define nat_is_odd:
   nat ⇒ bool =
 ┌ zero → bool.false
 └ suc(m) → nat_is_even(m)
@@ -48,6 +48,7 @@ define record_test = record {
   field c: a ⇒ type
   field d: c(b)
 }
+
 
 
 define suc(a: nat): nat = nat.suc(a)

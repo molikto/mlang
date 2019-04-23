@@ -99,10 +99,10 @@ object Abstract {
   case class RecordNode(name: Name, dependencies: Seq[Int], typ: MultiClosure)
   case class Record(level: Int, nodes: Seq[RecordNode]) extends Abstract
 
-
   case class Projection(left: Abstract, field: Int) extends Abstract
 
   case class Constructor(name: Tag, params: Seq[MultiClosure])
+
   case class Sum(level: Int, constructors: Seq[Constructor]) extends Abstract
 
   case class Maker(sum: Abstract, field: Int) extends Abstract
