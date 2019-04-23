@@ -350,6 +350,7 @@ object Value {
 
     def isFalse: Boolean = (from == Dimension.False && to == Dimension.True) || (from == Dimension.True && to == Dimension.False)
 
+    def isTrue: Boolean = from == to
   }
 
   sealed trait Dimension extends {
@@ -357,6 +358,10 @@ object Value {
       case Dimension.OpenReference(iid) => iid == id
       case Dimension.Constant(_) => false
     }
+
+    def constant: Boolean
+
+    def min(t: Dimension) = if ((this max t) == t) this else t
 
     def max(t: Dimension): Dimension = (this, t) match {
       case (Dimension.OpenReference(a), Dimension.OpenReference(b)) =>
@@ -382,9 +387,13 @@ object Value {
   }
 
   object Dimension {
-    case class OpenReference(id: Long) extends Dimension
+    case class OpenReference(id: Long) extends Dimension {
+      def constant: Boolean = false
+    }
     // TODO make it a destructor
-    case class Constant(isOne: Boolean) extends Dimension
+    case class Constant(isOne: Boolean) extends Dimension {
+      def constant: Boolean = true
+    }
 
     val True = Constant(true) // 1
     val False = Constant(false) // 0
