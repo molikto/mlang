@@ -36,9 +36,9 @@ trait ContextBuilder extends Context {
   protected implicit def create(a: Layers): Self
 
 
-  def newLayer(): Self = Layer.Terms(Seq.empty) +: layers
+  def newTermsLayer(): Self = Layer.Terms(Seq.empty) +: layers
 
-  def newRestriction(pair: Value.DimensionPair): Option[Self] = {
+  def newRestrictionLayer(pair: Value.DimensionPair): Option[Self] = {
     pair match {
       case Value.DimensionPair(Value.Dimension.Constant(a), Value.Dimension.Constant(b)) if a != b =>
         None
@@ -47,14 +47,14 @@ trait ContextBuilder extends Context {
     }
   }
 
-  def newDimension(n: Name): (Self, Value.Dimension) = {
+  def newDimensionLayer(n: Name): (Self, Value.Dimension) = {
     val gen = dgen()
     val v = Value.Dimension.OpenReference(gen)
     val ctx: Self = Layer.Dimension(gen, n, v) +: layers
     (ctx, v)
   }
 
-  def newDimension(n: Name, v: Value.Dimension): Self = {
+  def newDimensionLayer(n: Name, v: Value.Dimension): Self = {
     val gen = dgen()
     Layer.Dimension(gen, n, v) +: layers
   }
@@ -99,6 +99,12 @@ trait ContextBuilder extends Context {
 //    }
 //  }
 
+  def newTermLayer(name: Name, typ: Value): (Self, Value) = {
+    val g = gen()
+    val v = Value.OpenReference(g, typ)
+    (Layer.Term(Binder(g, name, typ, true, true, v)) +: layers, v)
+  }
+
   def newAbstraction(name: Name, typ: Value) : (Self, Value) = {
     headTerms.find(_.name.intersect(name)) match {
       case Some(_) => throw ContextBuilderException.AlreadyDeclared()
@@ -109,7 +115,7 @@ trait ContextBuilder extends Context {
     }
   }
 
-  def newAbstractions(pattern: Patt, typ: Value): (Self, Value, Pattern) = {
+  def newAbstractionsLayer(pattern: Patt, typ: Value): (Self, Value, Pattern) = {
     val vvv = mutable.ArrayBuffer[Binder]()
     def rec(p: Patt, t: Value): (Value, Pattern) = {
       p match {
@@ -138,7 +144,7 @@ trait ContextBuilder extends Context {
               if (maps.size == nodes.size) {
                 var vs =  Seq.empty[(Value, Pattern)]
                 for (m  <- maps) {
-                  val it = r.projectedType(vs.map(_._1), vs.size, Reduction.No)
+                  val it = r.projectedType(vs.map(_._1), vs.size)
                   val tv = rec(m, it)
                   vs = vs :+ tv
                 }
@@ -156,7 +162,7 @@ trait ContextBuilder extends Context {
                   if (c.nodes.size == maps.size) {
                     val vs = new mutable.ArrayBuffer[(Value, Pattern)]()
                     for ((m, n) <- maps.zip(c.nodes)) {
-                      val it = n(vs.map(_._1), Reduction.No)
+                      val it = n(vs.map(_._1))
                       val tv = rec(m, it)
                       vs.append(tv)
                     }
@@ -172,7 +178,7 @@ trait ContextBuilder extends Context {
       }
     }
     val (os, p) = rec(pattern, typ)
-    val ctx: Self = Layer.Terms(headTerms ++ vvv) +: layers.tail
+    val ctx: Self = Layer.Terms(vvv) +: layers
     (ctx, os, p)
   }
 }

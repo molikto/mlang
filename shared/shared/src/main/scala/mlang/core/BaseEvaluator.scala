@@ -4,7 +4,7 @@ import scala.collection.mutable
 
 
 trait Holder {
-  def value(c: Context, r: Reduction, rs: Seq[Value], vs: Seq[Value], cs: Seq[Value.Closure], ps: Seq[Pattern]): Value
+  def value(c: Context, rs: Seq[Value], vs: Seq[Value], cs: Seq[Value.Closure], ps: Seq[Pattern]): Value
 }
 
 // the evaluator perform a direct translation of abstract terms under a context to a
@@ -17,8 +17,8 @@ trait BaseEvaluator extends Context {
   private val cs = mutable.ArrayBuffer[Value.Closure]()
   private val ps = mutable.ArrayBuffer[Pattern]()
 
-  protected def extractFromHolder(h: Holder, reduction: Reduction, map: Seq[Value]): Value = {
-    val res = h.value(this, reduction, map, Seq.empty ++ vs, Seq.empty ++ cs, Seq.empty ++ ps)
+  protected def extractFromHolder(h: Holder, map: Seq[Value]): Value = {
+    val res = h.value(this, map, Seq.empty ++ vs, Seq.empty ++ cs, Seq.empty ++ ps)
     vs.clear()
     cs.clear()
     ps.clear()
@@ -43,8 +43,8 @@ trait BaseEvaluator extends Context {
     s"ps($i)"
   }
 
-  protected def platformEval(value: Abstract, reduction: Reduction ): Value
-  protected def platformEvalRecursive(terms: Map[Int, Abstract], reduction: Reduction): Map[Int, Value]
+  protected def platformEval(value: Abstract): Value
+  protected def platformEvalRecursive(terms: Map[Int, Abstract]): Map[Int, Value]
 
   protected def evalOpenTermReferenceAsReference(i: Int, index: Int): Value = {
     getTerm(i, index).value match {
@@ -53,18 +53,18 @@ trait BaseEvaluator extends Context {
     }
   }
 
-  protected def evalMutualRecursive(terms: Map[Int, Abstract], reduction: Reduction /* REDUCTION */): Map[Int, Value] = {
-    val ret = platformEvalRecursive(terms, reduction)
+  protected def evalMutualRecursive(terms: Map[Int, Abstract]): Map[Int, Value] = {
+    val ret = platformEvalRecursive(terms)
     assert(ret.forall(_._2 != null))
     ret
   }
 
-  protected def eval(term: Abstract, reduction: Reduction /* REDUCTION */): Value = {
+  protected def eval(term: Abstract): Value = {
     term match {
-      case Abstract.TermReference(up, index, _) => evalOpenTermReferenceAsReference(up, index).deref(reduction)
+      case Abstract.TermReference(up, index, _) => evalOpenTermReferenceAsReference(up, index)
       case Abstract.Universe(i) => Value.Universe(i)
       case _ =>
-        val ret = platformEval(term, reduction)
+        val ret = platformEval(term)
         assert(ret != null)
         ret
     }

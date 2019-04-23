@@ -33,20 +33,21 @@ trait PlatformEvaluator extends BaseEvaluator {
             if (up == depth + 1 && recursivelyDefining.contains(index)) {
               // eval recursive, this deref happens under a closure, so it will have a value
               assert(closed == 1)
-              s"Reference(rs($index), $closed).deref(r)"
+              s"Reference(rs($index), $closed)"
             } else {
               // this is a value inside the context
               assert((up == depth + 1 && closed == 0) || closed == -1)
-              s"${tunnel(evalOpenTermReferenceAsReference(up - depth - 1, index))}.deref(r)"
+              s"${tunnel(evalOpenTermReferenceAsReference(up - depth - 1, index))}"
             }
           } else {
+            val ss = if (index == -1) s"r${depth - up}" else s"r${depth - up}($index)"
             // a reference inside the emit context
             if (closed >= 0) {
               // reference to a value directly
-              s"Reference(r${depth - up}($index), $closed).deref(r)"
+              s"Reference($ss, $closed)"
             } else {
               // formal parameters of a closure
-              s"r${depth - up}($index).renor(r)"
+              ss
             }
           }
         case Abstract.Let(definitions, order, in) =>
@@ -60,17 +61,17 @@ trait PlatformEvaluator extends BaseEvaluator {
                   s"r$d.update($a, ${emit(definitions(a), d)})"
                 ).mkString("; ")}; " +
                 s"val body = ${emit(in, d)}; " +
-                s"Let(r$d, Seq(${order.mkString(", ")}), body).delet(r)" +
+                s"Let(r$d, Seq(${order.mkString(", ")}), body)" +
                 s"}"
           }
         case Abstract.Function(domain, codomain) =>
           val d = depth + 1
-          s"Function(${emit(domain, depth)}, Closure((r$d, r) => ${emit(codomain, d)}))"
+          s"Function(${emit(domain, depth)}, Closure(r$d => ${emit(codomain, d)}))"
         case Abstract.Lambda(closure) =>
           val d = depth + 1
-          s"Lambda(Closure((r$d, r) => ${emit(closure, d)}))"
+          s"Lambda(Closure(r$d => ${emit(closure, d)}))"
         case Abstract.Application(left, right) =>
-          s"${emit(left, depth)}.app(${emit(right, depth)}, r)"
+          s"Application(${emit(left, depth)}, ${emit(right, depth)})"
         case Abstract.Record(level, nodes) =>
           val d = depth + 1
           s"""Record($level, Seq(${nodes.zipWithIndex.map(c =>
@@ -78,37 +79,38 @@ trait PlatformEvaluator extends BaseEvaluator {
                 s"RecordNode(" +
                 s"${source(c._1.name)}, " +
                 s"ds, " +
-                s"MultiClosure((jd, r) => { def r$d(i: Int): Value = jd(ds.indexOf(i)); ${emit(c._1.typ, d)}}))}").mkString(", ")}))"""
+                s"MultiClosure(jd => { def r$d(i: Int): Value = jd(ds.indexOf(i)); ${emit(c._1.typ, d)}}))}").mkString(", ")}))"""
         case Abstract.Projection(left, field) =>
-          s"${emit(left, depth)}.project($field, r)"
+          s"Project(${emit(left, depth)}, $field)"
         case Abstract.Sum(level, constructors) =>
           val d = depth + 1 // we some how have have one layer for the constructor names
           s"""Sum($level, ${constructors.zipWithIndex.map(c =>
-            s"Constructor(${source(c._1.name)}, ${c._1.params.size}, Seq(${c._1.params.map(p => s"MultiClosure((r$d, r) => " + emit(p, d) + ")").mkString(", ")}))")})"""
+            s"Constructor(${source(c._1.name)}, ${c._1.params.size}, Seq(${c._1.params.map(p => s"MultiClosure(r$d => " + emit(p, d) + ")").mkString(", ")}))")})"""
         case Abstract.Maker(sum, field) =>
-          s"${emit(sum, depth)}.demaker($field, r)"
+          s"Maker(${emit(sum, depth)}, $field)"
         case Abstract.PatternLambda(id, codomain, cases) =>
           val d = depth + 1
-          s"PatternLambda($id, Closure((r$d, r) => ${emit(codomain, d)}), Seq(${cases.map(c => s"Case(${tunnel(c.pattern)}, MultiClosure((r$d, r) => ${emit(c.body, d)}))").mkString(", ")}))"
-        case Abstract.PathApplication(left, r) =>
-          s"${emit(left, depth)}.papp(${emit(r, depth)}, r)"
+          s"PatternLambda($id, Closure(r$d => ${emit(codomain, d)}), Seq(${cases.map(c => s"Case(${tunnel(c.pattern)}, MultiClosure(r$d => ${emit(c.body, d)}))").mkString(", ")}))"
+        case Abstract.PathApplication(left, right) =>
+          s"PathApplication(${emit(left, depth)}, ${emit(right, depth)})"
         case Abstract.PathLambda(body) =>
           val d = depth + 1
-          s"PathLambda(PathClosure((dm$d, r) => ${emit(body, d)}))"
+          s"PathLambda(PathClosure(dm$d => ${emit(body, d)}))"
         case Abstract.PathType(typ, left, right) =>
           val d = depth + 1
-          s"PathType(PathClosure((dm$d, r) => ${emit(typ, d)}), ${emit(left, depth)}, ${emit(right, depth)})"
+          s"PathType(PathClosure(dm$d => ${emit(typ, d)}), ${emit(left, depth)}, ${emit(right, depth)})"
         case Abstract.Coe(dir, tp, base) =>
           val d = depth + 1
-          s"${emit(base, depth)}.coe(${emit(dir, depth)}, PathClosure((dm$d, r) => ${emit(tp, d)}), r)"
+          s"Coe(${emit(dir, depth)}, PathClosure(dm$d => ${emit(tp, d)}), ${emit(base, depth)})"
         case Abstract.Hcom(dir, tp, base, restrictions) =>
           val d = depth + 2
-          s"${emit(base, depth)}.hcom(${emit(dir, depth)}, " +
+          s"Hcom(${emit(dir, depth)}, " +
               s"${emit(tp, depth)}, " +
-              s"Seq(${restrictions.map(a => s"Restriction(${emit(a.pair, depth)}, PathClosure((dm$d, r) => ${emit(tp, d)}))").mkString(", ")}), " +
-              s"r)"
+              s"${emit(base, depth)}, " +
+              s"Seq(${restrictions.map(a => s"Restriction(${emit(a.pair, depth)}, PathClosure(dm$d => ${emit(tp, d)}))").mkString(", ")})" +
+              s")"
         case Abstract.Restricted(term, dir) =>
-          s"${emit(term, depth)}.restrict(${emit(dir, depth)}).renor(r)"
+          s"${emit(term, depth)}.restrict(${emit(dir, depth)})"
       }
     }
 
@@ -136,7 +138,7 @@ trait PlatformEvaluator extends BaseEvaluator {
       }
     }
   }
-  protected def platformEvalRecursive(terms: Map[Int, Abstract], reduction: Reduction): Map[Int, Value] = {
+  protected def platformEvalRecursive(terms: Map[Int, Abstract]): Map[Int, Value] = {
     val emitter = new Emitter(terms.keySet)
     val rr = new scala.collection.mutable.ArrayBuffer[Value]()
     for (_ <- 0 to terms.keySet.max) rr.append(null)
@@ -148,7 +150,7 @@ trait PlatformEvaluator extends BaseEvaluator {
       debug("==================")
       debug(res)
       debug("==================")
-      rr.update(t._1, extractFromHolder(compile[Holder](src), reduction, rr))
+      rr.update(t._1, extractFromHolder(compile[Holder](src), rr))
     }
     Map.empty ++ terms.transform((f, _) => rr(f))
   }
@@ -162,13 +164,13 @@ trait PlatformEvaluator extends BaseEvaluator {
          |
          |
          |new Holder {
-         |  def value(ctx: Context, r: Reduction, rs: Seq[Value], vs: Seq[Value], cs: Seq[Closure], ps: Seq[Pattern]) = $res
+         |  def value(ctx: Context, rs: Seq[Value], vs: Seq[Value], cs: Seq[Closure], ps: Seq[Pattern]) = $res
          |}
        """.stripMargin
   }
 
 
-  protected def platformEval(term: Abstract, reduction: Reduction): Value = {
+  protected def platformEval(term: Abstract): Value = {
     val res = new Emitter(Set.empty).emit(term, -1)
     val src = holderSrc(res)
     debug("==================")
@@ -176,6 +178,6 @@ trait PlatformEvaluator extends BaseEvaluator {
     debug("==================")
     debug(res)
     debug("==================")
-    extractFromHolder(compile[Holder](src), reduction, Seq.empty)
+    extractFromHolder(compile[Holder](src), Seq.empty)
   }
 }

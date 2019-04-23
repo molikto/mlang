@@ -73,7 +73,6 @@ sealed trait Value {
   }
 
   private var _whnf: Value = _
-  private var _nf: Value = _
 
   // LATER what's the relationship between whnf and reduction class?
   // reduction mainly used to determine the way a closure is evaluated
@@ -84,183 +83,117 @@ sealed trait Value {
         case a: HeadCanonical =>
           a
         case r: Reference =>
-          r.deref(Reduction.Deref.All).whnf
+          r.deref().whnf
         case o: OpenReference =>
           o
         case Application(lambda, argument) =>
-          lambda.whnf.app(argument, Reduction.App.Once, true)
+          lambda.whnf.app(argument, true)
         case Projection(make, field) =>
-          make.whnf.project(field, Reduction.Project, true)
+          make.whnf.project(field, true)
         case PatternStuck(lambda, stuck) =>
-          lambda.app(stuck.whnf, Reduction.App.Once, true)
+          lambda.app(stuck.whnf, true)
         case Coe(direction, tp, stuck) =>
-          stuck.whnf.coe(direction, tp, Reduction.Kan.Once, true)
+          stuck.whnf.coe(direction, tp, true)
         case Hcom(direction, tp, stuck, restrictions) =>
-          stuck.whnf.hcom(direction, tp, restrictions, Reduction.Kan.Once, true)
+          stuck.whnf.hcom(direction, tp, restrictions, true)
         case Restricted(a, restriction) =>
           a.whnf.restrict(restriction)
         case Maker(r, i) =>
           // this is a lambda or make expression so in whnf
-          r.whnf.demaker(i, Reduction.Normalize)
+          r.whnf.demaker(i)
         case Let(_, _, body) =>
           body.whnf
         case PathApplication(left, stuck) =>
-          left.whnf.papp(stuck, Reduction.Papp.Once, true)
+          left.whnf.papp(stuck, true)
       }
       _whnf._whnf = _whnf
     }
     _whnf
   }
 
-  // renormalize. save some evaluator string
-  def renor(r: Reduction): Value = {
-    if (r.renor) {
-      this.normalize
-    } else {
-      this
-    }
-  }
-
-
-  private def normalizeWhnfStuck(a: Value): Value = {
-    a match {
-      case OpenReference(id, typ) =>
-        OpenReference(id, typ.normalize)
-      case Application(lambda, argument) =>
-        Application(normalizeWhnfStuck(lambda), argument.normalize)
-      case Projection(make, field) =>
-        Projection(normalizeWhnfStuck(make), field)
-      case PatternStuck(lambda, stuck) =>
-        PatternStuck(lambda, normalizeWhnfStuck(stuck))
-      case PathApplication(left, stuck) =>
-        PathApplication(left.normalize, stuck)
-      case _ => logicError()
-    }
-  }
-
-  def normalize: Value = {
-    if (_nf == null) {
-      _nf = this.whnf match {
-        case a: Universe =>
-          a
-        case Function(domain, codomain) =>
-          Function(domain.normalize, codomain)
-        case r:Record =>
-          r
-        case s: Sum =>
-          s
-        case p: PatternLambda =>
-          p
-        case l: Lambda =>
-          l
-        case p: PathLambda =>
-          p
-        case Make(values) =>
-          Make(values.map(_.normalize))
-        case Construct(name, vs) =>
-          Construct(name, vs.map(_.normalize))
-        case PathType(typ, left, right) =>
-          PathType(typ, left.normalize, right.normalize)
-        case _: Reference => logicError()
-        case _: Maker => logicError()
-        case _: Let => logicError()
-        case a =>
-          normalizeWhnfStuck(a)
-      }
-      _nf._nf = _nf
-    }
-    _nf
-  }
 
   private def wh(a: Value, b: Boolean): Value = if (b) a.whnf else a
 
   // also used to decide how
-  def app(v: Value, env: Reduction /* REDUCTION */, whnf: Boolean = false): Value = env.app.map(r => {
-    this match {
-      case Lambda(closure) =>
-        wh(closure(v, r), whnf)
-      case p@PatternLambda(_, _, cases) =>
-        // TODO overlapping patterns, we are now using first match
-        var res: Value = null
-        var cs = cases
-        while (cs.nonEmpty && res == null) {
-          res = cs.head.tryApp(v, r).orNull
-          cs = cs.tail
-        }
-        if (res != null) {
-          wh(res, whnf)
-        } else {
-          PatternStuck(p, v)
-        }
-      case _ =>
-        Application(this, v)
-    }
-  }).getOrElse(Application(this, v))
+  def app(v: Value, whnf: Boolean = false): Value = this match {
+    case Lambda(closure) =>
+      wh(closure(v), whnf)
+    case p@PatternLambda(_, _, cases) =>
+      // TODO overlapping patterns, we are now using first match
+      var res: Value = null
+      var cs = cases
+      while (cs.nonEmpty && res == null) {
+        res = cs.head.tryApp(v).orNull
+        cs = cs.tail
+      }
+      if (res != null) {
+        wh(res, whnf)
+      } else {
+        PatternStuck(p, v)
+      }
+    case _ =>
+      Application(this, v)
+  }
 
 
-  def coe(pair: DimensionPair, typ: PathClosure, env: Reduction, whnf: Boolean = false): Value =  env.kan.map({ r =>
+  def coe(pair: DimensionPair, typ: PathClosure, whnf: Boolean = false): Value =
     if (pair.from == pair.to) { // just to base
       wh(this, whnf)
     } else {
       // this is ok?
-      typ(Dimension.True, env).whnf match {
+      typ(Dimension.True).whnf match {
         case Function(_, _) =>
           def func(a: Value): Function = a.whnf match {
             case f@Function(_, _) => f
             case _ => logicError()
           }
-          Lambda(Value.Closure((a, r) => {
-            val a_ = a.head.coe(pair.reverse, typ.map(a => func(a).domain), r)
-            val app_ = this.app(a_, r)
-            app_.coe(pair, typ.mapd((f, d) => func(f).codomain(a.head.coe(DimensionPair(pair.to, d), typ.map(a => func(a).domain), r), r)), r)
+          Lambda(Value.Closure(a => {
+            val a_ = a.coe(pair.reverse, typ.map(a => func(a).domain))
+            val app_ = this.app(a_)
+            app_.coe(pair, typ.mapd((f, d) => func(f).codomain(a.coe(DimensionPair(pair.to, d), typ.map(a => func(a).domain)))))
           }))
         case _ =>
           ???
       }
     }
-  }).getOrElse(Coe(pair, typ, this))
 
-  def hcom(pair: DimensionPair, typ: Value, restriction0: Seq[Restriction], env: Reduction, whnf: Boolean = false): Value = {
+  def hcom(pair: DimensionPair, typ: Value, restriction0: Seq[Restriction], whnf: Boolean = false): Value = {
     val restriction = restriction0.filter(_.pair.isFalse)
-    env.kan.map({ r =>
-      if (pair.from == pair.to) {
-        wh(this, whnf)
-      } else {
-        restriction.find(a => a.pair.from == a.pair.to) match { // always true face
-          case Some(n) =>
-            wh(n.body(pair.to, r), whnf)
-          case None =>
-            typ.whnf match {
-              case Function(_, codomain) =>
-                Lambda(Value.Closure((a, r) => this.app(a.head, r).hcom(
-                  pair,
-                  codomain(a.head, r),
-                  restriction.map(n => Restriction(n.pair, n.body.map(_.app(a.head, r)))), r)))
-              case _ =>
-                ???
-            }
-        }
+    if (pair.from == pair.to) {
+      wh(this, whnf)
+    } else {
+      restriction.find(a => a.pair.from == a.pair.to) match { // always true face
+        case Some(n) =>
+          wh(n.body(pair.to), whnf)
+        case None =>
+          typ.whnf match {
+            case Function(_, codomain) =>
+              Lambda(Value.Closure(a => this.app(a).hcom(
+                pair,
+                codomain(a),
+                restriction.map(n => Restriction(n.pair, n.body.map(_.app(a)))))))
+            case _ =>
+              ???
+          }
       }
-    }).getOrElse(Hcom(pair, typ, this, restriction))
+    }
   }
 
-  def papp(d: Dimension, env: Reduction /* REDUCTION */, whnf: Boolean = false): Value = env.papp.map(r => {
-    this match {
-      case PathLambda(c) =>
-        wh(c(d, r), whnf)
-      case a =>
-        d match {
-          case Dimension.Constant(i) =>
-            infer(a, env).whnf match {
-              case PathType(_, left, right) =>
-                wh(if (i) right else left, whnf)
-              case _ => logicError()
-            }
-          case _: Dimension.OpenReference =>
-            PathApplication(this, d)
-        }
-    }
-  }).getOrElse(PathApplication(this, d))
+  def papp(d: Dimension, whnf: Boolean = false): Value = this match {
+    case PathLambda(c) =>
+      wh(c(d), whnf)
+    case a =>
+      d match {
+        case Dimension.Constant(i) =>
+          infer(a).whnf match {
+            case PathType(_, left, right) =>
+              wh(if (i) right else left, whnf)
+            case _ => logicError()
+          }
+        case _: Dimension.OpenReference =>
+          PathApplication(this, d)
+      }
+  }
 
 
   def makerType(i: Int): Value = this.whnf match {
@@ -269,7 +202,7 @@ sealed trait Value {
     case _ => logicError()
   }
 
-  def demaker(i: Int, env: Reduction /* REDUCTION */): Value = if (env.demaker) {
+  def demaker(i: Int): Value = {
     this match {
       case s: Sum => s.constructors(i).maker
       case r: Record =>
@@ -277,77 +210,56 @@ sealed trait Value {
         r.maker
       case _ => Maker(this, i)
     }
-  } else {
-    Maker(this, i)
   }
 
-  def project(name: Int, env: Reduction /* REDUCTION */, whnf: Boolean = false): Value = if (env.project) {
+  def project(name: Int, whnf: Boolean = false): Value = {
     this match {
       case Make(vs) => wh(vs(name), whnf)
       case _ => Projection(this, name)
     }
-  } else {
-    Projection(this, name)
   }
 
-  def delet(env: Reduction /* REDUCTION */): Value =
-    if (env.delet) {
+  def delet(): Value = {
       this match {
-        case v: Let => v.body.delet(env)
+        case v: Let => v.body.delet()
         case _ => this
       }
-    } else {
-      this
     }
 
-  def deref(env: Reduction /* REDUCTION */): Value =
-    if (env.deref == Deref.Normalize) {
-      this match {
-        case v: Reference => v.value.deref(env).normalize
-        case o: OpenReference => o.copy(typ = o.typ.normalize)
-        case _ => this
-      }
-    } else if (env.deref == Deref.All) {
-      this match {
-        case v: Reference => v.value.deref(env)
-        case _ => this
-      }
-    } else if (env.deref == Deref.NonRecursive) {
-      this match {
-        case v: Reference if v.closed == 0 => v.value.deref(env)
-        case _ => this
-      }
-    } else {
-      this
+  def deref(): Value = {
+    this match {
+      case v: Reference => v.value.deref()
+      case _ => this
     }
+  }
 }
 
 
 object Value {
 
-  implicit class MultiClosure(private val func: (Seq[Value], Reduction) => Value) extends AnyVal {
-    def apply(seq: Seq[Value], reduction: Reduction /* REDUCTION */): Value = func(seq, reduction)
-    def restrict(lv: DimensionPair) = Value.MultiClosure((v, r) => this(v, r).restrict(lv))
+  implicit class MultiClosure(private val func: Seq[Value]=> Value) extends AnyVal {
+    def apply(seq: Seq[Value]): Value = func(seq)
+    def restrict(lv: DimensionPair): MultiClosure = Value.MultiClosure(v => this(v).restrict(lv))
   }
 
-  implicit class Closure(private val func: (Seq[Value], Reduction) => Value) extends AnyVal {
-    def apply(seq: Value, reduction: Reduction /* REDUCTION */): Value = func(Seq(seq), reduction)
-    def restrict(lv: DimensionPair) = Value.Closure((v, r) => this(v.head, r).restrict(lv))
+  implicit class Closure(private val func: Value => Value) extends AnyVal {
+    def apply(seq: Value): Value = func(seq)
+    def restrict(lv: DimensionPair): Closure = Value.Closure(v => this(v).restrict(lv))
   }
 
   object Closure {
-    def apply(a: Value): Closure = Closure((_, r) => a.renor(r))
+    def apply(a: Value): Closure = Closure(_ => a)
   }
 
   object PathClosure {
-    def apply(a: Value): PathClosure = PathClosure((_, r) => a.renor(r))
+    def apply(a: Value): PathClosure = PathClosure(_ => a)
   }
 
-  implicit class PathClosure(private val func: (Dimension, Reduction) => Value) extends AnyVal {
-    def apply(seq: Dimension, reduction: Reduction /* REDUCTION */): Value = func(seq, reduction)
-    def restrict(lv: DimensionPair): PathClosure = Value.PathClosure((v, r) => this(v, r).restrict(lv))
-    def mapd(a: (Value, Dimension) => Value): PathClosure = PathClosure((d, r) => a(this(d, r), d))
-    def map(a: Value => Value): PathClosure = PathClosure((d, r) => a(this(d, r)))
+  implicit class PathClosure(private val func: Dimension => Value) extends AnyVal {
+    def apply(seq: Dimension): Value = func(seq)
+    def restrict(lv: DimensionPair): PathClosure = Value.PathClosure(v => this(v).restrict(lv))
+    def mapd(a: (Value, Dimension) => Value): PathClosure = PathClosure(d => a(this(d), d))
+    def map(a: Value => Value): PathClosure = PathClosure(d => a(this(d)))
   }
 
 
@@ -422,37 +334,37 @@ object Value {
   case class Record(level: Int, nodes: Seq[RecordNode]) extends HeadCanonical {
     assert(nodes.isEmpty || nodes.head.dependencies.isEmpty)
 
-    def rthis(r: Reduction): Record = this // Reference(this).deref(r)
+    def rthis(): Record = this // Reference(this).deref(r)
 
     lazy val maker: Value = {
-      def rec(known: Seq[Value], remaining: Seq[RecordNode], r: Reduction): Value = {
+      def rec(known: Seq[Value], remaining: Seq[RecordNode]): Value = {
         remaining match {
           case Seq() => Make(known)
           case _ +: tail =>
-            Lambda(Closure((p, r) => rec(known :+ p.head, tail, r)))
+            Lambda(Closure(p => rec(known :+ p, tail)))
         }
       }
-      rec(Seq.empty, nodes, Reduction.No)
+      rec(Seq.empty, nodes)
     }
 
     lazy val makerType: Value = {
-      def rec(known: Seq[Value], remaining: Seq[RecordNode], r: Reduction): Value = {
+      def rec(known: Seq[Value], remaining: Seq[RecordNode]): Value = {
         remaining match {
-          case Seq() => rthis(r)
+          case Seq() => rthis()
           case Seq(head) =>
-            Function(head.closure(head.dependencies.map(known), r),
-              Closure((_, r) => rthis(r)))
+            Function(head.closure(head.dependencies.map(known)),
+              Closure(_ => rthis()))
           case head +: more +: tail =>
-            Function(head.closure(head.dependencies.map(known), r), Closure((p, r) => {
-              rec(known ++ Seq(p.head), tail, r)
+            Function(head.closure(head.dependencies.map(known)), Closure(p => {
+              rec(known ++ Seq(p), tail)
             }))
         }
       }
-      rec(Seq.empty, nodes, Reduction.No)
+      rec(Seq.empty, nodes)
     }
-    def projectedType(values: Seq[Value], name: Int, reduction: Reduction /* REDUCTION */): Value = {
+    def projectedType(values: Seq[Value], name: Int): Value = {
       val b = nodes(name)
-      b.closure(b.dependencies.map(values), reduction)
+      b.closure(b.dependencies.map(values))
     }
   }
 
@@ -476,32 +388,32 @@ object Value {
   // TODO should have a field: recursive, and it must be recursive, also in case of indexed, use Constructor instead of value
   case class Constructor(name: Tag, parameters: Int, nodes: Seq[MultiClosure]) {
     private[Value] var _sum: Sum = _
-    def rthis(r: Reduction): Sum = _sum // Reference(_sum).deref(r)
+    def rthis(): Sum = _sum // Reference(_sum).deref(r)
 
     lazy val maker: Value = {
-      def rec(known: Seq[Value], remaining: Seq[MultiClosure], r: Reduction): Value = {
+      def rec(known: Seq[Value], remaining: Seq[MultiClosure]): Value = {
         remaining match {
           case Seq() => Construct(name, known)
           case _ +: tail =>
-            Lambda(Closure((p, r) => rec(known :+ p.head, tail, r)))
+            Lambda(Closure(p => rec(known :+ p, tail)))
         }
       }
-      rec(Seq.empty, nodes, Reduction.No)
+      rec(Seq.empty, nodes)
     }
 
     lazy val makerType: Value = {
-      def rec(known: Seq[Value], remaining: Seq[MultiClosure], r: Reduction): Value = {
+      def rec(known: Seq[Value], remaining: Seq[MultiClosure]): Value = {
         remaining match {
-          case Seq() => rthis(r)
+          case Seq() => rthis()
           case Seq(head) =>
-            Function(head(known, r), Closure((_, r) => rthis(r)))
+            Function(head(known), Closure(_ => rthis()))
           case head +: _ +: tail =>
-            Function(head(known, r), Closure((p, r) => {
-              rec(known :+ p.head, tail, r)
+            Function(head(known), Closure(p => {
+              rec(known :+ p, tail)
             }))
         }
       }
-      rec(Seq.empty, nodes, Reduction.No)
+      rec(Seq.empty, nodes)
     }
   }
 
@@ -512,8 +424,8 @@ object Value {
   }
 
   case class Case(pattern: Pattern, closure: MultiClosure) {
-    def tryApp(v: Value, r: Reduction): Option[Value] = {
-      extract(pattern, v).map(a => closure(a, r))
+    def tryApp(v: Value): Option[Value] = {
+      extract(pattern, v).map(a => closure(a))
     }
   }
 
@@ -539,19 +451,19 @@ object Value {
 
   private val gen = new GenericGen.Negative()
 
-  def inferLevel(t1: Value): Int = infer(t1, Reduction.Normalize) match {
+  def inferLevel(t1: Value): Int = infer(t1) match {
     case Universe(l) => l
     case _ => logicError()
   }
 
   // only works for values of path type and universe types
-  def infer(t1: Value, r: Reduction): Value = {
+  def infer(t1: Value): Value = {
     t1.whnf match {
       case OpenReference(_, v1) =>
         v1
       case Universe(level) => Universe(level + 1)
       case Function(domain, codomain) =>
-        (infer(domain, r), infer(codomain(OpenReference(gen(), domain), r), r)) match {
+        (infer(domain), infer(codomain(OpenReference(gen(), domain)))) match {
           case (Universe(l1), Universe(l2)) => Universe(l1 max l2)
           case _ => logicError()
         }
@@ -560,24 +472,24 @@ object Value {
       case Sum(level, _) =>
         Universe(level)
       case PathType(typ, _, _) =>
-        infer(typ.apply(Dimension.OpenReference(gen()), r), r)
+        infer(typ.apply(Dimension.OpenReference(gen())))
       case Application(l1, a1) =>
-        infer(l1, r).whnf match {
+        infer(l1).whnf match {
           case Function(_, c) =>
-            c(a1, r)
+            c(a1)
           case _ => logicError()
         }
       case Projection(m1, f1) =>
-        infer(m1, r).whnf match {
-          case rr: Record  => rr.projectedType(rr.nodes.indices.map(n => Projection(m1, n)), f1, r)
+        infer(m1).whnf match {
+          case rr: Record  => rr.projectedType(rr.nodes.indices.map(n => Projection(m1, n)), f1)
           case _ => logicError()
         }
       case PatternStuck(l1, s1) =>
-        l1.typ(s1, r)
+        l1.typ(s1)
       case PathApplication(l1, d1) =>
-        infer(l1, r).whnf match {
+        infer(l1).whnf match {
           case PathType(typ, _, _) =>
-            typ(d1, r)
+            typ(d1)
           case _ => logicError()
         }
       case _ => logicError()

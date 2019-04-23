@@ -23,6 +23,7 @@ object Context {
 sealed trait Layer
 
 object Layer {
+  case class Term(binder: Binder) extends Layer
   case class Terms(terms: Seq[Binder]) extends Layer
   case class Dimension(id: Generic, name: Name, value: Value.Dimension) extends Layer
   case class Restriction(res: Value.DimensionPair) extends Layer
@@ -35,7 +36,9 @@ trait Context {
   protected val layers: Layers
 
   // get value directly without resolving restrictions
-  def getTerm(depth: Int, index: Int): Binder = layers(depth).asInstanceOf[Layer.Terms].terms(index)
+  def getTerm(depth: Int, index: Int): Binder =
+    if (index == -1) layers(depth).asInstanceOf[Layer.Term].binder
+    else layers(depth).asInstanceOf[Layer.Terms].terms(index)
   def getDimension(depth: Int): Value.Dimension = layers(depth).asInstanceOf[Layer.Dimension].value
 
   def rebindReference(v: Reference): Option[Abstract.TermReference] = {
@@ -120,6 +123,11 @@ trait Context {
             i += 1
             ll = ll.tail
           }
+        case Layer.Term(l) =>
+          if (l.id == id) {
+            index = i
+            binder = Abstract.TermReference(up, -1)
+          }
         case _ =>
       }
       if (binder == null) {
@@ -171,6 +179,10 @@ trait Context {
             }
             i += 1
             ll = ll.tail
+          }
+        case Layer.Term(b) =>
+          if (b.name.by(name)) {
+            binder = (b.typ, Abstract.TermReference(up, -1), true)
           }
         case d@Layer.Dimension(_, n, _) =>
           if (n.by(name)) {

@@ -9,7 +9,6 @@ import scala.collection.mutable
 
 
 private trait ReifierContext extends ContextBuilder {
-  def rd = Reduction.No
   def base: ReifierContextBase
 
   override type Self <: ReifierContext
@@ -28,48 +27,48 @@ private trait ReifierContext extends ContextBuilder {
       case Value.Universe(level) =>
         Universe(level)
       case Value.Function(domain, codomain) =>
-        val (ctx, tm) = newLayer().newAbstraction(Name.empty, domain)
-        Function(reify(domain), ctx.reify(codomain(tm, rd)))
+        val (ctx, tm) = newTermLayer(Name.empty, domain)
+        Function(reify(domain), ctx.reify(codomain(tm)))
       case Value.Record(level, nodes) =>
-        val (ctx, vs) = nodes.foldLeft((newLayer().asInstanceOf[ReifierContext], Seq.empty[Value])) { (as, _) =>
+        val (ctx, vs) = nodes.foldLeft((newTermsLayer().asInstanceOf[ReifierContext], Seq.empty[Value])) { (as, _) =>
           val (cc, v) = as._1.newAbstraction(Name.empty, null)
           (cc, as._2 :+ v)
         }
         assert(vs.size == nodes.size)
         Record(level, nodes.map(a =>
-          RecordNode(a.name, a.dependencies, ctx.reify(a.closure(a.dependencies.map(vs), rd)))))
+          RecordNode(a.name, a.dependencies, ctx.reify(a.closure(a.dependencies.map(vs))))))
       case Value.Sum(level, constructors) =>
         Sum(level, constructors.map(c => {
-          val (ctx, vs) = c.nodes.foldLeft((newLayer().asInstanceOf[ReifierContext], Seq.empty[Value])) { (as, _) =>
+          val (ctx, vs) = c.nodes.foldLeft((newTermsLayer().asInstanceOf[ReifierContext], Seq.empty[Value])) { (as, _) =>
             val (cc, v) = as._1.newAbstraction(Name.empty, null)
             (cc, as._2 :+ v)
           }
           assert(vs.size == c.nodes.size)
-          Constructor(c.name, c.nodes.map(a => ctx.reify(a(vs, rd))))
+          Constructor(c.name, c.nodes.map(a => ctx.reify(a(vs))))
         }))
       case Value.PathType(ty, left, right) =>
-        val (ctx, d) = newDimension(Name.empty)
-        PathType(ctx.reify(ty(d, rd)), reify(left), reify(right))
+        val (ctx, d) = newDimensionLayer(Name.empty)
+        PathType(ctx.reify(ty(d)), reify(left), reify(right))
       case Value.Make(_) =>
         // we believe at least values from typechecker don't have these stuff
         logicError()
       case Value.Construct(_, _) =>
         logicError()
       case Value.Lambda(closure) =>
-        val (ctx, n) = newLayer().newAbstraction(Name.empty, null)
-        Lambda(ctx.reify(closure(n, rd)))
+        val (ctx, n) = newTermLayer(Name.empty, null)
+        Lambda(ctx.reify(closure(n)))
       case Value.PatternLambda(id, ty, cases) =>
-        val (ctx, n) = newLayer().newAbstraction(Name.empty, null)
-        PatternLambda(id, ctx.reify(ty(n, rd)), cases.map(c => {
-          val (ctx, ns) = (0 until c.pattern.atomCount).foldLeft((newLayer().asInstanceOf[ReifierContext], Seq.empty[Value])) { (ctx, _) =>
+        val (ctx, n) = newTermLayer(Name.empty, null)
+        PatternLambda(id, ctx.reify(ty(n)), cases.map(c => {
+          val (ctx, ns) = (0 until c.pattern.atomCount).foldLeft((newTermsLayer().asInstanceOf[ReifierContext], Seq.empty[Value])) { (ctx, _) =>
             val (c, ns) = ctx._1.newAbstraction(Name.empty, null)
             (c, ctx._2 :+ ns)
           }
-          Case(c.pattern, ctx.reify(c.closure(ns, rd)))
+          Case(c.pattern, ctx.reify(c.closure(ns)))
         }))
       case Value.PathLambda(body) =>
-        val (ctx, n) = newDimension(Name.empty)
-        PathLambda(ctx.reify(body(n, rd)))
+        val (ctx, n) = newDimensionLayer(Name.empty)
+        PathLambda(ctx.reify(body(n)))
       case Value.OpenReference(id, _) =>
         rebindOpenReference(id)
       case c: Value.Reference =>
@@ -83,7 +82,7 @@ private trait ReifierContext extends ContextBuilder {
       case Value.Maker(s, i) =>
         Maker(reify(s), i)
       case Value.Let(items, order, body) =>
-        val ctx = items.foldLeft(newLayer().asInstanceOf[ReifierContext]) { (ctx, item) =>
+        val ctx = items.foldLeft(newTermsLayer().asInstanceOf[ReifierContext]) { (ctx, item) =>
           ctx.newDefinition(Name.empty, null, item)
         }
         val abs = items.map(p => ctx.reify(p))
@@ -91,11 +90,11 @@ private trait ReifierContext extends ContextBuilder {
       case Value.PathApplication(left, stuck) =>
         PathApplication(reify(left), reify(stuck))
       case Value.Coe(dir, tp, base) =>
-        val (ctx, n) = newLayer().newDimension(Name.empty)
-        Coe(reify(dir), ctx.reify(tp(n, rd)), reify(base))
+        val (ctx, n) = newDimensionLayer(Name.empty)
+        Coe(reify(dir), ctx.reify(tp(n)), reify(base))
       case Value.Hcom(dir, tp, base, restrictions) =>
-        val (ctx, n) = newLayer().newLayer().newDimension(Name.empty)
-        Hcom(reify(dir), reify(tp), reify(base), restrictions.map(r => Restriction(reify(r.pair), ctx.reify(r.body(n, rd)))))
+        val (ctx, n) = newTermsLayer().newDimensionLayer(Name.empty)
+        Hcom(reify(dir), reify(tp), reify(base), restrictions.map(r => Restriction(reify(r.pair), ctx.reify(r.body(n)))))
       case Value.Restricted(a, pair) =>
         Restricted(reify(a), reify(pair))
     }
