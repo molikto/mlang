@@ -170,6 +170,7 @@ class TypeChecker private (protected override val layers: Layers)
                   bt.restrict(l._3).restrict(pr),
                   l._2.restrict(pr),
                   r._2.restrict(l._3))
+              case _ => // not overlapping branches is ok
             }
           }
         }
