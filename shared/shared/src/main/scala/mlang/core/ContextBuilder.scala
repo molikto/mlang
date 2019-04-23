@@ -38,13 +38,8 @@ trait ContextBuilder extends Context {
 
   def newTermsLayer(): Self = Layer.Terms(Seq.empty) +: layers
 
-  def newRestrictionLayer(pair: Value.DimensionPair): Option[Self] = {
-    pair match {
-      case Value.DimensionPair(Value.Dimension.Constant(a), Value.Dimension.Constant(b)) if a != b =>
-        None
-      case _ =>
-        Some(Layer.Restriction(pair) +: layers)
-    }
+  def newRestrictionLayer(pair: Value.DimensionPair): Self = {
+    Layer.Restriction(pair) +: layers
   }
 
   def newDimensionLayer(n: Name): (Self, Value.Dimension) = {

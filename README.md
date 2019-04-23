@@ -3,10 +3,11 @@
 
 [![Join the chat at https://gitter.im/mlang-discuess/community](https://badges.gitter.im/mlang-discuess/community.svg)](https://gitter.im/mlang-discuess/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
-* **CURRENT**: coe and hcom
+* **CURRENT**
     * ~~type checking rules~~
-    * computation rules
-    * conversion checking
+    * ~~coe hcom computation rules for pi, record and path~~
+    * type checking for com
+    * coe and hcom computation rules for sum
 * Then: `universe`
 * Then HITs
     

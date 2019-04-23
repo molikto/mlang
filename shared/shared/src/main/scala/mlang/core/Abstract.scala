@@ -21,7 +21,7 @@ sealed trait Abstract {
       codomain.markRecursive(i + 1, c)
     case Lambda(closure) =>
       closure.markRecursive(i + 1, c)
-    case Application(left, right) =>
+    case App(left, right) =>
       left.markRecursive(i, c)
       right.markRecursive(i, c)
     case Record(_, nodes) =>
@@ -46,11 +46,15 @@ sealed trait Abstract {
       typ.markRecursive(i + 1, c)
       left.markRecursive(i, c)
       right.markRecursive(i, c)
-    case PathApplication(lef, _) =>
+    case PathApp(lef, _) =>
       lef.markRecursive(i, c)
     case Coe(_, tp, base) =>
       tp.markRecursive(i + 1, c)
       base.markRecursive(i, c)
+    case Com(_, tp, base, restrictions) =>
+      tp.markRecursive(1 + i, c)
+      base.markRecursive(i, c)
+      restrictions.foreach(_.body.markRecursive(i + 2, c))
     case Hcom(_, tp, base, restrictions) =>
       tp.markRecursive(i, c)
       base.markRecursive(i, c)
@@ -64,7 +68,7 @@ sealed trait Abstract {
     case TermReference(up, index, _) => if (i == up) Set(index) else Set.empty
     case Function(domain, codomain) => domain.dependencies(i) ++ codomain.dependencies(i + 1)
     case Lambda(closure) => closure.dependencies(i + 1)
-    case Application(left, right) => left.dependencies(i) ++ right.dependencies(i)
+    case App(left, right) => left.dependencies(i) ++ right.dependencies(i)
     case Record(_, nodes) => nodes.flatMap(_.typ.dependencies(i + 1)).toSet
     case Projection(left, _) => left.dependencies(i)
     case Sum(_, constructors) => constructors.flatMap(_.params.flatMap(_.dependencies(i + 1))).toSet
@@ -73,9 +77,10 @@ sealed trait Abstract {
     case PatternLambda(_, cd, cases) => cd.dependencies(i + 1) ++ cases.flatMap(_.body.dependencies(i + 1)).toSet
     case PathLambda(body) => body.dependencies(i + 1)
     case PathType(typ, left, right) => typ.dependencies(i + 1) ++ left.dependencies(i) ++ right.dependencies(i)
-    case PathApplication(lef, _) => lef.dependencies(i)
+    case PathApp(lef, _) => lef.dependencies(i)
     case Coe(_, tp, base) => tp.dependencies(i + 1) ++ base.dependencies(i)
     case Hcom(_, tp, base, restrictions) => tp.dependencies(i) ++ base.dependencies(i) ++ restrictions.flatMap(_.body.dependencies(i + 2)).toSet
+    case Com(_, tp, base, restrictions) => tp.dependencies(i + 1) ++ base.dependencies(i) ++ restrictions.flatMap(_.body.dependencies(i + 2)).toSet
     case Restricted(term, _) => term.dependencies(i)
   }
 }
@@ -95,7 +100,7 @@ object Abstract {
 
   case class Lambda(closure: Closure) extends Abstract
 
-  case class Application(left: Abstract, right: Abstract) extends Abstract
+  case class App(left: Abstract, right: Abstract) extends Abstract
 
   case class RecordNode(name: Name, dependencies: Seq[Int], typ: MultiClosure)
   case class Record(level: Int, nodes: Seq[RecordNode]) extends Abstract
@@ -115,10 +120,12 @@ object Abstract {
 
   case class PathLambda(body: PathClosure) extends Abstract
   case class PathType(typ: PathClosure, left: Abstract, right: Abstract) extends Abstract
-  case class PathApplication(let: Abstract, r: Dimension) extends Abstract
+  case class PathApp(let: Abstract, r: Dimension) extends Abstract
 
   case class Coe(direction: DimensionPair, tp: PathClosure, base: Abstract) extends Abstract
   case class Hcom(direction: DimensionPair, tp: Abstract, base: Abstract, restrictions: Seq[Restriction]) extends Abstract
+
+  case class Com(direction: DimensionPair, tp: PathClosure, base: Abstract, restrictions: Seq[Restriction]) extends Abstract
 
   case class Restricted(term: Abstract, restriction: DimensionPair) extends Abstract
 

@@ -127,6 +127,8 @@ class TypeChecker private (protected override val layers: Layers)
             (tv.papp(to._1), Abstract.Coe(Abstract.DimensionPair(from._2, to._2), ta, la))
           case _ => throw TypeCheckException.ExpectingLambdaTerm()
         }
+      case Term.Com(direction, typ, base, ident, restrictions) =>
+        ???
       case Term.Hcom(direction, base, ident, restrictions) =>
         val (dfv, dfa)= checkDimension(direction.from)
         val (_, dta) = checkDimension(direction.to)
@@ -134,23 +136,23 @@ class TypeChecker private (protected override val layers: Layers)
         val bv = eval(ba)
         // we use this context to evaluate body of restrictions, it is only used to keep the dimension binding to the same
         // one, but as restrictions is already present in abstract terms, it is ok to use this instead of others
-        val fContext = newDimensionLayer(ident.getOrElse(Name.empty))._1
+        val fContext = newTermsLayer().newDimensionLayer(ident.getOrElse(Name.empty))._1
         val res = restrictions.map(a => {
           val df = checkDimension(a.dimension.from)
           val dr = checkDimension(a.dimension.to)
           val pair = Value.DimensionPair(df._1, dr._1)
-          newRestrictionLayer(pair) match {
-            case Some(ctx0) =>
-              val ctx = ctx0.newDimensionLayer(ident.getOrElse(Name.empty))._1
-              val btr = bt.restrict(pair)
-              val na = ctx.check(a.term, btr)
-              val nv = ctx0.newDimensionLayer(ident.getOrElse(Name.empty), dfv).eval(na)
-              if (!Conversion.equalTerm(btr, bv.restrict(pair), nv)) {
-                throw TypeCheckException.CapNotMatching()
-              }
-              (Abstract.Restriction(Abstract.DimensionPair(df._2, dr._2), na), fContext.eval(na), pair, ctx0)
-            case None =>
-              throw TypeCheckException.RemoveFalseFace()
+          if (pair.isFalse) {
+            throw TypeCheckException.RemoveFalseFace()
+          } else {
+            val ctx0 = newRestrictionLayer(pair)
+            val ctx = ctx0.newDimensionLayer(ident.getOrElse(Name.empty))._1
+            val btr = bt.restrict(pair)
+            val na = ctx.check(a.term, btr)
+            val nv = ctx0.newDimensionLayer(ident.getOrElse(Name.empty), dfv).eval(na)
+            if (!Conversion.equalTerm(btr, bv.restrict(pair), nv)) {
+              throw TypeCheckException.CapNotMatching()
+            }
+            (Abstract.Restriction(Abstract.DimensionPair(df._2, dr._2), na), fContext.eval(na), pair, ctx0: Self)
           }
         })
         for (i <- restrictions.indices) {
@@ -162,19 +164,18 @@ class TypeChecker private (protected override val layers: Layers)
             val df = l._4.checkDimension(rj.dimension.from)
             val dr = l._4.checkDimension(rj.dimension.to)
             val pr = Value.DimensionPair(df._1, dr._1)
-            l._4.newRestrictionLayer(pr) match {
-              case Some(_) =>
-                Conversion.equalTerm(
-                  bt.restrict(l._3).restrict(pr),
-                  l._2.restrict(pr),
-                  r._2.restrict(l._3))
-              case _ => // not overlapping branches is ok
+            // only used to test if this restriction is false face or not
+            if (!pr.isFalse) {
+              Conversion.equalTerm(
+                bt.restrict(l._3).restrict(pr),
+                l._2.restrict(pr),
+                r._2.restrict(l._3))
             }
           }
         }
         // check restrictions is valid
         //res.exists(a => a._3.from == a._3.to) || res
-        (bv, Abstract.Coe(Abstract.DimensionPair(dfa, dta), reify(bv), ba))
+        (bt, Abstract.Hcom(Abstract.DimensionPair(dfa, dta), reify(bt), ba, res.map(_._1)))
       case Term.PathType(typ, left, right) =>
         typ match {
           case Some(tp) =>
@@ -225,10 +226,10 @@ class TypeChecker private (protected override val layers: Layers)
             }
           case _ => error()
         }
-      case Term.Application(lambda, arguments) =>
+      case Term.App(lambda, arguments) =>
         if (arguments.isEmpty) throw TypeCheckException.EmptyArguments()
         val (lt, la) = infer(lambda)
-        inferApplication(lt, la, arguments)
+        inferApp(lt, la, arguments)
       case Term.Let(declarations, in) =>
         val (ctx, da, order) = newTermsLayer().checkDeclarations(declarations)
         val (it, ia) = ctx.infer(in)
@@ -267,7 +268,7 @@ class TypeChecker private (protected override val layers: Layers)
     }
   }
 
-  private def inferApplication(lt: Value, la: Abstract, arguments: Seq[Term]): (Value, Abstract) = {
+  private def inferApp(lt: Value, la: Abstract, arguments: Seq[Term]): (Value, Abstract) = {
     arguments match {
       case head +: tail =>
         lt.whnf match {
@@ -275,13 +276,13 @@ class TypeChecker private (protected override val layers: Layers)
             val aa = check(head, domain)
             val av = eval(aa)
             val lt1 = codomain(av)
-            val la1 = Abstract.Application(la, aa)
-            inferApplication(lt1, la1, tail)
+            val la1 = Abstract.App(la, aa)
+            inferApp(lt1, la1, tail)
           case Value.PathType(typ, _, _) =>
             val (dv, da) = checkDimension(head)
             val lt1 = typ(dv)
-            val la1 = Abstract.PathApplication(la, da)
-            inferApplication(lt1, la1, tail)
+            val la1 = Abstract.PathApp(la, da)
+            inferApp(lt1, la1, tail)
           // TODO user defined applications
           case _ => throw TypeCheckException.UnknownAsFunction()
         }
@@ -362,7 +363,7 @@ class TypeChecker private (protected override val layers: Layers)
         }
         t0 match {
           case Some(t) =>
-            debug(s"check define $name")
+            info(s"check define $name")
             val pps = NameType.flatten(ps)
             val (_, ta) = inferTelescope(pps, t)
             val tv = eval(ta)
@@ -373,7 +374,7 @@ class TypeChecker private (protected override val layers: Layers)
             })
             val ctx = newDeclaration(name, tv) // allows recursive definitions
           val va = ctx.check(wrapBody(v, pps.size), tv, lambdaNameHints, hintCodomain(Some(ta)))
-            debug(s"declared $name")
+            info(s"declared $name")
             abs.append(DefinitionInfo(name, tv, va, Some(ta)))
             ctx
           case None =>
@@ -382,24 +383,24 @@ class TypeChecker private (protected override val layers: Layers)
             if (index < 0) {
               val (vt, va) = infer(v)
               val ctx = newDeclaration(name, vt)
-              debug(s"declared $name")
+              info(s"declared $name")
               abs.append(DefinitionInfo(name, vt, va, None))
               ctx
             } else {
               val b = headTerms(index)
               val va = check(v, b.typ, Seq.empty, hintCodomain(abs(index).typCode))
-              debug(s"declared $name")
+              info(s"declared $name")
               abs.update(index, DefinitionInfo(name, b.typ, va, abs(index).typCode))
               this
             }
         }
       case Declaration.Declare(ms, name, ps, t) =>
-        debug(s"check declare $name")
+        info(s"check declare $name")
         if (ms.nonEmpty) throw TypeCheckException.ForbiddenModifier()
         val (_, ta) = inferTelescope(NameType.flatten(ps), t)
         val tv = eval(ta)
         val ctx = newDeclaration(name, tv)
-        debug(s"declared $name")
+        info(s"declared $name")
         abs.append(DefinitionInfo(name, tv, null, Some(ta)))
         ctx
     }

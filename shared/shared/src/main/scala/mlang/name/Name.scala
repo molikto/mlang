@@ -7,6 +7,7 @@ import mlang.utils.Text
 // so an empty name is not something concerning the user of this class at all
 case class Name(main: Text) {
 
+  def source: String = s"Name"
   def intersect(name: Name): Boolean = this.main.nonEmpty && name.main.nonEmpty && name.main == main
   def by(name: Text): Boolean = this.main.nonEmpty && name.nonEmpty && name == main
   def refSelf: Ref = main

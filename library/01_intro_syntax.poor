@@ -10,6 +10,17 @@
 "│" is just whitespace
 **/
 
+define apd(A: type, P: A ⇒ type, f: (x: A) ⇒ P(x), x y: A, p: x ≡ y): coe(0, 1, i → P(p(i)), f(x)) ≡ f(y) =
+  i → coe(i, 1, j → P(p(j)), f(p(i)))
+
+define symm(A: type, x y: A, p: x ≡ y): y ≡ x =
+  i → hcom(0, 1, x, k | i=0 → p(k) | i=1 → x)
+
+define symm_unit(A: type, a: A): (i → a) ≡(─ → a ≡ a) symm(A, a, a, (i → a)) =
+  j → i → hcom(0, j, a, k | i=0 → a | i=1 → a)
+
+define trans(A: type, x y z: A, p1: x ≡ y, p2: y ≡ z): x ≡ z =
+  i → hcom(0, 1, p1(i), k | i=0 → x | i=1 → p2(k))
 
 define inductively nat: type = sum {
   case zero

@@ -39,7 +39,7 @@ object Term {
   case class Constructor(name: Tag, term: Seq[NameType])
   case class Sum(constructors: Seq[Constructor]) extends Term with Block
 
-  case class Application(left: Term, right: Seq[Term]) extends Term
+  case class App(left: Term, right: Seq[Term]) extends Term
 
   case class Projection(left: Term, right: Ref) extends Term
 
@@ -62,6 +62,7 @@ object Term {
   case class Restriction(dimension: DimensionPair, term: Term)
   case class Coe(direction: DimensionPair, typ: Term, base: Term) extends Term
   case class Hcom(direction: DimensionPair, base: Term, ident: Name.Opt, restrictions: Seq[Restriction]) extends Term
+  case class Com(direction: DimensionPair, typ: Term, base: Term, ident: Name.Opt, restrictions: Seq[Restriction]) extends Term
 }
 
 case class Module(declarations: Seq[Declaration])

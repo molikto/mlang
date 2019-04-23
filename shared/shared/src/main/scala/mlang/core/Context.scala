@@ -9,7 +9,7 @@ import scala.collection.mutable
 sealed trait ContextException extends CoreException
 
 object ContextException {
-  case class NonExistingReference(name: Ref) extends ContextException
+  case class NonExistingReference(name: Ref) extends Exception(s"Non existing reference $name") with ContextException
   case class ReferenceSortWrong(name: Ref) extends ContextException
   case class ConstantSortWrong() extends ContextException
 }
@@ -39,6 +39,7 @@ trait Context {
   def getTerm(depth: Int, index: Int): Binder =
     if (index == -1) layers(depth).asInstanceOf[Layer.Term].binder
     else layers(depth).asInstanceOf[Layer.Terms].terms(index)
+
   def getDimension(depth: Int): Value.Dimension = layers(depth).asInstanceOf[Layer.Dimension].value
 
   def rebindReference(v: Reference): Option[Abstract.TermReference] = {
@@ -162,7 +163,6 @@ trait Context {
 
   private def lookup0(name: Ref): (Object, Object) =  {
     var up = 0
-    var index = -1
     var ls = layers
     var binder: (Object, Object, Boolean) = null
     val restrictions = mutable.ArrayBuffer[Layer.Restriction]()
@@ -172,6 +172,7 @@ trait Context {
       ls.head match {
         case Layer.Terms(ll0) =>
           var ll = ll0
+          var index = -1
           while (ll.nonEmpty && binder == null) {
             if (ll.head.name.by(name)) {
               index = i

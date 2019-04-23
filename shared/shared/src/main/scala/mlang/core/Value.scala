@@ -41,12 +41,14 @@ sealed trait Value {
       PathType(typ.restrict(lv), left.restrict(lv), right.restrict(lv))
     case PathLambda(body) =>
       PathLambda(body.restrict(lv))
-    case Application(lambda, argument) =>
-      Application(lambda.restrict(lv), argument.restrict(lv))
+    case App(lambda, argument) =>
+      App(lambda.restrict(lv), argument.restrict(lv))
     case Coe(direction, tp, base) =>
-      Coe(direction, tp.restrict(lv), base.restrict(lv))
+      Coe(direction.restrict(lv), tp.restrict(lv), base.restrict(lv))
     case Hcom(direction, tp, base, restrictions) =>
-      Hcom(direction, tp.restrict(lv), base.restrict(lv), restrictions.map(n => Restriction(n.pair, n.body.restrict(lv))))
+      Hcom(direction.restrict(lv), tp.restrict(lv), base.restrict(lv), restrictions.map(n => Restriction(n.pair.restrict(lv), n.body.restrict(lv))))
+    case Com(direction, tp, base, restrictions) =>
+      Com(direction.restrict(lv), tp.restrict(lv), base.restrict(lv), restrictions.map(n => Restriction(n.pair.restrict(lv), n.body.restrict(lv))))
     case Maker(value, field) =>
       Maker(value.restrict(lv), field)
     case Projection(make, field) =>
@@ -55,10 +57,10 @@ sealed trait Value {
       PatternStuck(lambda.restrict(lv).asInstanceOf[PatternLambda], stuck.restrict(lv))
     case Let(items, order, body) =>
       Let(items.map(_.restrict(lv)), order, body.restrict(lv))
-    case PathApplication(left, stuck) =>
-      PathApplication(left.restrict(lv), stuck.restrict(lv))
+    case PathApp(left, stuck) =>
+      PathApp(left.restrict(lv), stuck.restrict(lv))
     case OpenReference(id, o) =>
-      OpenReference(id, o.restrict(lv))
+      OpenReference(id, if (o != null) o.restrict(lv) else null) // some parameter in reify has null types
     case Restricted(a, restrictions) =>
       Restricted(a, lv +: restrictions)
     case o: Reference =>
@@ -93,18 +95,21 @@ sealed trait Value {
           }
         case Let(_, _, body) =>
           body.whnf
-        case Application(lambda, argument) =>
+        case App(lambda, argument) =>
           lambda.whnf.app(argument, whn)
         case PatternStuck(lambda, stuck) =>
           lambda.app(stuck.whnf, whn)
         case Projection(make, field) =>
           make.whnf.project(field, whn)
-        case PathApplication(left, stuck) =>
+        case PathApp(left, stuck) =>
           left.whnf.papp(stuck, whn)
-        case Coe(direction, tp, stuck) =>
-          stuck.coe(direction, tp, whn)
-        case Hcom(direction, tp, stuck, restrictions) =>
-          stuck.hcom(direction, tp, restrictions, whn)
+        case Coe(direction, tp, base) =>
+          // kan ops case analysis on tp, so they perform their own whnf
+          base.coe(direction, tp, whn)
+        case Hcom(direction, tp, base, restrictions) =>
+          base.hcom(direction, tp, restrictions, whn)
+        case Com(direction, tp, base, restrictions) =>
+          base.com(direction, tp, restrictions, whn)
         case Restricted(a, restriction) =>
           restriction.foldLeft(a.whnf) { (v, r) =>
             v.restrict(r).whnf
@@ -135,7 +140,7 @@ sealed trait Value {
         PatternStuck(p, v)
       }
     case _ =>
-      Application(this, v)
+      App(this, v)
   }
 
 
@@ -150,32 +155,128 @@ sealed trait Value {
             case _ => logicError()
           }
           trans(Lambda(Value.Closure(a => {
-            val a_ = a.coe(pair.reverse, typ.map(a => func(a).domain))
-            val app_ = this.app(a_)
-            app_.coe(pair, typ.mapd((f, d) => func(f).codomain(a.coe(DimensionPair(pair.to, d), typ.map(a => func(a).domain)))))
+            val a_ = Coe(pair.reverse, typ.map(a => func(a).domain), a)
+            val app_ = App(this, a_)
+            Coe(pair,
+              typ.mapd((f, d) => func(f).codomain(Coe(DimensionPair(pair.to, d), typ.map(a => func(a).domain), a))),
+              app_)
           })))
-        case _ =>
+        case Record(_, ns) =>
+          if (ns.isEmpty) {
+            trans(this)
+          } else {
+            def recor(a: Value): Record = a.whnf match {
+              case f@Record(_, _) => f
+              case _ => logicError()
+            }
+            val closures = mutable.ArrayBuffer[PathClosure]()
+            for (i <- ns.indices) {
+              closures.append(
+                PathClosure(dim => {
+                  if (ns(i).dependencies.isEmpty) {
+                    Coe(
+                      DimensionPair(pair.from, dim),
+                      typ.map(ror => recor(ror).nodes(i).closure()),
+                      Projection(this, i)
+                    )
+                  } else {
+                    Coe(
+                      DimensionPair(pair.from, dim),
+                      typ.mapd((ror, d) => recor(ror).nodes(i).closure(ns(i).dependencies.map(j => closures(j)(d)))),
+                      Projection(this, i)
+                    )
+                  }
+                })
+              )
+            }
+            trans(Make(closures.map(_.apply(pair.to))))
+          }
+        case PathType(_, _, _) =>
+          def pah(a: Value): PathType = a.whnf match {
+            case f: PathType => f
+            case _ => logicError()
+          }
+          trans(PathLambda(PathClosure(dim => {
+            Com(
+              pair,
+              typ.map(a => pah(a).typ(dim)),
+              PathApp(this, dim),
+              Seq(
+                { val dp = DimensionPair(dim, Dimension.True); Restriction(dp, typ.map(a => pah(a).right.restrict(dp))) },
+                { val dp = DimensionPair(dim, Dimension.False); Restriction(dp, typ.map(a => pah(a).left.restrict(dp))) }
+              ))
+          })))
+        case Sum(l, c) =>
           ???
+        case _ =>
+          Coe(pair, typ, this)
       }
     }
 
+  def com(pair: DimensionPair, typ: PathClosure, restriction0: Seq[Restriction], trans: Value => Value = id): Value = {
+    trans(Hcom(
+      pair,
+      typ(pair.to),
+      Coe(pair, typ, this),
+      restriction0.map(n => Restriction(n.pair, n.body.mapd((j, d) => Coe(DimensionPair(d, pair.to), typ, j))))))
+  }
+
   def hcom(pair: DimensionPair, typ: Value, restriction0: Seq[Restriction], trans: Value => Value = id): Value = {
-    val restriction = restriction0.filter(_.pair.isFalse)
+    val rs = restriction0.filter(!_.pair.isFalse)
     if (pair.from == pair.to) {
       trans(this)
     } else {
-      restriction.find(a => a.pair.from == a.pair.to) match { // always true face
+      rs.find(a => a.pair.from == a.pair.to) match { // always true face
         case Some(n) =>
           trans(n.body(pair.to))
         case None =>
           typ.whnf match {
-            case Function(_, codomain) =>
-              trans(Lambda(Value.Closure(a => this.app(a).hcom(
-                pair,
-                codomain(a),
-                restriction.map(n => Restriction(n.pair, n.body.map(_.app(a))))))))
-            case _ =>
+            case Function(_, codomain) => trans(Lambda(Value.Closure(a =>
+              Hcom(pair, codomain(a), App(this, a), rs.map(n => Restriction(n.pair, n.body.map(j => App(j, a)))))
+            )))
+            case Record(_, ns) =>
+              if (ns.isEmpty) {
+                trans(this)
+              } else {
+                val closures = mutable.ArrayBuffer[PathClosure]()
+                for (i <- ns.indices) {
+                  closures.append(
+                    PathClosure(dim => {
+                      if (ns(i).dependencies.isEmpty) {
+                        Hcom(
+                          DimensionPair(pair.from, dim),
+                          ns(i).closure(),
+                          Projection(this, i),
+                          rs.map(n => Restriction(n.pair, n.body.map(j => Projection(j, i))))
+                        )
+                      } else {
+                        Com(
+                          DimensionPair(pair.from, dim),
+                          PathClosure(k => ns(i).closure(ns(i).dependencies.map(j => closures(j)(k)))),
+                          Projection(this, 0),
+                          rs.map(n => Restriction(n.pair, n.body.map(j => Projection(j, i))))
+                        )
+                      }
+                    })
+                  )
+                }
+                trans(Make(closures.map(_.apply(pair.to))))
+              }
+            case PathType(ty, left, right) =>
+              trans(PathLambda(PathClosure(dim => {
+                Hcom(
+                  pair,
+                  ty(dim),
+                  PathApp(this, dim),
+                  Seq(
+                    { val dp = DimensionPair(dim, Dimension.True); Restriction(dp, PathClosure(right.restrict(dp))) },
+                    { val dp = DimensionPair(dim, Dimension.False); Restriction(dp, PathClosure(left.restrict(dp))) },
+                  ) ++ rs.map(n => Restriction(n.pair, n.body.map(j => PathApp(j, dim)))))
+              })))
+            case Sum(l, c) =>
               ???
+            case _ =>
+              Hcom(pair, typ, this, rs)
           }
       }
     }
@@ -193,7 +294,7 @@ sealed trait Value {
             case _ => logicError()
           }
         case _: Dimension.OpenReference =>
-          PathApplication(this, d)
+          PathApp(this, d)
       }
   }
 
@@ -216,6 +317,7 @@ sealed trait Value {
 object Value {
 
   implicit class MultiClosure(private val func: Seq[Value]=> Value) extends AnyVal {
+    def apply() = func(Seq.empty)
     def apply(seq: Seq[Value]): Value = func(seq)
     def restrict(lv: DimensionPair): MultiClosure = Value.MultiClosure(v => this(v).restrict(lv))
   }
@@ -242,6 +344,8 @@ object Value {
 
 
   case class DimensionPair(from: Dimension, to: Dimension) {
+    def restrict(lv: DimensionPair): DimensionPair = DimensionPair(from.restrict(lv), to.restrict(lv))
+
     def reverse: DimensionPair = DimensionPair(to, from)
 
     def isFalse: Boolean = (from == Dimension.False && to == Dimension.True) || (from == Dimension.True && to == Dimension.False)
@@ -282,8 +386,8 @@ object Value {
     // TODO make it a destructor
     case class Constant(isOne: Boolean) extends Dimension
 
-    val True = Constant(true)
-    val False = Constant(false)
+    val True = Constant(true) // 1
+    val False = Constant(false) // 0
   }
 
   type StuckPos = Value
@@ -302,7 +406,7 @@ object Value {
   case class Universe(level: Int) extends HeadCanonical
 
   case class Function(domain: Value, codomain: Closure) extends HeadCanonical
-  case class Application(lambda: StuckPos, argument: Value) extends Stuck
+  case class App(lambda: StuckPos, argument: Value) extends Stuck
 
   // TODO should have a field: recursive, and it must be recursive
   // TODO record should have a type
@@ -351,6 +455,8 @@ object Value {
   case class Restricted(a: Reference, restriction: Seq[DimensionPair]) extends Syntaxial
 
   case class Coe(direction: DimensionPair, tp: PathClosure, base: Value) extends Stuck
+
+  case class Com(direction: DimensionPair, tp: PathClosure, base: Value, restrictions: Seq[Restriction]) extends Stuck
 
   case class Hcom(direction: DimensionPair, tp: Value, base: Value, restrictions: Seq[Restriction]) extends Stuck
 
@@ -424,7 +530,7 @@ object Value {
   case class PathLambda(body: PathClosure) extends HeadCanonical
 
   // the left and right BOTH stuck
-  case class PathApplication(left: StuckPos, dimension: Dimension) extends Stuck
+  case class PathApp(left: StuckPos, dimension: Dimension) extends Stuck
 
 
   // these values will not be visible to users! also I guess it is ok to be static, it will not overflow right?
@@ -453,7 +559,7 @@ object Value {
         Universe(level)
       case PathType(typ, _, _) =>
         infer(typ.apply(Dimension.OpenReference(vdgen())))
-      case Application(l1, a1) =>
+      case App(l1, a1) =>
         infer(l1).whnf match {
           case Function(_, c) =>
             c(a1)
@@ -466,7 +572,7 @@ object Value {
         }
       case PatternStuck(l1, s1) =>
         l1.typ(s1)
-      case PathApplication(l1, d1) =>
+      case PathApp(l1, d1) =>
         infer(l1).whnf match {
           case PathType(typ, _, _) =>
             typ(d1)

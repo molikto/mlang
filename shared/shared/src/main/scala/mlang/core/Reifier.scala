@@ -51,9 +51,10 @@ private trait ReifierContext extends ContextBuilder {
         PathType(ctx.reify(ty(d)), reify(left), reify(right))
       case Value.Make(_) =>
         // we believe at least values from typechecker don't have these stuff
-        logicError()
+        // we can extends it when time comes
+        ???
       case Value.Construct(_, _) =>
-        logicError()
+        ???
       case Value.Lambda(closure) =>
         val (ctx, n) = newTermLayer(Name.empty, null)
         Lambda(ctx.reify(closure(n)))
@@ -73,12 +74,12 @@ private trait ReifierContext extends ContextBuilder {
         rebindOpenReference(id)
       case c: Value.Reference =>
         reifyReference(c)
-      case Value.Application(lambda, argument) =>
-        Application(reify(lambda), reify(argument))
+      case Value.App(lambda, argument) =>
+        App(reify(lambda), reify(argument))
       case Value.Projection(make, field) =>
         Projection(reify(make), field)
       case Value.PatternStuck(lambda, stuck) =>
-        Application(reify(lambda), reify(stuck))
+        App(reify(lambda), reify(stuck))
       case Value.Maker(s, i) =>
         Maker(reify(s), i)
       case Value.Let(items, order, body) =>
@@ -87,14 +88,22 @@ private trait ReifierContext extends ContextBuilder {
         }
         val abs = items.map(p => ctx.reify(p))
         Let(abs, order, ctx.reify(body))
-      case Value.PathApplication(left, stuck) =>
-        PathApplication(reify(left), reify(stuck))
+      case Value.PathApp(left, stuck) =>
+        PathApp(reify(left), reify(stuck))
       case Value.Coe(dir, tp, base) =>
         val (ctx, n) = newDimensionLayer(Name.empty)
         Coe(reify(dir), ctx.reify(tp(n)), reify(base))
       case Value.Hcom(dir, tp, base, restrictions) =>
         val (ctx, n) = newTermsLayer().newDimensionLayer(Name.empty)
         Hcom(reify(dir), reify(tp), reify(base), restrictions.map(r => Restriction(reify(r.pair), ctx.reify(r.body(n)))))
+      case Value.Com(dir, tp, base, restrictions) =>
+        Com(reify(dir), {
+          val (ctx, n) = newDimensionLayer(Name.empty)
+          ctx.reify(tp(n))
+        }, reify(base), {
+          val (ctx, n) = newTermsLayer().newDimensionLayer(Name.empty)
+          restrictions.map(r => Restriction(reify(r.pair), ctx.reify(r.body(n))))
+        })
       case Value.Restricted(a, pair) =>
         pair.foldLeft(reify(a)) { (c, p) =>
           Restricted(c, reify(p))

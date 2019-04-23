@@ -31,7 +31,7 @@ class Conversion {
     if (l1.id == l2.id) {
       true
     } else {
-      if (patternAssumps.exists(a => a.left == l1.id && a.right == l2.id && equalType(a.domain, domain) && equalTypeClosure(Int.MaxValue, a.domain, a.codomain, l1.typ))) {
+      if (patternAssumps.exists(a => a.left == l1.id && a.right == l2.id && equalType(a.domain, domain) && equalTypeClosure(a.domain, a.codomain, l1.typ))) {
         true
       } else {
         patternAssumps.append(Assumption(l1.id, l2.id, domain, l1.typ))
@@ -45,12 +45,12 @@ class Conversion {
 
   private implicit def optToBool[T](opt: Option[T]): Boolean = opt.isDefined
 
-  private def equalRecordFields(less: Int, n1: Seq[RecordNode], n2: Seq[RecordNode]): Boolean = {
+  private def equalRecordFields(n1: Seq[RecordNode], n2: Seq[RecordNode], less: Int): Boolean = {
     if (n1.map(_.name) == n2.map(_.name)) {
       n1.zip(n2).foldLeft(Some(Seq.empty[Value]) : Option[Seq[Value]]) { (as0, pair) =>
         as0 match {
           case Some(as) if pair._1.dependencies == pair._2.dependencies =>
-            equalTypeMultiClosure(less, pair._1.dependencies.map(as), pair._1.closure, pair._2.closure).map(as :+ _)
+            equalTypeMultiClosure(pair._1.dependencies.map(as), pair._1.closure, pair._2.closure, less).map(as :+ _)
           case None =>
             None
         }
@@ -60,14 +60,14 @@ class Conversion {
     }
   }
 
-  private def equalConstructor(less: Int, c1: Constructor, c2: Constructor): Boolean = {
+  private def equalConstructor(c1: Constructor, c2: Constructor, less: Int): Boolean = {
     if (c1.eq(c2)) {
       true
     } else {
       c1.name == c2.name && c1.parameters == c2.parameters && c1.nodes.size == c2.nodes.size && c1.nodes.zip(c2.nodes).foldLeft(Some(Seq.empty[Value]) : Option[Seq[Value]]) { (as0, pair) =>
           as0 match {
             case Some(as) =>
-              equalTypeMultiClosure(less, as, pair._1, pair._2).map(as :+ _)
+              equalTypeMultiClosure(as, pair._1, pair._2, less).map(as :+ _)
             case None =>
               None
           }
@@ -77,29 +77,39 @@ class Conversion {
 
 
 
-  private def equalTypeMultiClosure(less: Int, ts: Seq[Value], c1: MultiClosure, c2: MultiClosure): Option[Value] = {
+  private def equalTypeMultiClosure(ts: Seq[Value], c1: MultiClosure, c2: MultiClosure, less: Int): Option[Value] = {
     val cs = ts.map(t => OpenReference(gen(), t))
     val t = c1(cs)
-    if (equalType(less, t, c2(cs))) {
+    if (equalType(t, c2(cs), less)) {
       Some(t)
     } else {
       None
     }
   }
 
-  private def equalTypeClosure(less: Int, t: Value, c1: Closure, c2: Closure): Option[Value] = {
+  private def equalTypeClosure(t: Value, c1: Closure, c2: Closure, less: Int = Int.MaxValue): Option[Value] = {
     val c = OpenReference(gen(), t)
     val tt = c1(c)
-    if (equalType(less, tt, c2(c))) {
+    if (equalType(tt, c2(c), less)) {
       Some(tt)
     } else {
       None
     }
   }
 
-  private def equalType(tm1: Value, tm2: Value): Boolean = equalType(Int.MaxValue, tm1, tm2)
+  private def equalPathClosure(typ: Value, t1: PathClosure, t2: PathClosure): Boolean = {
+    val c = Dimension.OpenReference(dgen())
+    equalTerm(typ, t1(c), t2(c))
+  }
 
-  private def equalType(less: Int, tm10: Value, tm20: Value): Boolean = {
+
+  private def equalTypePathClosure(t1: PathClosure, t2: PathClosure, less: Int = Int.MaxValue): Boolean = {
+    val c = Dimension.OpenReference(dgen())
+    equalType(t1(c), t2(c), less)
+  }
+
+
+  private def equalType(tm10: Value, tm20: Value, less: Int = Int.MaxValue): Boolean = {
     val tm1 = tm10.whnf
     val tm2 = tm20.whnf
     if (tm1.eq(tm2)) {
@@ -111,24 +121,17 @@ class Conversion {
       typAssumeps.append((tm1, tm2))
       (tm1, tm2) match {
         case (Function(d1, c1), Function(d2, c2)) =>
-          equalType(less, d1, d2) && equalTypeClosure(less, d1, c1, c2)
+          equalType(d1, d2, less) && equalTypeClosure(d1, c1, c2, less)
         case (Universe(l1), Universe(l2)) =>
           l1 == l2 && l1 <= less
         case (Record(l1, n1), Record(l2, n2)) =>
-          l1 == l2 && l1 <= less && equalRecordFields(l1, n1, n2)
+          l1 == l2 && l1 <= less && equalRecordFields(n1, n2, l1)
         case (Sum(l1, c1), Sum(l2, c2)) =>
-          l1 == l2 && l1 <= less && c1.size == c2.size && c1.zip(c2).forall(p => equalConstructor(l1, p._1, p._2))
+          l1 == l2 && l1 <= less && c1.size == c2.size && c1.zip(c2).forall(p => equalConstructor(p._1, p._2, l1))
         case (PathType(t1, l1, r1), PathType(t2, l2, r2)) =>
-          val a = t1(Dimension.False)
-          val b = t2(Dimension.False)
-          // we can call equal term here because we know tm1 and tm2 is well typed
-          if (equalType(less, a, b) && equalTerm(a, l1, l2)) {
-            val c = t1(Dimension.True)
-            val d = t2(Dimension.True)
-            equalType(less, c, d) && equalTerm(c, r1, r2)
-          } else {
-            false
-          }
+          equalTypePathClosure(t1, t2, less) &&
+              equalTerm(t1(Dimension.False), l1, l2) &&
+              equalTerm(t1(Dimension.True), r1, r2)
         case (t1, t2) =>
           equalNeutral(t1, t2).map(_.whnf) match {
             case Some(Universe(l)) => l <= less
@@ -153,7 +156,7 @@ class Conversion {
         } else {
           None
         }
-      case (Application(l1, a1), Application(l2, a2)) =>
+      case (App(l1, a1), App(l2, a2)) =>
         equalNeutral(l1, l2).map(_.whnf).flatMap {
           case Function(d, c) =>
           if (equalTerm(d, a1, a2)) {
@@ -171,13 +174,13 @@ class Conversion {
       case (PatternStuck(l1, s1), PatternStuck(l2, s2)) =>
         equalNeutral(s1, s2).flatMap(n => {
           // TODO give an example why this is needed
-          if (equalTypeClosure(Int.MaxValue, n, l1.typ, l2.typ) && equalSameTypePatternLambdaWithAssumptions(n, l1, l2)) {
+          if (equalTypeClosure(n, l1.typ, l2.typ) && equalSameTypePatternLambdaWithAssumptions(n, l1, l2)) {
             Some(l1.typ(s1))
           } else {
             None
           }
         })
-      case (PathApplication(l1, d1), PathApplication(l2, d2)) =>
+      case (PathApp(l1, d1), PathApp(l2, d2)) =>
         if (d1 == d2) {
           equalNeutral(l1, l2).map(_.whnf).map(_ match {
             case PathType(typ, _, _) =>
@@ -188,7 +191,21 @@ class Conversion {
           None
         }
       case (Hcom(d1, t1, b1, r1), Hcom(d2, t2, b2, r2)) =>
-        ???
+        if (d1 == d2 && equalType(t1, t2) && equalTerm(t1, b1, b2)) {
+          if (r1.size == r2.size && r1.zip(r2).forall(p => p._1.pair == p._2.pair && equalPathClosure(t1.restrict(p._1.pair), p._1.body, p._2.body))) {
+            Some(t1)
+          } else {
+            None
+          }
+        } else {
+          None
+        }
+      case (Coe(d1, t1, b1), Coe(d2, t2, b2)) =>
+        if (d1 == d2 && equalTypePathClosure(t1, t2) && equalTerm(t1(d1.from), b1, b2)) {
+          Some(t1(d1.to))
+        } else {
+          None
+        }
       case _ => None
     }
   }
@@ -253,7 +270,7 @@ class Conversion {
           })
         case (ttt, tt1, tt2) =>
           ttt match {
-            case Universe(l) => equalType(l, tt1, tt2) // it will call equal neutral at then end
+            case Universe(l) => equalType(tt1, tt2, l) // it will call equal neutral at then end
             case _ => equalNeutral(tt1, tt2)
           }
       }

@@ -70,8 +70,8 @@ trait PlatformEvaluator extends BaseEvaluator {
         case Abstract.Lambda(closure) =>
           val d = depth + 1
           s"Lambda(Closure(r$d => ${emit(closure, d)}))"
-        case Abstract.Application(left, right) =>
-          s"Application(${emit(left, depth)}, ${emit(right, depth)})"
+        case Abstract.App(left, right) =>
+          s"App(${emit(left, depth)}, ${emit(right, depth)})"
         case Abstract.Record(level, nodes) =>
           val d = depth + 1
           s"""Record($level, Seq(${nodes.zipWithIndex.map(c =>
@@ -91,8 +91,8 @@ trait PlatformEvaluator extends BaseEvaluator {
         case Abstract.PatternLambda(id, codomain, cases) =>
           val d = depth + 1
           s"PatternLambda($id, Closure(r$d => ${emit(codomain, d)}), Seq(${cases.map(c => s"Case(${tunnel(c.pattern)}, MultiClosure(r$d => ${emit(c.body, d)}))").mkString(", ")}))"
-        case Abstract.PathApplication(left, right) =>
-          s"PathApplication(${emit(left, depth)}, ${emit(right, depth)})"
+        case Abstract.PathApp(left, right) =>
+          s"PathApp(${emit(left, depth)}, ${emit(right, depth)})"
         case Abstract.PathLambda(body) =>
           val d = depth + 1
           s"PathLambda(PathClosure(dm$d => ${emit(body, d)}))"
@@ -107,7 +107,14 @@ trait PlatformEvaluator extends BaseEvaluator {
           s"Hcom(${emit(dir, depth)}, " +
               s"${emit(tp, depth)}, " +
               s"${emit(base, depth)}, " +
-              s"Seq(${restrictions.map(a => s"Restriction(${emit(a.pair, depth)}, PathClosure(dm$d => ${emit(tp, d)}))").mkString(", ")})" +
+              s"Seq(${restrictions.map(a => s"Restriction(${emit(a.pair, depth)}, PathClosure(dm$d => ${emit(a.body, d)}))").mkString(", ")})" +
+              s")"
+        case Abstract.Com(dir, tp, base, restrictions) =>
+          val d = depth + 2
+          s"Com(${emit(dir, depth)}, " +
+              s"${emit(tp, depth + 1)}, " +
+              s"${emit(base, depth)}, " +
+              s"Seq(${restrictions.map(a => s"Restriction(${emit(a.pair, depth)}, PathClosure(dm$d => ${emit(a.body, d)}))").mkString(", ")})" +
               s")"
         case Abstract.Restricted(term, dir) =>
           s"${emit(term, depth)}.restrict(${emit(dir, depth)})"

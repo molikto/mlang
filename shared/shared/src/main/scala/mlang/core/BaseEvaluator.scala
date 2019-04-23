@@ -1,5 +1,7 @@
 package mlang.core
 
+import mlang.utils.debug
+
 import scala.collection.mutable
 
 
@@ -18,7 +20,11 @@ trait BaseEvaluator extends Context {
   private val ps = mutable.ArrayBuffer[Pattern]()
 
   protected def extractFromHolder(h: Holder, map: Seq[Value]): Value = {
-    val res = h.value(this, map, Seq.empty ++ vs, Seq.empty ++ cs, Seq.empty ++ ps)
+    val res = h.value(this, map, vs.clone(), cs.clone(), ps.clone())
+    if (debug.enabled) {
+      for (v <- vs.indices) debug(s"v$v: ${vs(v)}")
+      for (v <- ps.indices) debug(s"v$v: ${ps(v)}")
+    }
     vs.clear()
     cs.clear()
     ps.clear()
