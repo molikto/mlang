@@ -18,8 +18,6 @@ object PatternExtractException {
 
 import Value._
 
-
-
 sealed trait Value {
 
 
@@ -45,8 +43,6 @@ sealed trait Value {
       PathLambda(body.restrict(lv))
     case Application(lambda, argument) =>
       Application(lambda.restrict(lv), argument.restrict(lv))
-    case Restricted(a, restriction) =>
-      Restricted(a.restrict(lv), restriction)
     case Coe(direction, tp, base) =>
       Coe(direction, tp.restrict(lv), base.restrict(lv))
     case Hcom(direction, tp, base, restrictions) =>
@@ -61,10 +57,12 @@ sealed trait Value {
       Let(items.map(_.restrict(lv)), order, body.restrict(lv))
     case PathApplication(left, stuck) =>
       PathApplication(left.restrict(lv), stuck.restrict(lv))
+    case OpenReference(id, o) =>
+      OpenReference(id, o.restrict(lv))
+    case Restricted(a, restrictions) =>
+      Restricted(a, lv +: restrictions)
     case o: Reference =>
-      Restricted(o, lv)
-    case o: OpenReference =>
-      Restricted(o, lv)
+      Restricted(o, Seq(lv))
   }
 
 
@@ -74,37 +72,43 @@ sealed trait Value {
 
   private var _whnf: Value = _
 
-  // LATER what's the relationship between whnf and reduction class?
-  // reduction mainly used to determine the way a closure is evaluated
-  // a value itself that contains redux can be evaluated by whnf and normalize two method
+
+
   def whnf: Value = {
     if (_whnf == null) {
       _whnf = this match {
         case a: HeadCanonical =>
           a
         case r: Reference =>
-          r.deref().whnf
+          r.value.whnf
         case o: OpenReference =>
           o
-        case Application(lambda, argument) =>
-          lambda.whnf.app(argument, true)
-        case Projection(make, field) =>
-          make.whnf.project(field, true)
-        case PatternStuck(lambda, stuck) =>
-          lambda.app(stuck.whnf, true)
-        case Coe(direction, tp, stuck) =>
-          stuck.whnf.coe(direction, tp, true)
-        case Hcom(direction, tp, stuck, restrictions) =>
-          stuck.whnf.hcom(direction, tp, restrictions, true)
-        case Restricted(a, restriction) =>
-          a.whnf.restrict(restriction)
         case Maker(r, i) =>
-          // this is a lambda or make expression so in whnf
-          r.whnf.demaker(i)
+          r.whnf match {
+            case s: Sum => s.constructors(i).maker
+            case r: Record =>
+              assert(i == -1)
+              r.maker
+            case _ => logicError()
+          }
         case Let(_, _, body) =>
           body.whnf
+        case Application(lambda, argument) =>
+          lambda.whnf.app(argument, whn)
+        case PatternStuck(lambda, stuck) =>
+          lambda.app(stuck.whnf, whn)
+        case Projection(make, field) =>
+          make.whnf.project(field, whn)
         case PathApplication(left, stuck) =>
-          left.whnf.papp(stuck, true)
+          left.whnf.papp(stuck, whn)
+        case Coe(direction, tp, stuck) =>
+          stuck.coe(direction, tp, whn)
+        case Hcom(direction, tp, stuck, restrictions) =>
+          stuck.hcom(direction, tp, restrictions, whn)
+        case Restricted(a, restriction) =>
+          restriction.foldLeft(a.whnf) { (v, r) =>
+            v.restrict(r).whnf
+          }
       }
       _whnf._whnf = _whnf
     }
@@ -112,12 +116,11 @@ sealed trait Value {
   }
 
 
-  private def wh(a: Value, b: Boolean): Value = if (b) a.whnf else a
 
   // also used to decide how
-  def app(v: Value, whnf: Boolean = false): Value = this match {
+  def app(v: Value, trans: Value => Value = id): Value = this match {
     case Lambda(closure) =>
-      wh(closure(v), whnf)
+      trans(closure(v))
     case p@PatternLambda(_, _, cases) =>
       // TODO overlapping patterns, we are now using first match
       var res: Value = null
@@ -127,7 +130,7 @@ sealed trait Value {
         cs = cs.tail
       }
       if (res != null) {
-        wh(res, whnf)
+        trans(res)
       } else {
         PatternStuck(p, v)
       }
@@ -136,42 +139,41 @@ sealed trait Value {
   }
 
 
-  def coe(pair: DimensionPair, typ: PathClosure, whnf: Boolean = false): Value =
+  def coe(pair: DimensionPair, typ: PathClosure, trans: Value => Value = id): Value =
     if (pair.from == pair.to) { // just to base
-      wh(this, whnf)
+      trans(this)
     } else {
-      // this is ok?
-      typ(Dimension.True).whnf match {
+      typ(Dimension.OpenReference(vdgen())).whnf match {
         case Function(_, _) =>
           def func(a: Value): Function = a.whnf match {
             case f@Function(_, _) => f
             case _ => logicError()
           }
-          Lambda(Value.Closure(a => {
+          trans(Lambda(Value.Closure(a => {
             val a_ = a.coe(pair.reverse, typ.map(a => func(a).domain))
             val app_ = this.app(a_)
             app_.coe(pair, typ.mapd((f, d) => func(f).codomain(a.coe(DimensionPair(pair.to, d), typ.map(a => func(a).domain)))))
-          }))
+          })))
         case _ =>
           ???
       }
     }
 
-  def hcom(pair: DimensionPair, typ: Value, restriction0: Seq[Restriction], whnf: Boolean = false): Value = {
+  def hcom(pair: DimensionPair, typ: Value, restriction0: Seq[Restriction], trans: Value => Value = id): Value = {
     val restriction = restriction0.filter(_.pair.isFalse)
     if (pair.from == pair.to) {
-      wh(this, whnf)
+      trans(this)
     } else {
       restriction.find(a => a.pair.from == a.pair.to) match { // always true face
         case Some(n) =>
-          wh(n.body(pair.to), whnf)
+          trans(n.body(pair.to))
         case None =>
           typ.whnf match {
             case Function(_, codomain) =>
-              Lambda(Value.Closure(a => this.app(a).hcom(
+              trans(Lambda(Value.Closure(a => this.app(a).hcom(
                 pair,
                 codomain(a),
-                restriction.map(n => Restriction(n.pair, n.body.map(_.app(a)))))))
+                restriction.map(n => Restriction(n.pair, n.body.map(_.app(a))))))))
             case _ =>
               ???
           }
@@ -179,15 +181,15 @@ sealed trait Value {
     }
   }
 
-  def papp(d: Dimension, whnf: Boolean = false): Value = this match {
+  def papp(d: Dimension, trans: Value => Value = id): Value = this match {
     case PathLambda(c) =>
-      wh(c(d), whnf)
+      trans(c(d))
     case a =>
       d match {
         case Dimension.Constant(i) =>
           infer(a).whnf match {
             case PathType(_, left, right) =>
-              wh(if (i) right else left, whnf)
+              trans(if (i) right else left)
             case _ => logicError()
           }
         case _: Dimension.OpenReference =>
@@ -202,34 +204,10 @@ sealed trait Value {
     case _ => logicError()
   }
 
-  def demaker(i: Int): Value = {
+  def project(name: Int, trans: Value => Value = id): Value = {
     this match {
-      case s: Sum => s.constructors(i).maker
-      case r: Record =>
-        assert(i == -1)
-        r.maker
-      case _ => Maker(this, i)
-    }
-  }
-
-  def project(name: Int, whnf: Boolean = false): Value = {
-    this match {
-      case Make(vs) => wh(vs(name), whnf)
+      case Make(vs) => trans(vs(name))
       case _ => Projection(this, name)
-    }
-  }
-
-  def delet(): Value = {
-      this match {
-        case v: Let => v.body.delet()
-        case _ => this
-      }
-    }
-
-  def deref(): Value = {
-    this match {
-      case v: Reference => v.value.deref()
-      case _ => this
     }
   }
 }
@@ -370,7 +348,7 @@ object Value {
 
   case class Restriction(pair: DimensionPair, body: PathClosure)
 
-  case class Restricted(a: Value, restriction: DimensionPair) extends Syntaxial
+  case class Restricted(a: Reference, restriction: Seq[DimensionPair]) extends Syntaxial
 
   case class Coe(direction: DimensionPair, tp: PathClosure, base: Value) extends Stuck
 
@@ -445,11 +423,13 @@ object Value {
 
   case class PathLambda(body: PathClosure) extends HeadCanonical
 
-  // even when left is a value, it will not stuck, because only open dimension can stuck
-  case class PathApplication(left: Value, stuck: Dimension) extends Stuck
+  // the left and right BOTH stuck
+  case class PathApplication(left: StuckPos, dimension: Dimension) extends Stuck
 
 
-  private val gen = new GenericGen.Negative()
+  // these values will not be visible to users! also I guess it is ok to be static, it will not overflow right?
+  private val vgen = new GenericGen.Negative()
+  private val vdgen = new GenericGen.Negative()
 
   def inferLevel(t1: Value): Int = infer(t1) match {
     case Universe(l) => l
@@ -463,7 +443,7 @@ object Value {
         v1
       case Universe(level) => Universe(level + 1)
       case Function(domain, codomain) =>
-        (infer(domain), infer(codomain(OpenReference(gen(), domain)))) match {
+        (infer(domain), infer(codomain(OpenReference(vgen(), domain)))) match {
           case (Universe(l1), Universe(l2)) => Universe(l1 max l2)
           case _ => logicError()
         }
@@ -472,7 +452,7 @@ object Value {
       case Sum(level, _) =>
         Universe(level)
       case PathType(typ, _, _) =>
-        infer(typ.apply(Dimension.OpenReference(gen())))
+        infer(typ.apply(Dimension.OpenReference(vdgen())))
       case Application(l1, a1) =>
         infer(l1).whnf match {
           case Function(_, c) =>
@@ -527,5 +507,10 @@ object Value {
       None
     }
   }
+
+  def id(v: Value): Value = v
+
+  def whn (v: Value): Value = v.whnf
+
 }
 

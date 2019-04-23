@@ -56,7 +56,7 @@ object TypeCheckException {
 
 
 object TypeChecker {
-  private val gen = new GenericGen.Positive()
+  private val pgen = new GenericGen.Positive()
   val empty = new TypeChecker(Seq(Layer.Terms(Seq.empty)))
 }
 
@@ -332,7 +332,7 @@ class TypeChecker private (protected override val layers: Layers)
       case Term.PatternLambda(cases) =>
         cp.whnf match {
           case Value.Function(domain, codomain) =>
-            Abstract.PatternLambda(TypeChecker.gen(), lambdaFunctionCodomainHint.getOrElse(reifyClosure(domain, codomain)), cases.map(c => {
+            Abstract.PatternLambda(TypeChecker.pgen(), lambdaFunctionCodomainHint.getOrElse(reifyClosure(domain, codomain)), cases.map(c => {
               val (ctx, v, pat) = newAbstractionsLayer(c.pattern, domain)
               val ba = ctx.check(c.body, codomain(v), tail, hintCodomain(lambdaFunctionCodomainHint))
               Abstract.Case(pat, ba)

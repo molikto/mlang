@@ -220,7 +220,7 @@ trait Context {
       }
       def recv(a: Value, seq: Seq[Layer.Restriction]): Value = {
         seq.foldLeft(a) { (a, h) =>
-          Value.Restricted(a, h.res)
+          a.restrict(h.res)
         }
       }
       def reca(a: Abstract, seq: Seq[Layer.Restriction]): Abstract = {

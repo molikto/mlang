@@ -96,7 +96,9 @@ private trait ReifierContext extends ContextBuilder {
         val (ctx, n) = newTermsLayer().newDimensionLayer(Name.empty)
         Hcom(reify(dir), reify(tp), reify(base), restrictions.map(r => Restriction(reify(r.pair), ctx.reify(r.body(n)))))
       case Value.Restricted(a, pair) =>
-        Restricted(reify(a), reify(pair))
+        pair.foldLeft(reify(a)) { (c, p) =>
+          Restricted(c, reify(p))
+        }
     }
   }
 
