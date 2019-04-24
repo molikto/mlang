@@ -372,7 +372,7 @@ object Value {
       case _ => true
     }
 
-    def min(t: Dimension) = if ((this max t) == t) this else t
+    def min(t: Dimension): Dimension = if ((this max t) == t) this else t
 
     def max(t: Dimension): Dimension = (this, t) match {
       case (Dimension.Generic(a), Dimension.Generic(b)) =>
@@ -446,7 +446,7 @@ object Value {
           case Seq(head) =>
             Function(head.closure(head.dependencies.map(known)),
               Closure(_ => rthis()))
-          case head +: more +: tail =>
+          case head +: tail =>
             Function(head.closure(head.dependencies.map(known)), Closure(p => {
               rec(known ++ Seq(p), tail)
             }))
