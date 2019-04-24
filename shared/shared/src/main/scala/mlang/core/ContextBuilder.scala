@@ -23,8 +23,8 @@ import Context._
 
 
 object ContextBuilder {
-  private val gen =new GenericGen.Positive()
-  private val dgen = new GenericGen.Positive()
+  private val gen =new LongGen.Positive()
+  private val dgen = new LongGen.Positive()
 }
 
 import ContextBuilder._
@@ -44,7 +44,7 @@ trait ContextBuilder extends Context {
 
   def newDimensionLayer(n: Name): (Self, Value.Dimension) = {
     val gen = dgen()
-    val v = Value.Dimension.OpenReference(gen)
+    val v = Value.Dimension.Generic(gen)
     val ctx: Self = Layer.Dimension(gen, n, v) +: layers
     (ctx, v)
   }
@@ -82,7 +82,7 @@ trait ContextBuilder extends Context {
       case Some(_) => throw ContextBuilderException.AlreadyDeclared()
       case _ =>
         val g = gen()
-        Layer.Terms(headTerms :+ Binder(g, name, typ, false, false, Value.OpenReference(g, typ))) +: layers.tail
+        Layer.Terms(headTerms :+ Binder(g, name, typ, false, false, Value.Generic(g, typ))) +: layers.tail
     }
   }
 
@@ -96,7 +96,7 @@ trait ContextBuilder extends Context {
 
   def newTermLayer(name: Name, typ: Value): (Self, Value) = {
     val g = gen()
-    val v = Value.OpenReference(g, typ)
+    val v = Value.Generic(g, typ)
     (Layer.Term(Binder(g, name, typ, true, true, v)) +: layers, v)
   }
 
@@ -105,7 +105,7 @@ trait ContextBuilder extends Context {
       case Some(_) => throw ContextBuilderException.AlreadyDeclared()
       case _ =>
         val g = gen()
-        val v = Value.OpenReference(g, typ)
+        val v = Value.Generic(g, typ)
         (Layer.Terms(headTerms :+ Binder(g, name, typ, true, true, v)) +: layers.tail, v)
     }
   }
@@ -126,7 +126,7 @@ trait ContextBuilder extends Context {
             case _ =>
           }
           if (ret == null) {
-            val open = Value.OpenReference(gen(), t)
+            val open = Value.Generic(gen(), t)
             if (name.isDefined) {
               vvv.append(Binder(gen(), name.get, t, true, true, open))
             }

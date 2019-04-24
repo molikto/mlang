@@ -96,17 +96,17 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
 
   // kan
   lazy val coe: PackratParser[Term] = keyword("coe") ~> delimited("(", term ~ delimited(",", term, ",") ~ term ~ ("," ~> term), ")")  ^^ {a => {
-    Coe(DimensionPair(a._1._1._1, a._1._1._2), a._1._2, a._2)
+    Coe(Pair(a._1._1._1, a._1._1._2), a._1._2, a._2)
   }}
 
-  lazy val restriction: PackratParser[Term.Restriction] = ("|" ~> term <~ "=") ~ (term <~ "→") ~ term ^^ {a => Restriction(DimensionPair(a._1._1, a._1._2), a._2) }
+  lazy val restriction: PackratParser[Term.Restriction] = ("|" ~> term <~ "=") ~ (term <~ "→") ~ term ^^ {a => Restriction(Pair(a._1._1, a._1._2), a._2) }
 
   lazy val hcom: PackratParser[Term] = keyword("hcom") ~> (("(" ~> term) ~ delimited(",", term, ",") ~ term)  ~ delimited(",", atomicPattern ~ rep(restriction) ,")") ^^ { a =>
-    Hcom(DimensionPair(a._1._1._1, a._1._1._2), a._1._2, a._2._1, a._2._2)
+    Hcom(Pair(a._1._1._1, a._1._1._2), a._1._2, a._2._1, a._2._2)
   }
 
   lazy val com: PackratParser[Term] = keyword("com") ~> delimited("(", term ~ delimited(",", term , ",") ~ term ~ ("," ~> term),",")  ~  (atomicPattern ~ rep(restriction) <~")") ^^ { a =>
-    Com(DimensionPair(a._1._1._1._1, a._1._1._1._2), a._1._1._2, a._1._2, a._2._1, a._2._2)
+    Com(Pair(a._1._1._1._1, a._1._1._1._2), a._1._1._2, a._1._2, a._2._1, a._2._2)
   }
 
   // normal

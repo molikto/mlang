@@ -116,7 +116,7 @@ object Abstract {
   case class Let(definitions: Seq[Abstract], order: Seq[Int], in: Abstract) extends Abstract
 
   case class Case(pattern: Pattern, body: MultiClosure)
-  case class PatternLambda(id: Generic, typ: Closure, cases: Seq[Case]) extends Abstract
+  case class PatternLambda(id: Long, typ: Closure, cases: Seq[Case]) extends Abstract
 
   case class PathLambda(body: PathClosure) extends Abstract
   case class PathType(typ: PathClosure, left: Abstract, right: Abstract) extends Abstract

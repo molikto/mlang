@@ -70,8 +70,8 @@ private trait ReifierContext extends ContextBuilder {
       case Value.PathLambda(body) =>
         val (ctx, n) = newDimensionLayer(Name.empty)
         PathLambda(ctx.reify(body(n)))
-      case Value.OpenReference(id, _) =>
-        rebindOpenReference(id)
+      case Value.Generic(id, _) =>
+        rebindGeneric(id)
       case c: Value.Reference =>
         reifyReference(c)
       case Value.App(lambda, argument) =>
@@ -121,7 +121,7 @@ private trait ReifierContext extends ContextBuilder {
 }
 
 private class ReifierContextCont(override val base: ReifierContextBase, override val layers: Context.Layers) extends ReifierContext {
-  def gen: GenericGen.Negative = base.gen
+  def gen: LongGen.Negative = base.gen
 
   override type Self = ReifierContextCont
   override protected implicit def create(a: Layers): ReifierContextCont = new ReifierContextCont(base, a)
@@ -163,7 +163,7 @@ private class ReifierContextBase(layersBefore: Context.Layers) extends ReifierCo
   }
 
   override def base: ReifierContextBase = this
-  val gen = new GenericGen.Negative()
+  val gen = new LongGen.Negative()
   override type Self = ReifierContextCont
   override protected implicit def create(a: Layers): ReifierContextCont = new ReifierContextCont(this, a)
 

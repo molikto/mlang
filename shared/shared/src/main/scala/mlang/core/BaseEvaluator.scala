@@ -54,7 +54,7 @@ trait BaseEvaluator extends Context {
 
   protected def evalOpenTermReferenceAsReference(i: Int, index: Int): Value = {
     getTerm(i, index).value match {
-      case o: Value.OpenReference => o // a formal argument in context
+      case o: Value.Generic => o // a formal argument in context
       case v => Value.Reference(v, 0) // a definition in context, cannot be recursive
     }
   }

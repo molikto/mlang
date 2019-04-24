@@ -130,8 +130,8 @@ trait PlatformEvaluator extends BaseEvaluator {
         case Abstract.Dimension.Reference(up) =>
           if (up > depth) {
             getDimension(up - depth - 1) match {
-              case Dimension.OpenReference(id) =>
-                s"Dimension.OpenReference($id)"
+              case Dimension.Generic(id) =>
+                s"Dimension.Generic($id)"
               case Dimension.Constant(isOne) =>
                 s"Dimension.Constant($isOne)"
             }

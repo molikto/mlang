@@ -14,7 +14,7 @@ object ContextException {
   case class ConstantSortWrong() extends ContextException
 }
 
-case class Binder(id: Generic, name: Name, typ: Value, isDefined: Boolean, isAbstraction: Boolean, value: Value)
+case class Binder(id: Long, name: Name, typ: Value, isDefined: Boolean, isAbstraction: Boolean, value: Value)
 
 object Context {
   type Layers = Seq[Layer]
@@ -25,7 +25,7 @@ sealed trait Layer
 object Layer {
   case class Term(binder: Binder) extends Layer
   case class Terms(terms: Seq[Binder]) extends Layer
-  case class Dimension(id: Generic, name: Name, value: Value.Dimension) extends Layer
+  case class Dimension(id: Long, name: Name, value: Value.Dimension) extends Layer
   case class Restriction(res: Value.DimensionPair) extends Layer
 }
 
@@ -76,13 +76,13 @@ trait Context {
   }
   def rebindDimension(a: Value.Dimension): Abstract.Dimension = {
     a match {
-      case Value.Dimension.OpenReference(stuck) =>
-        rebindDimensionOpenReference(stuck)
+      case Value.Dimension.Generic(stuck) =>
+        rebindDimensionGeneric(stuck)
       case Value.Dimension.Constant(isOne) => Abstract.Dimension.Constant(isOne)
     }
   }
 
-  def rebindDimensionOpenReference(id: Generic): Abstract.Dimension.Reference = {
+  def rebindDimensionGeneric(id: Long): Abstract.Dimension.Reference = {
     var up = 0
     var ls = layers
     var binder: Abstract.Dimension.Reference = null
@@ -106,7 +106,7 @@ trait Context {
     }
   }
 
-  def rebindOpenReference(id: Generic): Abstract.TermReference = {
+  def rebindGeneric(id: Long): Abstract.TermReference = {
     var up = 0
     var index = -1
     var ls = layers
@@ -166,7 +166,7 @@ trait Context {
     var ls = layers
     var binder: (Object, Object, Boolean) = null
     val restrictions = mutable.ArrayBuffer[Layer.Restriction]()
-    val dimensionsUnder = mutable.ArrayBuffer[Generic]()
+    val dimensionsUnder = mutable.ArrayBuffer[Long]()
     while (ls.nonEmpty && binder == null) {
       var i = 0
       ls.head match {
@@ -204,7 +204,7 @@ trait Context {
     } else {
       def contains(a: Value.Dimension) = {
         a match {
-          case Dimension.OpenReference(id) => dimensionsUnder.contains(id)
+          case Dimension.Generic(id) => dimensionsUnder.contains(id)
           case _ => true // can only be constants, restrictions is normalized
         }
       }

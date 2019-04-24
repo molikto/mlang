@@ -6,7 +6,7 @@ import mlang.utils.debug
 import scala.collection.mutable
 import scala.util.{Success, Try}
 
-private case class Assumption(left: Generic, right: Generic, domain: Value, codomain: Closure)
+private case class Assumption(left: Long, right: Long, domain: Value, codomain: Closure)
 
 
 
@@ -40,8 +40,8 @@ class Conversion {
     }
   }
 
-  private val gen: GenericGen = new GenericGen.Negative()
-  private val dgen: GenericGen = new GenericGen.Negative()
+  private val gen: LongGen = new LongGen.Negative()
+  private val dgen: LongGen = new LongGen.Negative()
 
   private implicit def optToBool[T](opt: Option[T]): Boolean = opt.isDefined
 
@@ -78,7 +78,7 @@ class Conversion {
 
 
   private def equalTypeMultiClosure(ts: Seq[Value], c1: MultiClosure, c2: MultiClosure, less: Int): Option[Value] = {
-    val cs = ts.map(t => OpenReference(gen(), t))
+    val cs = ts.map(t => Generic(gen(), t))
     val t = c1(cs)
     if (equalType(t, c2(cs), less)) {
       Some(t)
@@ -88,7 +88,7 @@ class Conversion {
   }
 
   private def equalTypeClosure(t: Value, c1: Closure, c2: Closure, less: Int = Int.MaxValue): Option[Value] = {
-    val c = OpenReference(gen(), t)
+    val c = Generic(gen(), t)
     val tt = c1(c)
     if (equalType(tt, c2(c), less)) {
       Some(tt)
@@ -98,13 +98,13 @@ class Conversion {
   }
 
   private def equalPathClosure(typ: Value, t1: PathClosure, t2: PathClosure): Boolean = {
-    val c = Dimension.OpenReference(dgen())
+    val c = Dimension.Generic(dgen())
     equalTerm(typ, t1(c), t2(c))
   }
 
 
   private def equalTypePathClosure(t1: PathClosure, t2: PathClosure, less: Int = Int.MaxValue): Boolean = {
-    val c = Dimension.OpenReference(dgen())
+    val c = Dimension.Generic(dgen())
     equalType(t1(c), t2(c), less)
   }
 
@@ -145,7 +145,7 @@ class Conversion {
 
   private def equalNeutral(t1: Value, t2: Value): Option[Value] = {
     (t1.whnf, t2.whnf) match {
-      case (OpenReference(i1, v1), OpenReference(i2, v2)) =>
+      case (Generic(i1, v1), Generic(i2, v2)) =>
         if (i1 == i2) {
           if (debug.enabled) {
             if (!equalType(v1, v2)) {
@@ -232,10 +232,10 @@ class Conversion {
     } else {
       (typ.whnf, t1.whnf, t2.whnf) match {
         case (Function(d, cd), s1, s2) =>
-          val c = OpenReference(gen(), d)
+          val c = Generic(gen(), d)
           equalTerm(cd(c), s1.app(c), s2.app(c))
         case (PathType(ty, _, _), s1, s2) =>
-          val c = Dimension.OpenReference(dgen())
+          val c = Dimension.Generic(dgen())
           equalTerm(ty(c), s1.papp(c), s2.papp(c))
         case (Record(_, ns), m1, m2) =>
           ns.zipWithIndex.foldLeft(Some(Seq.empty) : Option[Seq[Value]]) { (as0, pair) =>
@@ -280,12 +280,12 @@ class Conversion {
   private def extractTypes(
       pattern: Pattern,
       typ: Value
-  ): (Seq[OpenReference], Value) = {
-    val vs = mutable.ArrayBuffer[OpenReference]()
+  ): (Seq[Generic], Value) = {
+    val vs = mutable.ArrayBuffer[Generic]()
     def rec(p: Pattern, t: Value): Value = {
       p match {
         case Pattern.Atom =>
-          val ret = OpenReference(gen(), t)
+          val ret = Generic(gen(), t)
           vs.append(ret)
           ret
         case Pattern.Make(maps) =>

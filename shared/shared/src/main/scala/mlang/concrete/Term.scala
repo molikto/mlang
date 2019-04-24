@@ -58,11 +58,11 @@ object Term {
   case class PathType(typ: Option[Term], left: Term, right: Term) extends Term
   case class ConstantDimension(isOne: Boolean) extends Term
 
-  case class DimensionPair(from: Term, to: Term)
-  case class Restriction(dimension: DimensionPair, term: Term)
-  case class Coe(direction: DimensionPair, typ: Term, base: Term) extends Term
-  case class Hcom(direction: DimensionPair, base: Term, ident: Name.Opt, restrictions: Seq[Restriction]) extends Term
-  case class Com(direction: DimensionPair, typ: Term, base: Term, ident: Name.Opt, restrictions: Seq[Restriction]) extends Term
+  case class Pair(from: Term, to: Term)
+  case class Restriction(dimension: Pair, term: Term)
+  case class Coe(direction: Pair, typ: Term, base: Term) extends Term
+  case class Hcom(direction: Pair, base: Term, ident: Name.Opt, restrictions: Seq[Restriction]) extends Term
+  case class Com(direction: Pair, typ: Term, base: Term, ident: Name.Opt, restrictions: Seq[Restriction]) extends Term
 }
 
 case class Module(declarations: Seq[Declaration])

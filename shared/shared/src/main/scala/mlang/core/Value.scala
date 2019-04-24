@@ -59,8 +59,8 @@ sealed trait Value {
       Let(items.map(_.restrict(lv)), order, body.restrict(lv))
     case PathApp(left, stuck) =>
       PathApp(left.restrict(lv), stuck.restrict(lv))
-    case OpenReference(id, o) =>
-      OpenReference(id, if (o != null) o.restrict(lv) else null) // some parameter in reify has null types
+    case Generic(id, o) =>
+      Generic(id, if (o != null) o.restrict(lv) else null) // some parameter in reify has null types
     case Restricted(a, restrictions) =>
       Restricted(a, lv +: restrictions)
     case o: Reference =>
@@ -83,7 +83,7 @@ sealed trait Value {
           a
         case r: Reference =>
           r.value.whnf
-        case o: OpenReference =>
+        case o: Generic =>
           o
         case Maker(r, i) =>
           r.whnf match {
@@ -148,7 +148,7 @@ sealed trait Value {
     if (pair.from == pair.to) { // just to base
       trans(this)
     } else {
-      typ(Dimension.OpenReference(vdgen())).whnf match {
+      typ(Dimension.Generic(vdgen())).whnf match {
         case Function(_, _) =>
           def func(a: Value): Function = a.whnf match {
             case f@Function(_, _) => f
@@ -293,7 +293,7 @@ sealed trait Value {
               trans(if (i) right else left)
             case _ => logicError()
           }
-        case _: Dimension.OpenReference =>
+        case _: Dimension.Generic =>
           PathApp(this, d)
       }
   }
@@ -355,24 +355,24 @@ object Value {
   }
 
   sealed trait Dimension extends {
-    def matches(id: Generic): Boolean = this match {
-      case Dimension.OpenReference(iid) => iid == id
+    def matches(id: Long): Boolean = this match {
+      case Dimension.Generic(iid) => iid == id
       case Dimension.Constant(_) => false
     }
 
     def isConstant: Boolean = this match {
-      case Dimension.OpenReference(_) => false
+      case Dimension.Generic(_) => false
       case Dimension.Constant(_) => true
     }
 
     def min(t: Dimension) = if ((this max t) == t) this else t
 
     def max(t: Dimension): Dimension = (this, t) match {
-      case (Dimension.OpenReference(a), Dimension.OpenReference(b)) =>
-        Dimension.OpenReference(a max b)
-      case (c: Dimension.Constant, _: Dimension.OpenReference) =>
+      case (Dimension.Generic(a), Dimension.Generic(b)) =>
+        Dimension.Generic(a max b)
+      case (c: Dimension.Constant, _: Dimension.Generic) =>
         c
-      case ( _: Dimension.OpenReference,c: Dimension.Constant) =>
+      case ( _: Dimension.Generic,c: Dimension.Constant) =>
         c
       case (Dimension.Constant(a), Dimension.Constant(b)) =>
         assert(a == b, "You should trim false faces")
@@ -380,7 +380,7 @@ object Value {
     }
 
     def restrict(pair: DimensionPair): Dimension = this match {
-      case Dimension.OpenReference(id) =>
+      case Dimension.Generic(id) =>
         if (pair.from.matches(id) || pair.to.matches(id)) {
           pair.from max pair.to
         } else {
@@ -391,7 +391,7 @@ object Value {
   }
 
   object Dimension {
-    case class OpenReference(id: Long) extends Dimension
+    case class Generic(id: Long) extends Dimension
     // TODO make it a destructor
     case class Constant(isOne: Boolean) extends Dimension
 
@@ -400,17 +400,14 @@ object Value {
   }
 
   type StuckPos = Value
-
-  sealed trait Whnf extends Value
   // these serve the purpose of recovering syntax
   sealed trait Syntaxial extends Value
-
+  sealed trait Whnf extends Value
   sealed trait HeadCanonical extends Whnf
-
   sealed trait Stuck extends Whnf
 
   case class Reference(value: Value, closed: Int) extends Syntaxial
-  case class OpenReference(id: Generic, typ: Value) extends Stuck
+  case class Generic(id: Long, typ: Value) extends Stuck
 
   case class Universe(level: Int) extends HeadCanonical
 
@@ -527,7 +524,7 @@ object Value {
     */
   case class Lambda(closure: Closure) extends HeadCanonical
 
-  case class PatternLambda(id: Generic, typ: Closure, cases: Seq[Case]) extends HeadCanonical
+  case class PatternLambda(id: Long, typ: Closure, cases: Seq[Case]) extends HeadCanonical
 
   case class PatternStuck(lambda: PatternLambda, stuck: StuckPos) extends Stuck
 
@@ -543,8 +540,8 @@ object Value {
 
 
   // these values will not be visible to users! also I guess it is ok to be static, it will not overflow right?
-  private val vgen = new GenericGen.Negative()
-  private val vdgen = new GenericGen.Negative()
+  private val vgen = new LongGen.Negative()
+  private val vdgen = new LongGen.Negative()
 
   def inferLevel(t1: Value): Int = infer(t1) match {
     case Universe(l) => l
@@ -554,11 +551,11 @@ object Value {
   // only works for values of path type and universe types
   def infer(t1: Value): Value = {
     t1.whnf match {
-      case OpenReference(_, v1) =>
+      case Generic(_, v1) =>
         v1
       case Universe(level) => Universe(level + 1)
       case Function(domain, codomain) =>
-        (infer(domain), infer(codomain(OpenReference(vgen(), domain)))) match {
+        (infer(domain), infer(codomain(Generic(vgen(), domain)))) match {
           case (Universe(l1), Universe(l2)) => Universe(l1 max l2)
           case _ => logicError()
         }
@@ -567,7 +564,7 @@ object Value {
       case Sum(level, _) =>
         Universe(level)
       case PathType(typ, _, _) =>
-        infer(typ.apply(Dimension.OpenReference(vdgen())))
+        infer(typ.apply(Dimension.Generic(vdgen())))
       case App(l1, a1) =>
         infer(l1).whnf match {
           case Function(_, c) =>

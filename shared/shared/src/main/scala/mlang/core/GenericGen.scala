@@ -3,18 +3,18 @@ package mlang.core
 import java.util.concurrent.atomic.AtomicLong
 
 
-trait GenericGen {
-  def apply(): Generic
+trait LongGen {
+  def apply(): Long
 }
 
-object GenericGen {
-  class Positive extends GenericGen  {
+object LongGen {
+  class Positive extends LongGen  {
     private val con= new AtomicLong(1)
-    override def apply(): Generic = con.getAndIncrement()
+    override def apply(): Long = con.getAndIncrement()
   }
 
-  class Negative extends GenericGen {
+  class Negative extends LongGen {
     private val abs = new AtomicLong(-1)
-    override def apply(): Generic = abs.getAndDecrement()
+    override def apply(): Long = abs.getAndDecrement()
   }
 }
