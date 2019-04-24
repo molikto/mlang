@@ -94,16 +94,16 @@ private trait ReifierContext extends ContextBuilder {
       case Value.Coe(dir, tp, base) =>
         val (ctx, n) = newDimensionLayer(Name.empty)
         Coe(reify(dir), ctx.reify(tp(n)), reify(base))
-      case Value.Hcom(dir, tp, base, restrictions) =>
+      case Value.Hcom(dir, tp, base, faces) =>
         val (ctx, n) = newTermsLayer().newDimensionLayer(Name.empty)
-        Hcom(reify(dir), reify(tp), reify(base), restrictions.map(r => Restriction(reify(r.pair), ctx.reify(r.body(n)))))
-      case Value.Com(dir, tp, base, restrictions) =>
+        Hcom(reify(dir), reify(tp), reify(base), faces.map(r => Face(reify(r.restriction), ctx.reify(r.body(n)))))
+      case Value.Com(dir, tp, base, faces) =>
         Com(reify(dir), {
           val (ctx, n) = newDimensionLayer(Name.empty)
           ctx.reify(tp(n))
         }, reify(base), {
           val (ctx, n) = newTermsLayer().newDimensionLayer(Name.empty)
-          restrictions.map(r => Restriction(reify(r.pair), ctx.reify(r.body(n))))
+          faces.map(r => Face(reify(r.restriction), ctx.reify(r.body(n))))
         })
       case Value.Restricted(a, pair) =>
         pair.foldLeft(reify(a)) { (c, p) =>

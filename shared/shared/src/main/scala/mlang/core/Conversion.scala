@@ -24,21 +24,23 @@ object Conversion {
   }
 }
 
+
+// TODO if they can be done this way, why use type directed anyway? https://github.com/AndrasKovacs/minimal-tt-examples/blob/master/MinimalTC.hs#L86
 class Conversion {
 
   // TODO seems this can be globally shared
-  private val patternAssumps = mutable.ArrayBuffer[Assumption]()
+  private val patternAssumptions = mutable.ArrayBuffer[Assumption]()
 
-  private val typAssumeps = mutable.ArrayBuffer[(Value, Value)]()
+  private val typeAssumptions = mutable.ArrayBuffer[(Value, Value)]()
 
   private def equalSameTypePatternLambdaWithAssumptions(domain: Value, l1: PatternLambda, l2: PatternLambda): Boolean = {
     if (l1.id == l2.id) {
       true
     } else {
-      if (patternAssumps.exists(a => a.left == l1.id && a.right == l2.id && equalType(a.domain, domain) && equalTypeClosure(a.domain, a.codomain, l1.typ))) {
+      if (patternAssumptions.exists(a => a.left == l1.id && a.right == l2.id && equalType(a.domain, domain) && equalTypeClosure(a.domain, a.codomain, l1.typ))) {
         true
       } else {
-        patternAssumps.append(Assumption(l1.id, l2.id, domain, l1.typ))
+        patternAssumptions.append(Assumption(l1.id, l2.id, domain, l1.typ))
         equalCases(domain, l1.typ, l1.cases, l2.cases)
       }
     }
@@ -119,11 +121,11 @@ class Conversion {
     val tm2 = tm20.whnf
     if (tm1.eq(tm2)) {
       true
-    } else if (typAssumeps.exists(a => a._1.eq(tm1) && a._2.eq(tm2))) { // recursive defined sum and record
+    } else if (typeAssumptions.exists(a => a._1.eq(tm1) && a._2.eq(tm2))) { // recursive defined sum and record
       // TODO handle parameterized recursively defined ones, we should only allow them in top level, and make recursive reference non-reducible?
       true
     } else {
-      typAssumeps.append((tm1, tm2))
+      typeAssumptions.append((tm1, tm2))
       (tm1, tm2) match {
         case (Function(d1, c1), Function(d2, c2)) =>
           equalType(d1, d2, less) && equalTypeClosure(d1, c1, c2, less)
@@ -148,8 +150,8 @@ class Conversion {
 
 
 
-  private def equalNeutral(t1: Value, t2: Value): Option[Value] = {
-    (t1.whnf, t2.whnf) match {
+  private def equalNeutral(tmm1: Value, tmm2: Value): Option[Value] = {
+    (tmm1.whnf, tmm2.whnf) match {
       case (Generic(i1, v1), Generic(i2, v2)) =>
         if (i1 == i2) {
           if (debug.enabled) {
@@ -196,7 +198,7 @@ class Conversion {
         }
       case (Hcom(d1, t1, b1, r1), Hcom(d2, t2, b2, r2)) =>
         if (d1 == d2 && equalType(t1, t2) && equalTerm(t1, b1, b2)) {
-          if (r1.size == r2.size && r1.zip(r2).forall(p => p._1.pair == p._2.pair && equalPathClosure(t1.restrict(p._1.pair), p._1.body, p._2.body))) {
+          if (r1.size == r2.size && r1.zip(r2).forall(p => p._1.restriction == p._2.restriction && equalPathClosure(t1.restrict(p._1.restriction), p._1.body, p._2.body))) {
             Some(t1)
           } else {
             None

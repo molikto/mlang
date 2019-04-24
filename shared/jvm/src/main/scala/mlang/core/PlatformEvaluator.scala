@@ -102,19 +102,19 @@ trait PlatformEvaluator extends BaseEvaluator {
         case Abstract.Coe(dir, tp, base) =>
           val d = depth + 1
           s"Coe(${emit(dir, depth)}, PathClosure(dm$d => ${emit(tp, d)}), ${emit(base, depth)})"
-        case Abstract.Hcom(dir, tp, base, restrictions) =>
+        case Abstract.Hcom(dir, tp, base, faces) =>
           val d = depth + 2
           s"Hcom(${emit(dir, depth)}, " +
               s"${emit(tp, depth)}, " +
               s"${emit(base, depth)}, " +
-              s"Seq(${restrictions.map(a => s"Restriction(${emit(a.pair, depth)}, PathClosure(dm$d => ${emit(a.body, d)}))").mkString(", ")})" +
+              s"Seq(${faces.map(a => s"Face(${emit(a.pair, depth)}, PathClosure(dm$d => ${emit(a.body, d)}))").mkString(", ")})" +
               s")"
-        case Abstract.Com(dir, tp, base, restrictions) =>
+        case Abstract.Com(dir, tp, base, faces) =>
           val d = depth + 2
           s"Com(${emit(dir, depth)}, " +
               s"${emit(tp, depth + 1)}, " +
               s"${emit(base, depth)}, " +
-              s"Seq(${restrictions.map(a => s"Restriction(${emit(a.pair, depth)}, PathClosure(dm$d => ${emit(a.body, d)}))").mkString(", ")})" +
+              s"Seq(${faces.map(a => s"Face(${emit(a.pair, depth)}, PathClosure(dm$d => ${emit(a.body, d)}))").mkString(", ")})" +
               s")"
         case Abstract.Restricted(t, dir) =>
           s"${emit(t, depth)}.restrict(${emit(dir, depth)})"

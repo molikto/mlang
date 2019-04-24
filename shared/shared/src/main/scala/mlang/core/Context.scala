@@ -35,7 +35,7 @@ trait Context {
 
   protected val layers: Layers
 
-  // get value directly without resolving restrictions
+  // get value directly without resolving faces
   def getTerm(depth: Int, index: Int): Binder =
     if (index == -1) layers(depth).asInstanceOf[Layer.Term].binder
     else layers(depth).asInstanceOf[Layer.Terms].terms(index)
@@ -166,7 +166,7 @@ trait Context {
     var up = 0
     var ls = layers
     var binder: (Object, Object, Boolean) = null
-    val restrictions = mutable.ArrayBuffer[Layer.Restriction]()
+    val faces = mutable.ArrayBuffer[Layer.Restriction]()
     val dimensionsUnder = mutable.ArrayBuffer[Long]()
     while (ls.nonEmpty && binder == null) {
       var i = 0
@@ -193,7 +193,7 @@ trait Context {
             dimensionsUnder.append(d.id)
           }
         case l@Layer.Restriction(_) =>
-          restrictions.append(l)
+          faces.append(l)
       }
       if (binder == null) {
         ls = ls.tail
@@ -206,7 +206,7 @@ trait Context {
       def contains(a: Value.Dimension) = {
         a match {
           case Dimension.Generic(id) => dimensionsUnder.contains(id)
-          case _ => true // can only be constants, restrictions is normalized
+          case _ => true // can only be constants, faces is normalized
         }
       }
       // TODO fold duplicated ones
@@ -233,14 +233,14 @@ trait Context {
       binder match {
         case (t: Value, j: Abstract, abs: Boolean) =>
           if (abs) {
-            (recv(t, restrictions), reca(j, restrictions))
+            (recv(t, faces), reca(j, faces))
           } else {
             // in case of definitions, don't restrict any thing defined after it. they don't have a clue what it is
-            val rs = restrictions.filter(r => !contains(r.res.from) || !contains(r.res.to))
+            val rs = faces.filter(r => !contains(r.res.from) || !contains(r.res.to))
             (recv(t, rs), reca(j, rs))
           }
         case (t: Value.Dimension, j: Abstract.Dimension, _: Boolean) =>
-          (recvd(t, restrictions), recad(j, restrictions))
+          (recvd(t, faces), recad(j, faces))
         case _ => logicError()
       }
     }

@@ -22,6 +22,7 @@
     * ~~~~~~~~~~
     * user defined eliminations
     * implicit conversions
+    * pretty printer (from readback abstract syntax)
     * record calculus
         * one problem is dependency graph introduces syntax stuff in equality
     * small features

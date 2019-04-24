@@ -51,14 +51,14 @@ sealed trait Abstract {
     case Coe(_, tp, base) =>
       tp.markRecursive(i + 1, c)
       base.markRecursive(i, c)
-    case Com(_, tp, base, restrictions) =>
+    case Com(_, tp, base, faces) =>
       tp.markRecursive(1 + i, c)
       base.markRecursive(i, c)
-      restrictions.foreach(_.body.markRecursive(i + 2, c))
-    case Hcom(_, tp, base, restrictions) =>
+      faces.foreach(_.body.markRecursive(i + 2, c))
+    case Hcom(_, tp, base, faces) =>
       tp.markRecursive(i, c)
       base.markRecursive(i, c)
-      restrictions.foreach(_.body.markRecursive(i + 2, c))
+      faces.foreach(_.body.markRecursive(i + 2, c))
     case Restricted(term, _) =>
       term.markRecursive(i, c)
   }
@@ -79,8 +79,8 @@ sealed trait Abstract {
     case PathType(typ, left, right) => typ.dependencies(i + 1) ++ left.dependencies(i) ++ right.dependencies(i)
     case PathApp(lef, _) => lef.dependencies(i)
     case Coe(_, tp, base) => tp.dependencies(i + 1) ++ base.dependencies(i)
-    case Hcom(_, tp, base, restrictions) => tp.dependencies(i) ++ base.dependencies(i) ++ restrictions.flatMap(_.body.dependencies(i + 2)).toSet
-    case Com(_, tp, base, restrictions) => tp.dependencies(i + 1) ++ base.dependencies(i) ++ restrictions.flatMap(_.body.dependencies(i + 2)).toSet
+    case Hcom(_, tp, base, faces) => tp.dependencies(i) ++ base.dependencies(i) ++ faces.flatMap(_.body.dependencies(i + 2)).toSet
+    case Com(_, tp, base, faces) => tp.dependencies(i + 1) ++ base.dependencies(i) ++ faces.flatMap(_.body.dependencies(i + 2)).toSet
     case Restricted(term, _) => term.dependencies(i)
   }
 }
@@ -123,14 +123,14 @@ object Abstract {
   case class PathApp(let: Abstract, r: Dimension) extends Abstract
 
   case class Coe(direction: DimensionPair, tp: PathClosure, base: Abstract) extends Abstract
-  case class Hcom(direction: DimensionPair, tp: Abstract, base: Abstract, restrictions: Seq[Restriction]) extends Abstract
+  case class Hcom(direction: DimensionPair, tp: Abstract, base: Abstract, faces: Seq[Face]) extends Abstract
 
-  case class Com(direction: DimensionPair, tp: PathClosure, base: Abstract, restrictions: Seq[Restriction]) extends Abstract
+  case class Com(direction: DimensionPair, tp: PathClosure, base: Abstract, faces: Seq[Face]) extends Abstract
 
   case class Restricted(term: Abstract, restriction: DimensionPair) extends Abstract
 
   // restriction doesn't take binding, but they have a level non-the-less
-  case class Restriction(pair: DimensionPair, body: PathClosure)
+  case class Face(pair: DimensionPair, body: PathClosure)
 
   case class DimensionPair(from: Dimension, to: Dimension)
 

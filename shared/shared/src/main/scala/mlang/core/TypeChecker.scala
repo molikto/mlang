@@ -62,8 +62,6 @@ object TypeChecker {
   val empty = new TypeChecker(Seq(Layer.Terms(Seq.empty)))
 }
 
-import TypeChecker._
-
 class TypeChecker private (protected override val layers: Layers)
     extends ContextBuilder with BaseEvaluator with PlatformEvaluator with Reifier {
   override type Self = TypeChecker
@@ -92,16 +90,16 @@ class TypeChecker private (protected override val layers: Layers)
 
   def checkCompatibleCapAndFaces(
       ident: Name.Opt,
-      restrictions: Seq[Term.Restriction],
+      faces: Seq[Term.Face],
       bt: Value.PathClosure,
       bv: Value,
       dv: Value.DimensionPair
-  ): Seq[Abstract.Restriction] = {
-    // we use this context to evaluate body of restrictions, it is only used to keep the dimension binding to the same
-    // one, but as restrictions is already present in abstract terms, it is ok to use this instead of others
+  ): Seq[Abstract.Face] = {
+    // we use this context to evaluate body of faces, it is only used to keep the dimension binding to the same
+    // one, but as restricts is already present in abstract terms, it is ok to use this instead of others
     val (fContext, dim0) = newTermsLayer().newDimensionLayer(ident.getOrElse(Name.empty))
     val btt = bt(dim0)
-    val res = restrictions.map(a => {
+    val res = faces.map(a => {
       val (dav, daa) = checkDimensionPair(a.dimension)
       if (dav.isFalse) {
         throw TypeCheckException.RemoveFalseFace()
@@ -114,14 +112,14 @@ class TypeChecker private (protected override val layers: Layers)
         if (!Conversion.equalTerm(btr, bv.restrict(dav), nv)) {
           throw TypeCheckException.CapNotMatching()
         }
-        (Abstract.Restriction(daa, na), fContext.eval(na), dav, ctx0: Self)
+        (Abstract.Face(daa, na), fContext.eval(na), dav, ctx0: Self)
       }
     })
-    for (i <- restrictions.indices) {
+    for (i <- faces.indices) {
       val l = res(i)
       for (j <- 0 until i) {
         val r = res(j)
-        val rj = restrictions(j)
+        val rj = faces(j)
         // this might evaluate the dimensions to new values
         val (dfv, _) = l._4.checkDimensionPair(rj.dimension)
         // only used to test if this restriction is false face or not
@@ -189,17 +187,17 @@ class TypeChecker private (protected override val layers: Layers)
         val (cl, ta) = checkLine(tp)
         val la = check(base, cl(dv.from))
         (cl(dv.to), Abstract.Coe(da, ta, la))
-      case Term.Com(direction, tp, base, ident, restrictions) =>
+      case Term.Com(direction, tp, base, ident, faces) =>
         val (dv, da) = checkDimensionPair(direction)
         val (cl, ta) = checkLine(tp)
         val ba = check(base, cl(dv.from))
-        val rs = checkCompatibleCapAndFaces(ident, restrictions, cl, eval(ba), dv)
+        val rs = checkCompatibleCapAndFaces(ident, faces, cl, eval(ba), dv)
         (cl(dv.to), Abstract.Com(da, ta, ba, rs))
-      case Term.Hcom(direction, base, ident, restrictions) =>
+      case Term.Hcom(direction, base, ident, faces) =>
         val (dv, da)= checkDimensionPair(direction)
         val (bt, ba) = infer(base)
         val bv = eval(ba)
-        val rs = checkCompatibleCapAndFaces(ident, restrictions, Value.PathClosure(bt), bv, dv)
+        val rs = checkCompatibleCapAndFaces(ident, faces, Value.PathClosure(bt), bv, dv)
         (bt, Abstract.Hcom(da, reify(bt), ba, rs))
       case Term.PathType(typ, left, right) =>
         typ match {

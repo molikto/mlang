@@ -20,7 +20,7 @@ import Value._
 
 sealed trait Value {
 
-
+  // TODO how does it interact with recursive references?
   def restrict(lv: DimensionPair): Value = this match {
     case u: Universe => u
     case Function(domain, codomain) =>
@@ -45,10 +45,10 @@ sealed trait Value {
       App(lambda.restrict(lv), argument.restrict(lv))
     case Coe(direction, tp, base) =>
       Coe(direction.restrict(lv), tp.restrict(lv), base.restrict(lv))
-    case Hcom(direction, tp, base, restrictions) =>
-      Hcom(direction.restrict(lv), tp.restrict(lv), base.restrict(lv), restrictions.map(n => Restriction(n.pair.restrict(lv), n.body.restrict(lv))))
-    case Com(direction, tp, base, restrictions) =>
-      Com(direction.restrict(lv), tp.restrict(lv), base.restrict(lv), restrictions.map(n => Restriction(n.pair.restrict(lv), n.body.restrict(lv))))
+    case Hcom(direction, tp, base, faces) =>
+      Hcom(direction.restrict(lv), tp.restrict(lv), base.restrict(lv), faces.map(n => Face(n.restriction.restrict(lv), n.body.restrict(lv))))
+    case Com(direction, tp, base, faces) =>
+      Com(direction.restrict(lv), tp.restrict(lv), base.restrict(lv), faces.map(n => Face(n.restriction.restrict(lv), n.body.restrict(lv))))
     case Maker(value, field) =>
       Maker(value.restrict(lv), field)
     case Projection(make, field) =>
@@ -61,8 +61,8 @@ sealed trait Value {
       PathApp(left.restrict(lv), stuck.restrict(lv))
     case Generic(id, o) =>
       Generic(id, if (o != null) o.restrict(lv) else null) // some parameter in reify has null types
-    case Restricted(a, restrictions) =>
-      Restricted(a, lv +: restrictions)
+    case Restricted(a, faces) =>
+      Restricted(a, lv +: faces)
     case o: Reference =>
       Restricted(o, Seq(lv))
   }
@@ -106,10 +106,10 @@ sealed trait Value {
         case Coe(direction, tp, base) =>
           // kan ops case analysis on tp, so they perform their own whnf
           base.coe(direction, tp, whn)
-        case Hcom(direction, tp, base, restrictions) =>
-          base.hcom(direction, tp, restrictions, whn)
-        case Com(direction, tp, base, restrictions) =>
-          base.com(direction, tp, restrictions, whn)
+        case Hcom(direction, tp, base, faces) =>
+          base.hcom(direction, tp, faces, whn)
+        case Com(direction, tp, base, faces) =>
+          base.com(direction, tp, faces, whn)
         case Restricted(a, restriction) =>
           restriction.foldLeft(a.whnf) { (v, r) =>
             v.restrict(r).whnf
@@ -202,8 +202,8 @@ sealed trait Value {
               typ.map(a => pah(a).typ(dim)),
               PathApp(this, dim),
               Seq(
-                { val dp = DimensionPair(dim, Dimension.True); Restriction(dp, typ.map(a => pah(a).right.restrict(dp))) },
-                { val dp = DimensionPair(dim, Dimension.False); Restriction(dp, typ.map(a => pah(a).left.restrict(dp))) }
+                { val dp = DimensionPair(dim, Dimension.True); Face(dp, typ.map(a => pah(a).right.restrict(dp))) },
+                { val dp = DimensionPair(dim, Dimension.False); Face(dp, typ.map(a => pah(a).left.restrict(dp))) }
               ))
           })))
         case Sum(l, c) =>
@@ -213,27 +213,27 @@ sealed trait Value {
       }
     }
 
-  def com(pair: DimensionPair, typ: PathClosure, restriction0: Seq[Restriction], trans: Value => Value = id): Value = {
+  def com(pair: DimensionPair, typ: PathClosure, restriction0: Seq[Face], trans: Value => Value = id): Value = {
     // do we need to implement the extra shortcuts?
     trans(Hcom(
       pair,
       typ(pair.to),
       Coe(pair, typ, this),
-      restriction0.map(n => Restriction(n.pair, n.body.mapd((j, d) => Coe(DimensionPair(d, pair.to), typ, j))))))
+      restriction0.map(n => Face(n.restriction, n.body.mapd((j, d) => Coe(DimensionPair(d, pair.to), typ, j))))))
   }
 
-  def hcom(pair: DimensionPair, typ: Value, restriction0: Seq[Restriction], trans: Value => Value = id): Value = {
-    val rs = restriction0.filter(!_.pair.isFalse)
+  def hcom(pair: DimensionPair, typ: Value, restriction0: Seq[Face], trans: Value => Value = id): Value = {
+    val rs = restriction0.filter(!_.restriction.isFalse)
     if (pair.isTrue) {
       trans(this)
     } else {
-      rs.find(a => a.pair.from == a.pair.to) match { // always true face
+      rs.find(a => a.restriction.from == a.restriction.to) match { // always true face
         case Some(n) =>
           trans(n.body(pair.to))
         case None =>
           typ.whnf match {
             case Function(_, codomain) => trans(Lambda(Value.Closure(a =>
-              Hcom(pair, codomain(a), App(this, a), rs.map(n => Restriction(n.pair, n.body.map(j => App(j, a)))))
+              Hcom(pair, codomain(a), App(this, a), rs.map(n => Face(n.restriction, n.body.map(j => App(j, a)))))
             )))
             case Record(_, ns) =>
               if (ns.isEmpty) {
@@ -248,14 +248,14 @@ sealed trait Value {
                           DimensionPair(pair.from, dim),
                           ns(i).closure(),
                           Projection(this, i),
-                          rs.map(n => Restriction(n.pair, n.body.map(j => Projection(j, i))))
+                          rs.map(n => Face(n.restriction, n.body.map(j => Projection(j, i))))
                         )
                       } else {
                         Com(
                           DimensionPair(pair.from, dim),
                           PathClosure(k => ns(i).closure(ns(i).dependencies.map(j => closures(j)(k)))),
                           Projection(this, 0),
-                          rs.map(n => Restriction(n.pair, n.body.map(j => Projection(j, i))))
+                          rs.map(n => Face(n.restriction, n.body.map(j => Projection(j, i))))
                         )
                       }
                     })
@@ -270,9 +270,9 @@ sealed trait Value {
                   ty(dim),
                   PathApp(this, dim),
                   Seq(
-                    { val dp = DimensionPair(dim, Dimension.True); Restriction(dp, PathClosure(right.restrict(dp))) },
-                    { val dp = DimensionPair(dim, Dimension.False); Restriction(dp, PathClosure(left.restrict(dp))) },
-                  ) ++ rs.map(n => Restriction(n.pair, n.body.map(j => PathApp(j, dim)))))
+                    { val dp = DimensionPair(dim, Dimension.True); Face(dp, PathClosure(right.restrict(dp))) },
+                    { val dp = DimensionPair(dim, Dimension.False); Face(dp, PathClosure(left.restrict(dp))) },
+                  ) ++ rs.map(n => Face(n.restriction, n.body.map(j => PathApp(j, dim)))))
               })))
             case Sum(l, c) =>
               ???
@@ -460,15 +460,15 @@ object Value {
     }
   }
 
-  case class Restriction(pair: DimensionPair, body: PathClosure)
+  case class Face(restriction: DimensionPair, body: PathClosure)
 
-  case class Restricted(a: Reference, restriction: Seq[DimensionPair]) extends Syntaxial
+  case class Restricted(a: Reference, faces: Seq[DimensionPair]) extends Syntaxial
 
   case class Coe(direction: DimensionPair, tp: PathClosure, base: Value) extends Stuck
 
-  case class Com(direction: DimensionPair, tp: PathClosure, base: Value, restrictions: Seq[Restriction]) extends Stuck
+  case class Com(direction: DimensionPair, tp: PathClosure, base: Value, faces: Seq[Face]) extends Stuck
 
-  case class Hcom(direction: DimensionPair, tp: Value, base: Value, restrictions: Seq[Restriction]) extends Stuck
+  case class Hcom(direction: DimensionPair, tp: Value, base: Value, faces: Seq[Face]) extends Stuck
 
   case class Make(values: Seq[Value]) extends HeadCanonical
 
@@ -542,6 +542,11 @@ object Value {
   // the left and right BOTH stuck
   case class PathApp(left: StuckPos, dimension: Dimension) extends Stuck
 
+//  case class PathType(typ: PathClosure) extends HeadCanonical
+//  case class ShapeRestrction(pair: DimensionPair, value: Value)
+//  case class EndpointType(typ: Value, rs: Seq[ShapeRestrction]) extends Stuck
+//  case class PathLambda(body: PathClosure) extends HeadCanonical
+//  case class PathApp(left: StuckPos, dimension: Dimension) extends Stuck
 
   // these values will not be visible to users! also I guess it is ok to be static, it will not overflow right?
   private val vgen = new LongGen.Negative()
