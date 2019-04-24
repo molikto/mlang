@@ -95,26 +95,26 @@ trait PlatformEvaluator extends BaseEvaluator {
           s"PathApp(${emit(left, depth)}, ${emit(right, depth)})"
         case Abstract.PathLambda(body) =>
           val d = depth + 1
-          s"PathLambda(PathClosure(dm$d => ${emit(body, d)}))"
+          s"PathLambda(AbsClosure(dm$d => ${emit(body, d)}))"
         case Abstract.PathType(typ, left, right) =>
           val d = depth + 1
-          s"PathType(PathClosure(dm$d => ${emit(typ, d)}), ${emit(left, depth)}, ${emit(right, depth)})"
+          s"PathType(AbsClosure(dm$d => ${emit(typ, d)}), ${emit(left, depth)}, ${emit(right, depth)})"
         case Abstract.Coe(dir, tp, base) =>
           val d = depth + 1
-          s"Coe(${emit(dir, depth)}, PathClosure(dm$d => ${emit(tp, d)}), ${emit(base, depth)})"
+          s"Coe(${emit(dir, depth)}, AbsClosure(dm$d => ${emit(tp, d)}), ${emit(base, depth)})"
         case Abstract.Hcom(dir, tp, base, faces) =>
           val d = depth + 2
           s"Hcom(${emit(dir, depth)}, " +
               s"${emit(tp, depth)}, " +
               s"${emit(base, depth)}, " +
-              s"Seq(${faces.map(a => s"Face(${emit(a.pair, depth)}, PathClosure(dm$d => ${emit(a.body, d)}))").mkString(", ")})" +
+              s"Seq(${faces.map(a => s"Face(${emit(a.pair, depth)}, AbsClosure(dm$d => ${emit(a.body, d)}))").mkString(", ")})" +
               s")"
         case Abstract.Com(dir, tp, base, faces) =>
           val d = depth + 2
           s"Com(${emit(dir, depth)}, " +
               s"${emit(tp, depth + 1)}, " +
               s"${emit(base, depth)}, " +
-              s"Seq(${faces.map(a => s"Face(${emit(a.pair, depth)}, PathClosure(dm$d => ${emit(a.body, d)}))").mkString(", ")})" +
+              s"Seq(${faces.map(a => s"Face(${emit(a.pair, depth)}, AbsClosure(dm$d => ${emit(a.body, d)}))").mkString(", ")})" +
               s")"
         case Abstract.Restricted(t, dir) =>
           s"${emit(t, depth)}.restrict(${emit(dir, depth)})"

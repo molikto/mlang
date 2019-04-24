@@ -104,13 +104,13 @@ class Conversion {
     }
   }
 
-  private def equalPathClosure(typ: Value, t1: PathClosure, t2: PathClosure): Boolean = {
+  private def equalAbsClosure(typ: Value, t1: AbsClosure, t2: AbsClosure): Boolean = {
     val c = Dimension.Generic(dgen())
     equalTerm(typ, t1(c), t2(c))
   }
 
 
-  private def equalTypePathClosure(t1: PathClosure, t2: PathClosure, less: Int = Int.MaxValue): Boolean = {
+  private def equalTypeAbsClosure(t1: AbsClosure, t2: AbsClosure, less: Int = Int.MaxValue): Boolean = {
     val c = Dimension.Generic(dgen())
     equalType(t1(c), t2(c), less)
   }
@@ -136,7 +136,7 @@ class Conversion {
         case (Sum(l1, c1), Sum(l2, c2)) =>
           l1 == l2 && l1 <= less && c1.size == c2.size && c1.zip(c2).forall(p => equalConstructor(p._1, p._2, l1))
         case (PathType(t1, l1, r1), PathType(t2, l2, r2)) =>
-          equalTypePathClosure(t1, t2, less) &&
+          equalTypeAbsClosure(t1, t2, less) &&
               equalTerm(t1(Dimension.False), l1, l2) &&
               equalTerm(t1(Dimension.True), r1, r2)
         case (t1, t2) =>
@@ -198,7 +198,7 @@ class Conversion {
         }
       case (Hcom(d1, t1, b1, r1), Hcom(d2, t2, b2, r2)) =>
         if (d1 == d2 && equalType(t1, t2) && equalTerm(t1, b1, b2)) {
-          if (r1.size == r2.size && r1.zip(r2).forall(p => p._1.restriction == p._2.restriction && equalPathClosure(t1.restrict(p._1.restriction), p._1.body, p._2.body))) {
+          if (r1.size == r2.size && r1.zip(r2).forall(p => p._1.restriction == p._2.restriction && equalAbsClosure(t1.restrict(p._1.restriction), p._1.body, p._2.body))) {
             Some(t1)
           } else {
             None
@@ -207,7 +207,7 @@ class Conversion {
           None
         }
       case (Coe(d1, t1, b1), Coe(d2, t2, b2)) =>
-        if (d1 == d2 && equalTypePathClosure(t1, t2) && equalTerm(t1(d1.from), b1, b2)) {
+        if (d1 == d2 && equalTypeAbsClosure(t1, t2) && equalTerm(t1(d1.from), b1, b2)) {
           Some(t1(d1.to))
         } else {
           None

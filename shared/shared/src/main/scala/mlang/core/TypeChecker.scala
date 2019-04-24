@@ -69,7 +69,7 @@ class TypeChecker private (protected override val layers: Layers)
   override protected implicit def create(a: Layers): Self = new TypeChecker(a)
 
 
-  def checkLine(a: Term): (Value.PathClosure, Abstract.PathClosure) = {
+  def checkLine(a: Term): (Value.AbsClosure, Abstract.AbsClosure) = {
     a match {
       case Term.Lambda(n, body) =>
         val ctx = newDimensionLayer(n.getOrElse(Name.empty))._1
@@ -91,7 +91,7 @@ class TypeChecker private (protected override val layers: Layers)
   def checkCompatibleCapAndFaces(
       ident: Name.Opt,
       faces: Seq[Term.Face],
-      bt: Value.PathClosure,
+      bt: Value.AbsClosure,
       bv: Value,
       dv: Value.DimensionPair
   ): Seq[Abstract.Face] = {
@@ -197,7 +197,7 @@ class TypeChecker private (protected override val layers: Layers)
         val (dv, da)= checkDimensionPair(direction)
         val (bt, ba) = infer(base)
         val bv = eval(ba)
-        val rs = checkCompatibleCapAndFaces(ident, faces, Value.PathClosure(bt), bv, dv)
+        val rs = checkCompatibleCapAndFaces(ident, faces, Value.AbsClosure(bt), bv, dv)
         (bt, Abstract.Hcom(da, reify(bt), ba, rs))
       case Term.PathType(typ, left, right) =>
         typ match {

@@ -144,7 +144,7 @@ sealed trait Value {
   }
 
 
-  def coe(pair: DimensionPair, typ: PathClosure, trans: Value => Value = id): Value =
+  def coe(pair: DimensionPair, typ: AbsClosure, trans: Value => Value = id): Value =
     if (pair.isTrue) { // just to base
       trans(this)
     } else {
@@ -169,10 +169,10 @@ sealed trait Value {
               case f@Record(_, _) => f
               case _ => logicError()
             }
-            val closures = mutable.ArrayBuffer[PathClosure]()
+            val closures = mutable.ArrayBuffer[AbsClosure]()
             for (i <- ns.indices) {
               closures.append(
-                PathClosure(dim => {
+                AbsClosure(dim => {
                   if (ns(i).dependencies.isEmpty) {
                     Coe(
                       DimensionPair(pair.from, dim),
@@ -196,7 +196,7 @@ sealed trait Value {
             case f: PathType => f
             case _ => logicError()
           }
-          trans(PathLambda(PathClosure(dim => {
+          trans(PathLambda(AbsClosure(dim => {
             Com(
               pair,
               typ.map(a => pah(a).typ(dim)),
@@ -213,7 +213,7 @@ sealed trait Value {
       }
     }
 
-  def com(pair: DimensionPair, typ: PathClosure, restriction0: Seq[Face], trans: Value => Value = id): Value = {
+  def com(pair: DimensionPair, typ: AbsClosure, restriction0: Seq[Face], trans: Value => Value = id): Value = {
     // do we need to implement the extra shortcuts?
     trans(Hcom(
       pair,
@@ -239,10 +239,10 @@ sealed trait Value {
               if (ns.isEmpty) {
                 trans(this)
               } else {
-                val closures = mutable.ArrayBuffer[PathClosure]()
+                val closures = mutable.ArrayBuffer[AbsClosure]()
                 for (i <- ns.indices) {
                   closures.append(
-                    PathClosure(dim => {
+                    AbsClosure(dim => {
                       if (ns(i).dependencies.isEmpty) {
                         Hcom(
                           DimensionPair(pair.from, dim),
@@ -253,7 +253,7 @@ sealed trait Value {
                       } else {
                         Com(
                           DimensionPair(pair.from, dim),
-                          PathClosure(k => ns(i).closure(ns(i).dependencies.map(j => closures(j)(k)))),
+                          AbsClosure(k => ns(i).closure(ns(i).dependencies.map(j => closures(j)(k)))),
                           Projection(this, 0),
                           rs.map(n => Face(n.restriction, n.body.map(j => Projection(j, i))))
                         )
@@ -264,14 +264,14 @@ sealed trait Value {
                 trans(Make(closures.map(_.apply(pair.to))))
               }
             case PathType(ty, left, right) =>
-              trans(PathLambda(PathClosure(dim => {
+              trans(PathLambda(AbsClosure(dim => {
                 Hcom(
                   pair,
                   ty(dim),
                   PathApp(this, dim),
                   Seq(
-                    { val dp = DimensionPair(dim, Dimension.True); Face(dp, PathClosure(right.restrict(dp))) },
-                    { val dp = DimensionPair(dim, Dimension.False); Face(dp, PathClosure(left.restrict(dp))) },
+                    { val dp = DimensionPair(dim, Dimension.True); Face(dp, AbsClosure(right.restrict(dp))) },
+                    { val dp = DimensionPair(dim, Dimension.False); Face(dp, AbsClosure(left.restrict(dp))) },
                   ) ++ rs.map(n => Face(n.restriction, n.body.map(j => PathApp(j, dim)))))
               })))
             case Sum(l, c) =>
@@ -337,15 +337,15 @@ object Value {
     def apply(a: Value): Closure = Closure(_ => a)
   }
 
-  object PathClosure {
-    def apply(a: Value): PathClosure = PathClosure(_ => a)
+  object AbsClosure {
+    def apply(a: Value): AbsClosure = AbsClosure(_ => a)
   }
 
-  implicit class PathClosure(private val func: Dimension => Value) extends AnyVal {
+  implicit class AbsClosure(private val func: Dimension => Value) extends AnyVal {
     def apply(seq: Dimension): Value = func(seq)
-    def restrict(lv: DimensionPair): PathClosure = Value.PathClosure(v => this(v).restrict(lv))
-    def mapd(a: (Value, Dimension) => Value): PathClosure = PathClosure(d => a(this(d), d))
-    def map(a: Value => Value): PathClosure = PathClosure(d => a(this(d)))
+    def restrict(lv: DimensionPair): AbsClosure = Value.AbsClosure(v => this(v).restrict(lv))
+    def mapd(a: (Value, Dimension) => Value): AbsClosure = AbsClosure(d => a(this(d), d))
+    def map(a: Value => Value): AbsClosure = AbsClosure(d => a(this(d)))
   }
 
 
@@ -460,13 +460,13 @@ object Value {
     }
   }
 
-  case class Face(restriction: DimensionPair, body: PathClosure)
+  case class Face(restriction: DimensionPair, body: AbsClosure)
 
   case class Restricted(a: Reference, faces: Seq[DimensionPair]) extends Syntaxial
 
-  case class Coe(direction: DimensionPair, tp: PathClosure, base: Value) extends Stuck
+  case class Coe(direction: DimensionPair, tp: AbsClosure, base: Value) extends Stuck
 
-  case class Com(direction: DimensionPair, tp: PathClosure, base: Value, faces: Seq[Face]) extends Stuck
+  case class Com(direction: DimensionPair, tp: AbsClosure, base: Value, faces: Seq[Face]) extends Stuck
 
   case class Hcom(direction: DimensionPair, tp: Value, base: Value, faces: Seq[Face]) extends Stuck
 
@@ -535,17 +535,17 @@ object Value {
   case class Let(var items: Seq[Value], order: Seq[Int], body: Value) extends Syntaxial
 
 
-  case class PathType(typ: PathClosure, left: Value, right: Value) extends HeadCanonical
+  case class PathType(typ: AbsClosure, left: Value, right: Value) extends HeadCanonical
 
-  case class PathLambda(body: PathClosure) extends HeadCanonical
+  case class PathLambda(body: AbsClosure) extends HeadCanonical
 
   // the left and right BOTH stuck
   case class PathApp(left: StuckPos, dimension: Dimension) extends Stuck
 
-//  case class PathType(typ: PathClosure) extends HeadCanonical
+//  case class PathType(typ: AbsClosure) extends HeadCanonical
 //  case class ShapeRestrction(pair: DimensionPair, value: Value)
 //  case class EndpointType(typ: Value, rs: Seq[ShapeRestrction]) extends Stuck
-//  case class PathLambda(body: PathClosure) extends HeadCanonical
+//  case class PathLambda(body: AbsClosure) extends HeadCanonical
 //  case class PathApp(left: StuckPos, dimension: Dimension) extends Stuck
 
   // these values will not be visible to users! also I guess it is ok to be static, it will not overflow right?

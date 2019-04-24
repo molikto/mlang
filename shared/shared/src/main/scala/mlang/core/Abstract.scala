@@ -89,7 +89,7 @@ sealed trait Abstract {
 object Abstract {
   type Closure = Abstract
   type MultiClosure = Abstract
-  type PathClosure = Abstract
+  type AbsClosure = Abstract
   case class Universe(i: Int) extends Abstract
 
   /* index == -1 means it is a single reference */
@@ -118,19 +118,19 @@ object Abstract {
   case class Case(pattern: Pattern, body: MultiClosure)
   case class PatternLambda(id: Long, typ: Closure, cases: Seq[Case]) extends Abstract
 
-  case class PathLambda(body: PathClosure) extends Abstract
-  case class PathType(typ: PathClosure, left: Abstract, right: Abstract) extends Abstract
+  case class PathLambda(body: AbsClosure) extends Abstract
+  case class PathType(typ: AbsClosure, left: Abstract, right: Abstract) extends Abstract
   case class PathApp(let: Abstract, r: Dimension) extends Abstract
 
-  case class Coe(direction: DimensionPair, tp: PathClosure, base: Abstract) extends Abstract
+  case class Coe(direction: DimensionPair, tp: AbsClosure, base: Abstract) extends Abstract
   case class Hcom(direction: DimensionPair, tp: Abstract, base: Abstract, faces: Seq[Face]) extends Abstract
 
-  case class Com(direction: DimensionPair, tp: PathClosure, base: Abstract, faces: Seq[Face]) extends Abstract
+  case class Com(direction: DimensionPair, tp: AbsClosure, base: Abstract, faces: Seq[Face]) extends Abstract
 
   case class Restricted(term: Abstract, restriction: DimensionPair) extends Abstract
 
   // restriction doesn't take binding, but they have a level non-the-less
-  case class Face(pair: DimensionPair, body: PathClosure)
+  case class Face(pair: DimensionPair, body: AbsClosure)
 
   case class DimensionPair(from: Dimension, to: Dimension)
 
