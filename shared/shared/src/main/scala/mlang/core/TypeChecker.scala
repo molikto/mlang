@@ -180,7 +180,7 @@ class TypeChecker private (protected override val layers: Layers)
           val min1 = p._1.to min p._1.from
           val max2 = p._2.to max p._2.from
           val min2 = p._2.to min p._2.from
-          !min2.constant && max1.constant && max2.constant && min2 == min1 && max1 != max2
+          !min2.isConstant && max1.isConstant && max2.isConstant && min2 == min1 && max1 != max2
         })
         (bt, Abstract.Hcom(Abstract.DimensionPair(dfa, dta), reify(bt), ba, res.map(_._1)))
       case Term.PathType(typ, left, right) =>

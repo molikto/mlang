@@ -33,6 +33,7 @@
     * user defined eliminations
     * implicit conversions
     * record calculus
+        * one problem is dependency graph introduces syntax stuff in equality
     * small features
         * HTML pretty print
         * naming shadowing
