@@ -176,7 +176,6 @@ define ttt(a b: nat, c: nat ⇒ type, d: type ⇒ type): type = d(c(plus(a, b)))
 define assert_nat_eq_holder(b: nat ⇒ type, c: (i: nat) ⇒ b(i)): b(sixteen) = c(sixteen2)
 
 
-// TODO use def and fun syntax
 define test0(a b: type, f: a ⇒ b, func: (a ⇒ b) ⇒ type, g: func(f)): func(f) = g
 
 

@@ -1,7 +1,7 @@
 package mlang.core
 
 import Value._
-import mlang.utils.debug
+import mlang.utils.{Benchmark, debug}
 
 import scala.collection.mutable
 import scala.util.{Success, Try}
@@ -12,11 +12,15 @@ private case class Assumption(left: Long, right: Long, domain: Value, codomain: 
 
 object Conversion {
   def equalTerm(typ: Value, t1: Value, t2: Value): Boolean = {
-    new Conversion().equalTerm(typ, t1, t2)
+    Benchmark.ConversionChecking {
+      new Conversion().equalTerm(typ, t1, t2)
+    }
   }
 
   def equalType(tm1: Value, tm2: Value): Boolean = {
-    new Conversion().equalType(tm1, tm2)
+    Benchmark.ConversionChecking {
+      new Conversion().equalType(tm1, tm2)
+    }
   }
 }
 
@@ -50,6 +54,7 @@ class Conversion {
       n1.zip(n2).foldLeft(Some(Seq.empty[Value]) : Option[Seq[Value]]) { (as0, pair) =>
         as0 match {
           case Some(as) if pair._1.dependencies == pair._2.dependencies =>
+            // TODO dependencies is a syntaxial equality stuff
             equalTypeMultiClosure(pair._1.dependencies.map(as), pair._1.closure, pair._2.closure, less).map(as :+ _)
           case None =>
             None
@@ -115,7 +120,7 @@ class Conversion {
     if (tm1.eq(tm2)) {
       true
     } else if (typAssumeps.exists(a => a._1.eq(tm1) && a._2.eq(tm2))) { // recursive defined sum and record
-      // TODO handle parameterized recursively defined ones, we only allow them in top level
+      // TODO handle parameterized recursively defined ones, we should only allow them in top level, and make recursive reference non-reducible?
       true
     } else {
       typAssumeps.append((tm1, tm2))
@@ -173,7 +178,6 @@ class Conversion {
         }
       case (PatternStuck(l1, s1), PatternStuck(l2, s2)) =>
         equalNeutral(s1, s2).flatMap(n => {
-          // TODO give an example why this is needed
           if (equalTypeClosure(n, l1.typ, l2.typ) && equalSameTypePatternLambdaWithAssumptions(n, l1, l2)) {
             Some(l1.typ(s1))
           } else {

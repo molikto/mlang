@@ -19,6 +19,7 @@ import scala.util.parsing.combinator.lexical.StdLexical
   *
   * VERY ULGY PARSER for now
   */
+// TODO local match and local tree split syntax. give a more uniform syntax for lambda and patterns.
 trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConversions {
 
 
@@ -164,5 +165,7 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
     }
 
 
-  def parse(a: String): ParseResult[Module] = (rep(declaration) ^^ { a=> Module(a) })(new PackratReader(new lexical.Scanner(a)))
+  def parse(a: String): ParseResult[Module] = Benchmark.Parsing {
+    (rep(declaration) ^^ { a=> Module(a) })(new PackratReader(new lexical.Scanner(a)))
+  }
 }

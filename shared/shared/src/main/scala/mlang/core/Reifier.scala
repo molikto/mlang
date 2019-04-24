@@ -3,6 +3,7 @@ package mlang.core
 import mlang.core.Abstract._
 import mlang.core.Context.Layers
 import mlang.name.Name
+import mlang.utils.Benchmark
 
 import scala.collection.mutable
 
@@ -170,6 +171,5 @@ private class ReifierContextBase(layersBefore: Context.Layers) extends ReifierCo
 }
 
 trait Reifier extends Context {
-
-  def reify(v: Value): Abstract = new ReifierContextBase(layers).reifyValue(v)
+  def reify(v: Value): Abstract = Benchmark.Reify { new ReifierContextBase(layers).reifyValue(v) }
 }

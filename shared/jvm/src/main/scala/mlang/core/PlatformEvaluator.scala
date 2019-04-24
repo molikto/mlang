@@ -2,7 +2,7 @@ package mlang.core
 
 import mlang.core.Value.Dimension
 import mlang.name.Name
-import mlang.utils.{Text, debug}
+import mlang.utils.{Benchmark, Text, debug}
 
 import scala.reflect.runtime.currentMirror
 import scala.tools.reflect.ToolBox
@@ -11,7 +11,7 @@ import scala.tools.reflect.ToolBox
 
 trait PlatformEvaluator extends BaseEvaluator {
 
-  private def compile[A](string: String): A = {
+  private def compile[A](string: String): A = Benchmark.HoasCompile {
     val toolbox = currentMirror.mkToolBox()
     val tree = toolbox.parse(string)
     toolbox.eval(tree).asInstanceOf[A]
@@ -116,8 +116,8 @@ trait PlatformEvaluator extends BaseEvaluator {
               s"${emit(base, depth)}, " +
               s"Seq(${restrictions.map(a => s"Restriction(${emit(a.pair, depth)}, PathClosure(dm$d => ${emit(a.body, d)}))").mkString(", ")})" +
               s")"
-        case Abstract.Restricted(term, dir) =>
-          s"${emit(term, depth)}.restrict(${emit(dir, depth)})"
+        case Abstract.Restricted(t, dir) =>
+          s"${emit(t, depth)}.restrict(${emit(dir, depth)})"
       }
     }
 
@@ -132,14 +132,18 @@ trait PlatformEvaluator extends BaseEvaluator {
             getDimension(up - depth - 1) match {
               case Dimension.Generic(id) =>
                 s"Dimension.Generic($id)"
-              case Dimension.Constant(isOne) =>
-                s"Dimension.Constant($isOne)"
+              case Dimension.True =>
+                s"Dimension.True"
+              case Dimension.False =>
+                s"Dimension.False"
             }
           } else {
             s"dm${depth - up}"
           }
-        case Abstract.Dimension.Constant(isOne) =>
-          s"Dimension.Constant($isOne)"
+        case Abstract.Dimension.True =>
+          s"Dimension.True"
+        case Abstract.Dimension.False =>
+          s"Dimension.False"
         case Abstract.Dimension.Restricted(d, pair) =>
           s"${emit(d, depth)}.restrict(${emit(pair, depth)})"
       }

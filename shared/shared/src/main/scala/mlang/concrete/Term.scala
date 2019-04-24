@@ -23,7 +23,6 @@ sealed trait Block
 
 object Term {
 
-  // TODO don't have special syntax for this?
   case class Universe(level: Int) extends Term
 
   case class Reference(name: Ref) extends Term // some name is renamed
@@ -52,8 +51,7 @@ object Term {
   case class Let(declarations: Seq[Declaration], in: Term) extends Term with Block
 
   // TODO case class Object() big syntax with define and stuff
-  // TODO make small syntax with various stuff, type is inferred as non-dependent
-  // TODO local match and local tree split
+  // TODO make expression, type is inferred as non-dependent
 
   case class PathType(typ: Option[Term], left: Term, right: Term) extends Term
   case class ConstantDimension(isOne: Boolean) extends Term
@@ -96,6 +94,7 @@ sealed trait Pattern
 
 object Pattern {
   case class Atom(id: Name.Opt) extends Pattern
-  case class Group(names: Seq[Pattern]) extends Pattern // TODO named patterns?
+  case class Group(names: Seq[Pattern]) extends Pattern
+  // TODO user defined named patterns
   case class NamedGroup(name: Ref, pattern: Seq[Pattern]) extends Pattern
 }

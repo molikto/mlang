@@ -78,7 +78,8 @@ trait Context {
     a match {
       case Value.Dimension.Generic(stuck) =>
         rebindDimensionGeneric(stuck)
-      case Value.Dimension.Constant(isOne) => Abstract.Dimension.Constant(isOne)
+      case Value.Dimension.True => Abstract.Dimension.True
+      case Value.Dimension.False => Abstract.Dimension.False
     }
   }
 

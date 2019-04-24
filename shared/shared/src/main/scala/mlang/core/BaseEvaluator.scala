@@ -1,6 +1,6 @@
 package mlang.core
 
-import mlang.utils.debug
+import mlang.utils.{Benchmark, debug}
 
 import scala.collection.mutable
 
@@ -60,19 +60,23 @@ trait BaseEvaluator extends Context {
   }
 
   protected def evalMutualRecursive(terms: Map[Int, Abstract]): Map[Int, Value] = {
-    val ret = platformEvalRecursive(terms)
-    assert(ret.forall(_._2 != null))
-    ret
+    Benchmark.Eval {
+      val ret = platformEvalRecursive(terms)
+      assert(ret.forall(_._2 != null))
+      ret
+    }
   }
 
   protected def eval(term: Abstract): Value = {
-    term match {
-      case Abstract.TermReference(up, index, _) => evalOpenTermReferenceAsReference(up, index)
-      case Abstract.Universe(i) => Value.Universe(i)
-      case _ =>
-        val ret = platformEval(term)
-        assert(ret != null)
-        ret
+    Benchmark.Eval {
+      term match {
+        case Abstract.TermReference(up, index, _) => evalOpenTermReferenceAsReference(up, index)
+        case Abstract.Universe(i) => Value.Universe(i)
+        case _ =>
+          val ret = platformEval(term)
+          assert(ret != null)
+          ret
+      }
     }
   }
 }

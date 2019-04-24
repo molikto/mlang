@@ -14,6 +14,6 @@ sealed trait Pattern {
 
 object Pattern {
   case object Atom extends Pattern
-  case class Make(names: Seq[Pattern]) extends Pattern // TODO named patterns?
+  case class Make(names: Seq[Pattern]) extends Pattern
   case class Construct(name: Tag, pattern: Seq[Pattern]) extends Pattern
 }

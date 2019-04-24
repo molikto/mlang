@@ -127,7 +127,7 @@ sealed trait Value {
     case Lambda(closure) =>
       trans(closure(v))
     case p@PatternLambda(_, _, cases) =>
-      // TODO overlapping patterns, we are now using first match
+      // using first match is even ok for overlapping ones
       var res: Value = null
       var cs = cases
       while (cs.nonEmpty && res == null) {
@@ -287,13 +287,18 @@ sealed trait Value {
     case PathLambda(c) =>
       trans(c(d))
     case a =>
+      def constantCase(isOne: Boolean) = {
+        infer(a).whnf match {
+          case PathType(_, left, right) =>
+            trans(if (isOne) right else left)
+          case _ => logicError()
+        }
+      }
       d match {
-        case Dimension.Constant(i) =>
-          infer(a).whnf match {
-            case PathType(_, left, right) =>
-              trans(if (i) right else left)
-            case _ => logicError()
-          }
+        case Dimension.True =>
+          constantCase(true)
+        case Dimension.False =>
+          constantCase(false)
         case _: Dimension.Generic =>
           PathApp(this, d)
       }
@@ -359,12 +364,12 @@ object Value {
   sealed trait Dimension extends {
     def matches(id: Long): Boolean = this match {
       case Dimension.Generic(iid) => iid == id
-      case Dimension.Constant(_) => false
+      case _ => false
     }
 
     def isConstant: Boolean = this match {
       case Dimension.Generic(_) => false
-      case Dimension.Constant(_) => true
+      case _ => true
     }
 
     def min(t: Dimension) = if ((this max t) == t) this else t
@@ -372,13 +377,13 @@ object Value {
     def max(t: Dimension): Dimension = (this, t) match {
       case (Dimension.Generic(a), Dimension.Generic(b)) =>
         Dimension.Generic(a max b)
-      case (c: Dimension.Constant, _: Dimension.Generic) =>
+      case (c, _: Dimension.Generic) =>
         c
-      case ( _: Dimension.Generic,c: Dimension.Constant) =>
+      case (_: Dimension.Generic, c) =>
         c
-      case (Dimension.Constant(a), Dimension.Constant(b)) =>
+      case (a, b) =>
         assert(a == b, "You should trim false faces")
-        t
+        a
     }
 
     def restrict(pair: DimensionPair): Dimension = this match {
@@ -388,17 +393,15 @@ object Value {
         } else {
           this
         }
-      case Dimension.Constant(_) => this
+      case _ => this
     }
   }
 
   object Dimension {
     case class Generic(id: Long) extends Dimension
-    // TODO make it a destructor
-    case class Constant(isOne: Boolean) extends Dimension
 
-    val True = Constant(true) // 1
-    val False = Constant(false) // 0
+    object True extends Dimension
+    object False extends Dimension
   }
 
   type StuckPos = Value
@@ -416,11 +419,10 @@ object Value {
   case class Function(domain: Value, codomain: Closure) extends HeadCanonical
   case class App(lambda: StuckPos, argument: Value) extends Stuck
 
-  // TODO should have a field: recursive, and it must be recursive
-  // TODO record should have a type
 
   case class RecordNode(name: Name, dependencies: Seq[Int], closure: MultiClosure)
 
+  // TODO should have a field: recursive, and it must be recursive, the will not be able to calculus
   case class Record(level: Int, nodes: Seq[RecordNode]) extends HeadCanonical {
     assert(nodes.isEmpty || nodes.head.dependencies.isEmpty)
 

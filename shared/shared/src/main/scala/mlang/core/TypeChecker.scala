@@ -159,7 +159,6 @@ class TypeChecker private (protected override val layers: Layers)
         val (l, v) = inferTelescope(NameType.flatten(domain), codomain)
         (Value.Universe(l), v)
       case r@Term.Record(fields) =>
-        // TODO calculate real record dependencies
         for (f <- fields) {
           if (f.names.isEmpty) throw TypeCheckException.MustBeNamed()
         }
@@ -227,10 +226,8 @@ class TypeChecker private (protected override val layers: Layers)
             }
         }
       case Term.PatternLambda(_) =>
-        // TODO inferring the type of a lambda, the inferred type might not have the same branches as the lambda itself
         throw TypeCheckException.CannotInferReturningTypeWithPatterns()
       case Term.Lambda(_, _) =>
-        // TODO inferring the type of a lambda, the inferred type might not have the same branches as the lambda itself
         throw TypeCheckException.CannotInferLambda()
       case Term.Projection(left, right) =>
         val (lt, la) = infer(left)
@@ -278,7 +275,11 @@ class TypeChecker private (protected override val layers: Layers)
         val (v, a) = lookupDimension(name)
         (v, a)
       case Term.ConstantDimension(i) =>
-        (Value.Dimension.Constant(i), Abstract.Dimension.Constant(i))
+        if (i) {
+          (Value.Dimension.True, Abstract.Dimension.True)
+        } else {
+          (Value.Dimension.False, Abstract.Dimension.False)
+        }
       case _ => throw TypeCheckException.ExpectingDimension()
     }
   }
@@ -530,7 +531,9 @@ class TypeChecker private (protected override val layers: Layers)
   }
 
 
-  def check(m: Module): TypeChecker = checkDeclarations(m.declarations)._1
+  def check(m: Module): TypeChecker = Benchmark.TypeChecking {
+    checkDeclarations(m.declarations)._1
+  }
 }
 
 private case class DefinitionInfo(

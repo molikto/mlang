@@ -137,8 +137,8 @@ object Abstract {
   sealed trait Dimension
   object Dimension {
     case class Reference(up: Int) extends Dimension
-    // TODO make it a destructor
-    case class Constant(isOne: Boolean) extends Dimension
+    case object True extends Dimension
+    case object False extends Dimension
     case class Restricted(a: Dimension, restriction: DimensionPair) extends Dimension
   }
 }
