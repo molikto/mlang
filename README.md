@@ -2,14 +2,6 @@
 # mlang
 
 [![Join the chat at https://gitter.im/mlang-discuess/community](https://badges.gitter.im/mlang-discuess/community.svg)](https://gitter.im/mlang-discuess/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
-
-* **CURRENT**
-    * ~~type checking rules~~
-    * ~~coe hcom computation rules for pi, record and path~~
-    * type checking for com
-    * coe and hcom computation rules for sum
-* Then: `universe`
-* Then HITs
     
 * roadmap
     * **DONE** totally unsafe MLTT basics
@@ -20,16 +12,14 @@
         * basic `.poor` syntax and parser
     * cubical features
         * **DONE** path type
-        * coe
-        * com
+        * **DONE** coe, com, hcom; checking, computation
+        * extension type?
+        * sum type's Kan ops; fcom, higher inductive types
+        * univalance
     * implicit arguments on the right: *at least I think it is useful, and also it can be seen as a subset of implicit arguments a la Agda, so no harm implementing at all*
         * **QUESTION** what's the problem of unification under restricted context?
         * user defined implicit right form
     * ~~~~~~~~~~
-    * more cubical features
-        * univalance
-        * hit
-        * extension type?
     * user defined eliminations
     * implicit conversions
     * record calculus
@@ -37,7 +27,7 @@
     * small features
         * HTML pretty print
         * naming shadowing
-        * non-dependent closures
+        * non-dependent closures, can we do it so it subtypes?
     * **SOUNDNESS** positivity checker
     * **SOUNDNESS** coverage checker
     * **SOUNDNESS** termination checking

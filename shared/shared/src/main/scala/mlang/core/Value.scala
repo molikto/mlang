@@ -145,7 +145,7 @@ sealed trait Value {
 
 
   def coe(pair: DimensionPair, typ: PathClosure, trans: Value => Value = id): Value =
-    if (pair.from == pair.to) { // just to base
+    if (pair.isTrue) { // just to base
       trans(this)
     } else {
       typ(Dimension.Generic(vdgen())).whnf match {
@@ -214,6 +214,7 @@ sealed trait Value {
     }
 
   def com(pair: DimensionPair, typ: PathClosure, restriction0: Seq[Restriction], trans: Value => Value = id): Value = {
+    // do we need to implement the extra shortcuts?
     trans(Hcom(
       pair,
       typ(pair.to),
@@ -223,7 +224,7 @@ sealed trait Value {
 
   def hcom(pair: DimensionPair, typ: Value, restriction0: Seq[Restriction], trans: Value => Value = id): Value = {
     val rs = restriction0.filter(!_.pair.isFalse)
-    if (pair.from == pair.to) {
+    if (pair.isTrue) {
       trans(this)
     } else {
       rs.find(a => a.pair.from == a.pair.to) match { // always true face
@@ -352,6 +353,7 @@ object Value {
 
     def isTrue: Boolean = from == to
 
+    def sorted: DimensionPair = if ((to max from) == to) this else DimensionPair(to, from)
   }
 
   sealed trait Dimension extends {

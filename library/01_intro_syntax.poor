@@ -23,8 +23,8 @@ define symm_unit(A: type, a: A): (i → a) ≡(─ → a ≡ a) symm(A, a, a, (i
   j → i → hcom(0, j, a, k | i=0 → a | i=1 → a)
 
 // symm_p(p: /x/ ≡(/A[_]/) /y/): y ≡(A.inverse) x
-// define symm_p(A1 A2: type, A: A1 ≡ A2, x: A1, y: A2, p: x ≡(i → A(i)) y): y ≡(i → symm1(type, A1, A2, p, i)) x =
-//  i → com(0, 1, x,
+// define symm_p(A1 A2: type, A: A1 ≡ A2, x: A1, y: A2, p: x ≡(i → A(i)) y): y ≡(i → symm1(type, A1, A2, A, i)) x =
+//  i → com(0, 1, x, j →
 
 
 define trans(A: type, x y z: A, p1: x ≡ y, p2: y ≡ z): x ≡ z =
