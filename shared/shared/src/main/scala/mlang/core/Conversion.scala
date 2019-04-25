@@ -139,6 +139,8 @@ class Conversion {
           equalTypeAbsClosure(t1, t2, less) &&
               equalTerm(t1(Dimension.False), l1, l2) &&
               equalTerm(t1(Dimension.True), r1, r2)
+        case (AbstractType(t1), AbstractType(t2)) =>
+          equalTypeAbsClosure(t1, t2, less)
         case (t1, t2) =>
           equalNeutral(t1, t2).map(_.whnf) match {
             case Some(Universe(l)) => l <= less
@@ -189,6 +191,8 @@ class Conversion {
       case (PathApp(l1, d1), PathApp(l2, d2)) =>
         if (d1 == d2) {
           equalNeutral(l1, l2).map(_.whnf).map(_ match {
+            case AbstractType(typ) =>
+              typ(d1)
             case PathType(typ, _, _) =>
               typ(d1)
             case _ => logicError()
@@ -241,6 +245,9 @@ class Conversion {
           val c = Generic(gen(), d)
           equalTerm(cd(c), s1.app(c), s2.app(c))
         case (PathType(ty, _, _), s1, s2) =>
+          val c = Dimension.Generic(dgen())
+          equalTerm(ty(c), s1.papp(c), s2.papp(c))
+        case (AbstractType(ty), s1, s2) =>
           val c = Dimension.Generic(dgen())
           equalTerm(ty(c), s1.papp(c), s2.papp(c))
         case (Record(_, ns), m1, m2) =>

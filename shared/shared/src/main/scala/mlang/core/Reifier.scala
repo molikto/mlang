@@ -50,6 +50,9 @@ private trait ReifierContext extends ContextBuilder {
       case Value.PathType(ty, left, right) =>
         val (ctx, d) = newDimensionLayer(Name.empty)
         PathType(ctx.reify(ty(d)), reify(left), reify(right))
+      case Value.AbstractType(ty) =>
+        val (ctx, d) = newDimensionLayer(Name.empty)
+        AbstractType(ctx.reify(ty(d)))
       case Value.Make(_) =>
         // we believe at least values from typechecker don't have these stuff
         // we can extends it when time comes
