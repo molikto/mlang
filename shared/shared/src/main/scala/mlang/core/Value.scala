@@ -123,9 +123,9 @@ sealed trait Value {
 
 
   // also used to decide how
-  def app(v: Value, trans: Value => Value = id): Value = this match {
+  def app(v: Value, returns: Value => Value = id): Value = this match {
     case Lambda(closure) =>
-      trans(closure(v))
+      returns(closure(v))
     case p@PatternLambda(_, _, cases) =>
       // using first match is even ok for overlapping ones
       var res: Value = null
@@ -135,7 +135,7 @@ sealed trait Value {
         cs = cs.tail
       }
       if (res != null) {
-        trans(res)
+        returns(res)
       } else {
         PatternStuck(p, v)
       }
@@ -144,9 +144,9 @@ sealed trait Value {
   }
 
 
-  def coe(pair: DimensionPair, typ: AbsClosure, trans: Value => Value = id): Value =
+  def coe(pair: DimensionPair, typ: AbsClosure, returns: Value => Value = id): Value =
     if (pair.isTrue) { // just to base
-      trans(this)
+      returns(this)
     } else {
       typ(Dimension.Generic(vdgen())).whnf match {
         case Function(_, _) =>
@@ -154,7 +154,7 @@ sealed trait Value {
             case f@Function(_, _) => f
             case _ => logicError()
           }
-          trans(Lambda(Value.Closure(a => {
+          returns(Lambda(Value.Closure(a => {
             val a_ = Coe(pair.reverse, typ.map(a => func(a).domain), a)
             val app_ = App(this, a_)
             Coe(pair,
@@ -163,7 +163,7 @@ sealed trait Value {
           })))
         case Record(_, ns) =>
           if (ns.isEmpty) {
-            trans(this)
+            returns(this)
           } else {
             def recor(a: Value): Record = a.whnf match {
               case f@Record(_, _) => f
@@ -189,14 +189,14 @@ sealed trait Value {
                 })
               )
             }
-            trans(Make(closures.map(_.apply(pair.to))))
+            returns(Make(closures.map(_.apply(pair.to))))
           }
         case PathType(_, _, _) =>
           def pah(a: Value): PathType = a.whnf match {
             case f: PathType => f
             case _ => logicError()
           }
-          trans(PathLambda(AbsClosure(dim => {
+          returns(PathLambda(AbsClosure(dim => {
             Com(
               pair,
               typ.map(a => pah(a).typ(dim)),
@@ -213,31 +213,31 @@ sealed trait Value {
       }
     }
 
-  def com(pair: DimensionPair, typ: AbsClosure, restriction0: Seq[Face], trans: Value => Value = id): Value = {
+  def com(pair: DimensionPair, typ: AbsClosure, restriction0: Seq[Face], returns: Value => Value = id): Value = {
     // do we need to implement the extra shortcuts?
-    trans(Hcom(
+    returns(Hcom(
       pair,
       typ(pair.to),
       Coe(pair, typ, this),
       restriction0.map(n => Face(n.restriction, n.body.mapd((j, d) => Coe(DimensionPair(d, pair.to), typ, j))))))
   }
 
-  def hcom(pair: DimensionPair, typ: Value, restriction0: Seq[Face], trans: Value => Value = id): Value = {
+  def hcom(pair: DimensionPair, typ: Value, restriction0: Seq[Face], returns: Value => Value = id): Value = {
     val rs = restriction0.filter(!_.restriction.isFalse)
     if (pair.isTrue) {
-      trans(this)
+      returns(this)
     } else {
       rs.find(a => a.restriction.from == a.restriction.to) match { // always true face
         case Some(n) =>
-          trans(n.body(pair.to))
+          returns(n.body(pair.to))
         case None =>
           typ.whnf match {
-            case Function(_, codomain) => trans(Lambda(Value.Closure(a =>
+            case Function(_, codomain) => returns(Lambda(Value.Closure(a =>
               Hcom(pair, codomain(a), App(this, a), rs.map(n => Face(n.restriction, n.body.map(j => App(j, a)))))
             )))
             case Record(_, ns) =>
               if (ns.isEmpty) {
-                trans(this)
+                returns(this)
               } else {
                 val closures = mutable.ArrayBuffer[AbsClosure]()
                 for (i <- ns.indices) {
@@ -261,10 +261,10 @@ sealed trait Value {
                     })
                   )
                 }
-                trans(Make(closures.map(_.apply(pair.to))))
+                returns(Make(closures.map(_.apply(pair.to))))
               }
             case PathType(ty, left, right) =>
-              trans(PathLambda(AbsClosure(dim => {
+              returns(PathLambda(AbsClosure(dim => {
                 Hcom(
                   pair,
                   ty(dim),
@@ -283,14 +283,14 @@ sealed trait Value {
     }
   }
 
-  def papp(d: Dimension, trans: Value => Value = id): Value = this match {
+  def papp(d: Dimension, returns: Value => Value = id): Value = this match {
     case PathLambda(c) =>
-      trans(c(d))
+      returns(c(d))
     case a =>
       def constantCase(isOne: Boolean) = {
         infer(a).whnf match {
           case PathType(_, left, right) =>
-            trans(if (isOne) right else left)
+            returns(if (isOne) right else left)
           case _ => logicError()
         }
       }
@@ -311,9 +311,9 @@ sealed trait Value {
     case _ => logicError()
   }
 
-  def project(name: Int, trans: Value => Value = id): Value = {
+  def project(name: Int, returns: Value => Value = id): Value = {
     this match {
-      case Make(vs) => trans(vs(name))
+      case Make(vs) => returns(vs(name))
       case _ => Projection(this, name)
     }
   }
@@ -524,7 +524,7 @@ object Value {
   }
 
   /**
-    * this lambda is transparent on the arguments
+    * this lambda is returnsparent on the arguments
     */
   case class Lambda(closure: Closure) extends HeadCanonical
 
