@@ -42,8 +42,6 @@ sealed trait Abstract {
       cases.foreach(_.body.markRecursive(i + 1, c))
     case PathLambda(body) =>
       body.markRecursive(i + 1, c)
-    case AbstractType(typ) =>
-      typ.markRecursive(i + 1, c)
     case PathType(typ, left, right) =>
       typ.markRecursive(i + 1, c)
       left.markRecursive(i, c)
@@ -78,7 +76,6 @@ sealed trait Abstract {
     case Let(definitions, _, in) => definitions.flatMap(a => a.dependencies(i + 1)).toSet ++ in.dependencies(i + 1)
     case PatternLambda(_, cd, cases) => cd.dependencies(i + 1) ++ cases.flatMap(_.body.dependencies(i + 1)).toSet
     case PathLambda(body) => body.dependencies(i + 1)
-    case AbstractType(typ) => typ.dependencies(i + 1)
     case PathType(typ, left, right) => typ.dependencies(i + 1) ++ left.dependencies(i) ++ right.dependencies(i)
     case PathApp(lef, _) => lef.dependencies(i)
     case Coe(_, tp, base) => tp.dependencies(i + 1) ++ base.dependencies(i)
@@ -122,7 +119,6 @@ object Abstract {
   case class PatternLambda(id: Long, typ: Closure, cases: Seq[Case]) extends Abstract
 
   case class PathLambda(body: AbsClosure) extends Abstract
-  case class AbstractType(typ: AbsClosure) extends Abstract
   case class PathType(typ: AbsClosure, left: Abstract, right: Abstract) extends Abstract
   case class PathApp(let: Abstract, r: Dimension) extends Abstract
 

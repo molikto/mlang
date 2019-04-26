@@ -37,8 +37,6 @@ sealed trait Value {
       PatternLambda(id, typ.restrict(lv), cases.map(a => Case(a.pattern, a.closure.restrict(lv))))
     case PathType(typ, left, right) =>
       PathType(typ.restrict(lv), left.restrict(lv), right.restrict(lv))
-    case AbstractType(typ) =>
-      AbstractType(typ.restrict(lv))
     case PathLambda(body) =>
       PathLambda(body.restrict(lv))
     case App(lambda, argument) =>
@@ -191,17 +189,6 @@ sealed trait Value {
             }
             returns(Make(closures.map(_.apply(pair.to))))
           }
-        case AbstractType(_) =>
-          def pah(a: Value): AbstractType = a.whnf match {
-            case f: AbstractType => f
-            case _ => logicError()
-          }
-          returns(PathLambda(AbsClosure(dim => {
-            Coe(
-              pair,
-              typ.map(a => pah(a).typ(dim)),
-              PathApp(this, dim))
-          })))
         case PathType(_, _, _) =>
           def pah(a: Value): PathType = a.whnf match {
             case f: PathType => f
@@ -274,14 +261,6 @@ sealed trait Value {
                 }
                 returns(Make(closures.map(_.apply(pair.to))))
               }
-            case AbstractType(ty) =>
-              returns(PathLambda(AbsClosure(dim => {
-                Hcom(
-                  pair,
-                  ty(dim),
-                  PathApp(this, dim),
-                  rs.map(n => Face(n.restriction, n.body.map(j => PathApp(j, dim)))))
-              })))
             case PathType(ty, left, right) =>
               returns(PathLambda(AbsClosure(dim => {
                 Hcom(
@@ -310,8 +289,6 @@ sealed trait Value {
         infer(a).whnf match {
           case PathType(_, left, right) =>
             returns(if (isOne) right else left)
-          case AbstractType(_) =>
-            PathApp(this, d)
           case _ => logicError()
         }
       }
@@ -560,7 +537,6 @@ object Value {
   case class Let(var items: Seq[Value], order: Seq[Int], body: Value) extends Syntaxial
 
 
-  case class AbstractType(typ: AbsClosure) extends HeadCanonical
   case class PathType(typ: AbsClosure, left: Value, right: Value) extends HeadCanonical
 
   case class PathLambda(body: AbsClosure) extends HeadCanonical
@@ -594,8 +570,6 @@ object Value {
         Universe(level)
       case PathType(typ, _, _) =>
         infer(typ.apply(Dimension.Generic(vdgen())))
-      case AbstractType(typ) =>
-        infer(typ.apply(Dimension.Generic(vdgen())))
       case App(l1, a1) =>
         infer(l1).whnf match {
           case Function(_, c) =>
@@ -611,10 +585,7 @@ object Value {
         l1.typ(s1)
       case PathApp(l1, d1) =>
         infer(l1).whnf match {
-          case PathType(typ, _, _) =>
-            typ(d1)
-          case AbstractType(typ) =>
-            typ(d1)
+          case PathType(typ, _, _) => typ(d1)
           case _ => logicError()
         }
       case _ => logicError()

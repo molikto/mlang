@@ -101,9 +101,6 @@ trait PlatformEvaluator extends BaseEvaluator {
         case Abstract.PathLambda(body) =>
           val d = depth + 1
           s"PathLambda(AbsClosure(dm$d => ${emit(body, d)}))"
-        case Abstract.AbstractType(typ) =>
-          val d = depth + 1
-          s"AbstractType(AbsClosure(dm$d => ${emit(typ, d)}))"
         case Abstract.PathType(typ, left, right) =>
           val d = depth + 1
           s"PathType(AbsClosure(dm$d => ${emit(typ, d)}), ${emit(left, depth)}, ${emit(right, depth)})"

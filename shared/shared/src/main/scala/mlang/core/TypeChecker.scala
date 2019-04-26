@@ -292,7 +292,7 @@ class TypeChecker private (protected override val layers: Layers)
         head._2 match {
           case Term.I =>
             val (cl, ca) = newDimensionLayer(head._1)._1.inferTelescope(tail, codomain)
-            (cl, Abstract.AbstractType(ca))
+            (cl, Abstract.PathType(ca, ???, ???))
           case _ =>
             val (dl, da) = inferLevel(head._2)
             val ctx = newTermLayer(head._1, eval(da))._1
@@ -384,15 +384,6 @@ class TypeChecker private (protected override val layers: Layers)
             } else {
               throw TypeCheckException.PathEndPointsNotMatching()
             }
-          case _ => fallback()
-        }
-      case Value.AbstractType(typ) =>
-        term match {
-          case Term.Lambda(n, body) =>
-            val (c1, dv) = newDimensionLayer(n.nonEmptyOrElse(hint))
-            val t1 = typ(dv)
-            val a1 = c1.check(body, t1, tail, hintCodomain(lambdaFunctionCodomainHint))
-            Abstract.PathLambda(a1)
           case _ => fallback()
         }
       case _ => fallback()
