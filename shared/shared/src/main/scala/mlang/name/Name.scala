@@ -7,10 +7,15 @@ import mlang.utils.Text
 // so an empty name is not something concerning the user of this class at all
 case class Name(main: Text) {
 
+
   def source: String = s"Name"
   def intersect(name: Name): Boolean = this.main.nonEmpty && name.main.nonEmpty && name.main == main
   def by(name: Text): Boolean = this.main.nonEmpty && name.nonEmpty && name == main
   def refSelf: Ref = main
+  def nonEmptyOrElse(hint: Name): Name = if (isEmpty) hint else this
+  def isEmpty: Boolean = main.isEmpty
+
+  def nonEmpty: Boolean = !isEmpty
 
   // what's the difference? sometimes, during parsing, a name can be the same thing as a ref, so this tests
   // if this name can actually representing a ref
@@ -29,6 +34,4 @@ case class Name(main: Text) {
 
 object Name {
   val empty: Name = Name("")
-
-  type Opt = Option[Name]
 }

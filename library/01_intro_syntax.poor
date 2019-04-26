@@ -16,23 +16,27 @@ define apd(A: type, P: A ⇒ type, f: (x: A) ⇒ P(x), x y: A, p: x ≡ y): coe(
 define symm(A: type, x y: A, p: x ≡ y): y ≡ x =
   i → hcom(0, 1, x, k | i=0 → p(k) | i=1 → x)
 
-define symm1(A: type(1), x y: A, p: x ≡ y): y ≡ x =
-  i → hcom(0, 1, x, k | i=0 → p(k) | i=1 → x)
+define symm_filler(A: type, x y: A, p: x ≡ y): (─ → x) ≡[j → p(j) ≡ x] symm(A, x, y, p) =
+  j → i → hcom(0, j, x, k | i=0 → p(k) | i=1 → x)
 
-define symm_unit(A: type, a: A): (i → a) ≡(─ → a ≡ a) symm(A, a, a, (i → a)) =
-  j → i → hcom(0, j, a, k | i=0 → a | i=1 → a)
+define symm_unit(A: type, x: A): (─ → x) ≡[─ → x ≡ x] symm(A, x, x, (─ → x)) =
+  symm_filler(A, x, x, ─ → x)
 
-// symm_p(p: /x/ ≡(/A[_]/) /y/): y ≡(A.inverse) x
-// define symm_p(A1 A2: type, A: A1 ≡ A2, x: A1, y: A2, p: x ≡(i → A(i)) y): y ≡(i → symm1(type, A1, A2, A, i)) x =
-//  i → com(0, 1, x, j →
-
+define symmp(A1 A2: type, A: A1 ≡ A2, x: A1, y: A2, p: x ≡[i → A(i)] y): y ≡[i → symm(type, A1, A2, A, i)] x =
+  i → com(0, 1, j → symm_filler(type, A1, A2, A, j, i), x, k | i=0 → p(k) | i=1 → x)
 
 define trans(A: type, x y z: A, p1: x ≡ y, p2: y ≡ z): x ≡ z =
   i → hcom(0, 1, p1(i), k | i=0 → x | i=1 → p2(k))
 
+
 define inductively nat: type = sum {
   case zero
   case suc(:nat)
+}
+
+define fiber(A B: type, f: A ⇒ B, b: B): type = record {
+  field from: A
+  field is: f(from) ≡ b
 }
 
 define bool = sum { case true false }
@@ -54,7 +58,12 @@ define fun_ext(a: type, b: a ⇒ type, f g: (x: a) ⇒ b(x), p: (x: a) ⇒ f(x) 
 
 /*
 
-define fun_ext(f g: (x: /a/) ⇒ /b(x)/, p: (x: a) ⇒ f(x) ≡ g(x)): f ≡ g =
+app (l: list(/A/)) of (a: nat): A =
+
+
+define implicitly (a: list(/A/): nat ⇒ A =
+
+define fun_ext(.f .g: (x: /A/) ⇒ /B/(x), p: (x: a) ⇒ f(x) ≡ g(x)): f ≡ g =
   i → x → p(x, i)
 
 projection (p: /x/ ≡ /y/).reverse: y ≡ x =
@@ -171,8 +180,6 @@ define ttt(a b: nat, c: nat ⇒ type, d: type ⇒ type): type = d(c(plus(a, b)))
 
 
 
-
-
 define assert_nat_eq_holder(b: nat ⇒ type, c: (i: nat) ⇒ b(i)): b(sixteen) = c(sixteen2)
 
 
@@ -185,7 +192,7 @@ define fin3_copy = sum {
   case one two three
 }
 
-define ig = { // "{" starts a let expression
+define ig = run { // "{" starts a let expression
 
   define fin3 = sum {
     case one two three

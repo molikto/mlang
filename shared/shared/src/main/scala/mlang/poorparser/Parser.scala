@@ -31,7 +31,7 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
     override def whitespaceChar: Parser[Char] = elem("", _ == '│') | super.whitespaceChar
   }
 
-  lexical.reserved ++= List("define", "declare", "case", "__debug", "as", "coe", "hcom", "com","field", "ignored", "match", "make", "record", "type", "sum", "inductively", "with_constructors", "\uD835\uDD40")
+  lexical.reserved ++= List("define", "declare", "case", "__debug", "as", "coe", "hcom", "com","field", "ignored", "match", "make", "record", "type", "sum", "inductively", "run", "with_constructors", "I")
   lexical.delimiters ++= List("{", "}", "[", "]", ":", ",", "(", ")", "≡", "─", "┬", "┌", "⊏", "└", "├", "⇒", "→", "+", "-", ";", "=", "@", "\\", ".", "|")
 
   def delimited[T](a: String, t: Parser[T], b: String): Parser[T] = a ~> t <~ b
@@ -60,7 +60,7 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
     Universe(a.toInt)
   } | keyword("type") ^^ { _ => Universe(0) }
 
-  lazy val let: PackratParser[Let] = delimited("{", rep(declaration) ~ term, "}") ^^ { a => Let(a._1, a._2)}
+  lazy val let: PackratParser[Let] = keyword("run") ~> delimited("{", rep(declaration) ~ term, "}") ^^ { a => Let(a._1, a._2)}
 
   lazy val teleInner =  rep1sep(opt(rep1(ident)) ~  (":" ~> term), ",") ^^ {
     a => a.map(a => NameType(a._1.getOrElse(Seq.empty).map(a => Name(Text(a))), a._2)) }
@@ -79,7 +79,7 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
         patternLambda |
         app |
         pathType |
-        record |
+        record | interval |
         projection |
         sum |
         coe | com | hcom |
@@ -88,9 +88,9 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
         absDimension |
         ident ^^ {a => Reference(a)}
 
-  lazy val interval: PackratParser[Term] = keyword("\uD835\uDD40") ^^ { _ => I }
+  lazy val interval: PackratParser[Term] = keyword("I") ^^ { _ => I }
   // path type
-  lazy val pathType: PackratParser[PathType] = term ~ ("≡" ~> opt(delimited("(", term ,")")) ~ term) ^^ {a =>
+  lazy val pathType: PackratParser[PathType] = term ~ ("≡" ~> opt(delimited("[", term ,"]")) ~ term) ^^ {a =>
     PathType(a._2._1, a._1, a._2._2)
   }
 
@@ -117,12 +117,13 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
   lazy val pi: PackratParser[Function] = tele ~ ("⇒" ~> term) ^^ {a => Function(a._1, a._2)} |
     (term <~ "⇒") ~ term ^^ { a => Function(Seq(NameType(Seq.empty, a._1)), a._2)}
 
-  lazy val atomicPattern: PackratParser[Name.Opt] = "─" ^^ {_ => None: Option[Name]} | ident ^^ { a =>
-    Some(Name(Text(a)))
+  lazy val atomicPattern: PackratParser[Name] = "─" ^^ {_ => Name.empty } | ident ^^ { a =>
+    Name(Text(a))
   }
 
 
-  lazy val lambda: PackratParser[Lambda] = atomicPattern ~ ("→" ~> term) ^^ {a => Lambda(a._1, a._2) }
+  lazy val lambda: PackratParser[Lambda] =
+    atomicPattern ~ ("→" ~> term) ^^ {a => Lambda(a._1, a._2) }
 
   lazy val groupPattern: PackratParser[Pattern] =  delimited("(", rep1sep(pattern, ","),")") ^^ { a => Pattern.Group(a) }
 
@@ -148,7 +149,7 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
   lazy val patternCases: PackratParser[PatternLambda] = (patternCaseEmpty | patternCaseSingle | patternMultiple) ^^ {
     a => PatternLambda(a)
   }
-  lazy val patternLambda : PackratParser[Term] =  "─" ~> patternContinue ^^ { a => Term.Lambda(None, a) } |  patternCases
+  lazy val patternLambda : PackratParser[Term] =  "─" ~> patternContinue ^^ { a => Term.Lambda(Name.empty, a) } |  patternCases
 
   lazy val app: PackratParser[App] = term ~ delimited("(", repsep(term, ","), ")") ^^ {a => App(a._1, a._2)}
 

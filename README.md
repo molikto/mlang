@@ -2,6 +2,11 @@
 # mlang
 
 [![Join the chat at https://gitter.im/mlang-discuess/community](https://badges.gitter.im/mlang-discuess/community.svg)](https://gitter.im/mlang-discuess/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+
+* next... NOW!
+    * what's the "ideal" cubical theory? extension types?
+    * understand how implicit variables implemented
+    * understand how the more complicated part of a cubical theory implemented
     
 * roadmap
     * **DONE** totally unsafe MLTT basics

@@ -116,7 +116,7 @@ trait ContextBuilder extends Context {
       p match {
         case Patt.Atom(name) =>
           var ret: (Value, Pattern) = null
-          name.flatMap(_.asRef) match {
+          name.asRef match {
             case Some(ref) =>
               t.whnf match {
                 case Value.Sum(_, cs) if cs.exists(c => c.name == ref && c.parameters == 0) =>
@@ -127,9 +127,7 @@ trait ContextBuilder extends Context {
           }
           if (ret == null) {
             val open = Value.Generic(gen(), t)
-            if (name.isDefined) {
-              vvv.append(Binder(gen(), name.get, t, true, true, open))
-            }
+            vvv.append(Binder(gen(), name, t, true, true, open))
             ret = (open, Pattern.Atom)
           }
           ret

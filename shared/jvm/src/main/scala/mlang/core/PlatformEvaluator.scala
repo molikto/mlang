@@ -9,12 +9,17 @@ import scala.tools.reflect.ToolBox
 
 
 
+
 trait PlatformEvaluator extends BaseEvaluator {
 
   private def compile[A](string: String): A = Benchmark.HoasCompile {
-    val toolbox = currentMirror.mkToolBox()
-    val tree = toolbox.parse(string)
-    toolbox.eval(tree).asInstanceOf[A]
+    try {
+      val toolbox = currentMirror.mkToolBox()
+      val tree = toolbox.parse(string)
+      toolbox.eval(tree).asInstanceOf[A]
+    } catch {
+      case e: Throwable => throw PlatformEvaluatorException(string, e)
+    }
   }
 
   private def source(a: Text): String = "Text(\"" + a.string + "\")"
@@ -115,7 +120,7 @@ trait PlatformEvaluator extends BaseEvaluator {
         case Abstract.Com(dir, tp, base, faces) =>
           val d = depth + 2
           s"Com(${emit(dir, depth)}, " +
-              s"${emit(tp, depth + 1)}, " +
+              s"AbsClosure(dm${depth + 1} => ${emit(tp, depth + 1)}), " +
               s"${emit(base, depth)}, " +
               s"Seq(${faces.map(a => s"Face(${emit(a.pair, depth)}, AbsClosure(dm$d => ${emit(a.body, d)}))").mkString(", ")})" +
               s")"

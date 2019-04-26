@@ -4,9 +4,7 @@ import mlang.name._
 
 import scala.collection.mutable
 
-
 sealed trait PatternExtractException extends CoreException
-
 
 object PatternExtractException {
   case class MakeWrongSize() extends PatternExtractException
@@ -439,6 +437,10 @@ object Value {
 
   case class Universe(level: Int) extends HeadCanonical
 
+  object Universe {
+    def up(i: Int) = Universe(i) // type : type for now
+  }
+
   case class Function(domain: Value, codomain: Closure) extends HeadCanonical
   case class App(lambda: StuckPos, argument: Value) extends Stuck
 
@@ -580,7 +582,7 @@ object Value {
     t1.whnf match {
       case Generic(_, v1) =>
         v1
-      case Universe(level) => Universe(level + 1)
+      case Universe(level) => Universe.up(level)
       case Function(domain, codomain) =>
         (infer(domain), infer(codomain(Generic(vgen(), domain)))) match {
           case (Universe(l1), Universe(l2)) => Universe(l1 max l2)

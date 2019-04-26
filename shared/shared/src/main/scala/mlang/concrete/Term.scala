@@ -8,13 +8,13 @@ sealed trait Term
 case class NameType(names: Seq[Name], ty: Term)
 
 object NameType {
-  type FlatSeq = Seq[(Name.Opt, Term)]
+  type FlatSeq = Seq[(Name, Term)]
 
   def flatten(names: Seq[NameType]): NameType.FlatSeq = names.flatMap(n => {
     if (n.names.isEmpty) {
-      Seq((None, n.ty))
+      Seq((Name.empty, n.ty))
     } else {
-      n.names.map(m => (Some(m), n.ty))
+      n.names.map(m => (m, n.ty))
     }
   })
 }
@@ -45,7 +45,7 @@ object Term {
 
   case class Case(pattern: Pattern, body: Term)
   case class PatternLambda(branches: Seq[Case]) extends Term
-  case class Lambda(name: Name.Opt, body: Term) extends Term
+  case class Lambda(name: Name, body: Term) extends Term
 
   // TODO can you define a macro in a abstracted context?
   case class Let(declarations: Seq[Declaration], in: Term) extends Term with Block
@@ -60,8 +60,8 @@ object Term {
   case class Pair(from: Term, to: Term)
   case class Face(dimension: Pair, term: Term)
   case class Coe(direction: Pair, typ: Term, base: Term) extends Term
-  case class Hcom(direction: Pair, base: Term, ident: Name.Opt, faces: Seq[Face]) extends Term
-  case class Com(direction: Pair, typ: Term, base: Term, ident: Name.Opt, faces: Seq[Face]) extends Term
+  case class Hcom(direction: Pair, base: Term, ident: Name, faces: Seq[Face]) extends Term
+  case class Com(direction: Pair, typ: Term, base: Term, ident: Name, faces: Seq[Face]) extends Term
 }
 
 case class Module(declarations: Seq[Declaration])
@@ -94,7 +94,7 @@ object Declaration {
 sealed trait Pattern
 
 object Pattern {
-  case class Atom(id: Name.Opt) extends Pattern
+  case class Atom(id: Name) extends Pattern
   case class Group(names: Seq[Pattern]) extends Pattern
   // TODO user defined named patterns
   case class NamedGroup(name: Ref, pattern: Seq[Pattern]) extends Pattern
