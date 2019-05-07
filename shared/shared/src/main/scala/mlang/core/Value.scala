@@ -16,6 +16,11 @@ object PatternExtractException {
 
 import Value._
 
+object Helpers {
+
+}
+
+import Helpers._
 sealed trait Value {
 
   // TODO how does it interact with recursive references?
@@ -71,11 +76,27 @@ sealed trait Value {
   }
 
   private var _whnf: Value = _
+  private var _from: Value = _
 
 
 
+
+  def wrap(a: Value, map: Value => Value): Value = {
+    val w = a.whnf
+    if (w.eq(a)) {
+      this
+    } else {
+      map(a)
+    }
+  }
+
+
+  // it asserts that if one value cannot be reduced more, it will be eq the original
   def whnf: Value = {
     if (_whnf == null) {
+      def eqFaces(f1: Seq[Face], f2: Seq[Face]): Boolean = f1.eq(f2) || (f1.size == f2.size && f1.zip(f2).forall(p => {
+        p._1.restriction == p._2.restriction && p._1.body.eq(p._2.body)
+      }))
       _whnf = this match {
         case a: HeadCanonical =>
           a
@@ -89,30 +110,52 @@ sealed trait Value {
             case r: Record =>
               assert(i == -1)
               r.maker
-            case _ => logicError()
+            case _ => logicError() // because we don't accept anoymouns maker expression
           }
         case Let(_, _, body) =>
           body.whnf
         case App(lambda, argument) =>
-          lambda.whnf.app(argument, whn)
+          lambda.whnf.app(argument, whn) match {
+            case App(l2, a2) if lambda.eq(l2) && a2.eq(argument) => this
+            case a => a
+          }
         case PatternStuck(lambda, stuck) =>
-          lambda.app(stuck.whnf, whn)
+          lambda.app(stuck.whnf, whn) match {
+            case PatternStuck(l2, s2) if lambda.eq(l2) && stuck.eq(s2) => this
+            case a => a
+          }
         case Projection(make, field) =>
-          make.whnf.project(field, whn)
+          make.whnf.project(field, whn) match {
+            case Projection(m2, f2) if make.eq(m2) && field == f2 => this
+            case a => a
+          }
         case PathApp(left, stuck) =>
-          left.whnf.papp(stuck, whn)
+          left.whnf.papp(stuck, whn) match {
+            case PathApp(l2, s2) if left.eq(l2) && stuck == s2 => this
+            case a => a
+          }
         case Coe(direction, tp, base) =>
           // kan ops case analysis on tp, so they perform their own whnf
-          base.coe(direction, tp, whn)
+          base.coe(direction, tp, whn) match {
+            case Coe(d2, t2, b2) if d2 ==direction && t2.eq(tp) && base.eq(b2) => this
+            case a => a
+          }
         case Hcom(direction, tp, base, faces) =>
-          base.hcom(direction, tp, faces, whn)
+          base.hcom(direction, tp, faces, whn) match {
+            case Hcom(d2, t2, b2, f2) if direction == d2 && tp.eq(t2) && base.eq(b2) && eqFaces(faces, f2) => this
+            case a => a
+          }
         case Com(direction, tp, base, faces) =>
-          base.com(direction, tp, faces, whn)
+          base.com(direction, tp, faces, whn) match {
+            case Com(d2, t2, b2, f2) if direction == d2 && tp.eq(t2) && base.eq(b2) && eqFaces(faces, f2) => this
+            case a => a
+          }
         case Restricted(a, restriction) =>
           restriction.foldLeft(a.whnf) { (v, r) =>
             v.restrict(r).whnf
           }
       }
+      if (!_whnf.eq(this)) _whnf._from = this
       _whnf._whnf = _whnf
     }
     _whnf
@@ -142,7 +185,7 @@ sealed trait Value {
   }
 
 
-  def coe(pair: DimensionPair, typ: AbsClosure, returns: Value => Value = id): Value =
+  private def coe(pair: DimensionPair, typ: AbsClosure, returns: Value => Value = id): Value =
     if (pair.isTrue) { // just to base
       returns(this)
     } else {
@@ -211,7 +254,7 @@ sealed trait Value {
       }
     }
 
-  def com(pair: DimensionPair, typ: AbsClosure, restriction0: Seq[Face], returns: Value => Value = id): Value = {
+  private def com(pair: DimensionPair, typ: AbsClosure, restriction0: Seq[Face], returns: Value => Value = id): Value = {
     // do we need to implement the extra shortcuts?
     returns(Hcom(
       pair,
@@ -220,8 +263,9 @@ sealed trait Value {
       restriction0.map(n => Face(n.restriction, n.body.mapd((j, d) => Coe(DimensionPair(d, pair.to), typ, j))))))
   }
 
-  def hcom(pair: DimensionPair, typ: Value, restriction0: Seq[Face], returns: Value => Value = id): Value = {
-    val rs = restriction0.filter(!_.restriction.isFalse)
+  private def hcom(pair: DimensionPair, typ: Value, restriction0: Seq[Face], returns: Value => Value = id): Value = {
+    val rs0 = restriction0.filter(!_.restriction.isFalse)
+    val rs = if (rs0.size == restriction0.size) restriction0 else rs0
     if (pair.isTrue) {
       returns(this)
     } else {
@@ -321,12 +365,14 @@ sealed trait Value {
 object Value {
 
   implicit class MultiClosure(private val func: Seq[Value]=> Value) extends AnyVal {
+    def eq(b: MultiClosure) = func.eq(b.func)
     def apply() = func(Seq.empty)
     def apply(seq: Seq[Value]): Value = func(seq)
     def restrict(lv: DimensionPair): MultiClosure = Value.MultiClosure(v => this(v).restrict(lv))
   }
 
   implicit class Closure(private val func: Value => Value) extends AnyVal {
+    def eq(b: Closure) = func.eq(b.func)
     def apply(seq: Value): Value = func(seq)
     def restrict(lv: DimensionPair): Closure = Value.Closure(v => this(v).restrict(lv))
   }
@@ -340,6 +386,7 @@ object Value {
   }
 
   implicit class AbsClosure(private val func: Dimension => Value) extends AnyVal {
+    def eq(b: AbsClosure) = func.eq(b.func)
     def apply(seq: Dimension): Value = func(seq)
     def restrict(lv: DimensionPair): AbsClosure = Value.AbsClosure(v => this(v).restrict(lv))
     def mapd(a: (Value, Dimension) => Value): AbsClosure = AbsClosure(d => a(this(d), d))
@@ -428,7 +475,7 @@ object Value {
   case class Record(level: Int, nodes: Seq[RecordNode]) extends HeadCanonical {
     assert(nodes.isEmpty || nodes.head.dependencies.isEmpty)
 
-    def rthis(): Record = this // Reference(this).deref(r)
+    private def rthis(): Value = Reference(this, 2)
 
     lazy val maker: Value = {
       def rec(known: Seq[Value], remaining: Seq[RecordNode]): Value = {
@@ -484,7 +531,7 @@ object Value {
   // TODO should have a field: recursive, and it must be recursive, also in case of indexed, use Constructor instead of value
   case class Constructor(name: Tag, parameters: Int, nodes: Seq[MultiClosure]) {
     private[Value] var _sum: Sum = _
-    def rthis(): Sum = _sum // Reference(_sum).deref(r)
+    private def rthis(): Value = Reference(_sum, 2)
 
     lazy val maker: Value = {
       def rec(known: Seq[Value], remaining: Seq[MultiClosure]): Value = {

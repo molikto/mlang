@@ -71,36 +71,41 @@
 
 ### values
 
+#### hoas core term `Value`
+
+our value is untyped, higher order abstract syntax
+
 we represent recursive references directly by recursive data structure
 
-and application, projection, reference as redex
+because recursive definitions is always terminating, this means all recursive references is guarded. this allows us to directly model recursive reference in a direct way (model recursive references as recursive references in host language, or, hoas for recursive references)
 
-for example `define a = a` will be of code `val r = RecursiveReference(null); val a = r.deref(); r.value = a; a`
+this means non-guarded recursive references will be rejected by evaluator, which is a acceptable minor detail
 
-where `deref` is a redex and under normal evaluation rule, it will evaluate to `null` which will be rejected
+a recursive type like `nat` is ok because we consider the record and constructor fields all as guarded by a "multi closure", or a closure with a list of values
 
-this means non-guarded recursive references will be rejected by evaluator
+unlike normalization by evaluation, redux (application, projection, cubical hcom etc.) etc is translated to stuck values. this is because elaborator needs to fill holes by reify from value, and directly normalizing all redux (out side of a closure) will make the term very big
 
-for a guarded recursive reference, then it is ok, for example `val r = RecursiveReference(null); val a = Lambda(_ ⇒ r.deref()); r.value = a; a`
+we also consider reference, let expression as redux, but they are redux that don't need any arguments
 
-when we evaluate `a(something)` we will get `a` again
+#### structural types
 
-a recursive type like `nat` is ok because we consider the record and constructor fields as guarded
+unlike almost all implementations, we try to treat type definitions structural. validity of recursive definitions can mostly done by syntax restrictions, just like how people makes "nested inductive definitions" works (I suppose). so there is no "schema" of parameterized inductive type definitions, just recursive sum types under a telescope, the "schema" then is a semantics level predicate, not syntax level construction
 
-`eval`, reductions and closures all take a parameter of reduction strategy
+#### dbi core term `Abstract`
 
-so the default reduction strategy has the property:
+this class is just dbi core term, it exists is because hoas is not composible, you cannot "rebind" a open reference
 
-* it don't accept non-guarded value definitions, which is non-terminating anyway
-* it will always fully evaluate to normal forms, **except** under closures, this means the non-guarded part will not have any reference or recursive reference,
-and it will be exactly like a theory without recursive reference and references
-* one-time substitution is always terminating **?????** (TODO really? assuming we have termination checker, can we have this property???)
+the conversion from `Abstract` to `Value` is called `eval`, we have currently a compiler by using the Scala compiler directly
 
-renormalize: it is because a closure has been applied to some value that is not normal form, then these values will not be normalized even if you only perform heredity substitution. it is a bit wired.
+
+#### reductions
+
+we have weak head normal form defined on hoas, `wnhf`, the `app` closure application is call-by-need because we implemented whnf caching
+
 
 ### conversion checking
 
-the conversion checking compared to the literature is wired, because it doesn't have de Bruijn indices, so it uses a unique id for open variables, so we don't need to do index shuffling, I don't know if this is correct actually.
+the conversion checking is type directed conversion checking, but as we use hoas, open variables have a nominal equality, and we don't do index shuffling
 
 the assumptions is: values is well typed, although values don't have type annotations, but for example a stuck term of application, if you know the left hand side has a function type, then you know that right hand side has the type of the domain
 
@@ -108,12 +113,16 @@ so the algorithm is type directed is in this sense: the type is a **assertion** 
 
 in case of `equalNeutural`, there is no assertion that the two input is of the same type, it has a return type `Option[Value]` and `Some(v)` is a **assertion** that the two neutral type is of the same type, **and of the same value** and the type is `v`
 
-#### how to handle recursive definitions
+the conversion checking handles recursive definitions by memorizing equalities between path lambdas, **here we have a assumption all term level recursion is done inside a pattern matching closure** this is somehow inspired by Mini-TT
 
-it seems to me Agda and Mini-TT handles the problem of readback recursive definitions by: when reading back (or conversion checking) pattern matching neutral value, instead of reading back all the cases (add thus ends up in an infinite loop, for example when reading back `(plus a b)` where a, b is open variable), it only reads back an id of the pattern matching lambda, since a pattern matching lambda is uniquely defined by its src position. (about Agda is only guessing, because Agda seems to have a nominal definitional equality for pattern matching) 
+something similar should be possible with recursive type definitions, in this case, we should treat the recursive references as "open" and do caching
 
 
-it is extended in our case, by also allowing the id to be different, but as an assumption see `Conversion.scala`
+### kan types
+
+context restrictions is done by quoting any **reference** not defined in the restricted context by a restriction. restriction works for all stuff, and it don't further evaluate terms at all. it is the one that calls the restriction will evaluate them further?
+
+we have `hcom`, `coe` as eliminations, in a normalized closed value, they should not appear. they interact with restrictions, just like a path lambda interact with dimensions, then they are inductively defined on all type formers
 
 
 ### implicit on the right
@@ -129,16 +138,6 @@ cong: `f: /A/ ⇒ /B[A]/, p: /x/ ≡_A /y/, f(x) ≡B(p) f(y)`
 * how to make inductive type parameters injective?
 
 we lost the ability to infer type `a: (x) ⇒ f(x) ≡ g(x)` by application
-
-### inductive type
-
-we don't have special syntax for parameterized inductive type, parameters is done by lambdas, and recursion is done by sum + recursion. this saves syntax. we have restrictions though: like inductive type are likely can only be defined in a global context (for example the conversion checking might loop), we don't know if you can define a inductive type in a restricted context. anyway. the idea is inductive definitions is globally defined `define inductively a(...) = sum ...` just this syntax. we can extend latter to parameterized by more telescope etc. the same applies for inductively defined records.
-
-### kan types
-
-context restrictions is done by quoting any **reference** not defined in the restricted context by a restriction. restriction works for all stuff, and it don't further evaluate terms at all. it is the one that calls the restriction will evaluate them further?
-
-we have `hcom`, `coe` as eliminations, in a normalized closed value, they should not appear. they interact with restrictions, just like a path lambda interact with dimensions, then they are inductively defined on all type formers
 
 ## math
 

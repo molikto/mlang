@@ -51,13 +51,13 @@ class Conversion {
 
   private implicit def optToBool[T](opt: Option[T]): Boolean = opt.isDefined
 
-  private def equalRecordFields(n1: Seq[RecordNode], n2: Seq[RecordNode], less: Int): Boolean = {
+  private def equalRecordFields(n1: Seq[RecordNode], n2: Seq[RecordNode]): Boolean = {
     if (n1.map(_.name) == n2.map(_.name)) {
       n1.zip(n2).foldLeft(Some(Seq.empty[Value]) : Option[Seq[Value]]) { (as0, pair) =>
         as0 match {
           case Some(as) if pair._1.dependencies == pair._2.dependencies =>
             // TODO dependencies is a syntaxial equality stuff
-            equalTypeMultiClosure(pair._1.dependencies.map(as), pair._1.closure, pair._2.closure, less).map(as :+ _)
+            equalTypeMultiClosure(pair._1.dependencies.map(as), pair._1.closure, pair._2.closure).map(as :+ _)
           case None =>
             None
         }
@@ -67,14 +67,14 @@ class Conversion {
     }
   }
 
-  private def equalConstructor(c1: Constructor, c2: Constructor, less: Int): Boolean = {
+  private def equalConstructor(c1: Constructor, c2: Constructor): Boolean = {
     if (c1.eq(c2)) {
       true
     } else {
       c1.name == c2.name && c1.parameters == c2.parameters && c1.nodes.size == c2.nodes.size && c1.nodes.zip(c2.nodes).foldLeft(Some(Seq.empty[Value]) : Option[Seq[Value]]) { (as0, pair) =>
           as0 match {
             case Some(as) =>
-              equalTypeMultiClosure(as, pair._1, pair._2, less).map(as :+ _)
+              equalTypeMultiClosure(as, pair._1, pair._2).map(as :+ _)
             case None =>
               None
           }
@@ -84,20 +84,20 @@ class Conversion {
 
 
 
-  private def equalTypeMultiClosure(ts: Seq[Value], c1: MultiClosure, c2: MultiClosure, less: Int): Option[Value] = {
+  private def equalTypeMultiClosure(ts: Seq[Value], c1: MultiClosure, c2: MultiClosure): Option[Value] = {
     val cs = ts.map(t => Generic(gen(), t))
     val t = c1(cs)
-    if (equalType(t, c2(cs), less)) {
+    if (equalType(t, c2(cs))) {
       Some(t)
     } else {
       None
     }
   }
 
-  private def equalTypeClosure(t: Value, c1: Closure, c2: Closure, less: Int = Int.MaxValue): Option[Value] = {
+  private def equalTypeClosure(t: Value, c1: Closure, c2: Closure): Option[Value] = {
     val c = Generic(gen(), t)
     val tt = c1(c)
-    if (equalType(tt, c2(c), less)) {
+    if (equalType(tt, c2(c))) {
       Some(tt)
     } else {
       None
@@ -110,13 +110,13 @@ class Conversion {
   }
 
 
-  private def equalTypeAbsClosure(t1: AbsClosure, t2: AbsClosure, less: Int = Int.MaxValue): Boolean = {
+  private def equalTypeAbsClosure(t1: AbsClosure, t2: AbsClosure): Boolean = {
     val c = Dimension.Generic(dgen())
-    equalType(t1(c), t2(c), less)
+    equalType(t1(c), t2(c))
   }
 
 
-  private def equalType(tm10: Value, tm20: Value, less: Int = Int.MaxValue): Boolean = {
+  private def equalType(tm10: Value, tm20: Value): Boolean = {
     val tm1 = tm10.whnf
     val tm2 = tm20.whnf
     if (tm1.eq(tm2)) {
@@ -128,20 +128,20 @@ class Conversion {
       typeAssumptions.append((tm1, tm2))
       (tm1, tm2) match {
         case (Function(d1, c1), Function(d2, c2)) =>
-          equalType(d1, d2, less) && equalTypeClosure(d1, c1, c2, less)
+          equalType(d1, d2) && equalTypeClosure(d1, c1, c2)
         case (Universe(l1), Universe(l2)) =>
-          l1 == l2 && l1 <= less
+          l1 == l2
         case (Record(l1, n1), Record(l2, n2)) =>
-          l1 == l2 && l1 <= less && equalRecordFields(n1, n2, l1)
+          l1 == l2 && equalRecordFields(n1, n2)
         case (Sum(l1, c1), Sum(l2, c2)) =>
-          l1 == l2 && l1 <= less && c1.size == c2.size && c1.zip(c2).forall(p => equalConstructor(p._1, p._2, l1))
+          l1 == l2 && c1.size == c2.size && c1.zip(c2).forall(p => equalConstructor(p._1, p._2))
         case (PathType(t1, l1, r1), PathType(t2, l2, r2)) =>
-          equalTypeAbsClosure(t1, t2, less) &&
+          equalTypeAbsClosure(t1, t2) &&
               equalTerm(t1(Dimension.False), l1, l2) &&
               equalTerm(t1(Dimension.True), r1, r2)
         case (t1, t2) =>
           equalNeutral(t1, t2).map(_.whnf) match {
-            case Some(Universe(l)) => l <= less
+            case Some(Universe(_)) => true
             case _ => false
           }
       }
@@ -276,7 +276,7 @@ class Conversion {
           })
         case (ttt, tt1, tt2) =>
           ttt match {
-            case Universe(l) => equalType(tt1, tt2, l) // it will call equal neutral at then end
+            case Universe(l) => equalType(tt1, tt2) // it will call equal neutral at then end
             case _ => equalNeutral(tt1, tt2)
           }
       }
