@@ -94,7 +94,7 @@ object Abstract {
 
   /* index == -1 means it is a single reference */
   /* -1: formal, 0: closed, 1: closed & recursive */
-  case class TermReference(up: Int, index: Int, @varfield var closed: Int  = -1) extends Abstract
+  case class TermReference(up: Int, index: Int, @lateinit var closed: Int  = -1) extends Abstract
 
   case class Function(domain: Abstract, codomain: Closure) extends Abstract
 
