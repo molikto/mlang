@@ -31,7 +31,7 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
     override def whitespaceChar: Parser[Char] = elem("", _ == '│') | super.whitespaceChar
   }
 
-  lexical.reserved ++= List("define", "declare", "case", "__debug", "as", "coe", "hcom", "com","field", "ignored", "match", "make", "record", "type", "sum", "inductively", "run", "with_constructors", "I")
+  lexical.reserved ++= List("define", "declare", "case", "__debug", "as", "coe", "hcom", "com","field", "ignored", "match", "make", "record", "type", "sum", "inductively", "run", "with_constructors", "I", "_")
   lexical.delimiters ++= List("{", "}", "[", "]", ":", ",", "(", ")", "≡", "─", "┬", "┌", "⊏", "└", "├", "⇒", "→", "+", "-", ";", "=", "@", "\\", ".", "|")
 
   def delimited[T](a: String, t: Parser[T], b: String): Parser[T] = a ~> t <~ b
@@ -81,12 +81,15 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
         pathType |
         record | interval |
         projection |
+        meta |
         sum |
         coe | com | hcom |
         universe |
         delimited("(", term, ")") |
         absDimension |
         ident ^^ {a => Reference(a)}
+
+  lazy val meta: PackratParser[Term] = keyword("_") ^^ {_ => Hole }
 
   lazy val interval: PackratParser[Term] = keyword("I") ^^ { _ => I }
   // path type

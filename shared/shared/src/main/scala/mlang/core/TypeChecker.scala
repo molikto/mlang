@@ -345,12 +345,17 @@ class TypeChecker private (protected override val layers: Layers)
       case _ => (Name.empty, Seq.empty)
     }
     def fallback() = {
-      val (tt, ta) = infer(term)
-      if (Conversion.equalType(tt, cp)) ta
-      else {
-        info(s"${reify(tt.whnf)}")
-        info(s"${reify(cp.whnf)}")
-        throw TypeCheckException.TypeMismatch()
+      term match {
+        case Term.Hole =>
+
+        case _ =>
+          val (tt, ta) = infer(term)
+          if (Conversion.equalType(tt, cp)) ta
+          else {
+            info(s"${reify(tt.whnf)}")
+            info(s"${reify(cp.whnf)}")
+            throw TypeCheckException.TypeMismatch()
+          }
       }
     }
     cp.whnf match {
