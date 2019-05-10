@@ -37,19 +37,18 @@ trait PlatformEvaluator extends BaseEvaluator {
           if (up > depth) {
             if (up == depth + 1 && recursivelyDefining.contains(index)) {
               // eval recursive, this deref happens under a closure, so it will have a value
-              assert(closed == 1)
-              s"Reference(rs($index), $closed)"
+              assert(closed)
+              s"Reference(rs($index))"
             } else {
               // this is a value inside the context
-              assert((up == depth + 1 && closed == 0) || closed == -1)
-              s"${tunnel(evalOpenTermReferenceAsReference(up - depth - 1, index))}"
+              s"${tunnel(evalTermReferenceAsReference(up - depth - 1, index, closed))}"
             }
           } else {
             val ss = if (index == -1) s"r${depth - up}" else s"r${depth - up}($index)"
             // a reference inside the emit context
-            if (closed >= 0) {
+            if (closed) {
               // reference to a value directly
-              s"Reference($ss, $closed)"
+              s"Reference($ss)"
             } else {
               // formal parameters of a closure
               ss

@@ -14,7 +14,23 @@ object ContextException {
   case class ConstantSortWrong() extends ContextException
 }
 
-case class Binder(id: Long, name: Name, typ: Value, isDefined: Boolean, isAbstraction: Boolean, value: Value)
+sealed trait TermBinder {
+  val name: Name
+  val id: Long
+  val typ: Value
+  def isOpen: Boolean
+  def value: Value
+}
+case class ParameterBinder(id: Long, name: Name, typ: Value) extends TermBinder {
+  val value = Value.Generic(id, typ)
+  override val isOpen: Boolean = true
+}
+
+case class DefineBinder(id: Long, name: Name, typ: Value, valueNow: Option[Value]) extends TermBinder {
+  private val valueOpen = Value.Generic(id, typ)
+  def value: Value = valueNow.getOrElse(valueOpen)
+  override val isOpen: Boolean = valueNow.isEmpty
+}
 
 object Context {
   type Layers = Seq[Layer]
@@ -23,10 +39,14 @@ object Context {
 sealed trait Layer
 
 object Layer {
-  case class Term(binder: Binder) extends Layer
-  case class Terms(terms: Seq[Binder]) extends Layer
+  case class Parameter(binder: ParameterBinder) extends Layer
+  sealed trait Terms extends Layer {
+    val terms: Seq[TermBinder]
+  }
+  case class Parameters(terms: Seq[ParameterBinder]) extends Terms
+  case class Defines(terms: Seq[DefineBinder]) extends Terms
   case class Dimension(id: Long, name: Name, value: Value.Dimension) extends Layer
-  case class Restriction(res: Value.DimensionPair) extends Layer
+  case class Restriction(res: Value.DimensionPair) extends Layer // no meta should be resolved here
 }
 
 
@@ -36,8 +56,8 @@ trait Context {
   protected val layers: Layers
 
   // get value directly without resolving faces
-  def getTerm(depth: Int, index: Int): Binder =
-    if (index == -1) layers(depth).asInstanceOf[Layer.Term].binder
+  def getTerm(depth: Int, index: Int): TermBinder =
+    if (index == -1) layers(depth).asInstanceOf[Layer.Parameter].binder
     else layers(depth).asInstanceOf[Layer.Terms].terms(index)
 
   def getDimension(depth: Int): Value.Dimension = layers(depth).asInstanceOf[Layer.Dimension].value
@@ -50,12 +70,12 @@ trait Context {
     while (ls.nonEmpty && binder == null) {
       var i = 0
       ls.head match {
-        case Layer.Terms(ll0) =>
+        case Layer.Defines(ll0) =>
           var ll = ll0
           while (ll.nonEmpty && binder == null) {
-            if (ll.head.value.eq(v.value)) {
+            if (ll.head.valueNow.nonEmpty && ll.head.valueNow.get.eq(v.value)) {
               index = i
-              binder = Abstract.TermReference(up, index, v.closed)
+              binder = Abstract.TermReference(up, index, true)
             }
             i += 1
             ll = ll.tail
@@ -89,8 +109,8 @@ trait Context {
     var binder: Abstract.Dimension.Reference = null
     while (ls.nonEmpty && binder == null) {
       ls.head match {
-        case Layer.Dimension(idd, _, _) =>
-          if (idd == id) {
+        case d: Layer.Dimension =>
+          if (d.id == id) {
             binder = Abstract.Dimension.Reference(up)
           }
         case _ =>
@@ -115,20 +135,21 @@ trait Context {
     while (ls.nonEmpty && binder == null) {
       var i = 0
       ls.head match {
-        case Layer.Terms(ll0) =>
-          var ll = ll0
+        case t: Layer.Terms =>
+          var ll = t.terms
           while (ll.nonEmpty && binder == null) {
             if (ll.head.id == id) {
+              assert(ll.head.isOpen)
               index = i
-              binder = Abstract.TermReference(up, index)
+              binder = Abstract.TermReference(up, index, !ll.head.isOpen)
             }
             i += 1
             ll = ll.tail
           }
-        case Layer.Term(l) =>
-          if (l.id == id) {
+        case p:Layer.Parameter =>
+          if (p.binder.id == id) {
             index = i
-            binder = Abstract.TermReference(up, -1)
+            binder = Abstract.TermReference(up, -1, false)
           }
         case _ =>
       }
@@ -171,23 +192,25 @@ trait Context {
     while (ls.nonEmpty && binder == null) {
       var i = 0
       ls.head match {
-        case Layer.Terms(ll0) =>
-          var ll = ll0
+        case ly: Layer.Terms =>
+          var ll = ly.terms
           var index = -1
           while (ll.nonEmpty && binder == null) {
             if (ll.head.name.by(name)) {
               index = i
-              binder = (ll.head.typ, Abstract.TermReference(up, index), ll.head.isAbstraction)
+              binder = (ll.head.typ,
+                  Abstract.TermReference(up, index, !ll.head.isOpen),
+                  ll.head.isInstanceOf[ParameterBinder])
             }
             i += 1
             ll = ll.tail
           }
-        case Layer.Term(b) =>
-          if (b.name.by(name)) {
-            binder = (b.typ, Abstract.TermReference(up, -1), true)
+        case p:Layer.Parameter =>
+          if (p.binder.name.by(name)) {
+            binder = (p.binder.typ, Abstract.TermReference(up, -1, false), true)
           }
-        case d@Layer.Dimension(_, n, _) =>
-          if (n.by(name)) {
+        case d: Layer.Dimension =>
+          if (d.name.by(name)) {
             binder = (d.value, Abstract.Dimension.Reference(up), true)
           } else {
             dimensionsUnder.append(d.id)
@@ -203,7 +226,7 @@ trait Context {
     if (binder == null) {
       throw ContextException.NonExistingReference(name)
     } else {
-      def contains(a: Value.Dimension) = {
+      def contains(a: Value.Dimension): Boolean = {
         a match {
           case Dimension.Generic(id) => dimensionsUnder.contains(id)
           case _ => true // can only be constants, faces is normalized

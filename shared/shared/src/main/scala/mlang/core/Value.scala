@@ -456,7 +456,7 @@ object Value {
   sealed trait HeadCanonical extends Whnf
   sealed trait Stuck extends Whnf
 
-  case class Reference(value: Value, closed: Int) extends Syntaxial
+  case class Reference(value: Value) extends Syntaxial
   case class Generic(id: Long, typ: Value) extends Stuck
 
   case class Universe(level: Int) extends HeadCanonical
@@ -475,7 +475,7 @@ object Value {
   case class Record(level: Int, nodes: Seq[RecordNode]) extends HeadCanonical {
     assert(nodes.isEmpty || nodes.head.dependencies.isEmpty)
 
-    private def rthis(): Value = Reference(this, 2)
+    private def rthis(): Value = Reference(this)
 
     lazy val maker: Value = {
       def rec(known: Seq[Value], remaining: Seq[RecordNode]): Value = {
@@ -531,7 +531,7 @@ object Value {
   // TODO should have a field: recursive, and it must be recursive, also in case of indexed, use Constructor instead of value
   case class Constructor(name: Tag, parameters: Int, nodes: Seq[MultiClosure]) {
     private[Value] var _sum: Sum = _
-    private def rthis(): Value = Reference(_sum, 2)
+    private def rthis(): Value = Reference(_sum)
 
     lazy val maker: Value = {
       def rec(known: Seq[Value], remaining: Seq[MultiClosure]): Value = {

@@ -8,14 +8,15 @@ sealed trait Abstract {
   import Abstract._
   def markRecursive(i: Int, c: Set[Int]): Unit = this match {
     case Universe(_) => 
-    case r@TermReference(up, index, _) =>
-      if (up == i) {
-        if (c.contains(index)) {
-          r.closed = 1
-        } else {
-          r.closed = 0
-        }
-      }
+    case r@TermReference(up, _, _) =>
+      r.closed = up == i
+//      if (up == i) {
+//        if (c.contains(index)) {
+//          r.closed = 1
+//        } else {
+//          r.closed = 0
+//        }
+//      }
     case Function(domain, codomain) =>
       domain.markRecursive(i, c)
       codomain.markRecursive(i + 1, c)
@@ -92,9 +93,7 @@ object Abstract {
   type AbsClosure = Abstract
   case class Universe(i: Int) extends Abstract
 
-  /* index == -1 means it is a single reference */
-  /* -1: formal, 0: closed, 1: closed & recursive */
-  case class TermReference(up: Int, index: Int, @lateinit var closed: Int  = -1) extends Abstract
+  case class TermReference(up: Int, index: Int, @lateinit var closed: Boolean) extends Abstract
 
   case class Function(domain: Abstract, codomain: Closure) extends Abstract
 

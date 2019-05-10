@@ -57,7 +57,7 @@ object TypeCheckException {
 
 object TypeChecker {
   private val pgen = new LongGen.Positive()
-  val empty = new TypeChecker(Seq(Layer.Terms(Seq.empty)))
+  val empty = new TypeChecker(Seq(Layer.Defines(Seq.empty)))
 }
 
 class TypeChecker private (protected override val layers: Layers)
@@ -95,7 +95,7 @@ class TypeChecker private (protected override val layers: Layers)
   ): Seq[Abstract.Face] = {
     // we use this context to evaluate body of faces, it is only used to keep the dimension binding to the same
     // one, but as restricts is already present in abstract terms, it is ok to use this instead of others
-    val (fContext, dim0) = newTermsLayer().newDimensionLayer(ident)
+    val (fContext, dim0) = newParametersLayer().newDimensionLayer(ident)
     val btt = bt(dim0)
     val res = faces.map(a => {
       val (dav, daa) = checkDimensionPair(a.dimension)
@@ -171,7 +171,7 @@ class TypeChecker private (protected override val layers: Layers)
             }
           }
         }
-        val (fl, fs) = newTermsLayer().inferFlatLevel(fields)
+        val (fl, fs) = newParametersLayer().inferFlatLevel(fields)
         val ns = fs.map(pair => Abstract.RecordNode(pair._1, pair._2.dependencies(0).toSeq.sorted, pair._2))
         (Value.Universe(fl), Abstract.Record(fl, ns))
       case Term.Sum(constructors) =>
@@ -183,7 +183,7 @@ class TypeChecker private (protected override val layers: Layers)
           }
         }
         // TODO in case of HIT, each time a constructor finished, we need to construct a partial sum and update the value
-        val fs = constructors.map(c => newTermsLayer().inferFlatLevel(c.term))
+        val fs = constructors.map(c => newParametersLayer().inferFlatLevel(c.term))
         val fl = fs.map(_._1).max
         (Value.Universe(fl), Abstract.Sum(fl, fs.map(_._2.map(_._2)).zip(constructors).map(a => Abstract.Constructor(a._2.name, a._1))))
       case Term.Coe(direction, tp, base) =>
@@ -220,7 +220,7 @@ class TypeChecker private (protected override val layers: Layers)
             val (lt, la) = infer(left)
             val (rt, ra) = infer(right)
             if (Conversion.equalType(lt, rt)) {
-              val ta = newTermsLayer().reify(lt)
+              val ta = newDimensionLayer(Name.empty)._1.reify(lt)
               if (debug.enabled) debug(s"infer path type: $ta")
               (Value.Universe(Value.inferLevel(lt)), Abstract.PathType(ta, la, ra))
             } else {
@@ -256,7 +256,7 @@ class TypeChecker private (protected override val layers: Layers)
         val (lt, la) = infer(lambda)
         inferApp(lt, la, arguments)
       case Term.Let(declarations, in) =>
-        val (ctx, da, order) = newTermsLayer().checkDeclarations(declarations)
+        val (ctx, da, order) = newDefinesLayer().checkDeclarations(declarations)
         val (it, ia) = ctx.infer(in)
         (it, Abstract.Let(da, order.flatten, ia))
 
@@ -295,7 +295,7 @@ class TypeChecker private (protected override val layers: Layers)
             (cl, Abstract.PathType(ca, ???, ???))
           case _ =>
             val (dl, da) = inferLevel(head._2)
-            val ctx = newTermLayer(head._1, eval(da))._1
+            val ctx = newParameterLayer(head._1, eval(da))._1
             val (cl, ca) = ctx.inferTelescope(tail, codomain)
             (dl max cl, Abstract.Function(da, ca))
         }
@@ -357,12 +357,12 @@ class TypeChecker private (protected override val layers: Layers)
       case Value.Function(domain, codomain) =>
         term match {
           case Term.Lambda(n, body) =>
-            val (ctx, v) = newTermLayer(n.nonEmptyOrElse(hint), domain)
+            val (ctx, v) = newParameterLayer(n.nonEmptyOrElse(hint), domain)
             val ba = ctx.check(body, codomain(v), tail, hintCodomain(lambdaFunctionCodomainHint))
             Abstract.Lambda(ba)
           case Term.PatternLambda(cases) =>
             Abstract.PatternLambda(TypeChecker.pgen(), lambdaFunctionCodomainHint.getOrElse(reifyClosure(domain, codomain)), cases.map(c => {
-              val (ctx, v, pat) = newAbstractionsLayer(c.pattern, domain)
+              val (ctx, v, pat) = newPatternLayer(c.pattern, domain)
               val ba = ctx.check(c.body, codomain(v), tail, hintCodomain(lambdaFunctionCodomainHint))
               Abstract.Case(pat, ba)
             }))
@@ -391,7 +391,7 @@ class TypeChecker private (protected override val layers: Layers)
   }
 
   private def reifyClosure(domain: Value, codomain: Value.Closure): Abstract = {
-    val (ctx, v) = newTermLayer(Name.empty, domain)
+    val (ctx, v) = newParameterLayer(Name.empty, domain)
     ctx.reify(codomain(v))
   }
 
@@ -420,7 +420,7 @@ class TypeChecker private (protected override val layers: Layers)
             ctx
           case None =>
             if (ps.nonEmpty) ???
-            val index = headTerms.indexWhere(_.name == name)
+            val index = headDefines.indexWhere(_.name == name)
             if (index < 0) {
               val (vt, va) = infer(v)
               val ctx = newDeclaration(name, vt)
@@ -428,7 +428,7 @@ class TypeChecker private (protected override val layers: Layers)
               abs.append(DefinitionInfo(name, vt, va, None))
               ctx
             } else {
-              val b = headTerms(index)
+              val b = headDefines(index)
               val va = check(v, b.typ, Seq.empty, hintCodomain(abs(index).typCode))
               info(s"declared $name")
               abs.update(index, DefinitionInfo(name, b.typ, va, abs(index).typCode))
@@ -476,6 +476,7 @@ class TypeChecker private (protected override val layers: Layers)
           definitionOrder.append(c)
           if (c.size == 1 && !abs(c.head).directDependencies.contains(c.head)) {
             val g = abs(c.head)
+            g.code.markRecursive(0, Set.empty) // marks closed references
             val v = ctx.eval(g.code)
             g.value = Some(v)
             ctx = ctx.newDefinitionChecked(c.head, g.name, v)
@@ -504,7 +505,7 @@ class TypeChecker private (protected override val layers: Layers)
         }
       }
     }
-    assert(abs.size == ctx.headTerms.size)
+    assert(abs.size == ctx.headDefines.size)
     abs.foreach(f => {
       if (f.code == null) {
         throw TypeCheckException.DeclarationWithoutDefinition(f.name)
@@ -522,7 +523,7 @@ class TypeChecker private (protected override val layers: Layers)
       fs.map(n => {
         val (fl, fa) = ctx.inferLevel(f.ty)
         l = l max fl
-        ctx = ctx.newAbstraction(n, ctx.eval(fa))._1
+        ctx = ctx.newParameter(n, ctx.eval(fa))._1
         (n, fa)
       })
     })

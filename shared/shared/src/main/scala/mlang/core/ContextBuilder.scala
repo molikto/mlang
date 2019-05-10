@@ -36,7 +36,9 @@ trait ContextBuilder extends Context {
   protected implicit def create(a: Layers): Self
 
 
-  def newTermsLayer(): Self = Layer.Terms(Seq.empty) +: layers
+  def newParametersLayer(): Self = Layer.Parameters(Seq.empty) +: layers
+
+  def newDefinesLayer(): Self = Layer.Defines(Seq.empty) +: layers
 
   def newRestrictionLayer(pair: Value.DimensionPair): Self = {
     Layer.Restriction(pair) +: layers
@@ -54,35 +56,33 @@ trait ContextBuilder extends Context {
     Layer.Dimension(gen, n, v) +: layers
   }
 
-  protected def headTerms: Seq[Binder] = layers.head.asInstanceOf[Layer.Terms].terms
+  protected def headDefines: Seq[DefineBinder] = layers.head.asInstanceOf[Layer.Defines].terms
+  protected def headParams: Seq[ParameterBinder] = layers.head.asInstanceOf[Layer.Parameters].terms
 
   def newDefinition(name: Name, typ: Value, v: Value) : Self = {
-    headTerms.find(_.name.intersect(name)) match {
+    headDefines.find(_.name.intersect(name)) match {
       case Some(_) => throw ContextBuilderException.AlreadyDeclared()
       case _ =>
         val g = gen()
-        Layer.Terms(headTerms :+ Binder(g, name, typ, false, false, v)) +: layers.tail
+        Layer.Defines(headDefines :+ DefineBinder(g, name, typ, Some(v))) +: layers.tail
     }
   }
 
   def newDefinitionChecked(index: Int, name: Name, v: Value) : Self = {
-    headTerms(index) match {
-      case Binder(id, n0, typ, defined, _, _) =>
-        if (defined) {
-          throw ContextBuilderException.AlreadyDefined()
-        } else {
-          assert(n0 == name)
-          Layer.Terms(headTerms.updated(index, Binder(id, name, typ, true, false, v))) +: layers.tail
-        }
+    headDefines(index) match {
+      case DefineBinder(id, n0, typ, None) =>
+        assert(n0 == name)
+        Layer.Defines(headDefines.updated(index, DefineBinder(id, name, typ, Some(v)))) +: layers.tail
+      case _ =>
+        throw ContextBuilderException.AlreadyDefined()
     }
   }
 
   def newDeclaration(name: Name, typ: Value) : Self = {
-    headTerms.find(_.name.intersect(name)) match {
+    headDefines.find(_.name.intersect(name)) match {
       case Some(_) => throw ContextBuilderException.AlreadyDeclared()
       case _ =>
-        val g = gen()
-        Layer.Terms(headTerms :+ Binder(g, name, typ, false, false, Value.Generic(g, typ))) +: layers.tail
+        Layer.Defines(headDefines :+ DefineBinder(gen(), name, typ, None)) +: layers.tail
     }
   }
 
@@ -94,24 +94,23 @@ trait ContextBuilder extends Context {
 //    }
 //  }
 
-  def newTermLayer(name: Name, typ: Value): (Self, Value) = {
-    val g = gen()
-    val v = Value.Generic(g, typ)
-    (Layer.Term(Binder(g, name, typ, true, true, v)) +: layers, v)
+  def newParameterLayer(name: Name, typ: Value): (Self, Value) = {
+    val binder = ParameterBinder(gen(), name, typ)
+    (Layer.Parameter(binder) +: layers, binder.value)
   }
 
-  def newAbstraction(name: Name, typ: Value) : (Self, Value) = {
-    headTerms.find(_.name.intersect(name)) match {
+  def newParameter(name: Name, typ: Value) : (Self, Value) = {
+    headParams.find(_.name.intersect(name)) match {
       case Some(_) => throw ContextBuilderException.AlreadyDeclared()
       case _ =>
         val g = gen()
         val v = Value.Generic(g, typ)
-        (Layer.Terms(headTerms :+ Binder(g, name, typ, true, true, v)) +: layers.tail, v)
+        (Layer.Parameters(headParams :+ ParameterBinder(g, name, typ)) +: layers.tail, v)
     }
   }
 
-  def newAbstractionsLayer(pattern: Patt, typ: Value): (Self, Value, Pattern) = {
-    val vvv = mutable.ArrayBuffer[Binder]()
+  def newPatternLayer(pattern: Patt, typ: Value): (Self, Value, Pattern) = {
+    val vvv = mutable.ArrayBuffer[ParameterBinder]()
     def rec(p: Patt, t: Value): (Value, Pattern) = {
       p match {
         case Patt.Atom(name) =>
@@ -126,9 +125,9 @@ trait ContextBuilder extends Context {
             case _ =>
           }
           if (ret == null) {
-            val open = Value.Generic(gen(), t)
-            vvv.append(Binder(gen(), name, t, true, true, open))
-            ret = (open, Pattern.Atom)
+            val open = ParameterBinder(gen(), name, t)
+            vvv.append(open)
+            ret = (open.value, Pattern.Atom)
           }
           ret
         case Patt.Group(maps) =>
@@ -171,7 +170,7 @@ trait ContextBuilder extends Context {
       }
     }
     val (os, p) = rec(pattern, typ)
-    val ctx: Self = Layer.Terms(vvv) +: layers
+    val ctx: Self = Layer.Parameters(vvv) +: layers
     (ctx, os, p)
   }
 }
