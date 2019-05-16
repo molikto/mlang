@@ -25,12 +25,12 @@ object Conversion {
 }
 
 
-// TODO if they can be done this way, why use type directed anyway? https://github.com/AndrasKovacs/minimal-tt-examples/blob/master/MinimalTC.hs#L86
 class Conversion {
 
-  // TODO seems this can be globally shared
+  // TODO this is potentially non-terminating now, if the domain/codomain changes each time, this can happens for indexed types I think
   private val patternAssumptions = mutable.ArrayBuffer[Assumption]()
 
+  // TODO handle parameterized recursively defined ones, we should only allow them in top level, and make recursive reference non-reducible?
   private val typeAssumptions = mutable.ArrayBuffer[(Value, Value)]()
 
   private def equalSameTypePatternLambdaWithAssumptions(domain: Value, l1: PatternLambda, l2: PatternLambda): Boolean = {
@@ -122,7 +122,6 @@ class Conversion {
     if (tm1.eq(tm2)) {
       true
     } else if (typeAssumptions.exists(a => a._1.eq(tm1) && a._2.eq(tm2))) { // recursive defined sum and record
-      // TODO handle parameterized recursively defined ones, we should only allow them in top level, and make recursive reference non-reducible?
       true
     } else {
       typeAssumptions.append((tm1, tm2))

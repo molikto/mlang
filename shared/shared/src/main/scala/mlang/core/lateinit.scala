@@ -9,5 +9,5 @@ import scala.annotation.Annotation
 private[core] class lateinit extends Annotation
 
 // a essential mutation field
-private[core] class mutable extends Annotation
+private[core] class mutation extends Annotation
 
