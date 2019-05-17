@@ -36,47 +36,67 @@ trait ContextBuilder extends Context {
   protected implicit def create(a: Layers): Self
 
 
-  def newParametersLayer(): Self = Layer.Parameters(Seq.empty) +: layers
 
-  def newDefinesLayer(): Self = Layer.Defines(Seq.empty) +: layers
+  private def createMetas(): Metas = mutable.ArrayBuffer.empty[Unit]
+
+
+
 
   def newRestrictionLayer(pair: Value.DimensionPair): Self = {
-    Layer.Restriction(pair) +: layers
+    Layer.Restriction(pair, createMetas()) +: layers
   }
 
+
+
+
   def newDimensionLayer(n: Name): (Self, Value.Dimension) = {
-    val l = Layer.Dimension(dgen(), n)
+    val l = Layer.Dimension(dgen(), n, createMetas())
     val ctx: Self = l +: layers
     (ctx, l.value)
   }
 
-  protected def headDefines: Seq[DefineBinder] = layers.head.asInstanceOf[Layer.Defines].terms
-  protected def headParams: Seq[ParameterBinder] = layers.head.asInstanceOf[Layer.Parameters].terms
+
+
+
+  private val temp__dependencies = Seq.empty[Int]
+
+  def newDefinesLayer(): Self = Layer.Defines(createMetas(), Seq.empty) +: layers
 
   def newDefinition(name: Name, typ: Value, v: Value) : Self = {
-    headDefines.find(_.name.intersect(name)) match {
-      case Some(_) => throw ContextBuilderException.AlreadyDeclared()
-      case _ =>
-        val g = gen()
-        Layer.Defines(headDefines :+ DefineBinder(g, name, typ, Some(v))) +: layers.tail
+    layers.head match {
+      case Layer.Defines(metas, defines) =>
+        defines.find(_.name.intersect(name)) match {
+          case Some(_) => throw ContextBuilderException.AlreadyDeclared()
+          case _ =>
+            val g = gen()
+            Layer.Defines(metas, defines :+ DefineItem(Depends.No(ParameterBinder(g, name, typ)), Some(Depends.No(v)))) +: layers.tail
+        }
     }
   }
 
   def newDefinitionChecked(index: Int, name: Name, v: Value) : Self = {
-    headDefines(index) match {
-      case DefineBinder(id, n0, typ, None) =>
-        assert(n0 == name)
-        Layer.Defines(headDefines.updated(index, DefineBinder(id, name, typ, Some(v)))) +: layers.tail
-      case _ =>
-        throw ContextBuilderException.AlreadyDefined()
+    layers.head match {
+      case Layer.Defines(metas, defines) =>
+        defines(index) match {
+          case d@DefineItem(typ0, v0) =>
+            assert(d.name == name)
+            assert(v0.isEmpty)
+            Layer.Defines(metas, defines.updated(index, DefineItem(typ0, Some(Depends.No(v))))) +: layers.tail
+          case _ =>
+            throw ContextBuilderException.AlreadyDefined()
+        }
     }
   }
 
   def newDeclaration(name: Name, typ: Value) : Self = {
-    headDefines.find(_.name.intersect(name)) match {
-      case Some(_) => throw ContextBuilderException.AlreadyDeclared()
-      case _ =>
-        Layer.Defines(headDefines :+ DefineBinder(gen(), name, typ, None)) +: layers.tail
+    layers.head match {
+      case Layer.Defines(metas, defines) =>
+        defines.find(_.name.intersect(name)) match {
+          case Some(_) => throw ContextBuilderException.AlreadyDeclared()
+          case _ =>
+            val g = gen()
+            Layer.Defines(metas, defines :+ DefineItem(Depends.No(ParameterBinder(g, name, typ)), None)) +: layers.tail
+        }
     }
   }
 
@@ -88,20 +108,37 @@ trait ContextBuilder extends Context {
 //    }
 //  }
 
+
   def newParameterLayer(name: Name, typ: Value): (Self, Value) = {
     val binder = ParameterBinder(gen(), name, typ)
-    (Layer.Parameter(binder) +: layers, binder.value)
+    (Layer.Parameter(binder, createMetas()) +: layers, binder.value)
   }
 
+
+
+
+
+  def newParametersLayer(): Self = Layer.ParameterGraph(Seq.empty, createMetas()) +: layers
+
+
   def newParameter(name: Name, typ: Value) : (Self, Value) = {
-    headParams.find(_.name.intersect(name)) match {
-      case Some(_) => throw ContextBuilderException.AlreadyDeclared()
-      case _ =>
-        val g = gen()
-        val v = Value.Generic(g, typ)
-        (Layer.Parameters(headParams :+ ParameterBinder(g, name, typ)) +: layers.tail, v)
+    layers.head match {
+      case Layer.ParameterGraph(binders, metas) =>
+        binders.find(_.t.name.intersect(name)) match {
+          case Some(_) => throw ContextBuilderException.AlreadyDeclared()
+          case _ =>
+            val g = gen()
+            val v = Value.Generic(g, typ)
+            (Layer.ParameterGraph(
+              binders :+ MetaEnclosed[ParameterBinder](metas, ParameterBinder(g, name, typ)), createMetas()) +: layers.tail, v)
+        }
+
     }
   }
+
+
+
+
 
   def newPatternLayer(pattern: Patt, typ: Value): (Self, Value, Pattern) = {
     val vvv = mutable.ArrayBuffer[ParameterBinder]()
@@ -164,7 +201,7 @@ trait ContextBuilder extends Context {
       }
     }
     val (os, p) = rec(pattern, typ)
-    val ctx: Self = Layer.Parameters(vvv) +: layers
+    val ctx: Self = Layer.MultiParameters(vvv, createMetas()) +: layers
     (ctx, os, p)
   }
 }

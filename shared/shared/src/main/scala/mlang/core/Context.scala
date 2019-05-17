@@ -14,46 +14,58 @@ object ContextException {
   case class ConstantSortWrong() extends ContextException
 }
 
-sealed trait TermBinder {
-  val name: Name
-  val id: Long
-  val typ: Value
-  def isOpen: Boolean
-  def value: Value
-}
-case class ParameterBinder(id: Long, name: Name, typ: Value) extends TermBinder {
+
+case class ParameterBinder(id: Long, name: Name, typ: Value) {
   val value = Value.Generic(id, typ)
-  override val isOpen: Boolean = true
 }
 
+case class MetaEnclosed[T](metas: Context.Metas, t: T)
 
-case class DefineBinder(id: Long,
-    name: Name,
-    typ: Value,
-    valueNow: Option[Value]
-) extends TermBinder {
-  private val valueOpen = Value.Generic(id, typ)
-  def value: Value = valueNow.getOrElse(valueOpen)
-  override val isOpen: Boolean = valueNow.isEmpty
+sealed trait Depends[T] {
+  def t: T
+}
+
+object Depends {
+  case class On[T](t: T, ds: Seq[Int]) extends Depends[T]
+  case class No[T](t: T) extends Depends[T]
+}
+
+case class DefineItem(typ0: Depends[ParameterBinder], v: Option[Depends[Value]]) {
+  def typ: Value = typ0.t.value
+  def value: Value = v.map(_.t).getOrElse(typ0.t.value)
+  def id: Long = typ0.t.id
+  def name: Name = typ0.t.name
 }
 
 object Context {
   type Layers = Seq[Layer]
+
+  type Metas = mutable.ArrayBuffer[Unit]
 }
 
-sealed trait Layer
+import Context._
+
+sealed trait Layer {
+}
 
 object Layer {
-  case class Parameter(binder: ParameterBinder) extends Layer
-  sealed trait Terms extends Layer {
-    val terms: Seq[TermBinder]
+
+  sealed trait Parameters extends Layer {
+    def binders: Seq[ParameterBinder]
   }
-  case class Parameters(terms: Seq[ParameterBinder]) extends Terms
-  case class Defines(terms: Seq[DefineBinder]) extends Terms
-  case class Dimension(id: Long, name: Name) extends Layer {
+  case class Parameter(binder: ParameterBinder, metas: Metas) extends Layer // lambda expression
+
+  case class MultiParameters(binders: Seq[ParameterBinder], metas: Metas) extends Parameters
+
+  case class ParameterGraph(defined: Seq[MetaEnclosed[ParameterBinder]], metas: Metas)  extends Parameters {
+    def binders: Seq[ParameterBinder] = defined.map(_.t)
+  }
+
+  case class Defines(metas: Metas, terms: Seq[DefineItem]) extends Layer // notice the metas is FIRST!!
+  case class Dimension(id: Long, name: Name, metas: Metas) extends Layer {
     val value = Value.Dimension.Generic(id)
   }
-  case class Restriction(res: Value.DimensionPair) extends Layer // no meta should be resolved here
+  case class Restriction(res: Value.DimensionPair, metas: Metas) extends Layer // no meta should be resolved here
 }
 
 
@@ -63,9 +75,13 @@ trait Context {
   protected val layers: Layers
 
   // get value directly without resolving faces
-  def getTerm(depth: Int, index: Int): TermBinder =
-    if (index == -1) layers(depth).asInstanceOf[Layer.Parameter].binder
-    else layers(depth).asInstanceOf[Layer.Terms].terms(index)
+  def getTerm(depth: Int, index: Int): Value = layers(depth) match {
+    case Layer.Parameter(binder, _) if index == -1 => binder.value
+    case ps: Layer.Parameters => ps.binders(index).value
+    case Layer.Defines(_, terms) => terms(index).value
+    case _: Layer.Dimension => throw new IllegalAccessException()
+    case _: Layer.Restriction => throw new IllegalAccessException()
+  }
 
   def getDimension(depth: Int): Value.Dimension = layers(depth).asInstanceOf[Layer.Dimension].value
 
@@ -77,10 +93,10 @@ trait Context {
     while (ls.nonEmpty && binder == null) {
       var i = 0
       ls.head match {
-        case Layer.Defines(ll0) =>
-          var ll = ll0
+        case d: Layer.Defines =>
+          var ll = d.terms
           while (ll.nonEmpty && binder == null) {
-            if (ll.head.valueNow.nonEmpty && ll.head.valueNow.get.eq(v.value)) {
+            if (ll.head.v.nonEmpty && ll.head.v.get.eq(v.value)) {
               index = i
               binder = Abstract.TermReference(up, index, true)
             }
@@ -142,13 +158,23 @@ trait Context {
     while (ls.nonEmpty && binder == null) {
       var i = 0
       ls.head match {
-        case t: Layer.Terms =>
+        case t: Layer.Parameters =>
+          var ll = t.binders
+          while (ll.nonEmpty && binder == null) {
+            if (ll.head.id == id) {
+              index = i
+              binder = Abstract.TermReference(up, index, false)
+            }
+            i += 1
+            ll = ll.tail
+          }
+        case t: Layer.Defines =>
           var ll = t.terms
           while (ll.nonEmpty && binder == null) {
             if (ll.head.id == id) {
-              assert(ll.head.isOpen)
+              assert(ll.head.v.isEmpty) // values should be updated when a open reference turns closed
               index = i
-              binder = Abstract.TermReference(up, index, !ll.head.isOpen)
+              binder = Abstract.TermReference(up, index, false)
             }
             i += 1
             ll = ll.tail
@@ -199,15 +225,28 @@ trait Context {
     while (ls.nonEmpty && binder == null) {
       var i = 0
       ls.head match {
-        case ly: Layer.Terms =>
+        case ly: Layer.Parameters =>
+          var ll = ly.binders
+          var index = -1
+          while (ll.nonEmpty && binder == null) {
+            if (ll.head.name.by(name)) {
+              index = i
+              binder = (ll.head.typ,
+                  Abstract.TermReference(up, index, false),
+                  true)
+            }
+            i += 1
+            ll = ll.tail
+          }
+        case ly: Layer.Defines =>
           var ll = ly.terms
           var index = -1
           while (ll.nonEmpty && binder == null) {
             if (ll.head.name.by(name)) {
               index = i
               binder = (ll.head.typ,
-                  Abstract.TermReference(up, index, !ll.head.isOpen),
-                  ll.head.isInstanceOf[ParameterBinder])
+                  Abstract.TermReference(up, index, ll.head.v.isDefined),
+                  false)
             }
             i += 1
             ll = ll.tail
@@ -222,7 +261,7 @@ trait Context {
           } else {
             dimensionsUnder.append(d.id)
           }
-        case l@Layer.Restriction(_) =>
+        case l: Layer.Restriction =>
           faces.append(l)
       }
       if (binder == null) {

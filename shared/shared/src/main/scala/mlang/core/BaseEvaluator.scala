@@ -55,7 +55,7 @@ trait BaseEvaluator extends Context {
   protected def platformEvalRecursive(terms: Map[Int, Abstract]): Map[Int, Value]
 
   protected def evalTermReferenceAsReference(i: Int, index: Int, closed: Boolean): Value = {
-    getTerm(i, index).value match {
+    getTerm(i, index) match {
       case o: Value.Generic =>
         assert(!closed)
         o // a formal argument in context
