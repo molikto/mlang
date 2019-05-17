@@ -31,10 +31,11 @@ object Depends {
 }
 
 case class DefineItem(typ0: Depends[ParameterBinder], v: Option[Depends[Value]]) {
-  def typ: Value = typ0.t.value
+  def typ: Value = typ0.t.typ
   def value: Value = v.map(_.t).getOrElse(typ0.t.value)
   def id: Long = typ0.t.id
   def name: Name = typ0.t.name
+  def isDefined: Boolean = v.isDefined
 }
 
 object Context {
@@ -79,8 +80,7 @@ trait Context {
     case Layer.Parameter(binder, _) if index == -1 => binder.value
     case ps: Layer.Parameters => ps.binders(index).value
     case Layer.Defines(_, terms) => terms(index).value
-    case _: Layer.Dimension => throw new IllegalAccessException()
-    case _: Layer.Restriction => throw new IllegalAccessException()
+    case _ => logicError()
   }
 
   def getDimension(depth: Int): Value.Dimension = layers(depth).asInstanceOf[Layer.Dimension].value
@@ -96,7 +96,7 @@ trait Context {
         case d: Layer.Defines =>
           var ll = d.terms
           while (ll.nonEmpty && binder == null) {
-            if (ll.head.v.nonEmpty && ll.head.v.get.eq(v.value)) {
+            if (ll.head.isDefined && ll.head.value.eq(v.value)) {
               index = i
               binder = Abstract.TermReference(up, index, true)
             }
@@ -245,7 +245,7 @@ trait Context {
             if (ll.head.name.by(name)) {
               index = i
               binder = (ll.head.typ,
-                  Abstract.TermReference(up, index, ll.head.v.isDefined),
+                  Abstract.TermReference(up, index, ll.head.isDefined),
                   false)
             }
             i += 1

@@ -37,7 +37,7 @@ trait ContextBuilder extends Context {
 
 
 
-  private def createMetas(): Metas = mutable.ArrayBuffer.empty[Unit]
+  protected def createMetas(): Metas = mutable.ArrayBuffer.empty[Unit]
 
 
 
@@ -57,8 +57,18 @@ trait ContextBuilder extends Context {
 
 
 
+  def debug__headDefinesSize = layers.head.asInstanceOf[Layer.Defines].terms.size
 
-  private val temp__dependencies = Seq.empty[Int]
+  def lookupDefinedValueType(a: Name): Option[(Int, Value)] = layers.head match {
+    case Layer.Defines(_, defines) =>
+      val index = defines.indexWhere(_.name.intersect(a))
+      if (index < 0) {
+        None
+      } else {
+        Some((index, defines(index).typ))
+      }
+    case _ => logicError()
+  }
 
   def newDefinesLayer(): Self = Layer.Defines(createMetas(), Seq.empty) +: layers
 
@@ -71,6 +81,7 @@ trait ContextBuilder extends Context {
             val g = gen()
             Layer.Defines(metas, defines :+ DefineItem(Depends.No(ParameterBinder(g, name, typ)), Some(Depends.No(v)))) +: layers.tail
         }
+      case _ => logicError()
     }
   }
 
@@ -85,6 +96,7 @@ trait ContextBuilder extends Context {
           case _ =>
             throw ContextBuilderException.AlreadyDefined()
         }
+      case _ => logicError()
     }
   }
 
@@ -97,6 +109,7 @@ trait ContextBuilder extends Context {
             val g = gen()
             Layer.Defines(metas, defines :+ DefineItem(Depends.No(ParameterBinder(g, name, typ)), None)) +: layers.tail
         }
+      case _ => logicError()
     }
   }
 
@@ -132,7 +145,7 @@ trait ContextBuilder extends Context {
             (Layer.ParameterGraph(
               binders :+ MetaEnclosed[ParameterBinder](metas, ParameterBinder(g, name, typ)), createMetas()) +: layers.tail, v)
         }
-
+      case _ => logicError()
     }
   }
 

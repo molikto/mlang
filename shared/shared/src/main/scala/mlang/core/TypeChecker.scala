@@ -57,7 +57,7 @@ object TypeCheckException {
 
 object TypeChecker {
   private val pgen = new LongGen.Positive()
-  val empty = new TypeChecker(Seq(Layer.Defines(Seq.empty)))
+  val empty = new TypeChecker(Seq.empty)
 }
 
 class TypeChecker private (protected override val layers: Layers)
@@ -171,7 +171,7 @@ class TypeChecker private (protected override val layers: Layers)
             }
           }
         }
-        val (fl, fs) = newParametersLayer().inferFlatLevel(fields)
+        val (fl, fs) = newLayerInferFlatLevel(fields)
         val ns = fs.map(pair => Abstract.RecordNode(pair._1, pair._2.dependencies(0).toSeq.sorted, pair._2))
         (Value.Universe(fl), Abstract.Record(fl, ns))
       case Term.Sum(constructors) =>
@@ -183,7 +183,7 @@ class TypeChecker private (protected override val layers: Layers)
           }
         }
         // TODO in case of HIT, each time a constructor finished, we need to construct a partial sum and update the value
-        val fs = constructors.map(c => newParametersLayer().inferFlatLevel(c.term))
+        val fs = constructors.map(c => newLayerInferFlatLevel(c.term))
         val fl = fs.map(_._1).max
         (Value.Universe(fl), Abstract.Sum(fl, fs.map(_._2.map(_._2)).zip(constructors).map(a => Abstract.Constructor(a._2.name, a._1))))
       case Term.Coe(direction, tp, base) =>
@@ -256,7 +256,7 @@ class TypeChecker private (protected override val layers: Layers)
         val (lt, la) = infer(lambda)
         inferApp(lt, la, arguments)
       case Term.Let(declarations, in) =>
-        val (ctx, da, order) = newDefinesLayer().checkDeclarations(declarations)
+        val (ctx, da, order) = newLayerCheckDeclarations(declarations)
         val (it, ia) = ctx.infer(in)
         (it, Abstract.Let(da, order.flatten, ia))
 
@@ -328,16 +328,10 @@ class TypeChecker private (protected override val layers: Layers)
     }
   }
 
-  private def hintCodomain(hint: Option[Abstract]):Option[Abstract] = hint match {
-    case Some(Abstract.Function(_, b)) => Some(b)
-    case _ => None
-  }
-
   private def check(
       term: Term,
       cp: Value,
-      lambdaNameHints: Seq[Name] = Seq.empty,
-      lambdaFunctionCodomainHint: Option[Abstract] = None
+      lambdaNameHints: Seq[Name] = Seq.empty
   ): Abstract = {
     debug(s"check $term")
     val (hint, tail) = lambdaNameHints match {
@@ -358,12 +352,12 @@ class TypeChecker private (protected override val layers: Layers)
         term match {
           case Term.Lambda(n, body) =>
             val (ctx, v) = newParameterLayer(n.nonEmptyOrElse(hint), domain)
-            val ba = ctx.check(body, codomain(v), tail, hintCodomain(lambdaFunctionCodomainHint))
+            val ba = ctx.check(body, codomain(v), tail)
             Abstract.Lambda(ba)
           case Term.PatternLambda(cases) =>
-            Abstract.PatternLambda(TypeChecker.pgen(), lambdaFunctionCodomainHint.getOrElse(reifyClosure(domain, codomain)), cases.map(c => {
+            Abstract.PatternLambda(TypeChecker.pgen(), reifyClosure(domain, codomain), cases.map(c => {
               val (ctx, v, pat) = newPatternLayer(c.pattern, domain)
-              val ba = ctx.check(c.body, codomain(v), tail, hintCodomain(lambdaFunctionCodomainHint))
+              val ba = ctx.check(c.body, codomain(v), tail)
               Abstract.Case(pat, ba)
             }))
           case _ => fallback()
@@ -374,7 +368,7 @@ class TypeChecker private (protected override val layers: Layers)
             val (c1, dv) = newDimensionLayer(n.nonEmptyOrElse(hint))
             val t1 = typ(dv)
             import Value.Dimension._
-            val a1 = c1.check(body, t1, tail, hintCodomain(lambdaFunctionCodomainHint))
+            val a1 = c1.check(body, t1, tail)
             val ps = Abstract.PathLambda(a1)
             val pv = eval(ps)
             val leftEq = Conversion.equalTerm(typ(False), pv.papp(False), left)
@@ -414,25 +408,24 @@ class TypeChecker private (protected override val layers: Layers)
               case _ => Seq.empty
             })
             val ctx = newDeclaration(name, tv) // allows recursive definitions
-          val va = ctx.check(wrapBody(v, pps.size), tv, lambdaNameHints, hintCodomain(Some(ta)))
+          val va = ctx.check(wrapBody(v, pps.size), tv, lambdaNameHints)
             info(s"declared $name")
-            abs.append(DefinitionInfo(name, tv, va, Some(ta)))
+            abs.append(DefinitionInfo(name, tv, va))
             ctx
           case None =>
             if (ps.nonEmpty) ???
-            val index = headDefines.indexWhere(_.name == name)
-            if (index < 0) {
-              val (vt, va) = infer(v)
-              val ctx = newDeclaration(name, vt)
-              info(s"declared $name")
-              abs.append(DefinitionInfo(name, vt, va, None))
-              ctx
-            } else {
-              val b = headDefines(index)
-              val va = check(v, b.typ, Seq.empty, hintCodomain(abs(index).typCode))
-              info(s"declared $name")
-              abs.update(index, DefinitionInfo(name, b.typ, va, abs(index).typCode))
-              this
+            lookupDefinedValueType(name) match {
+              case None =>
+                val (vt, va) = infer(v)
+                val ctx = newDeclaration(name, vt)
+                info(s"declared $name")
+                abs.append(DefinitionInfo(name, vt, va))
+                ctx
+              case Some((index, typ)) =>
+                val va = check(v, typ, Seq.empty)
+                info(s"declared $name")
+                abs.update(index, DefinitionInfo(name, typ, va))
+                this
             }
         }
       case Declaration.Declare(ms, name, ps, t) =>
@@ -442,15 +435,15 @@ class TypeChecker private (protected override val layers: Layers)
         val tv = eval(ta)
         val ctx = newDeclaration(name, tv)
         info(s"declared $name")
-        abs.append(DefinitionInfo(name, tv, null, Some(ta)))
+        abs.append(DefinitionInfo(name, tv, null))
         ctx
     }
 
   }
 
-  private def checkDeclarations(seq: Seq[Declaration]): (Self, Seq[Abstract], Seq[Set[Int]]) = {
+  private def newLayerCheckDeclarations(seq: Seq[Declaration]): (Self, Seq[Abstract], Seq[Set[Int]]) = {
     // how to handle mutual recursive definitions, calculate strong components
-    var ctx = this
+    var ctx = newDefinesLayer()
     val abs = new mutable.ArrayBuffer[DefinitionInfo]()
     val definitionOrder = new mutable.ArrayBuffer[Set[Int]]()
     for (s <- seq) {
@@ -501,7 +494,7 @@ class TypeChecker private (protected override val layers: Layers)
         }
       }
     }
-    assert(abs.size == ctx.headDefines.size)
+    assert(abs.size == ctx.debug__headDefinesSize)
     abs.foreach(f => {
       if (f.code == null) {
         throw TypeCheckException.DeclarationWithoutDefinition(f.name)
@@ -511,8 +504,8 @@ class TypeChecker private (protected override val layers: Layers)
   }
 
 
-  private def inferFlatLevel(terms: Seq[NameType]): (Int, Seq[(Name, Abstract)]) = {
-    var ctx = this
+  private def newLayerInferFlatLevel(terms: Seq[NameType]): (Int, Seq[(Name, Abstract)]) = {
+    var ctx = newParametersLayer()
     var l = 0
     val fas = terms.flatMap(f => {
       val fs = if (f.names.isEmpty) Seq(Name.empty) else f.names
@@ -537,7 +530,7 @@ class TypeChecker private (protected override val layers: Layers)
 
 
   def check(m: Module): TypeChecker = Benchmark.TypeChecking {
-    checkDeclarations(m.declarations)._1
+    newLayerCheckDeclarations(m.declarations)._1
   }
 }
 
@@ -545,7 +538,6 @@ private case class DefinitionInfo(
     name: Name,
     typ: Value,
     code: Abstract,
-    typCode: Option[Abstract],
     var value: Option[Value] = None,
    ) {
    lazy val directDependencies: Set[Int] = code.dependencies(0)

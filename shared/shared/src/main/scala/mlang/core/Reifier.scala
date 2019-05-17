@@ -130,16 +130,16 @@ private class ReifierContextCont(override val base: ReifierContextBase, override
 
 // this is the context of the let expression where out-of-scope reference is collected
 private class ReifierContextBase(layersBefore: Context.Layers) extends ReifierContext {
-  private val terms = new mutable.ArrayBuffer[DefineBinder]()
+  private val terms = new mutable.ArrayBuffer[DefineItem]()
   private var data = Seq.empty[(Int, Option[Abstract])]
-  override protected val layers: Layers =  Layer.Defines(terms) +: layersBefore
+  override protected val layers: Layers =  Layer.Defines(createMetas(), terms) +: layersBefore
 
   private var self: Value = _
 
 
   def saveOutOfScopeValue(r: Value.Reference): Unit = {
     val index = terms.size
-    terms.append(DefineBinder(0, Name.empty, null, Some(r.value)))
+    terms.append(DefineItem(Depends.No(ParameterBinder(0, Name.empty, null)), Some(Depends.No(r.value))))
     val abs = if (r.value.eq(self)) {
       None : Option[Abstract]
     } else {
