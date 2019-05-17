@@ -91,12 +91,18 @@ we also consider reference, let expression as redux, but they are redux that don
 
 unlike almost all implementations, we try to treat type definitions structural. validity of recursive definitions can mostly done by syntax restrictions, just like how people makes "nested inductive definitions" works (I suppose). so there is no "schema" of parameterized inductive type definitions, just recursive sum types under a telescope, the "schema" then is a semantics level predicate, not syntax level construction
 
+the treatment of recursive types needs to be more careful I think, because recursive calls is not guarded by pattern matching. but I think a clean implementation is possible.
+
 #### dbi core term `Abstract`
 
-this class is just dbi core term, it exists is because hoas is not composible, you cannot "rebind" a open reference
+this class is just dbi core term, it exists is because hoas is not composable, you cannot "rebind" a open reference
 
 the conversion from `Abstract` to `Value` is called `eval`, we have currently a compiler by using the Scala compiler directly
 
+abstract and values is "type free", let expressions don't have types, etc. the context will have the types when needed. this is natural in a type directed way. also it allows syntaxial analysis of dependencies. but it do makes pretty printing complicated?
+
+
+I think one thing can be done on Abstract is common expression reduction.
 
 #### reductions
 
@@ -123,6 +129,30 @@ something similar should be possible with recursive type definitions, in this ca
 context restrictions is done by quoting any **reference** not defined in the restricted context by a restriction. restriction works for all stuff, and it don't further evaluate terms at all. it is the one that calls the restriction will evaluate them further?
 
 we have `hcom`, `coe` as eliminations, in a normalized closed value, they should not appear. they interact with restrictions, just like a path lambda interact with dimensions, then they are inductively defined on all type formers
+
+
+### meta variables
+
+conceptually, implicit variables and meta variables are *just* (abstract in the sense before) terms that omitted and can be inferred from other part of the term.
+
+in this sense, each new scoping have a list of definitions like a let expression. and in abstract code, each closure do have a list of meta values, and each usage is also a closed meta reference to them.
+
+
+so each meta has a scope, in the case of inside a closure, it is simple. instantiating a closure will give values to metas of that scope. 
+
+leaving a scope will make sure all metas inside is solved, and the code is returned.
+
+so this way reify will always readback open metas in current context, or closed metas.
+
+in case of closed metas not yet present, 
+
+#### harder part: let and record expressions
+
+for let expressions, we can assume let expression introduce a single meta scope, and each new definition / declare will freeze the metas.
+
+
+for record and constructor parameters it is harder
+
 
 
 ### implicit on the right

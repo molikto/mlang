@@ -13,7 +13,7 @@ object Main extends Parser {
       val res = parse(scala.io.Source.fromFile(f).getLines().mkString("\n"))
       res match {
         case Success(result, next) =>
-          if (next.atEnd) checker =  checker.check(result)
+          if (next.atEnd) checker = checker.check(result)
           else throw new Exception("Parse failed with last " + result.declarations.lastOption + "and remaining " + next.rest.toString)
         case NoSuccess(msg, next) =>
           throw new Exception(s"Parse failed with $msg")

@@ -26,7 +26,12 @@ case class ParameterBinder(id: Long, name: Name, typ: Value) extends TermBinder 
   override val isOpen: Boolean = true
 }
 
-case class DefineBinder(id: Long, name: Name, typ: Value, valueNow: Option[Value]) extends TermBinder {
+
+case class DefineBinder(id: Long,
+    name: Name,
+    typ: Value,
+    valueNow: Option[Value]
+) extends TermBinder {
   private val valueOpen = Value.Generic(id, typ)
   def value: Value = valueNow.getOrElse(valueOpen)
   override val isOpen: Boolean = valueNow.isEmpty

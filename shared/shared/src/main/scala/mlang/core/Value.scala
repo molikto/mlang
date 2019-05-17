@@ -16,11 +16,6 @@ object PatternExtractException {
 
 import Value._
 
-object Helpers {
-
-}
-
-import Helpers._
 sealed trait Value {
 
   // TODO how does it interact with recursive references?
@@ -364,6 +359,7 @@ sealed trait Value {
 
 object Value {
 
+
   implicit class MultiClosure(private val func: Seq[Value]=> Value) extends AnyVal {
     def eq(b: MultiClosure) = func.eq(b.func)
     def apply() = func(Seq.empty)
@@ -455,6 +451,8 @@ object Value {
   sealed trait Whnf extends Value
   sealed trait HeadCanonical extends Whnf
   sealed trait Stuck extends Whnf
+
+  case class Meta(id: Long, @mutation var v: Either[Value, Value]) extends Value
 
   case class Reference(value: Value) extends Syntaxial
   case class Generic(id: Long, typ: Value) extends Stuck
