@@ -25,16 +25,11 @@ sealed trait Depends[T] {
   def t: T
 }
 
-object Depends {
-  case class On[T](t: T, ds: Seq[Int]) extends Depends[T]
-  case class No[T](t: T) extends Depends[T]
-}
-
-case class DefineItem(typ0: Depends[ParameterBinder], v: Option[Depends[Value]]) {
-  def typ: Value = typ0.t.typ
-  def value: Value = v.map(_.t).getOrElse(typ0.t.value)
-  def id: Long = typ0.t.id
-  def name: Name = typ0.t.name
+case class DefineItem(typ0: ParameterBinder, v: Option[Value]) {
+  def typ: Value = typ0.typ
+  def value: Value = v.getOrElse(typ0.value)
+  def id: Long = typ0.id
+  def name: Name = typ0.name
   def isDefined: Boolean = v.isDefined
 }
 

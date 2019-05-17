@@ -59,13 +59,21 @@ trait ContextBuilder extends Context {
 
   def debug__headDefinesSize = layers.head.asInstanceOf[Layer.Defines].terms.size
 
-  def lookupDefinedValueType(a: Name): Option[(Int, Value)] = layers.head match {
+  def getDefined(i: Int): (Value, Option[Value]) = layers.head match {
+    case Layer.Defines(_, defines) =>
+      val ds = defines(i)
+      (ds.typ, ds.v)
+    case _ => logicError()
+  }
+
+  def lookupDefined(a: Name): Option[(Int, Value, Option[Value])] = layers.head match {
     case Layer.Defines(_, defines) =>
       val index = defines.indexWhere(_.name.intersect(a))
       if (index < 0) {
         None
       } else {
-        Some((index, defines(index).typ))
+        val ds = defines(index)
+        Some((index, ds.typ, ds.v))
       }
     case _ => logicError()
   }
@@ -79,7 +87,7 @@ trait ContextBuilder extends Context {
           case Some(_) => throw ContextBuilderException.AlreadyDeclared()
           case _ =>
             val g = gen()
-            Layer.Defines(metas, defines :+ DefineItem(Depends.No(ParameterBinder(g, name, typ)), Some(Depends.No(v)))) +: layers.tail
+            Layer.Defines(metas, defines :+ DefineItem(ParameterBinder(g, name, typ), Some(v))) +: layers.tail
         }
       case _ => logicError()
     }
@@ -92,7 +100,7 @@ trait ContextBuilder extends Context {
           case d@DefineItem(typ0, v0) =>
             assert(d.name == name)
             assert(v0.isEmpty)
-            Layer.Defines(metas, defines.updated(index, DefineItem(typ0, Some(Depends.No(v))))) +: layers.tail
+            Layer.Defines(metas, defines.updated(index, DefineItem(typ0, Some(v)))) +: layers.tail
           case _ =>
             throw ContextBuilderException.AlreadyDefined()
         }
@@ -107,7 +115,7 @@ trait ContextBuilder extends Context {
           case Some(_) => throw ContextBuilderException.AlreadyDeclared()
           case _ =>
             val g = gen()
-            Layer.Defines(metas, defines :+ DefineItem(Depends.No(ParameterBinder(g, name, typ)), None)) +: layers.tail
+            Layer.Defines(metas, defines :+ DefineItem(ParameterBinder(g, name, typ), None)) +: layers.tail
         }
       case _ => logicError()
     }

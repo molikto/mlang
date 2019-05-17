@@ -139,7 +139,7 @@ private class ReifierContextBase(layersBefore: Context.Layers) extends ReifierCo
 
   def saveOutOfScopeValue(r: Value.Reference): Unit = {
     val index = terms.size
-    terms.append(DefineItem(Depends.No(ParameterBinder(0, Name.empty, null)), Some(Depends.No(r.value))))
+    terms.append(DefineItem(ParameterBinder(0, Name.empty, null), Some(r.value)))
     val abs = if (r.value.eq(self)) {
       None : Option[Abstract]
     } else {

@@ -52,6 +52,8 @@ object TypeCheckException {
 
   case class RequiresValidRestriction() extends TypeCheckException
   case class TermICanOnlyAppearInDomainOfFunction() extends TypeCheckException
+
+  case class NotDefinedReferenceForTypeExpressions() extends TypeCheckException
 }
 
 
@@ -391,6 +393,11 @@ class TypeChecker private (protected override val layers: Layers)
 
   private def checkDeclaration(s: Declaration, abs: mutable.ArrayBuffer[DefinitionInfo]): Self = {
     def wrapBody(t: Term, n: Int): Term = if (n == 0) t else wrapBody(Term.Lambda(Name.empty, t), n - 1)
+    def throwIfNotDefined(ta: Abstract): Unit = {
+      if (ta.dependencies(0).exists(i => getDefined(i)._2.isEmpty)) {
+        throw TypeCheckException.NotDefinedReferenceForTypeExpressions()
+      }
+    }
     s match {
       case Declaration.Define(ms, name, ps, t0, v) =>
         if (ms.contains(Declaration.Modifier.__Debug)) {
@@ -401,6 +408,7 @@ class TypeChecker private (protected override val layers: Layers)
             info(s"check define $name")
             val pps = NameType.flatten(ps)
             val (_, ta) = inferTelescope(pps, t)
+            throwIfNotDefined(ta)
             val tv = eval(ta)
             val lambdaNameHints = pps.map(_._1) ++(t match {
               case Term.Function(d, _) =>
@@ -408,20 +416,21 @@ class TypeChecker private (protected override val layers: Layers)
               case _ => Seq.empty
             })
             val ctx = newDeclaration(name, tv) // allows recursive definitions
-          val va = ctx.check(wrapBody(v, pps.size), tv, lambdaNameHints)
+            val va = ctx.check(wrapBody(v, pps.size), tv, lambdaNameHints)
             info(s"declared $name")
             abs.append(DefinitionInfo(name, tv, va))
             ctx
           case None =>
             if (ps.nonEmpty) ???
-            lookupDefinedValueType(name) match {
-              case None =>
+            lookupDefined(name) match {
+              case None => // needs to infer a type
                 val (vt, va) = infer(v)
+                // throwIfNotDefined(va) // don't think this is needed
                 val ctx = newDeclaration(name, vt)
                 info(s"declared $name")
                 abs.append(DefinitionInfo(name, vt, va))
                 ctx
-              case Some((index, typ)) =>
+              case Some((index, typ, _)) =>
                 val va = check(v, typ, Seq.empty)
                 info(s"declared $name")
                 abs.update(index, DefinitionInfo(name, typ, va))
@@ -432,6 +441,7 @@ class TypeChecker private (protected override val layers: Layers)
         info(s"check declare $name")
         if (ms.nonEmpty) throw TypeCheckException.ForbiddenModifier()
         val (_, ta) = inferTelescope(NameType.flatten(ps), t)
+        throwIfNotDefined(ta)
         val tv = eval(ta)
         val ctx = newDeclaration(name, tv)
         info(s"declared $name")
