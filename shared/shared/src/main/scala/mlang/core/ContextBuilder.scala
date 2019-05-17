@@ -45,15 +45,9 @@ trait ContextBuilder extends Context {
   }
 
   def newDimensionLayer(n: Name): (Self, Value.Dimension) = {
-    val gen = dgen()
-    val v = Value.Dimension.Generic(gen)
-    val ctx: Self = Layer.Dimension(gen, n, v) +: layers
-    (ctx, v)
-  }
-
-  def newDimensionLayer(n: Name, v: Value.Dimension): Self = {
-    val gen = dgen()
-    Layer.Dimension(gen, n, v) +: layers
+    val l = Layer.Dimension(dgen(), n)
+    val ctx: Self = l +: layers
+    (ctx, l.value)
   }
 
   protected def headDefines: Seq[DefineBinder] = layers.head.asInstanceOf[Layer.Defines].terms

@@ -73,9 +73,10 @@ trait BaseEvaluator extends Context {
     }
   }
 
-  protected def eval(a: Abstract.AbsClosure): Value.AbsClosure = {
+  protected def evalClosureTemp(a: Abstract.AbsClosure): Value.AbsClosure = {
     eval(Abstract.PathLambda(a)).asInstanceOf[Value.PathLambda].body
   }
+
   protected def eval(term: Abstract): Value = {
     Benchmark.Eval {
       term match {

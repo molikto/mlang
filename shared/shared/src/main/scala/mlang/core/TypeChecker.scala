@@ -106,7 +106,7 @@ class TypeChecker private (protected override val layers: Layers)
         val (ctx, fd) = ctx0.newDimensionLayer(ident)
         val btr = bt(fd).restrict(dav)
         val na = ctx.check(a.term, btr)
-        val nv = ctx0.newDimensionLayer(ident, dv.from).eval(na)
+        val nv = ctx0.evalClosureTemp(na)(dv.from)
         if (!Conversion.equalTerm(btr, bv.restrict(dav), nv)) {
           throw TypeCheckException.CapNotMatching()
         }
@@ -454,11 +454,7 @@ class TypeChecker private (protected override val layers: Layers)
     val abs = new mutable.ArrayBuffer[DefinitionInfo]()
     val definitionOrder = new mutable.ArrayBuffer[Set[Int]]()
     for (s <- seq) {
-      if (s.modifiers.contains(Declaration.Modifier.Ignored)) {
-        ctx.checkDeclaration(s, abs.clone())
-      } else {
-        ctx = ctx.checkDeclaration(s, abs)
-      }
+      ctx = ctx.checkDeclaration(s, abs)
       val toCompile = mutable.ArrayBuffer[Int]()
       for (i <- abs.indices) {
         val t = abs(i)

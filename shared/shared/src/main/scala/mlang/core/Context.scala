@@ -50,7 +50,9 @@ object Layer {
   }
   case class Parameters(terms: Seq[ParameterBinder]) extends Terms
   case class Defines(terms: Seq[DefineBinder]) extends Terms
-  case class Dimension(id: Long, name: Name, value: Value.Dimension) extends Layer
+  case class Dimension(id: Long, name: Name) extends Layer {
+    val value = Value.Dimension.Generic(id)
+  }
   case class Restriction(res: Value.DimensionPair) extends Layer // no meta should be resolved here
 }
 
