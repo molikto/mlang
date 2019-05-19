@@ -19,47 +19,46 @@ sealed trait Abstract {
 //      }
     case Function(domain, codomain) =>
       domain.markRecursive(i, c)
-      codomain.markRecursive(i + 1, c)
+      codomain.markRecursive(i, c)
     case Lambda(closure) =>
-      closure.markRecursive(i + 1, c)
+      closure.markRecursive(i, c)
     case App(left, right) =>
       left.markRecursive(i, c)
       right.markRecursive(i, c)
     case Record(_, nodes) =>
-      nodes.foreach(_.typ.markRecursive(i + 1, c))
+      nodes.foreach(_.typ.markRecursive(i, c))
     case Projection(left, _) =>
       left.markRecursive(i, c)
     case Sum(_, constructors) =>
-      constructors.foreach(_.params.foreach(_.markRecursive(i + 1, c)))
+      constructors.foreach(_.params.foreach(_.markRecursive(i, c)))
     case Maker(sum, _) =>
       sum.markRecursive(i, c)
-    case Let(definitions, _, in) =>
-      definitions.foreach(a => {
-        a.markRecursive(i + 1, c)
-      })
+    case Let(metas, definitions, _, in) =>
+      metas.foreach(a => a.markRecursive(i + 1, c))
+      definitions.foreach(a => a.markRecursive(i + 1, c))
       in.markRecursive(i + 1, c)
     case PatternLambda(_, cd, cases) =>
-      cd.markRecursive(i + 1, c)
-      cases.foreach(_.body.markRecursive(i + 1, c))
+      cd.markRecursive(i, c)
+      cases.foreach(_.body.markRecursive(i, c))
     case PathLambda(body) =>
-      body.markRecursive(i + 1, c)
+      body.markRecursive(i, c)
     case PathType(typ, left, right) =>
-      typ.markRecursive(i + 1, c)
+      typ.markRecursive(i, c)
       left.markRecursive(i, c)
       right.markRecursive(i, c)
     case PathApp(lef, _) =>
       lef.markRecursive(i, c)
     case Coe(_, tp, base) =>
-      tp.markRecursive(i + 1, c)
+      tp.markRecursive(i, c)
       base.markRecursive(i, c)
     case Com(_, tp, base, faces) =>
-      tp.markRecursive(1 + i, c)
+      tp.markRecursive(i, c)
       base.markRecursive(i, c)
-      faces.foreach(_.body.markRecursive(i + 2, c))
+      faces.foreach(_.markRecursive(i, c))
     case Hcom(_, tp, base, faces) =>
       tp.markRecursive(i, c)
       base.markRecursive(i, c)
-      faces.foreach(_.body.markRecursive(i + 2, c))
+      faces.foreach(_.markRecursive(i, c))
     case Restricted(term, _) =>
       term.markRecursive(i, c)
   }
@@ -67,30 +66,44 @@ sealed trait Abstract {
   def dependencies(i: Int): Set[Int] = this match {
     case Universe(_) => Set.empty
     case TermReference(up, index, _) => if (i == up) Set(index) else Set.empty
-    case Function(domain, codomain) => domain.dependencies(i) ++ codomain.dependencies(i + 1)
-    case Lambda(closure) => closure.dependencies(i + 1)
+    case Function(domain, codomain) => domain.dependencies(i) ++ codomain.dependencies(i)
+    case Lambda(closure) => closure.dependencies(i)
     case App(left, right) => left.dependencies(i) ++ right.dependencies(i)
-    case Record(_, nodes) => nodes.flatMap(_.typ.dependencies(i + 1)).toSet
+    case Record(_, nodes) => nodes.flatMap(_.typ.dependencies(i)).toSet
     case Projection(left, _) => left.dependencies(i)
-    case Sum(_, constructors) => constructors.flatMap(_.params.flatMap(_.dependencies(i + 1))).toSet
+    case Sum(_, constructors) => constructors.flatMap(_.params.flatMap(_.dependencies(i))).toSet
     case Maker(sum, _) => sum.dependencies(i)
-    case Let(definitions, _, in) => definitions.flatMap(a => a.dependencies(i + 1)).toSet ++ in.dependencies(i + 1)
-    case PatternLambda(_, cd, cases) => cd.dependencies(i + 1) ++ cases.flatMap(_.body.dependencies(i + 1)).toSet
-    case PathLambda(body) => body.dependencies(i + 1)
-    case PathType(typ, left, right) => typ.dependencies(i + 1) ++ left.dependencies(i) ++ right.dependencies(i)
+    case Let(metas, definitions, _, in) =>
+      metas.flatMap(a => a.dependencies(i + 1)).toSet  ++ definitions.flatMap(a => a.dependencies(i + 1)).toSet ++ in.dependencies(i + 1)
+    case PatternLambda(_, cd, cases) => cd.dependencies(i) ++ cases.flatMap(_.body.dependencies(i)).toSet
+    case PathLambda(body) => body.dependencies(i)
+    case PathType(typ, left, right) => typ.dependencies(i) ++ left.dependencies(i) ++ right.dependencies(i)
     case PathApp(lef, _) => lef.dependencies(i)
-    case Coe(_, tp, base) => tp.dependencies(i + 1) ++ base.dependencies(i)
-    case Hcom(_, tp, base, faces) => tp.dependencies(i) ++ base.dependencies(i) ++ faces.flatMap(_.body.dependencies(i + 2)).toSet
-    case Com(_, tp, base, faces) => tp.dependencies(i + 1) ++ base.dependencies(i) ++ faces.flatMap(_.body.dependencies(i + 2)).toSet
+    case Coe(_, tp, base) => tp.dependencies(i) ++ base.dependencies(i)
+    case Hcom(_, tp, base, faces) => tp.dependencies(i) ++ base.dependencies(i) ++ faces.flatMap(_.dependencies(i)).toSet
+    case Com(_, tp, base, faces) => tp.dependencies(i + 1) ++ base.dependencies(i) ++ faces.flatMap(_.dependencies(i)).toSet
     case Restricted(term, _) => term.dependencies(i)
   }
 }
 
 // abstract terms will have restricted terms annotated
 object Abstract {
-  type Closure = Abstract
-  type MultiClosure = Abstract
-  type AbsClosure = Abstract
+
+  sealed trait MetaEnclosedT {
+    val term: Abstract
+    val metas: Seq[Abstract]
+    def dependencies(i: Int): Set[Int] = term.dependencies(i + 1)
+    def markRecursive(i: Int, c: Set[Int]): Unit = term.markRecursive(i + 1, c)
+  }
+  sealed trait ClosureT extends MetaEnclosedT {
+  }
+
+  case class Closure(metas: Seq[Abstract], term: Abstract) extends ClosureT
+  case class AbsClosure(metas: Seq[Abstract], term: Abstract) extends ClosureT
+  case class MultiClosure(metas: Seq[Abstract], term: Abstract) extends ClosureT
+  case class MetaEnclosed(metas: Seq[Abstract], term: Abstract) extends MetaEnclosedT // used by closure graph
+
+
   case class Universe(i: Int) extends Abstract
 
   case class TermReference(up: Int, index: Int, @lateinit var closed: Boolean) extends Abstract
@@ -101,18 +114,18 @@ object Abstract {
 
   case class App(left: Abstract, right: Abstract) extends Abstract
 
-  case class RecordNode(name: Name, dependencies: Seq[Int], typ: MultiClosure)
+  case class RecordNode(name: Name, dependencies: Seq[Int], typ: MetaEnclosed)
   case class Record(level: Int, nodes: Seq[RecordNode]) extends Abstract
 
   case class Projection(left: Abstract, field: Int) extends Abstract
 
-  case class Constructor(name: Tag, params: Seq[MultiClosure])
+  case class Constructor(name: Tag, params: Seq[MetaEnclosed])
 
   case class Sum(level: Int, constructors: Seq[Constructor]) extends Abstract
 
   case class Maker(sum: Abstract, field: Int) extends Abstract
 
-  case class Let(definitions: Seq[Abstract], order: Seq[Int], in: Abstract) extends Abstract
+  case class Let(metas: Seq[Abstract], definitions: Seq[Abstract], order: Seq[Int], in: Abstract) extends Abstract
 
   case class Case(pattern: Pattern, body: MultiClosure)
   case class PatternLambda(id: Long, typ: Closure, cases: Seq[Case]) extends Abstract
@@ -129,7 +142,10 @@ object Abstract {
   case class Restricted(term: Abstract, restriction: DimensionPair) extends Abstract
 
   // restriction doesn't take binding, but they have a level non-the-less
-  case class Face(pair: DimensionPair, body: AbsClosure)
+  case class Face(pair: DimensionPair, body: AbsClosure) {
+    def dependencies(i: Int): Set[Int] = body.dependencies(i + 1)
+    def markRecursive(i: Int, c: Set[Int]): Unit = body.markRecursive(i + 1, c)
+  }
 
   case class DimensionPair(from: Dimension, to: Dimension)
 

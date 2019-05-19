@@ -108,7 +108,7 @@ class TypeChecker private (protected override val layers: Layers)
         val (ctx, fd) = ctx0.newDimensionLayer(ident)
         val btr = bt(fd).restrict(dav)
         val na = ctx.check(a.term, btr)
-        val nv = ctx0.evalClosureTemp(na)(dv.from)
+        val nv = ctx0.eval(na)(dv.from)
         if (!Conversion.equalTerm(btr, bv.restrict(dav), nv)) {
           throw TypeCheckException.CapNotMatching()
         }

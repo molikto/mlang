@@ -29,6 +29,10 @@ trait PlatformEvaluator extends BaseEvaluator {
 
 
   private class Emitter(recursivelyDefining: Set[Int]) {
+    def emit(term: Abstract.ClosureT, depth: Int): String = {
+      s"{ val m$depth = Seq(${term.metas.map(a => emit(a, depth)).mkString(", ")}); ${emit(term.term, depth)} }"
+    }
+
     def emit(term: Abstract, depth: Int): String = {
       term match {
         case Abstract.Universe(l) =>
@@ -54,7 +58,7 @@ trait PlatformEvaluator extends BaseEvaluator {
               ss
             }
           }
-        case Abstract.Let(definitions, order, in) =>
+        case Abstract.Let(metas, definitions, order, in) =>
           if (definitions.isEmpty) {
             emit(in, depth + 1)
           } else {

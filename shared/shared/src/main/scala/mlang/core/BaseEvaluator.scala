@@ -73,7 +73,7 @@ trait BaseEvaluator extends Context {
     }
   }
 
-  protected def evalClosureTemp(a: Abstract.AbsClosure): Value.AbsClosure = {
+  protected def eval(a: Abstract.AbsClosure): Value.AbsClosure = {
     eval(Abstract.PathLambda(a)).asInstanceOf[Value.PathLambda].body
   }
 

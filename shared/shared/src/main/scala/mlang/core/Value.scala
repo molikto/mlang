@@ -360,7 +360,18 @@ sealed trait Value {
 object Value {
 
 
-  implicit class MultiClosure(private val func: Seq[Value]=> Value) extends AnyVal {
+  object ClosureGraph {
+    trait Node[T] {
+      def name: T
+      def dependencies: Seq[Int]
+    }
+  }
+  trait ClosureGraphCalculator[T] {
+    val nodes: Seq[ClosureGraph.Node[T]]
+    def reduce(nodes: Seq[ClosureGraph.Node[T]], i: Int, a: Value): Seq[ClosureGraph.Node[T]]
+  }
+
+  implicit class MultiClosure(private val func: Seq[Value] => Value) extends AnyVal {
     def eq(b: MultiClosure) = func.eq(b.func)
     def apply() = func(Seq.empty)
     def apply(seq: Seq[Value]): Value = func(seq)
@@ -452,7 +463,13 @@ object Value {
   sealed trait HeadCanonical extends Whnf
   sealed trait Stuck extends Whnf
 
-  case class Meta(id: Long, @mutation var v: Either[Value, Value]) extends Value
+  object Meta {
+    sealed trait State
+
+    case class Closed(v: Value) extends State
+    case class Open(id: Long, typ: Value) extends State
+  }
+  case class Meta(@mutation var state: Meta.State) extends Value
 
   case class Reference(value: Value) extends Syntaxial
   case class Generic(id: Long, typ: Value) extends Stuck
@@ -469,6 +486,9 @@ object Value {
 
   case class RecordNode(name: Name, dependencies: Seq[Int], closure: MultiClosure)
 
+  object Record {
+    type Node = ClosureGraph.Node[Name]
+  }
   // TODO should have a field: recursive, and it must be recursive, the will not be able to calculus
   case class Record(level: Int, nodes: Seq[RecordNode]) extends HeadCanonical {
     assert(nodes.isEmpty || nodes.head.dependencies.isEmpty)

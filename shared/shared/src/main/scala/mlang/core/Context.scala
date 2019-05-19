@@ -53,7 +53,7 @@ object Layer {
 
   case class MultiParameters(binders: Seq[ParameterBinder], metas: Metas) extends Parameters
 
-  case class ParameterGraph(defined: Seq[MetaEnclosed[ParameterBinder]], metas: Metas)  extends Parameters {
+  case class ParameterGraph(defined: Seq[MetaEnclosed[ParameterBinder]], metas: Metas) extends Parameters {
     def binders: Seq[ParameterBinder] = defined.map(_.t)
   }
 
