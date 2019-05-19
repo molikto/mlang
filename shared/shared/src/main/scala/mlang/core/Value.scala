@@ -359,17 +359,25 @@ sealed trait Value {
 
 object Value {
 
-
   object ClosureGraph {
+    type Graph[T] = Seq[Node[T]]
     trait Node[T] {
       def name: T
-      def dependencies: Seq[Int]
+      def dependencies: Seq[T]
+    }
+
+    def createMetaAnnotated[T](): ClosureGraph[T] = {
+
     }
   }
-  trait ClosureGraphCalculator[T] {
-    val nodes: Seq[ClosureGraph.Node[T]]
-    def reduce(nodes: Seq[ClosureGraph.Node[T]], i: Int, a: Value): Seq[ClosureGraph.Node[T]]
+
+  trait ClosureGraph[T] {
+    val nodes: ClosureGraph.Graph[T]
+    def reduce(i: T, a: Value): ClosureGraph.Graph[T]
   }
+
+
+
 
   implicit class MultiClosure(private val func: Seq[Value] => Value) extends AnyVal {
     def eq(b: MultiClosure) = func.eq(b.func)
