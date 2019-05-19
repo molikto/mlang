@@ -1,6 +1,7 @@
 package mlang.core
 
 import mlang.concrete.{Pattern => Patt}
+import mlang.core
 import mlang.core.Value.ClosureGraph
 import mlang.name._
 
@@ -16,7 +17,7 @@ object ContextBuilderException {
   case class AlreadyDeclared() extends ContextBuilderException
   case class AlreadyDefined() extends ContextBuilderException
   case class NotDeclared() extends ContextBuilderException
-
+  case class MetaNotSolved() extends ContextBuilderException
 }
 
 
@@ -26,6 +27,7 @@ import Context._
 object ContextBuilder {
   private val gen =new LongGen.Positive()
   private val dgen = new LongGen.Positive()
+  private val mgen = new LongGen.Positive()
 }
 
 import ContextBuilder._
@@ -38,7 +40,30 @@ trait ContextBuilder extends Context {
 
 
 
-  protected def createMetas(): Metas = mutable.ArrayBuffer.empty[Unit]
+  protected def createMetas(): Metas = Metas(mutable.ArrayBuffer.empty, mutable.ArrayBuffer.empty)
+
+  def newMeta(typ: Value): Abstract.MetaReference = {
+    val id = mgen()
+    val v = Value.Meta(Value.Meta.Open(id, typ, this))
+    val ms = layers.head.metas
+    if (ms.debug_final) logicError()
+    val index = ms.size
+    ms.append(v)
+    Abstract.MetaReference(0, index)
+  }
+
+  def finish(): Seq[Value] = {
+    val ret = freeze()
+    layers.head.metas.debug_final = true
+    ret
+  }
+
+  def freeze(): Seq[Value] = {
+    val vs = layers.head.metas.freeze()
+    if (!vs.forall(_.isSolved)) throw ContextBuilderException.MetaNotSolved()
+    vs.map(_.v.asInstanceOf[Value.Meta.Closed].v)
+  }
+
 
 
 
@@ -50,8 +75,8 @@ trait ContextBuilder extends Context {
 
 
 
-  def newDimensionLayer(n: Name): (Self, Value.Dimension) = {
-    val l = Layer.Dimension(dgen(), n, createMetas())
+  def newDimensionLayer(n: Name, dimension: Option[Long] = None): (Self, Value.Dimension.Generic) = {
+    val l = Layer.Dimension(dimension.getOrElse(dgen()), n, createMetas())
     val ctx: Self = l +: layers
     (ctx, l.value)
   }
@@ -143,7 +168,7 @@ trait ContextBuilder extends Context {
   def newParametersLayer(): Self = Layer.ParameterGraph(Seq.empty, createMetas()) +: layers
 
 
-  def newParameter(name: Name, typ: Value) : (Self, Value) = {
+  def newParameter(name: Name, ms: Int, typ: Value) : (Self, Value) = {
     layers.head match {
       case Layer.ParameterGraph(binders, metas) =>
         binders.find(_.t.name.intersect(name)) match {
@@ -151,8 +176,9 @@ trait ContextBuilder extends Context {
           case _ =>
             val g = gen()
             val v = Value.Generic(g, typ)
+            assert(metas.current.isEmpty)
             (Layer.ParameterGraph(
-              binders :+ MetaEnclosed[ParameterBinder](metas, ParameterBinder(g, name, typ)), createMetas()) +: layers.tail, v)
+              binders :+ MetaParameterBinder(ms, ParameterBinder(g, name, typ)), metas) +: layers.tail, v)
         }
       case _ => logicError()
     }

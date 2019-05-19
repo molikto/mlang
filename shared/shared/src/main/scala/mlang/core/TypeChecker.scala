@@ -53,6 +53,8 @@ object TypeCheckException {
   case class RequiresValidRestriction() extends TypeCheckException
   case class TermICanOnlyAppearInDomainOfFunction() extends TypeCheckException
 
+  case class CannotInferMeta() extends TypeCheckException
+
   case class NotDefinedReferenceForTypeExpressions() extends TypeCheckException
 }
 
@@ -68,17 +70,6 @@ class TypeChecker private (protected override val layers: Layers)
 
   override protected implicit def create(a: Layers): Self = new TypeChecker(a)
 
-
-  def checkLine(a: Term): (Value.AbsClosure, Abstract.AbsClosure) = {
-    a match {
-      case Term.Lambda(n, body) =>
-        val ctx = newDimensionLayer(n)._1
-        val (_, ta) = ctx.inferLevel(body)
-        val tv = eval(Abstract.PathLambda(ta))
-        (tv.asInstanceOf[Value.PathLambda].body, ta)
-      case _ => throw TypeCheckException.ExpectingLambdaTerm()
-    }
-  }
 
   def checkValidRestrictions(ds: Seq[Value.DimensionPair]) = {
     val res = ds.exists(a => a.isTrue) || ds.flatMap(r => ds.map(d => (r, d))).exists(p => {
@@ -97,7 +88,7 @@ class TypeChecker private (protected override val layers: Layers)
   ): Seq[Abstract.Face] = {
     // we use this context to evaluate body of faces, it is only used to keep the dimension binding to the same
     // one, but as restricts is already present in abstract terms, it is ok to use this instead of others
-    val (fContext, dim0) = newParametersLayer().newDimensionLayer(ident)
+    val (_, dim0) = newParametersLayer().newDimensionLayer(ident)
     val btt = bt(dim0)
     val res = faces.map(a => {
       val (dav, daa) = checkDimensionPair(a.dimension)
@@ -105,21 +96,21 @@ class TypeChecker private (protected override val layers: Layers)
         throw TypeCheckException.RemoveFalseFace()
       } else {
         val ctx0 = newRestrictionLayer(dav)
-        val (ctx, fd) = ctx0.newDimensionLayer(ident)
+        val (ctx, fd) = ctx0.newDimensionLayer(ident, Some(dim0.id))
         val btr = bt(fd).restrict(dav)
-        val na = ctx.check(a.term, btr)
-        val nv = ctx0.eval(na)(dv.from)
+        val na = Abstract.AbsClosure(ctx.finishReify(), ctx.check(a.term, btr))
+        val naa = ctx0.eval(na)
+        val nv = naa(dv.from)
         if (!Conversion.equalTerm(btr, bv.restrict(dav), nv)) {
           throw TypeCheckException.CapNotMatching()
         }
-        (Abstract.Face(daa, na), fContext.eval(na), dav)
+        (Abstract.Face(daa, na), naa(dim0), dav)
       }
     })
     for (i <- faces.indices) {
       val l = res(i)
       for (j <- 0 until i) {
         val r = res(j)
-        val rj = faces(j)
         // this might evaluate the dimensions to new values
         val dfv = r._3.restrict(l._3)
         // only used to test if this restriction is false face or not
@@ -140,6 +131,19 @@ class TypeChecker private (protected override val layers: Layers)
   }
 
 
+  def checkLine(a: Term): (Value.AbsClosure, Abstract.AbsClosure) = {
+    a match {
+      case Term.Lambda(n, body) =>
+        val ctx = newDimensionLayer(n)._1
+        val (_, ta0) = ctx.inferLevel(body)
+        val ta = Abstract.AbsClosure(ctx.finishReify(), ta0)
+        val tv = eval(ta)
+        (tv, ta)
+      case _ => throw TypeCheckException.ExpectingLambdaTerm()
+    }
+  }
+
+
   private def infer(term: Term): (Value, Abstract) = {
     debug(s"infer $term")
     val res = term match {
@@ -149,11 +153,12 @@ class TypeChecker private (protected override val layers: Layers)
         // should lookup always return a value? like a open reference?
         val (binder, abs) = lookupTerm(name)
         (binder, abs)
+      case Term.Hole =>
+        throw TypeCheckException.CannotInferMeta()
       case Term.ConstantDimension(_) =>
         throw ContextException.ConstantSortWrong()
       case Term.I =>
         throw TypeCheckException.TermICanOnlyAppearInDomainOfFunction()
-
       case Term.Cast(v, t) =>
         val (_, ta) = inferLevel(t)
         val tv = eval(ta)
@@ -187,7 +192,7 @@ class TypeChecker private (protected override val layers: Layers)
         val fs = constructors.map(c => newLayerInferFlatLevel(c.term))
         val fl = fs.map(_._1).max
         (Value.Universe(fl), Abstract.Sum(fl, fs.map(_._2.map(_._2)).zip(constructors).map(a =>
-          Abstract.Constructor(a._2.name, a._1.zipWithIndex.map(kk => ((0 until kk._2), kk._1))))))
+          Abstract.Constructor(a._2.name, a._1.zipWithIndex.map(kk => (0 until kk._2, kk._1))))))
       case Term.Coe(direction, tp, base) =>
         val (dv, da) = checkDimensionPair(direction)
         val (cl, ta) = checkLine(tp)
@@ -212,10 +217,11 @@ class TypeChecker private (protected override val layers: Layers)
               case Term.Lambda(name, body) =>
                 val ctx = newDimensionLayer(name)._1
                 val (tl, ta) = ctx.inferLevel(body)
-                val tv = eval(Abstract.PathLambda(ta)).asInstanceOf[Value.PathLambda]
-                val la = check(left, tv.body(Value.Dimension.False))
-                val ra = check(right, tv.body(Value.Dimension.True))
-                (Value.Universe(tl), Abstract.PathType(ta, la, ra))
+                val ca = Abstract.AbsClosure(ctx.finishReify(), ta)
+                val tv = eval(ca)
+                val la = check(left, tv(Value.Dimension.False))
+                val ra = check(right, tv(Value.Dimension.True))
+                (Value.Universe(tl), Abstract.PathType(ca, la, ra))
               case _ => throw TypeCheckException.ExpectingLambdaTerm()
             }
           case None =>
@@ -224,7 +230,7 @@ class TypeChecker private (protected override val layers: Layers)
             if (Conversion.equalType(lt, rt)) {
               val ta = newDimensionLayer(Name.empty)._1.reify(lt)
               if (debug.enabled) debug(s"infer path type: $ta")
-              (Value.Universe(Value.inferLevel(lt)), Abstract.PathType(ta, la, ra))
+              (Value.Universe(Value.inferLevel(lt)), Abstract.PathType(Abstract.AbsClosure(Seq.empty, ta), la, ra))
             } else {
               throw TypeCheckException.InferPathEndPointsTypeNotMatching()
             }
@@ -285,18 +291,35 @@ class TypeChecker private (protected override val layers: Layers)
     }
   }
 
+  private def newLayerInferFlatLevel(terms: Seq[NameType]): (Int, Seq[(Name, Abstract.MetaEnclosed)]) = {
+    var ctx = newParametersLayer()
+    var l = 0
+    val fas = terms.flatMap(f => {
+      val fs = if (f.names.isEmpty) Seq(Name.empty) else f.names
+      fs.map(n => {
+        val (fl, fa) = ctx.inferLevel(f.ty)
+        l = l max fl
+        val ms = ctx.freezeReify()
+        ctx = ctx.newParameter(n, ms.size, ctx.eval(fa))._1
+        (n, Abstract.MetaEnclosed(ms, fa))
+      })
+    })
+    (l, fas)
+  }
+
   private def inferTelescope(domain: NameType.FlatSeq, codomain: Term): (Int, Abstract) = {
     domain match {
       case head +: tail =>
         head._2 match {
           case Term.I =>
-            val (cl, ca) = newDimensionLayer(head._1)._1.inferTelescope(tail, codomain)
-            (cl, Abstract.PathType(ca, ???, ???))
+            val ctx = newDimensionLayer(head._1)._1
+            val (cl, ca) = ctx.inferTelescope(tail, codomain)
+            (cl, Abstract.PathType(Abstract.AbsClosure(ctx.finishReify(), ca), ???, ???))
           case _ =>
             val (dl, da) = inferLevel(head._2)
             val ctx = newParameterLayer(head._1, eval(da))._1
             val (cl, ca) = ctx.inferTelescope(tail, codomain)
-            (dl max cl, Abstract.Function(da, ca))
+            (dl max cl, Abstract.Function(da, Abstract.Closure(ctx.finishReify(), ca)))
         }
       case Seq() =>
         val (l, a) = inferLevel(codomain)
@@ -327,6 +350,16 @@ class TypeChecker private (protected override val layers: Layers)
     }
   }
 
+  private def freezeReify(): Seq[Abstract] = {
+    val vs = freeze()
+    vs.map(reify)
+  }
+
+  private def finishReify(): Seq[Abstract] = {
+    val vs = finish()
+    vs.map(reify)
+  }
+
   private def check(
       term: Term,
       cp: Value,
@@ -337,13 +370,18 @@ class TypeChecker private (protected override val layers: Layers)
       case head +: tl => (head, tl)
       case _ => (Name.empty, Seq.empty)
     }
-    def fallback() = {
-      val (tt, ta) = infer(term)
-      if (Conversion.equalType(tt, cp)) ta
-      else {
-        info(s"${reify(tt.whnf)}")
-        info(s"${reify(cp.whnf)}")
-        throw TypeCheckException.TypeMismatch()
+    def fallback(): Abstract = {
+      term match {
+        case Term.Hole =>
+          newMeta(cp)
+        case _ =>
+          val (tt, ta) = infer(term)
+          if (Conversion.equalType(tt, cp)) ta
+          else {
+            info(s"${reify(tt.whnf)}")
+            info(s"${reify(cp.whnf)}")
+            throw TypeCheckException.TypeMismatch()
+          }
       }
     }
     cp.whnf match {
@@ -352,12 +390,12 @@ class TypeChecker private (protected override val layers: Layers)
           case Term.Lambda(n, body) =>
             val (ctx, v) = newParameterLayer(n.nonEmptyOrElse(hint), domain)
             val ba = ctx.check(body, codomain(v), tail)
-            Abstract.Lambda(ba)
+            Abstract.Lambda(Abstract.Closure(ctx.finishReify(), ba))
           case Term.PatternLambda(cases) =>
             Abstract.PatternLambda(TypeChecker.pgen(), reifyClosure(domain, codomain), cases.map(c => {
               val (ctx, v, pat) = newPatternLayer(c.pattern, domain)
               val ba = ctx.check(c.body, codomain(v), tail)
-              Abstract.Case(pat, ba)
+              Abstract.Case(pat, Abstract.MultiClosure(ctx.finishReify(), ba))
             }))
           case _ => fallback()
         }
@@ -368,12 +406,12 @@ class TypeChecker private (protected override val layers: Layers)
             val t1 = typ(dv)
             import Value.Dimension._
             val a1 = c1.check(body, t1, tail)
-            val ps = Abstract.PathLambda(a1)
+            val ps = Abstract.AbsClosure(c1.finishReify(), a1)
             val pv = eval(ps)
-            val leftEq = Conversion.equalTerm(typ(False), pv.papp(False), left)
-            val rightEq = Conversion.equalTerm(typ(True), pv.papp(True), right)
+            val leftEq = Conversion.equalTerm(typ(False), pv(False), left)
+            val rightEq = Conversion.equalTerm(typ(True), pv(True), right)
             if (leftEq && rightEq) {
-              ps
+              Abstract.PathLambda(ps)
             } else {
               throw TypeCheckException.PathEndPointsNotMatching()
             }
@@ -383,9 +421,8 @@ class TypeChecker private (protected override val layers: Layers)
     }
   }
 
-  private def reifyClosure(domain: Value, codomain: Value.Closure): Abstract = {
-    val (ctx, v) = newParameterLayer(Name.empty, domain)
-    ctx.reify(codomain(v))
+  private def reifyClosure(domain: Value, codomain: Value.Closure): Abstract.Closure = {
+    ???
   }
 
   private def checkDeclaration(s: Declaration, abs: mutable.ArrayBuffer[DefinitionInfo]): Self = {
@@ -511,20 +548,6 @@ class TypeChecker private (protected override val layers: Layers)
   }
 
 
-  private def newLayerInferFlatLevel(terms: Seq[NameType]): (Int, Seq[(Name, Abstract)]) = {
-    var ctx = newParametersLayer()
-    var l = 0
-    val fas = terms.flatMap(f => {
-      val fs = if (f.names.isEmpty) Seq(Name.empty) else f.names
-      fs.map(n => {
-        val (fl, fa) = ctx.inferLevel(f.ty)
-        l = l max fl
-        ctx = ctx.newParameter(n, ctx.eval(fa))._1
-        (n, fa)
-      })
-    })
-    (l, fas)
-  }
 
   private def inferLevel(term: Term): (Int, Abstract) = {
     val (tt, ta) = infer(term)

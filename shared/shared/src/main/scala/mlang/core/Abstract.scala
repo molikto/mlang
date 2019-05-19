@@ -110,6 +110,7 @@ object Abstract {
 
   case class Reference(up: Int, index: Int, @lateinit var closed: Boolean) extends Abstract
 
+  case class MetaReference(up: Int, index: Int) extends Abstract
 
   case class Function(domain: Abstract, codomain: Closure) extends Abstract
 

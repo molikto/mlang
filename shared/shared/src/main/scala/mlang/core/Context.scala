@@ -19,7 +19,7 @@ case class ParameterBinder(id: Long, name: Name, typ: Value) {
   val value = Value.Generic(id, typ)
 }
 
-case class MetaEnclosed[T](metas: Context.Metas, t: T)
+case class MetaParameterBinder(metas: Int, t: ParameterBinder)
 
 sealed trait Depends[T] {
   def t: T
@@ -36,12 +36,27 @@ case class DefineItem(typ0: ParameterBinder, v: Option[Value]) {
 object Context {
   type Layers = Seq[Layer]
 
-  type Metas = mutable.ArrayBuffer[Unit]
+  case class Metas(frozen: mutable.ArrayBuffer[Value.Meta], current: mutable.ArrayBuffer[Value.Meta]) {
+    def freeze(): Seq[Value.Meta] = {
+      val vs = current.clone()
+      frozen.appendAll(current)
+      current.clear()
+      vs
+    }
+
+    var debug_final = false
+    def size = frozen.size + current.size
+    def append(a: Value.Meta) = {
+      if (debug_final) logicError()
+      current.append(a)
+    }
+  }
 }
 
 import Context._
 
 sealed trait Layer {
+  val metas: Metas
 }
 
 object Layer {
@@ -53,7 +68,7 @@ object Layer {
 
   case class MultiParameters(binders: Seq[ParameterBinder], metas: Metas) extends Parameters
 
-  case class ParameterGraph(defined: Seq[MetaEnclosed[ParameterBinder]], metas: Metas) extends Parameters {
+  case class ParameterGraph(defined: Seq[MetaParameterBinder], metas: Metas) extends Parameters {
     def binders: Seq[ParameterBinder] = defined.map(_.t)
   }
 
@@ -66,7 +81,7 @@ object Layer {
 
 
 import Context._
-trait Context {
+trait Context extends ContextForMeta {
 
   protected val layers: Layers
 

@@ -568,9 +568,12 @@ object Value {
     sealed trait State
 
     case class Closed(v: Value) extends State
-    case class Open(id: Long, typ: Value) extends State
+    case class Open(id: Long, typ: Value, context: ContextForMeta) extends State
   }
-  case class Meta(@polarized_mutation var v: Meta.State) extends Syntaxial
+  case class Meta(@polarized_mutation var v: Meta.State) extends Syntaxial {
+    def isSolved: Boolean = v.isInstanceOf[Meta.Closed]
+
+  }
 
   case class Reference(@lateinit var value: Value) extends Syntaxial {
     override def toString: String = "Reference"

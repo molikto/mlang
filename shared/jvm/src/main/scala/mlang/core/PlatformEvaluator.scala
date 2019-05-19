@@ -30,7 +30,11 @@ trait PlatformEvaluator extends BaseEvaluator {
 
   private class Emitter(recursivelyDefining: Set[Int]) {
     def emitInner(term: Abstract.ClosureT, depth: Int): String = {
-      s"{ val m$depth = Seq(${term.metas.map(a => emit(a, depth)).mkString(", ")}); ${emit(term.term, depth)} }"
+      if (term.metas.isEmpty) {
+        emit(term.term, depth)
+      } else {
+        s"{ val m$depth = Seq(${term.metas.map(a => emit(a, depth)).mkString(", ")}); ${emit(term.term, depth)} }"
+      }
     }
 
     def emitGraph(a: Abstract.ClosureGraph, d: Int): String = {
@@ -162,7 +166,7 @@ trait PlatformEvaluator extends BaseEvaluator {
       debug("==================")
       rr(t._1).value = extractFromHolder(compile[Holder](src), rr)
     }
-    Map.empty ++ terms.transform((f, _) => rr(f))
+    Map.empty ++ terms.transform((f, _) => rr(f).value)
   }
 
   private def holderSrc(res: String): String = {
