@@ -469,9 +469,9 @@ object Value {
     case class Closed(v: Value) extends State
     case class Open(id: Long, typ: Value) extends State
   }
-  case class Meta(@mutation var state: Meta.State) extends Value
+  case class Meta(@polarized_mutation var v: Meta.State) extends Syntaxial
 
-  case class Reference(value: Value) extends Syntaxial
+  case class Reference(@lateinit var value: Value) extends Syntaxial
   case class Generic(id: Long, typ: Value) extends Stuck
 
   case class Universe(level: Int) extends HeadCanonical

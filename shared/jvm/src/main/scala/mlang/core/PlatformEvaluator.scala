@@ -42,32 +42,24 @@ trait PlatformEvaluator extends BaseEvaluator {
             if (up == depth + 1 && recursivelyDefining.contains(index)) {
               // eval recursive, this deref happens under a closure, so it will have a value
               assert(closed)
-              s"Reference(rs($index))"
+              s"rs($index)"
             } else {
               // this is a value inside the context
               s"${tunnel(evalTermReferenceAsReference(up - depth - 1, index, closed))}"
             }
           } else {
-            val ss = if (index == -1) s"r${depth - up}" else s"r${depth - up}($index)"
-            // a reference inside the emit context
-            if (closed) {
-              // reference to a value directly
-              s"Reference($ss)"
-            } else {
-              // formal parameters of a closure
-              ss
-            }
+            if (index == -1) s"r${depth - up}" else s"r${depth - up}($index)"
           }
         case Abstract.Let(metas, definitions, order, in) =>
           if (definitions.isEmpty) {
             emit(in, depth + 1)
           } else {
             val d = depth + 1
-            s"{val r$d = new scala.collection.mutable.ArrayBuffer[Value](); " +
-                s"for (_ <- 0 until ${definitions.size}) r$d.append(null); " +
+            s"{val r$d = new scala.collection.mutable.ArrayBuffer[Reference](); " +
+                s"for (_ <- 0 until ${definitions.size}) r$d.append(Reference(null)); " +
                 s"${order.map(a =>
-                  s"r$d.update($a, ${emit(definitions(a), d)})"
-                ).mkString("; ")}; " +
+                  s"r$d($a).value = ${emit(definitions(a), d)}; "
+                ).mkString("")}" +
                 s"val body = ${emit(in, d)}; " +
                 s"Let(r$d, Seq(${order.mkString(", ")}), body)" +
                 s"}"
@@ -159,8 +151,8 @@ trait PlatformEvaluator extends BaseEvaluator {
   }
   protected def platformEvalRecursive(terms: Map[Int, Abstract]): Map[Int, Value] = {
     val emitter = new Emitter(terms.keySet)
-    val rr = new scala.collection.mutable.ArrayBuffer[Value]()
-    for (_ <- 0 to terms.keySet.max) rr.append(null)
+    val rr = new scala.collection.mutable.ArrayBuffer[Value.Reference]()
+    for (_ <- 0 to terms.keySet.max) rr.append(Value.Reference(null))
     for (t <- terms) {
       val res = emitter.emit(t._2, -1)
       val src = holderSrc(res)
@@ -169,7 +161,7 @@ trait PlatformEvaluator extends BaseEvaluator {
       debug("==================")
       debug(res)
       debug("==================")
-      rr.update(t._1, extractFromHolder(compile[Holder](src), rr))
+      rr(t._1).value = extractFromHolder(compile[Holder](src), rr)
     }
     Map.empty ++ terms.transform((f, _) => rr(f))
   }
