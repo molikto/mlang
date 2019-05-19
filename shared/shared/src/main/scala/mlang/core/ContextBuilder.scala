@@ -167,11 +167,12 @@ trait ContextBuilder extends Context {
       p match {
         case Patt.Atom(name) =>
           var ret: (Value, Pattern) = null
+          var indexaa = 0
           name.asRef match {
             case Some(ref) =>
               t.whnf match {
-                case Value.Sum(_, cs) if cs.exists(c => c.name == ref && c.parameters == 0) =>
-                  ret = (Value.Construct(ref, Seq.empty), Pattern.Construct(ref, Seq.empty))
+                case Value.Sum(_, cs) if { indexaa = cs.indexWhere(c => c.name.by(ref) && c.parameters == 0); indexaa >= 0 } =>
+                  ret = (Value.Construct(indexaa, Seq.empty), Pattern.Construct(indexaa, Seq.empty))
                 case _ =>
               }
             case _ =>
@@ -201,7 +202,7 @@ trait ContextBuilder extends Context {
         case Patt.NamedGroup(name, maps) =>
           t.whnf match {
             case Value.Sum(_, cs) =>
-              cs.find(_.name == name) match {
+              cs.find(_.name.by(name)) match {
                 case Some(c) =>
                   if (c.nodes.size == maps.size) {
                     val vs = new mutable.ArrayBuffer[(Value, Pattern)]()
@@ -210,7 +211,8 @@ trait ContextBuilder extends Context {
                       val tv = rec(m, it)
                       vs.append(tv)
                     }
-                    (Value.Construct(name, vs.map(_._1)), Pattern.Construct(name, vs.map(_._2)))
+                    val index = cs.indexWhere(_.name.by(name))
+                    (Value.Construct(index, vs.map(_._1)), Pattern.Construct(index, vs.map(_._2)))
                   } else {
                     throw PatternExtractException.ConstructWrongSize()
                   }

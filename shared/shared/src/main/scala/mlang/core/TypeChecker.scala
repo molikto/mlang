@@ -179,7 +179,7 @@ class TypeChecker private (protected override val layers: Layers)
       case Term.Sum(constructors) =>
         for (i <- constructors.indices) {
           for (j <- (i + 1) until constructors.size) {
-            if (constructors(i).name == constructors(j).name) {
+            if (constructors(i).name.intersect(constructors(j).name)) {
               throw TypeCheckException.TagsDuplicated()
             }
           }
@@ -238,6 +238,7 @@ class TypeChecker private (protected override val layers: Layers)
         val lv = eval(la)
         def ltr = lt.asInstanceOf[Value.Record]
         def error() = throw TypeCheckException.UnknownProjection()
+        var indexaa = -1
         lv.whnf match {
           case m: Value.Make if ltr.nodes.exists(_.name.by(right)) =>
             val index = ltr.nodes.indexWhere(_.name.by(right))
@@ -245,12 +246,8 @@ class TypeChecker private (protected override val layers: Layers)
           // TODO user defined projections
           case r: Value.Record if right == Ref.make =>
             (r.makerType, Abstract.Maker(la, -1))
-          case r: Value.Sum if r.constructors.exists(_.name == right) =>
-            r.constructors.find(_.name == right) match {
-              case Some(br) =>
-                (br.makerType, Abstract.Maker(la, r.constructors.indexWhere(_.name == right)))
-              case _ => error()
-            }
+          case r: Value.Sum if { indexaa = r.constructors.indexWhere(_.name.by(right)); indexaa >= 0 } =>
+            (r.constructors(indexaa).makerType, Abstract.Maker(la, indexaa))
           case _ => error()
         }
       case Term.App(lambda, arguments) =>

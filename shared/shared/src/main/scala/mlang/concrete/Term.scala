@@ -36,7 +36,7 @@ object Term {
     val names = fields.flatMap(_.names)
   }
 
-  case class Constructor(name: Tag, term: Seq[NameType])
+  case class Constructor(name: Name, term: Seq[NameType])
   case class Sum(constructors: Seq[Constructor]) extends Term with Block
 
   case class App(left: Term, right: Seq[Term]) extends Term

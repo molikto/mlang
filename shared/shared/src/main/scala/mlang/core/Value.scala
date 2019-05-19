@@ -524,17 +524,19 @@ object Value {
 
   case class Projection(make: StuckPos, field: Int) extends Stuck
 
-  case class Construct(name: Tag, vs: Seq[Value]) extends HeadCanonical
+  case class Construct(name: Int, vs: Seq[Value]) extends HeadCanonical
   // TODO sum should have a type, it can be indexed, so a pi type ends with type_i
   // TODO should have a field: recursive, and it must be recursive, also in case of indexed, use Constructor instead of value
-  case class Constructor(name: Tag, parameters: Int, nodes: Seq[MultiClosure]) {
+  case class Constructor(name: Name, parameters: Int, nodes: Seq[MultiClosure]) {
     private[Value] var _sum: Sum = _
     private def rthis(): Value = Reference(_sum)
+
+    private def index = _sum.constructors.indexWhere(_.eq(this))
 
     lazy val maker: Value = {
       def rec(known: Seq[Value], remaining: Seq[MultiClosure]): Value = {
         remaining match {
-          case Seq() => Construct(name, known)
+          case Seq() => Construct(index, known)
           case _ +: tail =>
             Lambda(Closure(p => rec(known :+ p, tail)))
         }
