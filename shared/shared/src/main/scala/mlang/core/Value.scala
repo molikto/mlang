@@ -452,9 +452,9 @@ object Value {
   sealed trait HeadCanonical extends Whnf
   sealed trait Stuck extends Whnf
 
-  case class Meta(id: Long, @mutation var v: Either[Value, Value]) extends Value
+  case class Meta(id: Long, @polarized_mutation var v: Either[Value, Value]) extends Value
 
-  case class Reference(value: Value) extends Syntaxial
+  case class Reference(@lateinit var value: Value) extends Syntaxial
   case class Generic(id: Long, typ: Value) extends Stuck
 
   case class Universe(level: Int) extends HeadCanonical
