@@ -1,5 +1,6 @@
 package mlang.core
 
+import mlang.core.Value.ClosureGraph.IndependentWithMeta
 import mlang.name._
 
 import scala.collection.mutable
@@ -359,24 +360,84 @@ sealed trait Value {
 
 object Value {
 
+  type ClosureGraph = Seq[ClosureGraph.Node]
   object ClosureGraph {
-    type Graph[T] = Seq[Node[T]]
-    trait Node[T] {
-      def name: T
-      def dependencies: Seq[T]
+    sealed trait Node {
     }
 
-    def createMetaAnnotated[T](): ClosureGraph[T] = {
+    sealed trait Dependent extends Node {
+      def dependencies: Seq[Int]
+    }
 
+    sealed trait Independent extends Node {
+      val typ: Value
+    }
+
+    sealed trait Valued extends Independent {
+      val value: Value
+    }
+
+    private case class DependentWithMeta(dependencies: Seq[Int], metaCount: Int, closure: (Seq[Value], Seq[Value]) => (Seq[Value], Value)) extends Dependent
+
+    private case class IndependentWithMeta(metas: Seq[Value], typ: Value) extends Independent
+
+    private case class ValuedWithMeta(metas: Seq[Value], typ: Value, value: Value) extends Valued
+
+    def createMetaAnnotated(nodes: Seq[(Seq[Int], Int, (Seq[Value], Seq[Value]) => (Seq[Value], Value))]): ClosureGraph = {
+      nodes.map(a => if (a._1.isEmpty) {
+        val t = a._3(Seq.empty)
+        IndependentWithMeta(t._1, t._2)
+      } else {
+        DependentWithMeta(a._1, a._2, a._3)
+      })
+    }
+
+    def reduce(from: ClosureGraph, i: Int, a: Value): ClosureGraph = {
+      from(i) match {
+        case IndependentWithMeta(mss, typ) =>
+          val ns = ValuedWithMeta(mss, typ, a)
+          val ms: Seq[Value] = from.flatMap {
+            case DependentWithMeta(_, ms, _) => (0 until ms).map(_ => null: Value)
+            case IndependentWithMeta(ms, _) => ms
+            case ValuedWithMeta(ms, _, _) => ms
+          }
+          val vs = from.indices.map(j => if (j == i) a else from(j) match {
+            case ValuedWithMeta(_, _, v) => v
+            case _ => null
+          })
+          from.map {
+            case DependentWithMeta(ds, _, c) if ds.foreach(j => vs(j) != null) =>
+              val t = c(ms, vs)
+              IndependentWithMeta(t._1, t._2)
+          }.updated(i, ns)
+        case _ => logicError()
+      }
+    }
+
+    def makerAndType(graph: ClosureGraph, vc: Seq[Value] => Value, tc: Value): (Value, Value) = {
+      def rmake(known: Seq[Value]): Value = {
+        val size = graph.size - known.size
+        size match {
+          case 0 => vc(known)
+          case _ => Lambda(Closure(p => rmake(known :+ p)))
+        }
+      }
+      def rtyp(index: Int, graph: Seq[ClosureGraph.Node]): Value = {
+        val size = graph.size - index
+        size match {
+          case 0 => tc
+          case _ =>
+            Function(graph(index).asInstanceOf[Independent].typ, Closure(p => {
+              val ng = reduce(graph, index, p)
+              rtyp(index + 1, ng)
+          }))
+        }
+      }
+      val mv = rmake(Seq.empty)
+      val mt = rtyp(0, graph)
+      (mv, mt)
     }
   }
-
-  trait ClosureGraph[T] {
-    val nodes: ClosureGraph.Graph[T]
-    def reduce(i: T, a: Value): ClosureGraph.Graph[T]
-  }
-
-
 
 
   implicit class MultiClosure(private val func: Seq[Value] => Value) extends AnyVal {
@@ -492,43 +553,16 @@ object Value {
   case class App(lambda: StuckPos, argument: Value) extends Stuck
 
 
-  case class RecordNode(name: Name, dependencies: Seq[Int], closure: MultiClosure)
-
-  object Record {
-    type Node = ClosureGraph.Node[Name]
-  }
   // TODO should have a field: recursive, and it must be recursive, the will not be able to calculus
-  case class Record(level: Int, nodes: Seq[RecordNode]) extends HeadCanonical {
-    assert(nodes.isEmpty || nodes.head.dependencies.isEmpty)
+  case class Record(level: Int, names: Seq[Name], nodes: ClosureGraph) extends HeadCanonical {
+    assert(names.size == nodes.size)
 
     private def rthis(): Value = Reference(this)
 
-    lazy val maker: Value = {
-      def rec(known: Seq[Value], remaining: Seq[RecordNode]): Value = {
-        remaining match {
-          case Seq() => Make(known)
-          case _ +: tail =>
-            Lambda(Closure(p => rec(known :+ p, tail)))
-        }
-      }
-      rec(Seq.empty, nodes)
-    }
+    lazy val makerAndType: (Value, Value) = ClosureGraph.makerAndType(nodes, vs => Make(vs), rthis())
+    lazy val maker: Value = makerAndType._1
+    lazy val makerType: Value = makerAndType._2
 
-    lazy val makerType: Value = {
-      def rec(known: Seq[Value], remaining: Seq[RecordNode]): Value = {
-        remaining match {
-          case Seq() => rthis()
-          case Seq(head) =>
-            Function(head.closure(head.dependencies.map(known)),
-              Closure(_ => rthis()))
-          case head +: tail =>
-            Function(head.closure(head.dependencies.map(known)), Closure(p => {
-              rec(known ++ Seq(p), tail)
-            }))
-        }
-      }
-      rec(Seq.empty, nodes)
-    }
     def projectedType(values: Seq[Value], name: Int): Value = {
       val b = nodes(name)
       b.closure(b.dependencies.map(values))
