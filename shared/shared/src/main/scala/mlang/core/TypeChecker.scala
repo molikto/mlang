@@ -174,8 +174,7 @@ class TypeChecker private (protected override val layers: Layers)
           }
         }
         val (fl, fs) = newLayerInferFlatLevel(fields)
-        val ns = fs.map(pair => Abstract.RecordNode(pair._1, pair._2.dependencies(0).toSeq.sorted, pair._2))
-        (Value.Universe(fl), Abstract.Record(fl, ns))
+        (Value.Universe(fl), Abstract.Record(fl, fs.map(_._1), fs.map(a => (a._2.dependencies(0).toSeq.sorted, a._2))))
       case Term.Sum(constructors) =>
         for (i <- constructors.indices) {
           for (j <- (i + 1) until constructors.size) {
@@ -187,7 +186,8 @@ class TypeChecker private (protected override val layers: Layers)
         // TODO in case of HIT, each time a constructor finished, we need to construct a partial sum and update the value
         val fs = constructors.map(c => newLayerInferFlatLevel(c.term))
         val fl = fs.map(_._1).max
-        (Value.Universe(fl), Abstract.Sum(fl, fs.map(_._2.map(_._2)).zip(constructors).map(a => Abstract.Constructor(a._2.name, a._1))))
+        (Value.Universe(fl), Abstract.Sum(fl, fs.map(_._2.map(_._2)).zip(constructors).map(a =>
+          Abstract.Constructor(a._2.name, a._1.zipWithIndex.map(kk => ((0 until kk._2), kk._1))))))
       case Term.Coe(direction, tp, base) =>
         val (dv, da) = checkDimensionPair(direction)
         val (cl, ta) = checkLine(tp)
@@ -240,8 +240,8 @@ class TypeChecker private (protected override val layers: Layers)
         def error() = throw TypeCheckException.UnknownProjection()
         var indexaa = -1
         lv.whnf match {
-          case m: Value.Make if ltr.nodes.exists(_.name.by(right)) =>
-            val index = ltr.nodes.indexWhere(_.name.by(right))
+          case m: Value.Make if { indexaa = ltr.names.indexWhere(_.by(right)) ; indexaa >= 0 } =>
+            val index = indexaa
             (ltr.projectedType(m.values, index), Abstract.Projection(la, index))
           // TODO user defined projections
           case r: Value.Record if right == Ref.make =>

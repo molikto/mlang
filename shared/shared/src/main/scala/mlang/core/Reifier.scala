@@ -2,6 +2,7 @@ package mlang.core
 
 import mlang.core.Abstract._
 import mlang.core.Context.Layers
+import mlang.core.Value.ClosureGraph
 import mlang.name.Name
 import mlang.utils.Benchmark
 
@@ -23,6 +24,24 @@ private trait ReifierContext extends ContextBuilder {
     }
   }
 
+  def reify(graph0: Value.ClosureGraph): Abstract.ClosureGraph = {
+    val (ctx, vs0) = graph0.foldLeft((newParametersLayer().asInstanceOf[ReifierContext], Seq.empty[Value])) { (as, _) =>
+      val (cc, v) = as._1.newParameter(Name.empty, null)
+      (cc, as._2 :+ v)
+    }
+    assert(vs0.size == graph0.size)
+    var graph = graph0
+    var as =  Seq.empty[(Seq[Int], Abstract)]
+    for (i  <- graph0.indices) {
+      val n = graph(i)
+      val it = n.independent.typ
+      val pair = (n.dependencies, ctx.reify(it))
+      as = as :+ pair
+      graph = ClosureGraph.reduce(graph, i, vs0(i))
+    }
+    as
+  }
+
   def reify(v: Value): Abstract = {
     v match {
       case Value.Universe(level) =>
@@ -30,22 +49,11 @@ private trait ReifierContext extends ContextBuilder {
       case Value.Function(domain, codomain) =>
         val (ctx, tm) = newParameterLayer(Name.empty, domain)
         Function(reify(domain), ctx.reify(codomain(tm)))
-      case Value.Record(level, nodes) =>
-        val (ctx, vs) = nodes.foldLeft((newParametersLayer().asInstanceOf[ReifierContext], Seq.empty[Value])) { (as, _) =>
-          val (cc, v) = as._1.newParameter(Name.empty, null)
-          (cc, as._2 :+ v)
-        }
-        assert(vs.size == nodes.size)
-        Record(level, nodes.map(a =>
-          RecordNode(a.name, a.dependencies, ctx.reify(a.closure(a.dependencies.map(vs))))))
+      case Value.Record(level, names, nodes) =>
+        Record(level, names, reify(nodes))
       case Value.Sum(level, constructors) =>
         Sum(level, constructors.map(c => {
-          val (ctx, vs) = c.nodes.foldLeft((newParametersLayer().asInstanceOf[ReifierContext], Seq.empty[Value])) { (as, _) =>
-            val (cc, v) = as._1.newParameter(Name.empty, null)
-            (cc, as._2 :+ v)
-          }
-          assert(vs.size == c.nodes.size)
-          Constructor(c.name, c.nodes.map(a => ctx.reify(a(vs))))
+          Constructor(c.name, reify(c.nodes))
         }))
       case Value.PathType(ty, left, right) =>
         val (ctx, d) = newDimensionLayer(Name.empty)
@@ -53,9 +61,9 @@ private trait ReifierContext extends ContextBuilder {
       case Value.Make(_) =>
         // we believe at least values from typechecker don't have these stuff
         // we can extends it when time comes
-        ???
+        logicError()
       case Value.Construct(_, _) =>
-        ???
+        logicError()
       case Value.Lambda(closure) =>
         val (ctx, n) = newParameterLayer(Name.empty, null)
         Lambda(ctx.reify(closure(n)))

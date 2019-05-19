@@ -25,12 +25,12 @@ sealed trait Abstract {
     case App(left, right) =>
       left.markRecursive(i, c)
       right.markRecursive(i, c)
-    case Record(_, nodes) =>
-      nodes.foreach(_.typ.markRecursive(i, c))
+    case Record(_, _, nodes) =>
+      nodes.foreach(_._2.markRecursive(i, c))
     case Projection(left, _) =>
       left.markRecursive(i, c)
     case Sum(_, constructors) =>
-      constructors.foreach(_.params.foreach(_.markRecursive(i, c)))
+      constructors.foreach(_.params.foreach(_._2.markRecursive(i, c)))
     case Maker(sum, _) =>
       sum.markRecursive(i, c)
     case Let(metas, definitions, _, in) =>
@@ -69,9 +69,9 @@ sealed trait Abstract {
     case Function(domain, codomain) => domain.dependencies(i) ++ codomain.dependencies(i)
     case Lambda(closure) => closure.dependencies(i)
     case App(left, right) => left.dependencies(i) ++ right.dependencies(i)
-    case Record(_, nodes) => nodes.flatMap(_.typ.dependencies(i)).toSet
+    case Record(_, _, nodes) => nodes.flatMap(_._2.dependencies(i)).toSet
     case Projection(left, _) => left.dependencies(i)
-    case Sum(_, constructors) => constructors.flatMap(_.params.flatMap(_.dependencies(i))).toSet
+    case Sum(_, constructors) => constructors.flatMap(_.params.flatMap(_._2.dependencies(i))).toSet
     case Maker(sum, _) => sum.dependencies(i)
     case Let(metas, definitions, _, in) =>
       metas.flatMap(a => a.dependencies(i + 1)).toSet  ++ definitions.flatMap(a => a.dependencies(i + 1)).toSet ++ in.dependencies(i + 1)
@@ -104,6 +104,8 @@ object Abstract {
   case class MetaEnclosed(metas: Seq[Abstract], term: Abstract) extends MetaEnclosedT // used by closure graph
 
 
+  type ClosureGraph = Seq[(Seq[Int], MetaEnclosed)]
+
   case class Universe(i: Int) extends Abstract
 
   case class TermReference(up: Int, index: Int, @lateinit var closed: Boolean) extends Abstract
@@ -114,12 +116,11 @@ object Abstract {
 
   case class App(left: Abstract, right: Abstract) extends Abstract
 
-  case class RecordNode(name: Name, dependencies: Seq[Int], typ: MetaEnclosed)
-  case class Record(level: Int, nodes: Seq[RecordNode]) extends Abstract
+  case class Record(level: Int, names: Seq[Name], graph: ClosureGraph) extends Abstract
 
   case class Projection(left: Abstract, field: Int) extends Abstract
 
-  case class Constructor(name: Name, params: Seq[MetaEnclosed])
+  case class Constructor(name: Name, params: ClosureGraph)
 
   case class Sum(level: Int, constructors: Seq[Constructor]) extends Abstract
 
