@@ -80,11 +80,11 @@ trait Context {
 
   def getDimension(depth: Int): Value.Dimension = layers(depth).asInstanceOf[Layer.Dimension].value
 
-  def rebindReference(v: Reference): Option[Abstract.TermReference] = {
+  def rebindReference(v: Reference): Option[Abstract.Reference] = {
     var up = 0
     var index = -1
     var ls = layers
-    var binder: Abstract.TermReference= null
+    var binder: Abstract.Reference= null
     while (ls.nonEmpty && binder == null) {
       var i = 0
       ls.head match {
@@ -93,7 +93,7 @@ trait Context {
           while (ll.nonEmpty && binder == null) {
             if (ll.head.isDefined && ll.head.value.eq(v.value)) {
               index = i
-              binder = Abstract.TermReference(up, index, true)
+              binder = Abstract.Reference(up, index, true)
             }
             i += 1
             ll = ll.tail
@@ -145,11 +145,11 @@ trait Context {
     }
   }
 
-  def rebindGeneric(id: Long): Abstract.TermReference = {
+  def rebindGeneric(id: Long): Abstract.Reference = {
     var up = 0
     var index = -1
     var ls = layers
-    var binder: Abstract.TermReference = null
+    var binder: Abstract.Reference = null
     while (ls.nonEmpty && binder == null) {
       var i = 0
       ls.head match {
@@ -158,7 +158,7 @@ trait Context {
           while (ll.nonEmpty && binder == null) {
             if (ll.head.id == id) {
               index = i
-              binder = Abstract.TermReference(up, index, false)
+              binder = Abstract.Reference(up, index, false)
             }
             i += 1
             ll = ll.tail
@@ -169,7 +169,7 @@ trait Context {
             if (ll.head.id == id) {
               assert(ll.head.v.isEmpty) // values should be updated when a open reference turns closed
               index = i
-              binder = Abstract.TermReference(up, index, false)
+              binder = Abstract.Reference(up, index, false)
             }
             i += 1
             ll = ll.tail
@@ -177,7 +177,7 @@ trait Context {
         case p:Layer.Parameter =>
           if (p.binder.id == id) {
             index = i
-            binder = Abstract.TermReference(up, -1, false)
+            binder = Abstract.Reference(up, -1, false)
           }
         case _ =>
       }
@@ -227,7 +227,7 @@ trait Context {
             if (ll.head.name.by(name)) {
               index = i
               binder = (ll.head.typ,
-                  Abstract.TermReference(up, index, false),
+                  Abstract.Reference(up, index, false),
                   true)
             }
             i += 1
@@ -240,7 +240,7 @@ trait Context {
             if (ll.head.name.by(name)) {
               index = i
               binder = (ll.head.typ,
-                  Abstract.TermReference(up, index, ll.head.isDefined),
+                  Abstract.Reference(up, index, ll.head.isDefined),
                   false)
             }
             i += 1
@@ -248,7 +248,7 @@ trait Context {
           }
         case p:Layer.Parameter =>
           if (p.binder.name.by(name)) {
-            binder = (p.binder.typ, Abstract.TermReference(up, -1, false), true)
+            binder = (p.binder.typ, Abstract.Reference(up, -1, false), true)
           }
         case d: Layer.Dimension =>
           if (d.name.by(name)) {

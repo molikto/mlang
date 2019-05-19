@@ -15,7 +15,7 @@ private trait ReifierContext extends ContextBuilder {
 
   override type Self <: ReifierContext
 
-  def reifyReference(r: Value.Reference): Abstract.TermReference = {
+  def reifyReference(r: Value.Reference): Abstract.Reference = {
     rebindReference(r) match {
       case Some(t) => t
       case None =>
@@ -165,7 +165,7 @@ private class ReifierContextBase(layersBefore: Context.Layers) extends ReifierCo
     val order = data.map(_._1)
     val abs = data.sortBy(_._1).map(_._2.getOrElse(body))
     if (c == 1) {
-      Let(abs, order, TermReference(0, data.find(_._2.isEmpty).get._1, true))
+      Let(abs, order, Reference(0, data.find(_._2.isEmpty).get._1, true))
     } else {
       Let(abs, order, body)
     }

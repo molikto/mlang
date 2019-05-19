@@ -80,7 +80,7 @@ trait BaseEvaluator extends Context {
   protected def eval(term: Abstract): Value = {
     Benchmark.Eval {
       term match {
-        case Abstract.TermReference(up, index, closed) => evalTermReferenceAsReference(up, index, closed)
+        case Abstract.Reference(up, index, closed) => evalTermReferenceAsReference(up, index, closed)
         case Abstract.Universe(i) => Value.Universe(i)
         case _ =>
           val ret = platformEval(term)

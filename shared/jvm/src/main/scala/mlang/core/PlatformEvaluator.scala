@@ -41,7 +41,7 @@ trait PlatformEvaluator extends BaseEvaluator {
       term match {
         case Abstract.Universe(l) =>
           s"Universe($l)"
-        case Abstract.TermReference(up, index, closed) =>
+        case Abstract.Reference(up, index, closed) =>
           if (up > depth) {
             if (up == depth + 1 && recursivelyDefining.contains(index)) {
               // eval recursive, this deref happens under a closure, so it will have a value

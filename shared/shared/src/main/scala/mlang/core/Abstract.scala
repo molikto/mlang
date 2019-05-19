@@ -8,7 +8,7 @@ sealed trait Abstract {
   import Abstract._
   def markRecursive(i: Int, c: Set[Int]): Unit = this match {
     case Universe(_) => 
-    case r@TermReference(up, _, _) =>
+    case r@Reference(up, _, _) =>
       r.closed = up == i
 //      if (up == i) {
 //        if (c.contains(index)) {
@@ -65,7 +65,7 @@ sealed trait Abstract {
 
   def dependencies(i: Int): Set[Int] = this match {
     case Universe(_) => Set.empty
-    case TermReference(up, index, _) => if (i == up) Set(index) else Set.empty
+    case Reference(up, index, _) => if (i == up) Set(index) else Set.empty
     case Function(domain, codomain) => domain.dependencies(i) ++ codomain.dependencies(i)
     case Lambda(closure) => closure.dependencies(i)
     case App(left, right) => left.dependencies(i) ++ right.dependencies(i)
@@ -108,7 +108,8 @@ object Abstract {
 
   case class Universe(i: Int) extends Abstract
 
-  case class TermReference(up: Int, index: Int, @lateinit var closed: Boolean) extends Abstract
+  case class Reference(up: Int, index: Int, @lateinit var closed: Boolean) extends Abstract
+
 
   case class Function(domain: Abstract, codomain: Closure) extends Abstract
 
