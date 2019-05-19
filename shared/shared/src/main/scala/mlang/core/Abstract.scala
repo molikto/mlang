@@ -119,9 +119,10 @@ object Abstract {
 
   case class Projection(left: Abstract, field: Int) extends Abstract
 
-  case class Constructor(name: Tag, params: Seq[MetaEnclosed])
+  case class Constructor(name: Name, params: Seq[MetaEnclosed])
 
   case class Sum(level: Int, constructors: Seq[Constructor]) extends Abstract
+
 
   case class Maker(sum: Abstract, field: Int) extends Abstract
 

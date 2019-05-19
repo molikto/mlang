@@ -257,7 +257,7 @@ class Conversion {
             }
           }
         case (Sum(_, cs), Construct(n1, v1), Construct(n2, v2)) =>
-          n1 == n2 && cs.find(_.name == n1).exists(c => {
+          n1 == n2 && { val c = cs(n1);
             assert(c.nodes.size == v1.size && v2.size == v1.size)
             c.nodes.zip(v1.zip(v2)).foldLeft(Some(Seq.empty): Option[Seq[Value]]) { (as0, pair) =>
               as0 match {
@@ -272,7 +272,7 @@ class Conversion {
                   None
               }
             }
-          })
+          }
         case (ttt, tt1, tt2) =>
           ttt match {
             case Universe(l) => equalType(tt1, tt2) // it will call equal neutral at then end
@@ -312,20 +312,17 @@ class Conversion {
         case Pattern.Construct(name, maps) =>
           t.whnf match {
             case Sum(_, cs) =>
-              cs.find(_.name == name) match {
-                case Some(c) =>
-                  if (c.nodes.size == maps.size) {
-                    val vs = new mutable.ArrayBuffer[Value]()
-                    for ((m, n) <- maps.zip(c.nodes)) {
-                      val it = n(vs)
-                      val tv = rec(m, it)
-                      vs.append(tv)
-                    }
-                    Construct(name, vs)
-                  } else {
-                    logicError()
-                  }
-                case _ => logicError()
+              val c = cs(name)
+              if (c.nodes.size == maps.size) {
+                val vs = new mutable.ArrayBuffer[Value]()
+                for ((m, n) <- maps.zip(c.nodes)) {
+                  val it = n(vs)
+                  val tv = rec(m, it)
+                  vs.append(tv)
+                }
+                Construct(name, vs)
+              } else {
+                logicError()
               }
             case _ => logicError()
           }
