@@ -51,19 +51,22 @@ class Conversion {
 
   private implicit def optToBool[T](opt: Option[T]): Boolean = opt.isDefined
 
-  private def equalRecordFields(n1: Seq[RecordNode], n2: Seq[RecordNode]): Boolean = {
-    if (n1.map(_.name) == n2.map(_.name)) {
-      n1.zip(n2).foldLeft(Some(Seq.empty[Value]) : Option[Seq[Value]]) { (as0, pair) =>
-        as0 match {
-          case Some(as) if pair._1.dependencies == pair._2.dependencies =>
-            // TODO dependencies is a syntaxial equality stuff
-            equalTypeMultiClosure(pair._1.dependencies.map(as), pair._1.closure, pair._2.closure).map(as :+ _)
-          case None =>
-            None
-        }
+  private def equalClosureGraph(n1: ClosureGraph, n2: ClosureGraph): Boolean = {
+    n1.size == n2.size && {
+      var g1 = n1
+      var g2 = n2
+      var eq = true
+      var i = 0
+      while (i < n1.size && eq) {
+        val t1 = g1(i).independent.typ
+        val t2 = g2(i).independent.typ
+        eq = equalType(t1, t2)
+        val g = Generic(gen(), t1)
+        g1 = ClosureGraph.reduce(g1, i, g)
+        g2 = ClosureGraph.reduce(g2, i, g)
+        i += 1
       }
-    } else {
-      false
+      eq
     }
   }
 
@@ -71,28 +74,11 @@ class Conversion {
     if (c1.eq(c2)) {
       true
     } else {
-      c1.name == c2.name && c1.parameters == c2.parameters && c1.nodes.size == c2.nodes.size && c1.nodes.zip(c2.nodes).foldLeft(Some(Seq.empty[Value]) : Option[Seq[Value]]) { (as0, pair) =>
-          as0 match {
-            case Some(as) =>
-              equalTypeMultiClosure(as, pair._1, pair._2).map(as :+ _)
-            case None =>
-              None
-          }
-      }
+      c1.name == c2.name && equalClosureGraph(c1.nodes, c2.nodes)
     }
   }
 
 
-
-  private def equalTypeMultiClosure(ts: Seq[Value], c1: MultiClosure, c2: MultiClosure): Option[Value] = {
-    val cs = ts.map(t => Generic(gen(), t))
-    val t = c1(cs)
-    if (equalType(t, c2(cs))) {
-      Some(t)
-    } else {
-      None
-    }
-  }
 
   private def equalTypeClosure(t: Value, c1: Closure, c2: Closure): Option[Value] = {
     val c = Generic(gen(), t)
@@ -130,8 +116,8 @@ class Conversion {
           equalType(d1, d2) && equalTypeClosure(d1, c1, c2)
         case (Universe(l1), Universe(l2)) =>
           l1 == l2
-        case (Record(l1, n1), Record(l2, n2)) =>
-          l1 == l2 && equalRecordFields(n1, n2)
+        case (Record(l1, m1, n1), Record(l2, m2, n2)) =>
+          l1 == l2 && m1 == m2 && equalClosureGraph(n1, n2)
         case (Sum(l1, c1), Sum(l2, c2)) =>
           l1 == l2 && c1.size == c2.size && c1.zip(c2).forall(p => equalConstructor(p._1, p._2))
         case (PathType(t1, l1, r1), PathType(t2, l2, r2)) =>
@@ -228,6 +214,22 @@ class Conversion {
   }
 
 
+  @inline def equalTerms(ns: ClosureGraph, t1: Int => Value, t2: Int => Value): Boolean = {
+    ns.indices.foldLeft(Some(ns) : Option[ClosureGraph]) { (as0, i) =>
+      as0 match {
+        case Some(as) =>
+          val m1 = t1(i)
+          if (equalTerm(as(i).independent.typ, m1, t2(i))) {
+            Some(ClosureGraph.reduce(as, i, m1))
+          } else {
+            None
+          }
+        case None =>
+          None
+      }
+    }
+  }
+
   /**
     * it is REQUIRED that t1 and t2 indeed has that type!!!!
     */
@@ -242,40 +244,16 @@ class Conversion {
         case (PathType(ty, _, _), s1, s2) =>
           val c = Dimension.Generic(dgen())
           equalTerm(ty(c), s1.papp(c), s2.papp(c))
-        case (Record(_, ns), m1, m2) =>
-          ns.zipWithIndex.foldLeft(Some(Seq.empty) : Option[Seq[Value]]) { (as0, pair) =>
-            as0 match {
-              case Some(as) =>
-                val nm = pair._1.closure(pair._1.dependencies.map(as))
-                if (equalTerm(nm, m1.project(pair._2), m2.project(pair._2))) {
-                  Some(as :+ nm)
-                } else {
-                  None
-                }
-              case None =>
-                None
-            }
-          }
+        case (Record(_, _, ns), m1, m2) =>
+          equalTerms(ns, i => m1.project(i), i => m2.project(i))
         case (Sum(_, cs), Construct(n1, v1), Construct(n2, v2)) =>
-          n1 == n2 && { val c = cs(n1);
+          n1 == n2 && { val c = cs(n1) ;
             assert(c.nodes.size == v1.size && v2.size == v1.size)
-            c.nodes.zip(v1.zip(v2)).foldLeft(Some(Seq.empty): Option[Seq[Value]]) { (as0, pair) =>
-              as0 match {
-                case Some(as) =>
-                  val nm = pair._1(as)
-                  if (equalTerm(nm, pair._2._1, pair._2._2)) {
-                    Some(as :+ nm)
-                  } else {
-                    None
-                  }
-                case None =>
-                  None
-              }
-            }
+            equalTerms(c.nodes, v1, v2)
           }
         case (ttt, tt1, tt2) =>
           ttt match {
-            case Universe(l) => equalType(tt1, tt2) // it will call equal neutral at then end
+            case Universe(_) => equalType(tt1, tt2) // it will call equal neutral at then end
             case _ => equalNeutral(tt1, tt2)
           }
       }
@@ -287,6 +265,19 @@ class Conversion {
       typ: Value
   ): (Seq[Generic], Value) = {
     val vs = mutable.ArrayBuffer[Generic]()
+
+    def recs(maps: Seq[Pattern], graph0: ClosureGraph): Seq[Value]  = {
+      var graph = graph0
+      var vs =  Seq.empty[Value]
+      for (i  <- maps.indices) {
+        val it = graph(i).independent.typ
+        val tv = rec(maps(i), it)
+        graph = ClosureGraph.reduce(graph, i, tv)
+        vs = vs :+ tv
+      }
+      vs
+    }
+
     def rec(p: Pattern, t: Value): Value = {
       p match {
         case Pattern.Atom =>
@@ -295,15 +286,9 @@ class Conversion {
           ret
         case Pattern.Make(maps) =>
           t.whnf match {
-            case r@Record(_, nodes) =>
+            case Record(_, _, nodes) =>
               if (maps.size == nodes.size) {
-                var vs =  Seq.empty[Value]
-                for (m  <- maps) {
-                  val it = r.projectedType(vs, vs.size)
-                  val tv = rec(m, it)
-                  vs = vs :+ tv
-                }
-                Make(vs)
+                Make(recs(maps, nodes))
               } else {
                 logicError()
               }
@@ -314,13 +299,7 @@ class Conversion {
             case Sum(_, cs) =>
               val c = cs(name)
               if (c.nodes.size == maps.size) {
-                val vs = new mutable.ArrayBuffer[Value]()
-                for ((m, n) <- maps.zip(c.nodes)) {
-                  val it = n(vs)
-                  val tv = rec(m, it)
-                  vs.append(tv)
-                }
-                Construct(name, vs)
+                Construct(name, recs(maps, c.nodes))
               } else {
                 logicError()
               }

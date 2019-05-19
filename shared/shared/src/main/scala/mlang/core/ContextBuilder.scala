@@ -1,6 +1,7 @@
 package mlang.core
 
 import mlang.concrete.{Pattern => Patt}
+import mlang.core.Value.ClosureGraph
 import mlang.name._
 
 import scala.collection.mutable
@@ -163,6 +164,17 @@ trait ContextBuilder extends Context {
 
   def newPatternLayer(pattern: Patt, typ: Value): (Self, Value, Pattern) = {
     val vvv = mutable.ArrayBuffer[ParameterBinder]()
+    def recs(maps: Seq[Patt], nodes: ClosureGraph): Seq[(Value, Pattern)] = {
+      var vs =  Seq.empty[(Value, Pattern)]
+      var graph = nodes
+      for (i <- maps.indices) {
+        val tv = rec(maps(i), graph(i).independent.typ)
+        graph = ClosureGraph.reduce(graph, vs.size, tv._1)
+        vs = vs :+ tv
+      }
+      vs
+    }
+
     def rec(p: Patt, t: Value): (Value, Pattern) = {
       p match {
         case Patt.Atom(name) =>
@@ -171,7 +183,7 @@ trait ContextBuilder extends Context {
           name.asRef match {
             case Some(ref) =>
               t.whnf match {
-                case Value.Sum(_, cs) if { indexaa = cs.indexWhere(c => c.name.by(ref) && c.parameters == 0); indexaa >= 0 } =>
+                case Value.Sum(_, cs) if { indexaa = cs.indexWhere(c => c.name.by(ref) && c.nodes.isEmpty); indexaa >= 0 } =>
                   ret = (Value.Construct(indexaa, Seq.empty), Pattern.Construct(indexaa, Seq.empty))
                 case _ =>
               }
@@ -185,14 +197,9 @@ trait ContextBuilder extends Context {
           ret
         case Patt.Group(maps) =>
           t.whnf match {
-            case r@Value.Record(_, nodes) =>
+            case Value.Record(_, _, nodes) =>
               if (maps.size == nodes.size) {
-                var vs =  Seq.empty[(Value, Pattern)]
-                for (m  <- maps) {
-                  val it = r.projectedType(vs.map(_._1), vs.size)
-                  val tv = rec(m, it)
-                  vs = vs :+ tv
-                }
+                val vs = recs(maps, nodes)
                 (Value.Make(vs.map(_._1)), Pattern.Make(vs.map(_._2)))
               } else {
                 throw PatternExtractException.MakeWrongSize()
@@ -202,22 +209,17 @@ trait ContextBuilder extends Context {
         case Patt.NamedGroup(name, maps) =>
           t.whnf match {
             case Value.Sum(_, cs) =>
-              cs.find(_.name.by(name)) match {
-                case Some(c) =>
-                  if (c.nodes.size == maps.size) {
-                    val vs = new mutable.ArrayBuffer[(Value, Pattern)]()
-                    for ((m, n) <- maps.zip(c.nodes)) {
-                      val it = n(vs.map(_._1))
-                      val tv = rec(m, it)
-                      vs.append(tv)
-                    }
-                    val index = cs.indexWhere(_.name.by(name))
-                    (Value.Construct(index, vs.map(_._1)), Pattern.Construct(index, vs.map(_._2)))
-                  } else {
-                    throw PatternExtractException.ConstructWrongSize()
-                  }
-                case _ =>
-                  throw PatternExtractException.ConstructUnknownName()
+              val index = cs.indexWhere(_.name.by(name))
+              if (index >= 0) {
+                val c = cs(index)
+                if (c.nodes.size == maps.size) {
+                  val vs = recs(maps, c.nodes)
+                  (Value.Construct(index, vs.map(_._1)), Pattern.Construct(index, vs.map(_._2)))
+                } else {
+                  throw PatternExtractException.ConstructWrongSize()
+                }
+              } else {
+                throw PatternExtractException.ConstructUnknownName()
               }
             case _ => throw PatternExtractException.ConstructNotSumType()
           }

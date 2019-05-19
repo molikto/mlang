@@ -18,19 +18,20 @@ import Value._
 
 sealed trait Value {
 
+
   // TODO how does it interact with recursive references?
   def restrict(lv: DimensionPair): Value = this match {
     case u: Universe => u
     case Function(domain, codomain) =>
       Function(domain.restrict(lv), codomain.restrict(lv))
-    case Record(level, nodes) =>
-      Record(level, nodes.map(n => RecordNode(n.name, n.dependencies, n.closure.restrict(lv))))
+    case Record(level, ns, nodes) =>
+      Record(level, ns, ClosureGraph.restrict(nodes, lv))
     case Make(values) =>
       Make(values.map(_.restrict(lv)))
     case Construct(name, vs) =>
       Construct(name, vs.map(_.restrict(lv)))
     case Sum(level, constructors) =>
-      Sum(level, constructors.map(n => Constructor(n.name, n.parameters, n.nodes.map(_.restrict(lv)))))
+      Sum(level, constructors.map(n => Constructor(n.name, ClosureGraph.restrict(n.nodes, lv))))
     case Lambda(closure) =>
       Lambda(closure.restrict(lv))
     case PatternLambda(id, typ, cases) =>
@@ -197,30 +198,31 @@ sealed trait Value {
               typ.mapd((f, d) => func(f).codomain(Coe(DimensionPair(pair.to, d), typ.map(a => func(a).domain), a))),
               app_)
           })))
-        case Record(_, ns) =>
-          if (ns.isEmpty) {
+        case Record(_, _, graph) =>
+          if (graph.isEmpty) {
             returns(this)
           } else {
             def recor(a: Value): Record = a.whnf match {
-              case f@Record(_, _) => f
+              case f: Record => f
               case _ => logicError()
             }
             val closures = mutable.ArrayBuffer[AbsClosure]()
-            for (i <- ns.indices) {
+            for (i <- graph.indices) {
               closures.append(
                 AbsClosure(dim => {
-                  if (ns(i).dependencies.isEmpty) {
-                    Coe(
-                      DimensionPair(pair.from, dim),
-                      typ.map(ror => recor(ror).nodes(i).closure()),
-                      Projection(this, i)
-                    )
-                  } else {
-                    Coe(
-                      DimensionPair(pair.from, dim),
-                      typ.mapd((ror, d) => recor(ror).nodes(i).closure(ns(i).dependencies.map(j => closures(j)(d)))),
-                      Projection(this, i)
-                    )
+                  graph(i) match {
+                    case _: ClosureGraph.Independent =>
+                      Coe(
+                        DimensionPair(pair.from, dim),
+                        typ.map(ror => recor(ror).nodes(i).independent.typ),
+                        Projection(this, i)
+                      )
+                    case _: ClosureGraph.Dependent =>
+                      Coe(
+                        DimensionPair(pair.from, dim),
+                        typ.mapd((ror, d) => { ClosureGraph.get(recor(ror).nodes, i, j => closures(j)(d)) }),
+                        Projection(this, i)
+                      )
                   }
                 })
               )
@@ -272,28 +274,33 @@ sealed trait Value {
             case Function(_, codomain) => returns(Lambda(Value.Closure(a =>
               Hcom(pair, codomain(a), App(this, a), rs.map(n => Face(n.restriction, n.body.map(j => App(j, a)))))
             )))
-            case Record(_, ns) =>
-              if (ns.isEmpty) {
+            case Record(_, _, graph) =>
+              if (graph.isEmpty) {
                 returns(this)
               } else {
+                def recor(a: Value): Record = a.whnf match {
+                  case f: Record => f
+                  case _ => logicError()
+                }
                 val closures = mutable.ArrayBuffer[AbsClosure]()
-                for (i <- ns.indices) {
+                for (i <- graph.indices) {
                   closures.append(
                     AbsClosure(dim => {
-                      if (ns(i).dependencies.isEmpty) {
-                        Hcom(
-                          DimensionPair(pair.from, dim),
-                          ns(i).closure(),
-                          Projection(this, i),
-                          rs.map(n => Face(n.restriction, n.body.map(j => Projection(j, i))))
-                        )
-                      } else {
-                        Com(
-                          DimensionPair(pair.from, dim),
-                          AbsClosure(k => ns(i).closure(ns(i).dependencies.map(j => closures(j)(k)))),
-                          Projection(this, 0),
-                          rs.map(n => Face(n.restriction, n.body.map(j => Projection(j, i))))
-                        )
+                      graph(i) match {
+                        case in: ClosureGraph.Independent =>
+                          Hcom(
+                            DimensionPair(pair.from, dim),
+                            in.typ,
+                            Projection(this, i),
+                            rs.map(n => Face(n.restriction, n.body.map(j => Projection(j, i))))
+                          )
+                        case _: ClosureGraph.Dependent =>
+                          Com(
+                            DimensionPair(pair.from, dim),
+                            AbsClosure(k => ClosureGraph.get(graph, i, j => closures(j)(k))),
+                            Projection(this, 0),
+                            rs.map(n => Face(n.restriction, n.body.map(j => Projection(j, i))))
+                          )
                       }
                     })
                   )
@@ -359,8 +366,113 @@ sealed trait Value {
 
 object Value {
 
+  type ClosureGraph = Seq[ClosureGraph.Node]
+  object ClosureGraph {
+    def restrict(graph: ClosureGraph, lv: DimensionPair): ClosureGraph = {
+      graph.map {
+        case DependentWithMeta(ds, mc, c) => DependentWithMeta(ds, mc, (a, b) => { val t = c(a, b); (t._1.map(_.restrict(lv)), t._2.restrict(lv)) })
+        case IndependentWithMeta(ds, ms, typ) => IndependentWithMeta(ds, ms.map(_.restrict(lv)), typ.restrict(lv))
+        case _ => logicError()
+      }
+    }
 
-  implicit class MultiClosure(private val func: Seq[Value]=> Value) extends AnyVal {
+    sealed trait Node {
+      def dependencies: Seq[Int]
+      def independent: Independent = this.asInstanceOf[Independent]
+    }
+
+    sealed trait Dependent extends Node {
+    }
+
+    sealed trait Independent extends Node {
+      val typ: Value
+    }
+
+    private sealed trait Valued extends Independent {
+      val value: Value
+    }
+
+    private case class DependentWithMeta(dependencies: Seq[Int], metaCount: Int, closure: (Seq[Value], Seq[Value]) => (Seq[Value], Value)) extends Dependent
+
+    private case class IndependentWithMeta(dependencies: Seq[Int], metas: Seq[Value], typ: Value) extends Independent
+
+    private case class PrivateValuedWithMeta(dependencies: Seq[Int], metas: Seq[Value], typ: Value, value: Value) extends Valued
+
+    def createTemp(nodes: Seq[(Seq[Int], (Seq[Value]) => Value)]): ClosureGraph = {
+      createMetaAnnotated(nodes.map(a => (a._1, 0, (ms: Seq[Value], vs: Seq[Value]) => (Seq.empty[Value], a._2(vs)))))
+    }
+
+    def createMetaAnnotated(nodes: Seq[(Seq[Int], Int, (Seq[Value], Seq[Value]) => (Seq[Value], Value))]): ClosureGraph = {
+      nodes.map(a => if (a._1.isEmpty) {
+        val t = a._3(Seq.empty, Seq.empty)
+        IndependentWithMeta(a._1, t._1, t._2)
+      } else {
+        DependentWithMeta(a._1, a._2, a._3)
+      })
+    }
+
+    def get(nodes: ClosureGraph, name: Int, values: Int => Value): Value = {
+      val b = nodes(name)
+      var i = 0
+      var g = nodes
+      while (i < name) {
+        g = ClosureGraph.reduce(g, i, values(i))
+        i += 1
+      }
+      g(name).independent.typ
+    }
+
+
+    def reduce(from: ClosureGraph, i: Int, a: Value): ClosureGraph = {
+      from(i) match {
+        case IndependentWithMeta(ds, mss, typ) =>
+          val ns = PrivateValuedWithMeta(ds, mss, typ, a)
+          val ms: Seq[Value] = from.flatMap {
+            case DependentWithMeta(_, ms, _) => (0 until ms).map(_ => null: Value)
+            case IndependentWithMeta(_, ms, _) => ms
+            case PrivateValuedWithMeta(_, ms, _, _) => ms
+          }
+          val vs = from.indices.map(j => if (j == i) a else from(j) match {
+            case PrivateValuedWithMeta(_, _, _, v) => v
+            case _ => null
+          })
+          from.map {
+            case DependentWithMeta(ds, _, c) if ds.forall(j => vs(j) != null) =>
+              val t = c(ms, vs)
+              IndependentWithMeta(ds, t._1, t._2)
+            case a => a
+          }.updated(i, ns)
+        case _ => logicError()
+      }
+    }
+
+    def makerAndType(graph: ClosureGraph, vc: Seq[Value] => Value, tc: Value): (Value, Value) = {
+      def rmake(known: Seq[Value]): Value = {
+        val size = graph.size - known.size
+        size match {
+          case 0 => vc(known)
+          case _ => Lambda(Closure(p => rmake(known :+ p)))
+        }
+      }
+      def rtyp(index: Int, graph: Seq[ClosureGraph.Node]): Value = {
+        val size = graph.size - index
+        size match {
+          case 0 => tc
+          case _ =>
+            Function(graph(index).independent.typ, Closure(p => {
+              val ng = reduce(graph, index, p)
+              rtyp(index + 1, ng)
+          }))
+        }
+      }
+      val mv = rmake(Seq.empty)
+      val mt = rtyp(0, graph)
+      (mv, mt)
+    }
+  }
+
+
+  implicit class MultiClosure(private val func: Seq[Value] => Value) extends AnyVal {
     def eq(b: MultiClosure) = func.eq(b.func)
     def apply() = func(Seq.empty)
     def apply(seq: Seq[Value]): Value = func(seq)
@@ -454,7 +566,9 @@ object Value {
 
   case class Meta(id: Long, @polarized_mutation var v: Either[Value, Value]) extends Value
 
-  case class Reference(@lateinit var value: Value) extends Syntaxial
+  case class Reference(@lateinit var value: Value) extends Syntaxial {
+    override def toString: String = "Reference"
+  }
   case class Generic(id: Long, typ: Value) extends Stuck
 
   case class Universe(level: Int) extends HeadCanonical
@@ -466,44 +580,18 @@ object Value {
   case class Function(domain: Value, codomain: Closure) extends HeadCanonical
   case class App(lambda: StuckPos, argument: Value) extends Stuck
 
-
-  case class RecordNode(name: Name, dependencies: Seq[Int], closure: MultiClosure)
-
   // TODO should have a field: recursive, and it must be recursive, the will not be able to calculus
-  case class Record(level: Int, nodes: Seq[RecordNode]) extends HeadCanonical {
-    assert(nodes.isEmpty || nodes.head.dependencies.isEmpty)
+  case class Record(level: Int, names: Seq[Name], nodes: ClosureGraph) extends HeadCanonical {
+    assert(names.size == nodes.size)
 
     private def rthis(): Value = Reference(this)
 
-    lazy val maker: Value = {
-      def rec(known: Seq[Value], remaining: Seq[RecordNode]): Value = {
-        remaining match {
-          case Seq() => Make(known)
-          case _ +: tail =>
-            Lambda(Closure(p => rec(known :+ p, tail)))
-        }
-      }
-      rec(Seq.empty, nodes)
-    }
+    private lazy val makerAndType: (Value, Value) = ClosureGraph.makerAndType(nodes, vs => Make(vs), rthis())
+    lazy val maker: Value = makerAndType._1
+    lazy val makerType: Value = makerAndType._2
 
-    lazy val makerType: Value = {
-      def rec(known: Seq[Value], remaining: Seq[RecordNode]): Value = {
-        remaining match {
-          case Seq() => rthis()
-          case Seq(head) =>
-            Function(head.closure(head.dependencies.map(known)),
-              Closure(_ => rthis()))
-          case head +: tail =>
-            Function(head.closure(head.dependencies.map(known)), Closure(p => {
-              rec(known ++ Seq(p), tail)
-            }))
-        }
-      }
-      rec(Seq.empty, nodes)
-    }
     def projectedType(values: Seq[Value], name: Int): Value = {
-      val b = nodes(name)
-      b.closure(b.dependencies.map(values))
+      ClosureGraph.get(nodes, name, values)
     }
   }
 
@@ -527,37 +615,15 @@ object Value {
   case class Construct(name: Int, vs: Seq[Value]) extends HeadCanonical
   // TODO sum should have a type, it can be indexed, so a pi type ends with type_i
   // TODO should have a field: recursive, and it must be recursive, also in case of indexed, use Constructor instead of value
-  case class Constructor(name: Name, parameters: Int, nodes: Seq[MultiClosure]) {
+  case class Constructor(name: Name, nodes: ClosureGraph) {
     private[Value] var _sum: Sum = _
     private def rthis(): Value = Reference(_sum)
 
     private def index = _sum.constructors.indexWhere(_.eq(this))
 
-    lazy val maker: Value = {
-      def rec(known: Seq[Value], remaining: Seq[MultiClosure]): Value = {
-        remaining match {
-          case Seq() => Construct(index, known)
-          case _ +: tail =>
-            Lambda(Closure(p => rec(known :+ p, tail)))
-        }
-      }
-      rec(Seq.empty, nodes)
-    }
-
-    lazy val makerType: Value = {
-      def rec(known: Seq[Value], remaining: Seq[MultiClosure]): Value = {
-        remaining match {
-          case Seq() => rthis()
-          case Seq(head) =>
-            Function(head(known), Closure(_ => rthis()))
-          case head +: _ +: tail =>
-            Function(head(known), Closure(p => {
-              rec(known :+ p, tail)
-            }))
-        }
-      }
-      rec(Seq.empty, nodes)
-    }
+    private lazy val makerAndType: (Value, Value) = ClosureGraph.makerAndType(nodes, vs => Construct(index, vs), rthis())
+    lazy val maker: Value = makerAndType._1
+    lazy val makerType: Value = makerAndType._2
   }
 
   case class Sum(level: Int, constructors: Seq[Constructor]) extends HeadCanonical {
@@ -611,7 +677,7 @@ object Value {
           case (Universe(l1), Universe(l2)) => Universe(l1 max l2)
           case _ => logicError()
         }
-      case Record(level, _) =>
+      case Record(level, _ , _) =>
         Universe(level)
       case Sum(level, _) =>
         Universe(level)
