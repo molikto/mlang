@@ -43,6 +43,17 @@ define sixteen2 = multi(four, four)
 
 define refl(A: type, x: A): x ≡ x = i → x
 
+/*
+
+the meta is solved with
+
+debug: meta solved with Let(ArrayBuffer(),List(),Reference(1,0))
+debug: meta solved with Let(ArrayBuffer(),List(),Reference(1,8))
+
+these are LOCAL variables, and they are VERY SHORT!!
+
+*/
+
 define sixteen_eq: sixteen ≡ sixteen2 = refl(_, _)
 
 
