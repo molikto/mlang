@@ -44,7 +44,15 @@ trait ContextWithMetaOps extends Context {
     Abstract.MetaReference(0, index)
   }
 
+  def rebindMeta(meta: Value.Meta): Abstract.MetaReference = {
+    rebindOrAddMeta0(meta, false)
+  }
+
   def rebindOrAddMeta(meta: Value.Meta): Abstract.MetaReference = {
+    rebindOrAddMeta0(meta, true)
+  }
+
+  def rebindOrAddMeta0(meta: Value.Meta, allowAdd: Boolean): Abstract.MetaReference = {
     var up = 0
     var index = -1
     var ls = layers
@@ -66,7 +74,11 @@ trait ContextWithMetaOps extends Context {
       }
     }
     if (binder == null) {
-      solvedMeta(meta)
+      if (allowAdd) {
+        solvedMeta(meta)
+      } else {
+        logicError()
+      }
     } else {
       binder
     }

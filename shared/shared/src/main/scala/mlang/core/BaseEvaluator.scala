@@ -57,7 +57,7 @@ trait BaseEvaluator extends Context {
     eval(Abstract.PathLambda(a)).asInstanceOf[Value.PathLambda].body
   }
 
-  protected def eval(term: Abstract): Value = {
+  def eval(term: Abstract): Value = {
     Benchmark.Eval {
       term match {
         case Abstract.Reference(up, index) => getReference(up, index)

@@ -103,7 +103,7 @@ class TypeChecker private (protected override val layers: Layers)
         val na = Abstract.AbsClosure(ctx.finishReify(), ctx.check(a.term, btr))
         val naa = ctx0.eval(na)
         val nv = naa(dv.from)
-        if (!Unify.equalTerm(btr, bv.restrict(dav), nv)) {
+        if (!Unify.unifyTerm(btr, bv.restrict(dav), nv)) {
           throw TypeCheckException.CapNotMatching()
         }
         (Abstract.Face(daa, na), naa(dim0), dav)
@@ -117,7 +117,7 @@ class TypeChecker private (protected override val layers: Layers)
         val dfv = r._3.restrict(l._3)
         // only used to test if this restriction is false face or not
         if (!dfv.isFalse) {
-          if (!Unify.equalTerm(
+          if (!Unify.unifyTerm(
             btt.restrict(l._3).restrict(dfv),
             l._2.restrict(dfv),
             r._2.restrict(l._3))) {
@@ -401,8 +401,8 @@ class TypeChecker private (protected override val layers: Layers)
             val a1 = c1.check(body, t1, tail)
             val ps = Abstract.AbsClosure(c1.finishReify(), a1)
             val pv = eval(ps)
-            val leftEq = Unify.equalTerm(typ(False), pv(False), left)
-            val rightEq = Unify.equalTerm(typ(True), pv(True), right)
+            val leftEq = Unify.unifyTerm(typ(False), pv(False), left)
+            val rightEq = Unify.unifyTerm(typ(True), pv(True), right)
             if (leftEq && rightEq) {
               Abstract.PathLambda(ps)
             } else {

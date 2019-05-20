@@ -122,6 +122,10 @@ trait ContextBuilder extends ContextWithMetaOps {
     (Layer.Parameter(ParameterBinder(name, g), createMetas()) +: layers, g)
   }
 
+  def newParameterLayerProvided(name: Name, g: Value.Generic): Self = {
+    Layer.Parameter(ParameterBinder(name, g), createMetas()) +: layers
+  }
+
 
 
 

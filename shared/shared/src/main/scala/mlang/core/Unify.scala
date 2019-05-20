@@ -1,14 +1,29 @@
 package mlang.core
 
 import Value._
-import mlang.utils.{Benchmark, debug}
+import mlang.name.Name
+import mlang.utils.{Benchmark, debug, info}
 
 import scala.collection.mutable
-import scala.util.{Success, Try}
+import scala.util.{Failure, Success, Try}
 
 private case class Assumption(left: Long, right: Long, domain: Value, codomain: Closure)
 
 
+case class UnificationFailedException(msg: String) extends Exception
+
+object SolvableMetaForm {
+  def unapply(a: Value): Option[(Value.Meta, Seq[Value])] = {
+    def rec(a: Value): Option[(Value.Meta, Seq[Value])] = {
+      a match {
+        case App(l, as) => rec(l).map(pair => (pair._1, pair._2 :+ as))
+        case m: Meta if !m.isSolved => Some((m, Seq.empty))
+        case _ => None
+      }
+    }
+    rec(a)
+  }
+}
 
 object Unify {
   def unifyTerm(typ: Value, t1: Value, t2: Value): Boolean = {
@@ -131,7 +146,59 @@ class Unify {
     }
   }
 
+  def error(s: String) = throw UnificationFailedException(s)
 
+  def solve(m: Meta, vs: Seq[Value], t20: Value): Value = {
+    assert(!m.isSolved)
+    // FIXME cleanup these asInstances
+    val t2 = t20.from // FIXME is this sound??
+    val op = m.v.asInstanceOf[Meta.Open]
+    val context0 = op.context.asInstanceOf[Reifier]
+    val index0 = context0.rebindMeta(m)
+    assert(index0.up == 0)
+    val index = index0.index
+    val os = vs.map {
+      case o: Generic => o
+      case _ => error("Spine is not generic")
+    }
+    val gs = os.map(_.id)
+    var context = context0
+    for (i <- gs.indices) {
+      val o = os(i)
+      val g = o.id
+      if (gs.drop(i + 1).contains(g) || context0.containsGeneric(g)) {
+        error("Spine is not linear")
+      }
+      context = context.newParameterLayerProvided(Name.empty, o).asInstanceOf[Reifier]
+    }
+    // this might throw error if scope checking fails
+    var abs = context.reify(t2)
+    var tt = op.typ
+    for (g <- os) {
+      abs = Abstract.Lambda(Abstract.Closure(Seq.empty, abs))
+      tt = tt.asInstanceOf[Value.Function].codomain(g)
+    }
+    if (abs.dependencies(0).contains(Dependency(index, true))) {
+      error("Meta solution contains itself")
+    }
+    // FIXME type checking??
+    debug(s"meta solved with $abs", 1)
+    val v = context0.asInstanceOf[BaseEvaluator].eval(abs)
+    m.v = Value.Meta.Closed(v)
+    tt
+  }
+
+  def tryOption(value: => Value): Option[Value] = {
+    Try(value) match {
+      case Failure(exception) =>
+        if (debug.enabled(1)) {
+          exception.printStackTrace()
+        }
+        None
+      case Success(value) =>
+        Some(value)
+    }
+  }
 
   private def unifyNeutral(tmm1: Value, tmm2: Value): Option[Value] = {
     (tmm1.whnf, tmm2.whnf) match {
@@ -147,7 +214,7 @@ class Unify {
           None
         }
       case (App(l1, a1), App(l2, a2)) =>
-        unifyNeutral(l1, l2).map(_.whnf).flatMap {
+        unifyNeutral(l1, l2).flatMap(_.whnf match {
           case Function(d, c) =>
           if (unifyTerm(d, a1, a2)) {
             Some(c(a1))
@@ -155,12 +222,12 @@ class Unify {
             None
           }
           case _ => logicError()
-        }
+        })
       case (Projection(m1, f1), Projection(m2, f2)) =>
-        unifyNeutral(m1, m2).map(_.whnf).flatMap {
+        unifyNeutral(m1, m2).flatMap(_.whnf match {
           case r: Record if f1 == f2 => Some(r.projectedType(r.nodes.indices.map(n => Projection(m1, n)), f2))
           case _ => logicError()
-        }
+        })
       case (PatternStuck(l1, s1), PatternStuck(l2, s2)) =>
         unifyNeutral(s1, s2).flatMap(n => {
           if (unifyTypeClosure(n, l1.typ, l2.typ) && unifySameTypePatternLambdaWithAssumptions(n, l1, l2)) {
@@ -195,6 +262,10 @@ class Unify {
         } else {
           None
         }
+      case (SolvableMetaForm(m, gs), t2) =>
+        tryOption(solve(m, gs, t2))
+      case (t1, SolvableMetaForm(m, gs)) =>
+        tryOption(solve(m, gs, t1))
       case _ => None
     }
   }

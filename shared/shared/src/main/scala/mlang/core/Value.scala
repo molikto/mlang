@@ -18,6 +18,7 @@ import Value._
 
 sealed trait Value {
 
+  def from: Value = if (_from == null) this else _from
 
   // TODO how does it interact with recursive references?
   def restrict(lv: DimensionPair): Value = this match {
@@ -58,10 +59,10 @@ sealed trait Value {
       Let(items.map(_.restrict(lv)), body.restrict(lv))
     case PathApp(left, stuck) =>
       PathApp(left.restrict(lv), stuck.restrict(lv))
-    case Generic(id, o) =>
-      Generic(id, if (o != null) o.restrict(lv) else null) // some parameter in reify has null types
     case Restricted(a, faces) =>
       Restricted(a, lv +: faces)
+    case g: Generic =>
+      Restricted(g, Seq(lv))
     case o: Reference =>
       Restricted(o, Seq(lv))
     case o: Meta =>
@@ -169,8 +170,16 @@ sealed trait Value {
             case a => a
           }
         case Restricted(a, restriction) =>
-          restriction.foldLeft(a.whnf) { (v, r) =>
-            v.restrict(r).whnf
+          a match {
+            case o: Generic =>
+              // this must performed here, because our value has a late-eval stuff happening
+              Generic(o.id, restriction.foldLeft(o.typ) { (v, r) =>
+                v.restrict(r)
+              })
+            case _ =>
+              restriction.foldLeft(a.whnf) { (v, r) =>
+                v.restrict(r).whnf
+              }
           }
       }
       if (!candidate.eq(this)) candidate._from = this
@@ -609,7 +618,9 @@ object Value {
     override def toString: String = "Reference"
   }
 
-  case class Generic(id: Long, @polarized_mutation var typ: Value) extends Stuck
+  case class Generic(id: Long, @polarized_mutation var typ: Value) extends Stuck {
+    var debug_restricted = false
+  }
 
   case class Universe(level: Int) extends HeadCanonical
 

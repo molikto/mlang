@@ -170,7 +170,20 @@ trait Context extends ContextBaseForMeta {
     }
   }
 
+  def containsGeneric(id: Long): Boolean = {
+    rebindGeneric0(id) != null
+  }
+
   def rebindGeneric(id: Long): Abstract.Reference = {
+    val binder = rebindGeneric0(id)
+    if (binder == null) {
+      logicError()
+    } else {
+      binder
+    }
+  }
+
+  private def rebindGeneric0(id: Long): Abstract.Reference = {
     var up = 0
     var index = -1
     var ls = layers
@@ -214,11 +227,7 @@ trait Context extends ContextBaseForMeta {
         up += 1
       }
     }
-    if (binder == null) {
-      logicError()
-    } else {
-      binder
-    }
+    binder
   }
 
   def lookupTerm(name: Ref): (Value, Abstract) = {
