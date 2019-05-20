@@ -64,6 +64,8 @@ sealed trait Value {
       Restricted(a, lv +: faces)
     case o: Reference =>
       Restricted(o, Seq(lv))
+    case o: Meta =>
+      Restricted(o, Seq(lv))
   }
 
 
@@ -71,8 +73,9 @@ sealed trait Value {
     throw new IllegalArgumentException("Values don't have equal. Either call eq or do conversion checking")
   }
 
-  private var _whnf: Value = _
   private var _from: Value = _
+  private var _whnf: Value = _
+  private var _isStable: Boolean = true
 
 
 
@@ -86,20 +89,39 @@ sealed trait Value {
     }
   }
 
+  def whnfOpenMetaHead: Boolean = {
+    this match {
+      case Meta(_) => true
+      case App(lambda, _) => lambda.whnfOpenMetaHead
+      case Projection(make, _) => make.whnfOpenMetaHead
+      case PatternStuck(_, stuck) => stuck.whnfOpenMetaHead
+      case PathApp(left, _) => left.whnfOpenMetaHead
+      case Coe(_, typ, _) =>
+        // this rule is really wired...
+        typ(Dimension.Generic(vdgen())).whnf.whnfOpenMetaHead
+      case Hcom(_, tp, _, _) => tp.whnfOpenMetaHead
+      case _ => false
+    }
+  }
 
   // it asserts that if one value cannot be reduced more, it will be eq the original
   def whnf: Value = {
-    if (_whnf == null) {
+    if (_whnf == null || !_isStable) {
       def eqFaces(f1: Seq[Face], f2: Seq[Face]): Boolean = f1.eq(f2) || (f1.size == f2.size && f1.zip(f2).forall(p => {
         p._1.restriction == p._2.restriction && p._1.body.eq(p._2.body)
       }))
-      _whnf = this match {
+      val candidate = this match {
         case a: HeadCanonical =>
           a
         case r: Reference =>
           r.value.whnf
         case o: Generic =>
           o
+        case m: Meta =>
+          m.v match {
+            case Meta.Closed(v) => v.whnf
+            case _: Meta.Open => m
+          }
         case Maker(r, i) =>
           r.whnf match {
             case s: Sum => s.constructors(i).maker
@@ -151,10 +173,16 @@ sealed trait Value {
             v.restrict(r).whnf
           }
       }
-      if (!_whnf.eq(this)) _whnf._from = this
-      _whnf._whnf = _whnf
+      if (!candidate.eq(this)) candidate._from = this
+      if (!candidate.whnfOpenMetaHead) {
+        // remember for stable values
+        _whnf = candidate
+        candidate._whnf = candidate
+      }
+      candidate
+    } else {
+      _whnf
     }
-    _whnf
   }
 
 
@@ -574,14 +602,13 @@ object Value {
   }
   case class Meta(@polarized_mutation var v: Meta.State) extends Syntaxial {
     def solved: Value = v.asInstanceOf[Meta.Closed].v
-
     def isSolved: Boolean = v.isInstanceOf[Meta.Closed]
-
   }
 
   case class Reference(@polarized_mutation var value: Value) extends Syntaxial {
     override def toString: String = "Reference"
   }
+
   case class Generic(id: Long, @polarized_mutation var typ: Value) extends Stuck
 
   case class Universe(level: Int) extends HeadCanonical
@@ -610,7 +637,7 @@ object Value {
 
   case class Face(restriction: DimensionPair, body: AbsClosure)
 
-  case class Restricted(a: Reference, faces: Seq[DimensionPair]) extends Syntaxial
+  case class Restricted(a: Value, faces: Seq[DimensionPair]) extends Syntaxial
 
   case class Coe(direction: DimensionPair, tp: AbsClosure, base: Value) extends Stuck
 

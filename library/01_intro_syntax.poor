@@ -10,6 +10,10 @@
 "│" is just whitespace
 **/
 
+define id(a: type, x: a): a = x
+
+define test1(a b: type, f: a ⇒ b, func: (a ⇒ b) ⇒ type, g: func(f)): func(id(_, f)) = g
+
 define apd(A: type, P: A ⇒ type, f: (x: A) ⇒ P(x), x y: A, p: x ≡ y): coe(0, 1, i → P(p(i)), f(x)) ≡ f(y) =
   i → coe(i, 1, j → P(p(j)), f(p(i)))
 
@@ -113,7 +117,6 @@ define assert_tt2_eq_holder(b: (nat ⇒ nat) ⇒ type, c: (i: nat ⇒ nat) ⇒ b
 define assert_nat_eq_holder2(x y: nat, b: (nat ⇒ nat) ⇒ type, c: (i: nat ⇒ nat) ⇒ b(i)): b(─ → plus(x, y)) =
   c(─ → plus(x, y))
 
-define id(a: type, x: a): a = x
 
 
 define err: type = record {
@@ -186,7 +189,6 @@ define assert_nat_eq_holder(b: nat ⇒ type, c: (i: nat) ⇒ b(i)): b(sixteen) =
 define test0(a b: type, f: a ⇒ b, func: (a ⇒ b) ⇒ type, g: func(f)): func(f) = g
 
 
-define test1(a b: type, f: a ⇒ b, func: (a ⇒ b) ⇒ type, g: func(f)): func(id(a ⇒ b, f)) = g
 
 define fin3_copy = sum {
   case one two three

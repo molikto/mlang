@@ -43,7 +43,9 @@ trait PlatformEvaluator extends BaseEvaluator {
     }
 
     def emitGraph(a: Abstract.ClosureGraph, d: Int): String = {
-      s"""ClosureGraph.createTemp(Seq(${a.map(c => "(Seq[Int](" + c._1.mkString(", ") + "), " + s"r$d => ${emit(c._2.term, d)})").mkString(", ")}))""".stripMargin
+      s"""ClosureGraph.createMetaAnnotated(Seq(${
+        a.map(c => s"(Seq[Int](${c._1.mkString(", ")}), ${c._2.metas.size}, (m$d, r$d) => (Seq[Value](${c._2.metas.map(m => emit(m, d)).mkString(", ")}), ${emit(c._2.term, d)}))").mkString(", ")
+      }))""".stripMargin
     }
 
     def emit(term: Abstract, depth: Int): String = {

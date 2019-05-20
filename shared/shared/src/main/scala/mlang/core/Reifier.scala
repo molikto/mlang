@@ -162,9 +162,8 @@ private class ReifierContextCont(override val base: ReifierContextBase, override
 private class ReifierContextBase(layersBefore: Context.Layers) extends ReifierContext {
 
   private val terms = new mutable.ArrayBuffer[DefineItem]()
-  private val metas = createMetas()
   private var data = Seq.empty[(Int, Option[Abstract])]
-  override protected val layers: Layers =  Layer.Defines(metas, terms) +: layersBefore
+  override protected val layers: Layers =  Layer.Defines(createMetas(), terms) +: layersBefore
 
   private var self: Value = _
 
@@ -187,8 +186,7 @@ private class ReifierContextBase(layersBefore: Context.Layers) extends ReifierCo
     val c = data.count(_._2.isEmpty)
     assert(c <= 1)
     val abs = data.sortBy(_._1).map(_._2.getOrElse(body))
-    assert(metas.isEmpty)
-    val ms = Seq.empty
+    val ms = finishReify()
     if (c == 1) {
       Let(ms, abs, Reference(0, data.find(_._2.isEmpty).get._1))
     } else {
