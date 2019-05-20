@@ -28,48 +28,56 @@ trait PlatformEvaluator extends BaseEvaluator {
 
 
 
-  private class Emitter(recursivelyDefining: Set[Int]) {
-    def emitInner(term: Abstract.ClosureT, depth: Int): String = {
+    def emitInner(term: Abstract.ClosureT, d: Int): String = {
       if (term.metas.isEmpty) {
-        emit(term.term, depth)
+        emit(term.term, d)
       } else {
-        s"{ val m$depth = Seq(${term.metas.map(a => emit(a, depth)).mkString(", ")}); ${emit(term.term, depth)} }"
+        s"{ " +
+            s"val m$d = new scala.collection.mutable.ArrayBuffer[Meta](); " +
+            s"for (_ <- 0 until ${term.metas.size}) m$d.append(Meta(null)); " +
+            s"${term.metas.zipWithIndex.map(a =>
+              s"m$d(${a._2}).v = Meta.Closed(${emit(a._1, d)}); ").mkString("")}" +
+            s"${emit(term.term, d)}; " +
+            s"}"
       }
     }
 
     def emitGraph(a: Abstract.ClosureGraph, d: Int): String = {
-      s"""ClosureGraph.createTemp(Seq(${a.map(c => "(Seq[Int](" + c._1.mkString(", ") + "), " + s"r$d => ${emitInner(c._2, d)})").mkString(", ")}))""".stripMargin
+      s"""ClosureGraph.createTemp(Seq(${a.map(c => "(Seq[Int](" + c._1.mkString(", ") + "), " + s"r$d => ${emit(c._2.term, d)})").mkString(", ")}))""".stripMargin
     }
 
     def emit(term: Abstract, depth: Int): String = {
       term match {
         case Abstract.Universe(l) =>
           s"Universe($l)"
-        case Abstract.Reference(up, index, closed) =>
+        case Abstract.Reference(up, index) =>
           if (up > depth) {
-            if (up == depth + 1 && recursivelyDefining.contains(index)) {
-              // eval recursive, this deref happens under a closure, so it will have a value
-              assert(closed)
-              s"rs($index)"
-            } else {
-              // this is a value inside the context
-              s"${tunnel(evalTermReferenceAsReference(up - depth - 1, index, closed))}"
-            }
+            s"${tunnel(getReference(up - depth - 1, index))}"
           } else {
             if (index == -1) s"r${depth - up}" else s"r${depth - up}($index)"
           }
-        case Abstract.Let(metas, definitions, order, in) =>
+        case Abstract.MetaReference(up, index) =>
+          if (up > depth) {
+            s"${tunnel(getMetaReference(up - depth - 1, index))}"
+          } else {
+            s"m${depth - up}($index)"
+          }
+        case Abstract.Let(metas, definitions, in) =>
           if (definitions.isEmpty) {
             emit(in, depth + 1)
           } else {
             val d = depth + 1
-            s"{val r$d = new scala.collection.mutable.ArrayBuffer[Reference](); " +
+            s"{ " +
+                s"val r$d = new scala.collection.mutable.ArrayBuffer[Reference](); " +
                 s"for (_ <- 0 until ${definitions.size}) r$d.append(Reference(null)); " +
-                s"${order.map(a =>
-                  s"r$d($a).value = ${emit(definitions(a), d)}; "
-                ).mkString("")}" +
+                s"val m$d = new scala.collection.mutable.ArrayBuffer[Meta](); " +
+                s"for (_ <- 0 until ${metas.size}) m$d.append(Meta(null)); " +
+                s"${metas.zipWithIndex.map(a =>
+                  s"m$d(${a._2}).v = Meta.Closed(${emit(a._1, d)}); ").mkString("")}" +
+                s"${definitions.zipWithIndex.map(a =>
+                  s"r$d(${a._2}).value = ${emit(a._1, d)}; ").mkString("")}" +
                 s"val body = ${emit(in, d)}; " +
-                s"Let(r$d, Seq(${order.mkString(", ")}), body)" +
+                s"Let(r$d, body)" +
                 s"}"
           }
         case Abstract.Function(domain, codomain) =>
@@ -150,23 +158,6 @@ trait PlatformEvaluator extends BaseEvaluator {
         case Abstract.Dimension.Restricted(d, pair) =>
           s"${emit(d, depth)}.restrict(${emit(pair, depth)})"
       }
-    }
-  }
-  protected def platformEvalRecursive(terms: Map[Int, Abstract]): Map[Int, Value] = {
-    val emitter = new Emitter(terms.keySet)
-    val rr = new scala.collection.mutable.ArrayBuffer[Value.Reference]()
-    for (_ <- 0 to terms.keySet.max) rr.append(Value.Reference(null))
-    for (t <- terms) {
-      val res = emitter.emit(t._2, -1)
-      val src = holderSrc(res)
-      debug("==================")
-      debug(t._2)
-      debug("==================")
-      debug(res)
-      debug("==================")
-      rr(t._1).value = extractFromHolder(compile[Holder](src), rr)
-    }
-    Map.empty ++ terms.transform((f, _) => rr(f).value)
   }
 
   private def holderSrc(res: String): String = {
@@ -178,20 +169,20 @@ trait PlatformEvaluator extends BaseEvaluator {
          |
          |
          |new Holder {
-         |  def value(ctx: Context, rs: Seq[Value], vs: Seq[Value], cs: Seq[Closure], ps: Seq[Pattern]) = $res
+         |  def value(ctx: Context, vs: Seq[Value], cs: Seq[Closure], ps: Seq[Pattern]) = $res
          |}
        """.stripMargin
   }
 
 
   protected def platformEval(term: Abstract): Value = {
-    val res = new Emitter(Set.empty).emit(term, -1)
+    val res = emit(term, -1)
     val src = holderSrc(res)
     debug("==================")
     debug(term)
     debug("==================")
     debug(res)
     debug("==================")
-    extractFromHolder(compile[Holder](src), Seq.empty)
+    extractFromHolder(compile[Holder](src))
   }
 }

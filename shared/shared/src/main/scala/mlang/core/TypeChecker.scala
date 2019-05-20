@@ -6,6 +6,7 @@ import mlang.name._
 import mlang.utils._
 
 import scala.collection.mutable
+import scala.collection.mutable.ArrayBuffer
 import scala.language.implicitConversions
 
 
@@ -37,7 +38,7 @@ object TypeCheckException {
 
   case class ForbiddenModifier() extends TypeCheckException
 
-  case class DeclarationWithoutDefinition(name: Name) extends TypeCheckException
+  case class DeclarationWithoutDefinition() extends TypeCheckException
 
   case class ExpectingDimension() extends TypeCheckException
 
@@ -66,6 +67,7 @@ object TypeChecker {
 
 class TypeChecker private (protected override val layers: Layers)
     extends ContextBuilder with BaseEvaluator with PlatformEvaluator with Reifier {
+
   override type Self = TypeChecker
 
   override protected implicit def create(a: Layers): Self = new TypeChecker(a)
@@ -179,7 +181,7 @@ class TypeChecker private (protected override val layers: Layers)
           }
         }
         val (fl, fs) = newLayerInferFlatLevel(fields)
-        (Value.Universe(fl), Abstract.Record(fl, fs.map(_._1), fs.map(a => (a._2.dependencies(0).toSeq.sorted, a._2))))
+        (Value.Universe(fl), Abstract.Record(fl, fs.map(_._1), fs.map(a => (a._2.term.termDependencies(0).toSeq.sorted, a._2))))
       case Term.Sum(constructors) =>
         for (i <- constructors.indices) {
           for (j <- (i + 1) until constructors.size) {
@@ -261,9 +263,10 @@ class TypeChecker private (protected override val layers: Layers)
         val (lt, la) = infer(lambda)
         inferApp(lt, la, arguments)
       case Term.Let(declarations, in) =>
-        val (ctx, da, order) = newLayerCheckDeclarations(declarations)
+        val (ctx, ms, da) = newLayerCheckDeclarations(declarations)
         val (it, ia) = ctx.infer(in)
-        (it, Abstract.Let(da, order.flatten, ia))
+        val ms0 = ctx.freezeReify()
+        (it, Abstract.Let(ms ++ ms0, da, ia))
 
     }
     debug(s"infer result ${res._2}")
@@ -300,7 +303,7 @@ class TypeChecker private (protected override val layers: Layers)
         val (fl, fa) = ctx.inferLevel(f.ty)
         l = l max fl
         val ms = ctx.freezeReify()
-        ctx = ctx.newParameter(n, ms.size, ctx.eval(fa))._1
+        ctx = ctx.newParameter(n, ctx.eval(fa))._1
         (n, Abstract.MetaEnclosed(ms, fa))
       })
     })
@@ -350,16 +353,6 @@ class TypeChecker private (protected override val layers: Layers)
     }
   }
 
-  private def freezeReify(): Seq[Abstract] = {
-    val vs = freeze()
-    vs.map(reify)
-  }
-
-  private def finishReify(): Seq[Abstract] = {
-    val vs = finish()
-    vs.map(reify)
-  }
-
   private def check(
       term: Term,
       cp: Value,
@@ -392,7 +385,7 @@ class TypeChecker private (protected override val layers: Layers)
             val ba = ctx.check(body, codomain(v), tail)
             Abstract.Lambda(Abstract.Closure(ctx.finishReify(), ba))
           case Term.PatternLambda(cases) =>
-            Abstract.PatternLambda(TypeChecker.pgen(), reifyClosure(domain, codomain), cases.map(c => {
+            Abstract.PatternLambda(TypeChecker.pgen(), reify(codomain), cases.map(c => {
               val (ctx, v, pat) = newPatternLayer(c.pattern, domain)
               val ba = ctx.check(c.body, codomain(v), tail)
               Abstract.Case(pat, Abstract.MultiClosure(ctx.finishReify(), ba))
@@ -421,16 +414,55 @@ class TypeChecker private (protected override val layers: Layers)
     }
   }
 
-  private def reifyClosure(domain: Value, codomain: Value.Closure): Abstract.Closure = {
-    ???
-  }
 
-  private def checkDeclaration(s: Declaration, abs: mutable.ArrayBuffer[DefinitionInfo]): Self = {
+  private def checkDeclaration(
+      s: Declaration,
+      mis: mutable.ArrayBuffer[CodeInfo[Value.Meta]],
+      vis: mutable.ArrayBuffer[DefinitionInfo]): Self = {
     def wrapBody(t: Term, n: Int): Term = if (n == 0) t else wrapBody(Term.Lambda(Name.empty, t), n - 1)
-    def throwIfNotDefined(ta: Abstract): Unit = {
-      if (ta.dependencies(0).exists(i => getDefined(i)._2.isEmpty)) {
-        throw TypeCheckException.NotDefinedReferenceForTypeExpressions()
+    def appendMetas(ms: Seq[Value.Meta]): Unit = {
+      for (m <- ms) {
+        mis.append(CodeInfo(reify(m.solved), m))
       }
+    }
+    def reevalStuff(ctx: TypeChecker, changed: Dependency): Unit = {
+      val done = mutable.ArrayBuffer.empty[Dependency]
+      // the reason it needs to rec, is that we have whnf remembered
+      def rec(c: Dependency): Unit = {
+        done.append(c)
+        for (i <- mis.indices) {
+          val m = mis(i)
+          val handle = Dependency(i, true)
+          if (!done.contains(handle) && m.dependencies.contains(changed)) {
+            m.t.v = Value.Meta.Closed(ctx.eval(m.code))
+            rec(handle)
+          }
+        }
+        for (i <- vis.indices) {
+          val v = vis(i)
+          val handle = Dependency(i, false)
+          if (!done.contains(handle)) {
+            var needs = false
+            if (v.typ.dependencies.contains(changed)) needs = true
+            v.code match {
+              case Some(value) => // if references to self, already handled
+                if (value.dependencies.contains(changed)) needs = true
+              case _ =>
+            }
+            if (needs) {
+              info(s"re-eval dependency ${ctx.layers.head.asInstanceOf[Layer.Defines].terms(i).name}")
+              v.typ.t.typ = ctx.eval(v.typ.code)
+              v.code match {
+                case Some(value) => // if references to self, already handled
+                  value.t.value = ctx.eval(value.code)
+                case _ =>
+              }
+              rec(handle)
+            }
+          }
+        }
+      }
+      rec(changed)
     }
     s match {
       case Declaration.Define(ms, name, ps, t0, v) =>
@@ -439,112 +471,84 @@ class TypeChecker private (protected override val layers: Layers)
         }
         t0 match {
           case Some(t) =>
-            info(s"check define $name")
+            // term with type
+            info(s"define $name")
             val pps = NameType.flatten(ps)
             val (_, ta) = inferTelescope(pps, t)
-            throwIfNotDefined(ta)
+            appendMetas(freeze())
             val tv = eval(ta)
+            val (ctx, index, generic) = newDeclaration(name, tv) // allows recursive definitions
+            fillTo(vis, index); assert(vis(index) == null)
+            vis.update(index, DefinitionInfo(None, CodeInfo(ta, generic)))
             val lambdaNameHints = pps.map(_._1) ++(t match {
               case Term.Function(d, _) =>
                 NameType.flatten(d).map(_._1)
               case _ => Seq.empty
             })
-            val ctx = newDeclaration(name, tv) // allows recursive definitions
             val va = ctx.check(wrapBody(v, pps.size), tv, lambdaNameHints)
-            info(s"declared $name")
-            abs.append(DefinitionInfo(name, tv, va))
-            ctx
+            appendMetas(ctx.freeze())
+            val ref = Value.Reference(null) // the reason we
+            val ctx2 = ctx.newDefinitionChecked(index, name, ref)
+            ref.value = ctx2.eval(va) // we want to eval it under the context with reference to itself
+            vis(index).code = Some(CodeInfo(va, ref))
+            // you don't need to reevaluate stuff here, no one reference me now!
+            info(s"defined $name")
+            ctx2
           case None =>
+            // term without type
             if (ps.nonEmpty) ???
             lookupDefined(name) match {
               case None => // needs to infer a type
+                info(s"infer $name")
                 val (vt, va) = infer(v)
-                // throwIfNotDefined(va) // don't think this is needed
-                val ctx = newDeclaration(name, vt)
-                info(s"declared $name")
-                abs.append(DefinitionInfo(name, vt, va))
+                appendMetas(freeze())
+                val ta = reify(vt)
+                val ref = Value.Reference(eval(va))
+                val (ctx, index, generic) = newDefinition(name, vt, ref)
+                fillTo(vis, index); assert(vis(index) == null)
+                vis.update(index, DefinitionInfo(Some(CodeInfo(va, ref)), CodeInfo(ta, generic)))
+                info(s"inferred $name")
                 ctx
-              case Some((index, typ, _)) =>
+              case Some((index, typ)) => // needs to check against defined type
+                info(s"check defined $name")
                 val va = check(v, typ, Seq.empty)
-                info(s"declared $name")
-                abs.update(index, DefinitionInfo(name, typ, va))
-                this
+                appendMetas(freeze())
+                val ref = Value.Reference(null)
+                var ctx = newDefinitionChecked(index, name, ref)
+                ref.value = ctx.eval(va)
+                vis(index).code = Some(CodeInfo(va, ref))
+                reevalStuff(ctx, Dependency(index, false))
+                info(s"checked $name")
+                ctx
             }
         }
       case Declaration.Declare(ms, name, ps, t) =>
-        info(s"check declare $name")
+        info(s"declare $name")
         if (ms.nonEmpty) throw TypeCheckException.ForbiddenModifier()
         val (_, ta) = inferTelescope(NameType.flatten(ps), t)
-        throwIfNotDefined(ta)
+        appendMetas(freeze())
         val tv = eval(ta)
-        val ctx = newDeclaration(name, tv)
+        val (ctx, index, generic) = newDeclaration(name, tv)
+        fillTo(vis, index); assert(vis(index) == null)
+        vis.update(index, DefinitionInfo(None, CodeInfo(ta, generic)))
         info(s"declared $name")
-        abs.append(DefinitionInfo(name, tv, null))
         ctx
     }
-
   }
 
-  private def newLayerCheckDeclarations(seq: Seq[Declaration]): (Self, Seq[Abstract], Seq[Set[Int]]) = {
+  private def newLayerCheckDeclarations(seq: Seq[Declaration]): (Self, Seq[Abstract], Seq[Abstract]) = {
     // how to handle mutual recursive definitions, calculate strong components
     var ctx = newDefinesLayer()
-    val abs = new mutable.ArrayBuffer[DefinitionInfo]()
-    val definitionOrder = new mutable.ArrayBuffer[Set[Int]]()
+    val ms = mutable.ArrayBuffer.empty[CodeInfo[Value.Meta]]
+    val vs = mutable.ArrayBuffer.empty[DefinitionInfo]
     for (s <- seq) {
-      ctx = ctx.checkDeclaration(s, abs)
-      val toCompile = mutable.ArrayBuffer[Int]()
-      for (i <- abs.indices) {
-        val t = abs(i)
-        if (t.code != null && t.value.isEmpty && t.directDependencies.forall(j => abs(j).code != null)) {
-          toCompile.append(i)
-        }
-      }
-      if (toCompile.nonEmpty) {
-        val toCal = toCompile.map(i => i -> abs(i).directDependencies.filter(a => toCompile.contains(a))).toMap
-        val ccc = mlang.utils.graphs.tarjanCcc(toCal).toSeq.sortWith((l, r) => {
-          l.exists(ll => r.exists(rr => abs(ll).directDependencies.contains(rr)))
-        }).reverse
-        for (c <- ccc) {
-          assert(c.nonEmpty)
-          definitionOrder.append(c)
-          if (c.size == 1 && !abs(c.head).directDependencies.contains(c.head)) {
-            val g = abs(c.head)
-            g.code.markRecursive(0, Set.empty) // marks closed references
-            val v = ctx.eval(g.code)
-            g.value = Some(v)
-            ctx = ctx.newDefinitionChecked(c.head, g.name, v)
-            info(s"defined ${g.name}")
-            if (debug.enabled) {
-              val abs = reify(v)
-              assert(Conversion.equalTerm(ctx.lookupTerm(g.name.refSelf)._1, eval(abs), v))
-            }
-          } else {
-            for (i <- c) {
-              abs(i).code.markRecursive(0, c)
-            }
-            val vs = ctx.evalMutualRecursive(c.map(i => (i, abs(i).code)).toMap)
-            for (v <- vs) {
-              val ab = abs(v._1)
-              ab.value = Some(v._2)
-              val name = ab.name
-              ctx = ctx.newDefinitionChecked(v._1, name, v._2)
-              info(s"defined recursively $name")
-              if (debug.enabled) {
-                val abd = reify(v._2)
-                assert(Conversion.equalTerm(ctx.lookupTerm(ab.name.refSelf)._1, eval(abd), v._2))
-              }
-            }
-          }
-        }
-      }
+      val ctx0 = ctx.checkDeclaration(s, ms, vs)
+      ctx = ctx0
     }
-    assert(abs.size == ctx.debug__headDefinesSize)
-    abs.foreach(f => {
-      if (f.code == null) {
-        throw TypeCheckException.DeclarationWithoutDefinition(f.name)
-      }
-    })
-    (ctx, abs.map(a => a.code), definitionOrder)
+    if (vs.exists(a => a.code.isEmpty)) {
+      throw TypeCheckException.DeclarationWithoutDefinition()
+    }
+    (ctx, ms.map(_.code), vs.map(_.code.get.code))
   }
 
 
@@ -559,18 +563,17 @@ class TypeChecker private (protected override val layers: Layers)
   }
 
 
-  def check(m: Module): TypeChecker = Benchmark.TypeChecking {
-    newLayerCheckDeclarations(m.declarations)._1
+  def check(m: Module): Unit = Benchmark.TypeChecking {
+    newLayerCheckDeclarations(m.declarations)
   }
 }
 
-private case class DefinitionInfo(
-    name: Name,
-    typ: Value,
-    code: Abstract,
-    var value: Option[Value] = None,
-   ) {
-   lazy val directDependencies: Set[Int] = code.dependencies(0)
+private case class CodeInfo[T](
+    val code: Abstract,
+    val t: T) {
+  val dependencies = code.dependencies(0)
 }
-
+private case class DefinitionInfo(
+    var code: Option[CodeInfo[Value.Reference]],
+    val typ: CodeInfo[Value.Generic])
 

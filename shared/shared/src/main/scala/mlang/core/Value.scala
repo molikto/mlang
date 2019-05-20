@@ -54,8 +54,8 @@ sealed trait Value {
       Projection(make.restrict(lv), field)
     case PatternStuck(lambda, stuck) =>
       PatternStuck(lambda.restrict(lv).asInstanceOf[PatternLambda], stuck.restrict(lv))
-    case Let(items, order, body) =>
-      Let(items.map(_.restrict(lv)), order, body.restrict(lv))
+    case Let(items, body) =>
+      Let(items.map(_.restrict(lv)), body.restrict(lv))
     case PathApp(left, stuck) =>
       PathApp(left.restrict(lv), stuck.restrict(lv))
     case Generic(id, o) =>
@@ -108,7 +108,7 @@ sealed trait Value {
               r.maker
             case _ => logicError() // because we don't accept anoymouns maker expression
           }
-        case Let(_, _, body) =>
+        case Let(_, body) =>
           body.whnf
         case App(lambda, argument) =>
           lambda.whnf.app(argument, whn) match {
@@ -394,9 +394,11 @@ object Value {
 
     private case class DependentWithMeta(dependencies: Seq[Int], metaCount: Int, closure: (Seq[Value], Seq[Value]) => (Seq[Value], Value)) extends Dependent
 
-    private case class IndependentWithMeta(dependencies: Seq[Int], metas: Seq[Value], typ: Value) extends Independent
+    private case class IndependentWithMeta(dependencies: Seq[Int], metas: Seq[Value], typ: Value) extends Independent {
+    }
 
-    private case class PrivateValuedWithMeta(dependencies: Seq[Int], metas: Seq[Value], typ: Value, value: Value) extends Valued
+    private case class PrivateValuedWithMeta(dependencies: Seq[Int], metas: Seq[Value], typ: Value, value: Value) extends Valued {
+    }
 
     def createTemp(nodes: Seq[(Seq[Int], Seq[Value] => Value)]): ClosureGraph = {
       createMetaAnnotated(nodes.map(a => (a._1, 0, (_: Seq[Value], vs: Seq[Value]) => (Seq.empty[Value], a._2(vs)))))
@@ -568,17 +570,19 @@ object Value {
     sealed trait State
 
     case class Closed(v: Value) extends State
-    case class Open(id: Long, typ: Value, context: ContextForMeta) extends State
+    case class Open(id: Long, typ: Value, context: ContextBaseForMeta) extends State
   }
   case class Meta(@polarized_mutation var v: Meta.State) extends Syntaxial {
+    def solved: Value = v.asInstanceOf[Meta.Closed].v
+
     def isSolved: Boolean = v.isInstanceOf[Meta.Closed]
 
   }
 
-  case class Reference(@lateinit var value: Value) extends Syntaxial {
+  case class Reference(@polarized_mutation var value: Value) extends Syntaxial {
     override def toString: String = "Reference"
   }
-  case class Generic(id: Long, typ: Value) extends Stuck
+  case class Generic(id: Long, @polarized_mutation var typ: Value) extends Stuck
 
   case class Universe(level: Int) extends HeadCanonical
 
@@ -656,7 +660,7 @@ object Value {
 
   case class PatternStuck(lambda: PatternLambda, stuck: StuckPos) extends Stuck
 
-  case class Let(var items: Seq[Value], order: Seq[Int], body: Value) extends Syntaxial
+  case class Let(var items: Seq[Value], body: Value) extends Syntaxial
 
 
   case class PathType(typ: AbsClosure, left: Value, right: Value) extends HeadCanonical

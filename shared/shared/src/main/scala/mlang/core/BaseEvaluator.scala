@@ -8,7 +8,7 @@ case class PlatformEvaluatorException(src: String, cause: Throwable)
     extends Exception(s"Src: $src", cause) with CoreException
 
 trait Holder {
-  def value(c: Context, rs: Seq[Value], vs: Seq[Value], cs: Seq[Value.Closure], ps: Seq[Pattern]): Value
+  def value(c: Context, vs: Seq[Value], cs: Seq[Value.Closure], ps: Seq[Pattern]): Value
 }
 
 // the evaluator perform a direct translation of abstract terms under a context to a
@@ -21,8 +21,8 @@ trait BaseEvaluator extends Context {
   private val cs = mutable.ArrayBuffer[Value.Closure]()
   private val ps = mutable.ArrayBuffer[Pattern]()
 
-  protected def extractFromHolder(h: Holder, map: Seq[Value]): Value = {
-    val res = h.value(this, map, vs.clone(), cs.clone(), ps.clone())
+  protected def extractFromHolder(h: Holder): Value = {
+    val res = h.value(this, vs.clone(), cs.clone(), ps.clone())
     if (debug.enabled) {
       for (v <- vs.indices) debug(s"v$v: ${vs(v)}")
       for (v <- ps.indices) debug(s"v$v: ${ps(v)}")
@@ -52,26 +52,6 @@ trait BaseEvaluator extends Context {
   }
 
   protected def platformEval(value: Abstract): Value
-  protected def platformEvalRecursive(terms: Map[Int, Abstract]): Map[Int, Value]
-
-  protected def evalTermReferenceAsReference(i: Int, index: Int, closed: Boolean): Value = {
-    getTerm(i, index) match {
-      case o: Value.Generic =>
-        assert(!closed)
-        o // a formal argument in context
-      case v =>
-        assert(closed)
-        Value.Reference(v) // a definition in context, cannot be recursive
-    }
-  }
-
-  protected def evalMutualRecursive(terms: Map[Int, Abstract]): Map[Int, Value] = {
-    Benchmark.Eval {
-      val ret = platformEvalRecursive(terms)
-      assert(ret.forall(_._2 != null))
-      ret
-    }
-  }
 
   protected def eval(a: Abstract.AbsClosure): Value.AbsClosure = {
     eval(Abstract.PathLambda(a)).asInstanceOf[Value.PathLambda].body
@@ -80,7 +60,7 @@ trait BaseEvaluator extends Context {
   protected def eval(term: Abstract): Value = {
     Benchmark.Eval {
       term match {
-        case Abstract.Reference(up, index, closed) => evalTermReferenceAsReference(up, index, closed)
+        case Abstract.Reference(up, index) => getReference(up, index)
         case Abstract.Universe(i) => Value.Universe(i)
         case _ =>
           val ret = platformEval(term)

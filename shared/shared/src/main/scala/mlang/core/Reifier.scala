@@ -2,15 +2,28 @@ package mlang.core
 
 import mlang.core.Abstract._
 import mlang.core.Context.Layers
-import mlang.core.Value.ClosureGraph
+import mlang.core.Value.{ClosureGraph, Meta}
 import mlang.name.Name
 import mlang.utils.Benchmark
 
 import scala.collection.mutable
 
 
+trait ReifierCommon extends ContextBuilder {
+  def reify(v: Value): Abstract
 
-private trait ReifierContext extends ContextBuilder {
+  def freezeReify(): Seq[Abstract] = {
+    val vs = freeze()
+    vs.map(a => reify(a.solved))
+  }
+
+  def finishReify(): Seq[Abstract] = {
+    val vs = finish()
+    vs.map(a => reify(a.solved))
+  }
+}
+
+private trait ReifierContext extends ReifierCommon with ContextBuilder {
   def base: ReifierContextBase
 
   override type Self <: ReifierContext
@@ -24,22 +37,43 @@ private trait ReifierContext extends ContextBuilder {
     }
   }
 
+
   def reify(graph0: Value.ClosureGraph): Abstract.ClosureGraph = {
-    val (ctx, vs0) = graph0.foldLeft((newParametersLayer().asInstanceOf[ReifierContext], Seq.empty[Value])) { (as, _) =>
-      val (cc, v) = as._1.newParameter(Name.empty, null)
-      (cc, as._2 :+ v)
-    }
-    assert(vs0.size == graph0.size)
+    var ctx: ReifierContext = newParametersLayer()
     var graph = graph0
-    var as =  Seq.empty[(Seq[Int], Abstract)]
+    var as =  Seq.empty[(Seq[Int], MetaEnclosed)]
     for (i  <- graph0.indices) {
       val n = graph(i)
       val it = n.independent.typ
-      val pair = (n.dependencies, ctx.reify(it))
+      val ttt = ctx.reify(it)
+      val pair = (n.dependencies, Abstract.MetaEnclosed(ctx.freezeReify(), ttt))
       as = as :+ pair
-      graph = ClosureGraph.reduce(graph, i, vs0(i))
+      val (ctx0, tm) = ctx.newParameter(Name.empty, null)
+      ctx = ctx0
+      graph = ClosureGraph.reduce(graph, i, tm)
     }
     as
+  }
+
+  def reify(v: Value.Closure): Abstract.Closure = {
+    val (ctx, tm) = newParameterLayer(Name.empty, null)
+    val ta = ctx.reify(v(tm))
+    Abstract.Closure(ctx.finishReify(), ta)
+  }
+
+  def reify(v: Value.AbsClosure): Abstract.AbsClosure = {
+    val (ctx, tm) = newDimensionLayer(Name.empty, None)
+    val ta = ctx.reify(v(tm))
+    Abstract.AbsClosure(ctx.finishReify(), ta)
+  }
+
+  def reify(size: Int, v: Value.MultiClosure): Abstract.MultiClosure = {
+    val (ctx, ns) = (0 until size).foldLeft((newParametersLayer().asInstanceOf[ReifierContext], Seq.empty[Value])) { (ctx, _) =>
+      val (c, ns) = ctx._1.newParameter(Name.empty, null)
+      (c, ctx._2 :+ ns)
+    }
+    val ta = ctx.reify(v(ns))
+    Abstract.MultiClosure(ctx.finishReify(), ta)
   }
 
   def reify(v: Value): Abstract = {
@@ -47,8 +81,7 @@ private trait ReifierContext extends ContextBuilder {
       case Value.Universe(level) =>
         Universe(level)
       case Value.Function(domain, codomain) =>
-        val (ctx, tm) = newParameterLayer(Name.empty, domain)
-        Function(reify(domain), ctx.reify(codomain(tm)))
+        Function(reify(domain), reify(codomain))
       case Value.Record(level, names, nodes) =>
         Record(level, names, reify(nodes))
       case Value.Sum(level, constructors) =>
@@ -56,8 +89,7 @@ private trait ReifierContext extends ContextBuilder {
           Constructor(c.name, reify(c.nodes))
         }))
       case Value.PathType(ty, left, right) =>
-        val (ctx, d) = newDimensionLayer(Name.empty)
-        PathType(ctx.reify(ty(d)), reify(left), reify(right))
+        PathType(reify(ty), reify(left), reify(right))
       case Value.Make(_) =>
         // we believe at least values from typechecker don't have these stuff
         // we can extends it when time comes
@@ -65,20 +97,15 @@ private trait ReifierContext extends ContextBuilder {
       case Value.Construct(_, _) =>
         logicError()
       case Value.Lambda(closure) =>
-        val (ctx, n) = newParameterLayer(Name.empty, null)
-        Lambda(ctx.reify(closure(n)))
+        Lambda(reify(closure))
       case Value.PatternLambda(id, ty, cases) =>
-        val (ctx, n) = newParameterLayer(Name.empty, null)
-        PatternLambda(id, ctx.reify(ty(n)), cases.map(c => {
-          val (ctx, ns) = (0 until c.pattern.atomCount).foldLeft((newParametersLayer().asInstanceOf[ReifierContext], Seq.empty[Value])) { (ctx, _) =>
-            val (c, ns) = ctx._1.newParameter(Name.empty, null)
-            (c, ctx._2 :+ ns)
-          }
-          Case(c.pattern, ctx.reify(c.closure(ns)))
+        PatternLambda(id, reify(ty), cases.map(c => {
+          Case(c.pattern, reify(c.pattern.atomCount, c.closure))
         }))
       case Value.PathLambda(body) =>
-        val (ctx, n) = newDimensionLayer(Name.empty)
-        PathLambda(ctx.reify(body(n)))
+        PathLambda(reify(body))
+      case m: Value.Meta =>
+        rebindOrAddMeta(m)
       case Value.Generic(id, _) =>
         rebindGeneric(id)
       case c: Value.Reference =>
@@ -91,28 +118,23 @@ private trait ReifierContext extends ContextBuilder {
         App(reify(lambda), reify(stuck))
       case Value.Maker(s, i) =>
         Maker(reify(s), i)
-      case Value.Let(items, order, body) =>
+      case Value.Let(items, body) =>
         val ctx = items.foldLeft(newDefinesLayer().asInstanceOf[ReifierContext]) { (ctx, item) =>
-          ctx.newDefinition(Name.empty, null, item)
+          ctx.newDefinition(Name.empty, null, Value.Reference(item))._1
         }
         val abs = items.map(p => ctx.reify(p))
-        Let(abs, order, ctx.reify(body))
+        val bd = ctx.reify(body)
+        Let(ctx.finishReify(), abs, bd)
       case Value.PathApp(left, stuck) =>
         PathApp(reify(left), reify(stuck))
       case Value.Coe(dir, tp, base) =>
-        val (ctx, n) = newDimensionLayer(Name.empty)
-        Coe(reify(dir), ctx.reify(tp(n)), reify(base))
+        Coe(reify(dir), reify(tp), reify(base))
       case Value.Hcom(dir, tp, base, faces) =>
-        val (ctx, n) = newParametersLayer().newDimensionLayer(Name.empty)
-        Hcom(reify(dir), reify(tp), reify(base), faces.map(r => Face(reify(r.restriction), ctx.reify(r.body(n)))))
+        Hcom(reify(dir), reify(tp), reify(base), faces.map(r => Face(reify(r.restriction), reify(r.body))))
       case Value.Com(dir, tp, base, faces) =>
-        Com(reify(dir), {
-          val (ctx, n) = newDimensionLayer(Name.empty)
-          ctx.reify(tp(n))
-        }, reify(base), {
-          val (ctx, n) = newParametersLayer().newDimensionLayer(Name.empty)
-          faces.map(r => Face(reify(r.restriction), ctx.reify(r.body(n))))
-        })
+        Com(reify(dir), reify(tp), reify(base),
+          faces.map(r => Face(reify(r.restriction), newRestrictionLayer(r.restriction).reify(r.body)))
+        )
       case Value.Restricted(a, pair) =>
         pair.foldLeft(reify(a)) { (c, p) =>
           Restricted(c, reify(p))
@@ -138,16 +160,18 @@ private class ReifierContextCont(override val base: ReifierContextBase, override
 
 // this is the context of the let expression where out-of-scope reference is collected
 private class ReifierContextBase(layersBefore: Context.Layers) extends ReifierContext {
+
   private val terms = new mutable.ArrayBuffer[DefineItem]()
+  private val metas = createMetas()
   private var data = Seq.empty[(Int, Option[Abstract])]
-  override protected val layers: Layers =  Layer.Defines(createMetas(), terms) +: layersBefore
+  override protected val layers: Layers =  Layer.Defines(metas, terms) +: layersBefore
 
   private var self: Value = _
 
 
   def saveOutOfScopeValue(r: Value.Reference): Unit = {
     val index = terms.size
-    terms.append(DefineItem(ParameterBinder(0, Name.empty, null), Some(r.value)))
+    terms.append(DefineItem(ParameterBinder(Name.empty, null), Some(r)))
     val abs = if (r.value.eq(self)) {
       None : Option[Abstract]
     } else {
@@ -162,12 +186,13 @@ private class ReifierContextBase(layersBefore: Context.Layers) extends ReifierCo
     val body = reify(v)
     val c = data.count(_._2.isEmpty)
     assert(c <= 1)
-    val order = data.map(_._1)
     val abs = data.sortBy(_._1).map(_._2.getOrElse(body))
+    assert(metas.isEmpty)
+    val ms = Seq.empty
     if (c == 1) {
-      Let(abs, order, Reference(0, data.find(_._2.isEmpty).get._1, true))
+      Let(ms, abs, Reference(0, data.find(_._2.isEmpty).get._1))
     } else {
-      Let(abs, order, body)
+      Let(ms, abs, body)
     }
   }
 
@@ -178,6 +203,19 @@ private class ReifierContextBase(layersBefore: Context.Layers) extends ReifierCo
 
 }
 
-trait Reifier extends Context {
-  def reify(v: Value): Abstract = Benchmark.Reify { new ReifierContextBase(layers).reifyValue(v) }
+object Reifier {
+  private def reify(v: Value, layers: Seq[Layer]): Abstract = Benchmark.Reify { new ReifierContextBase(layers).reifyValue(v)  }
+}
+trait Reifier extends ReifierCommon {
+  def reify(v: Value): Abstract = Reifier.reify(v, layers)
+
+
+  def reify(v: Value.Closure): Abstract.Closure = {
+    val l = debug_metasSize
+    val (c, t) = newParameterLayer(Name.empty, null)
+    val r = Abstract.Closure(Seq.empty, c.asInstanceOf[Reifier].reify(v(t)))
+    assert(debug_metasSize == l) // we don't create meta in current layer!
+    assert(c.debug_metasSize == 0) // also we don't create in that one!
+    r
+  }
 }

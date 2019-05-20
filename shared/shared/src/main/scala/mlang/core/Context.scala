@@ -15,40 +15,49 @@ object ContextException {
 }
 
 
-case class ParameterBinder(id: Long, name: Name, typ: Value) {
-  val value = Value.Generic(id, typ)
+case class ParameterBinder(name: Name, value: Value.Generic) {
+  def id: Long = value.id
+  def typ: Value = value.typ
 }
-
-case class MetaParameterBinder(metas: Int, t: ParameterBinder)
 
 sealed trait Depends[T] {
   def t: T
 }
 
-case class DefineItem(typ0: ParameterBinder, v: Option[Value]) {
-  def typ: Value = typ0.typ
-  def value: Value = v.getOrElse(typ0.value)
+
+// a defined term acts like a parameter when it doesn't have a body
+case class DefineItem(typ0: ParameterBinder, ref0: Option[Value.Reference]) {
+  def typ: Value = typ0.value.typ
   def id: Long = typ0.id
   def name: Name = typ0.name
-  def isDefined: Boolean = v.isDefined
+  def isDefined = ref0.isDefined
+  def ref = ref0.getOrElse(typ0.value)
 }
 
 object Context {
   type Layers = Seq[Layer]
 
-  case class Metas(frozen: mutable.ArrayBuffer[Value.Meta], current: mutable.ArrayBuffer[Value.Meta]) {
+  class Metas(val metas: mutable.ArrayBuffer[Value.Meta], var frozen: Int) {
+    def debug_allFrozen: Boolean = metas.size == frozen
+
     def freeze(): Seq[Value.Meta] = {
-      val vs = current.clone()
-      frozen.appendAll(current)
-      current.clear()
+      val vs = metas.slice(frozen, metas.size)
+      frozen = metas.size
       vs
     }
 
+    def apply(i: Int): Value.Meta = metas(i)
+
     var debug_final = false
-    def size = frozen.size + current.size
-    def append(a: Value.Meta) = {
+    def size: Int = metas.size
+
+    def isEmpty: Boolean = metas.isEmpty
+    def nonEmpty: Boolean = metas.nonEmpty
+    def head: Value.Meta = metas.head
+
+    def append(a: Value.Meta): Unit = {
       if (debug_final) logicError()
-      current.append(a)
+      metas.append(a)
     }
   }
 }
@@ -68,8 +77,8 @@ object Layer {
 
   case class MultiParameters(binders: Seq[ParameterBinder], metas: Metas) extends Parameters
 
-  case class ParameterGraph(defined: Seq[MetaParameterBinder], metas: Metas) extends Parameters {
-    def binders: Seq[ParameterBinder] = defined.map(_.t)
+  case class ParameterGraph(defined: Seq[ParameterBinder], metas: Metas) extends Parameters {
+    def binders: Seq[ParameterBinder] = defined
   }
 
   case class Defines(metas: Metas, terms: Seq[DefineItem]) extends Layer // notice the metas is FIRST!!
@@ -81,15 +90,16 @@ object Layer {
 
 
 import Context._
-trait Context extends ContextForMeta {
+trait Context extends ContextBaseForMeta {
 
   protected val layers: Layers
 
+  def getMetaReference(depth: Int, index: Int): Value.Meta = layers(depth).metas(index)
   // get value directly without resolving faces
-  def getTerm(depth: Int, index: Int): Value = layers(depth) match {
+  def getReference(depth: Int, index: Int): Value = layers(depth) match {
     case Layer.Parameter(binder, _) if index == -1 => binder.value
-    case ps: Layer.Parameters => ps.binders(index).value
-    case Layer.Defines(_, terms) => terms(index).value
+    case ps: Layer.Parameters  => ps.binders(index).value
+    case Layer.Defines(_, terms) => terms(index).ref
     case _ => logicError()
   }
 
@@ -106,9 +116,9 @@ trait Context extends ContextForMeta {
         case d: Layer.Defines =>
           var ll = d.terms
           while (ll.nonEmpty && binder == null) {
-            if (ll.head.isDefined && ll.head.value.eq(v.value)) {
+            if (ll.head.isDefined && ll.head.ref0.get.value.eq(v.value)) {
               index = i
-              binder = Abstract.Reference(up, index, true)
+              binder = Abstract.Reference(up, index)
             }
             i += 1
             ll = ll.tail
@@ -173,7 +183,7 @@ trait Context extends ContextForMeta {
           while (ll.nonEmpty && binder == null) {
             if (ll.head.id == id) {
               index = i
-              binder = Abstract.Reference(up, index, false)
+              binder = Abstract.Reference(up, index)
             }
             i += 1
             ll = ll.tail
@@ -182,9 +192,12 @@ trait Context extends ContextForMeta {
           var ll = t.terms
           while (ll.nonEmpty && binder == null) {
             if (ll.head.id == id) {
-              assert(ll.head.v.isEmpty) // values should be updated when a open reference turns closed
-              index = i
-              binder = Abstract.Reference(up, index, false)
+              if (ll.head.isDefined) {
+                logicError()
+              } else {
+                index = i
+                binder = Abstract.Reference(up, index)
+              }
             }
             i += 1
             ll = ll.tail
@@ -192,7 +205,7 @@ trait Context extends ContextForMeta {
         case p:Layer.Parameter =>
           if (p.binder.id == id) {
             index = i
-            binder = Abstract.Reference(up, -1, false)
+            binder = Abstract.Reference(up, -1)
           }
         case _ =>
       }
@@ -242,7 +255,7 @@ trait Context extends ContextForMeta {
             if (ll.head.name.by(name)) {
               index = i
               binder = (ll.head.typ,
-                  Abstract.Reference(up, index, false),
+                  Abstract.Reference(up, index),
                   true)
             }
             i += 1
@@ -255,7 +268,7 @@ trait Context extends ContextForMeta {
             if (ll.head.name.by(name)) {
               index = i
               binder = (ll.head.typ,
-                  Abstract.Reference(up, index, ll.head.isDefined),
+                  Abstract.Reference(up, index),
                   false)
             }
             i += 1
@@ -263,7 +276,7 @@ trait Context extends ContextForMeta {
           }
         case p:Layer.Parameter =>
           if (p.binder.name.by(name)) {
-            binder = (p.binder.typ, Abstract.Reference(up, -1, false), true)
+            binder = (p.binder.typ, Abstract.Reference(up, -1), true)
           }
         case d: Layer.Dimension =>
           if (d.name.by(name)) {
