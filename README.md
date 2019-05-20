@@ -52,6 +52,7 @@
 
 ## internals
 
+
 * theory
     * basic for MLTT theory see HoTT book first chapters
     * cubical TT see
@@ -66,6 +67,9 @@
       * this don't handle recursive definitions, and we use a way inspired by Mini-TT
     * the idea of using JVM as evaluator is from: *Full reduction at full throttle*
 
+------
+
+**some of bellow is out of date and wrong now**
 
 
 ### values
