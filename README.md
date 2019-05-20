@@ -4,7 +4,10 @@
 [![Join the chat at https://gitter.im/mlang-discuess/community](https://badges.gitter.im/mlang-discuess/community.svg)](https://gitter.im/mlang-discuess/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
 * next... NOW!
-    * implicit simple unification, also in this process correct the let type checking
+    * is my implementation of unification correct?
+       * is unification under restricted context handled?
+       * why unification result doesn't needs to be type checked or am I wrong?
+    * fix the problem of reading back inductive definitions: they rarely do the thing you want. so maybe only allow inductive at top level
     * understand how the more complicated part of a cubical theory implemented
     
 * roadmap
@@ -20,8 +23,7 @@
         * extension type?
         * sum type's Kan ops; fcom, higher inductive types
         * univalance
-    * implicit arguments on the right: *at least I think it is useful, and also it can be seen as a subset of implicit arguments a la Agda, so no harm implementing at all*
-        * **QUESTION** what's the problem of unification under restricted context?
+    * **DONE** unification and implicit arguments
         * user defined implicit right form
     * ~~~~~~~~~~
     * user defined eliminations
