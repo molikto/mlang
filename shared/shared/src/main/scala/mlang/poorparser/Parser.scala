@@ -42,7 +42,6 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
   lazy val defineModifiers: PackratParser[Seq[Declaration.Modifier]] =
     rep(
       keyword("inductively") ^^ { _ => Declaration.Modifier.Inductively : Declaration.Modifier } |
-      keyword("ignored") ^^ { _ => Declaration.Modifier.Ignored } |
       keyword("with_constructor") ^^ { _ => Declaration.Modifier.WithConstructor} |
       keyword("__debug") ^^ { _ => Declaration.Modifier.__Debug }
     )
@@ -163,8 +162,8 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
 
   lazy val sum: PackratParser[Sum] =
     (keyword("sum") ~> delimited("{", rep(
-      (keyword("case") ~> ident ~ tele ^^ { a => Seq(Term.Constructor(a._1, a._2)) }) |
-      (keyword("case") ~> rep1(ident) ^^ { _.map(i => Term.Constructor(Text(i), Seq.empty)) : Seq[Term.Constructor] })
+      (keyword("case") ~> atomicPattern ~ tele ^^ { a => Seq(Term.Constructor(a._1, a._2)) }) |
+      (keyword("case") ~> rep1(atomicPattern) ^^ { _.map(i => Term.Constructor(i, Seq.empty)) : Seq[Term.Constructor] })
     ),"}")) ^^ { a =>
       Sum(a.flatten)
     }

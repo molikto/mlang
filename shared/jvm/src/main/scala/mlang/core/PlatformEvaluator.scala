@@ -28,98 +28,106 @@ trait PlatformEvaluator extends BaseEvaluator {
 
 
 
-  private class Emitter(recursivelyDefining: Set[Int]) {
+    def emitInner(term: Abstract.ClosureT, d: Int): String = {
+      if (term.metas.isEmpty) {
+        emit(term.term, d)
+      } else {
+        s"{ " +
+            s"val m$d = new scala.collection.mutable.ArrayBuffer[Meta](); " +
+            s"for (_ <- 0 until ${term.metas.size}) m$d.append(Meta(null)); " +
+            s"${term.metas.zipWithIndex.map(a =>
+              s"m$d(${a._2}).v = Meta.Closed(${emit(a._1, d)}); ").mkString("")}" +
+            s"${emit(term.term, d)}; " +
+            s"}"
+      }
+    }
+
+    def emitGraph(a: Abstract.ClosureGraph, d: Int): String = {
+      s"""ClosureGraph.createMetaAnnotated(Seq(${
+        a.map(c => s"(Seq[Int](${c._1.mkString(", ")}), ${c._2.metas.size}, (m$d, r$d) => (Seq[Value](${c._2.metas.map(m => emit(m, d)).mkString(", ")}), ${emit(c._2.term, d)}))").mkString(", ")
+      }))""".stripMargin
+    }
+
     def emit(term: Abstract, depth: Int): String = {
       term match {
         case Abstract.Universe(l) =>
           s"Universe($l)"
-        case Abstract.TermReference(up, index, closed) =>
+        case Abstract.Reference(up, index) =>
           if (up > depth) {
-            if (up == depth + 1 && recursivelyDefining.contains(index)) {
-              // eval recursive, this deref happens under a closure, so it will have a value
-              assert(closed == 1)
-              s"Reference(rs($index), $closed)"
-            } else {
-              // this is a value inside the context
-              assert((up == depth + 1 && closed == 0) || closed == -1)
-              s"${tunnel(evalOpenTermReferenceAsReference(up - depth - 1, index))}"
-            }
+            s"${tunnel(getReference(up - depth - 1, index))}"
           } else {
-            val ss = if (index == -1) s"r${depth - up}" else s"r${depth - up}($index)"
-            // a reference inside the emit context
-            if (closed >= 0) {
-              // reference to a value directly
-              s"Reference($ss, $closed)"
-            } else {
-              // formal parameters of a closure
-              ss
-            }
+            if (index == -1) s"r${depth - up}" else s"r${depth - up}($index)"
           }
-        case Abstract.Let(definitions, order, in) =>
+        case Abstract.MetaReference(up, index) =>
+          if (up > depth) {
+            s"${tunnel(getMetaReference(up - depth - 1, index))}"
+          } else {
+            s"m${depth - up}($index)"
+          }
+        case Abstract.Let(metas, definitions, in) =>
           if (definitions.isEmpty) {
             emit(in, depth + 1)
           } else {
             val d = depth + 1
-            s"{val r$d = new scala.collection.mutable.ArrayBuffer[Value](); " +
-                s"for (_ <- 0 until ${definitions.size}) r$d.append(null); " +
-                s"${order.map(a =>
-                  s"r$d.update($a, ${emit(definitions(a), d)})"
-                ).mkString("; ")}; " +
+            s"{ " +
+                s"val r$d = new scala.collection.mutable.ArrayBuffer[Reference](); " +
+                s"for (_ <- 0 until ${definitions.size}) r$d.append(Reference(null)); " +
+                s"val m$d = new scala.collection.mutable.ArrayBuffer[Meta](); " +
+                s"for (_ <- 0 until ${metas.size}) m$d.append(Meta(null)); " +
+                s"${metas.zipWithIndex.map(a =>
+                  s"m$d(${a._2}).v = Meta.Closed(${emit(a._1, d)}); ").mkString("")}" +
+                s"${definitions.zipWithIndex.map(a =>
+                  s"r$d(${a._2}).value = ${emit(a._1, d)}; ").mkString("")}" +
                 s"val body = ${emit(in, d)}; " +
-                s"Let(r$d, Seq(${order.mkString(", ")}), body)" +
+                s"Let(r$d, body)" +
                 s"}"
           }
         case Abstract.Function(domain, codomain) =>
           val d = depth + 1
-          s"Function(${emit(domain, depth)}, Closure(r$d => ${emit(codomain, d)}))"
+          s"Function(${emit(domain, depth)}, Closure(r$d => ${emitInner(codomain, d)}))"
         case Abstract.Lambda(closure) =>
           val d = depth + 1
-          s"Lambda(Closure(r$d => ${emit(closure, d)}))"
+          s"Lambda(Closure(r$d => ${emitInner(closure, d)}))"
         case Abstract.App(left, right) =>
           s"App(${emit(left, depth)}, ${emit(right, depth)})"
-        case Abstract.Record(level, nodes) =>
+        case Abstract.Record(level, names, nodes) =>
           val d = depth + 1
-          s"""Record($level, Seq(${nodes.zipWithIndex.map(c =>
-            s"{ val ds = Seq[Int](${c._1.dependencies.mkString(", ")}); " +
-                s"RecordNode(" +
-                s"${source(c._1.name)}, " +
-                s"ds, " +
-                s"MultiClosure(jd => { def r$d(i: Int): Value = jd(ds.indexOf(i)); ${emit(c._1.typ, d)}}))}").mkString(", ")}))"""
+          s"""Record($level, Seq(${names.map(n => source(n)).mkString(", ")}), ${emitGraph(nodes, d)})"""
         case Abstract.Projection(left, field) =>
           s"Project(${emit(left, depth)}, $field)"
         case Abstract.Sum(level, constructors) =>
           val d = depth + 1 // we some how have have one layer for the constructor names
-          s"""Sum($level, ${constructors.zipWithIndex.map(c =>
-            s"Constructor(${source(c._1.name)}, ${c._1.params.size}, Seq(${c._1.params.map(p => s"MultiClosure(r$d => " + emit(p, d) + ")").mkString(", ")}))")})"""
+          s"""Sum($level, Seq(${constructors.zipWithIndex.map(c =>
+            s"Constructor(${source(c._1.name)}, ${emitGraph(c._1.params, d)})").mkString(", ")}))"""
         case Abstract.Maker(sum, field) =>
           s"Maker(${emit(sum, depth)}, $field)"
         case Abstract.PatternLambda(id, codomain, cases) =>
           val d = depth + 1
-          s"PatternLambda($id, Closure(r$d => ${emit(codomain, d)}), Seq(${cases.map(c => s"Case(${tunnel(c.pattern)}, MultiClosure(r$d => ${emit(c.body, d)}))").mkString(", ")}))"
+          s"PatternLambda($id, Closure(r$d => ${emitInner(codomain, d)}), Seq(${cases.map(c => s"Case(${tunnel(c.pattern)}, MultiClosure(r$d => ${emitInner(c.body, d)}))").mkString(", ")}))"
         case Abstract.PathApp(left, right) =>
           s"PathApp(${emit(left, depth)}, ${emit(right, depth)})"
         case Abstract.PathLambda(body) =>
           val d = depth + 1
-          s"PathLambda(AbsClosure(dm$d => ${emit(body, d)}))"
+          s"PathLambda(AbsClosure(dm$d => ${emitInner(body, d)}))"
         case Abstract.PathType(typ, left, right) =>
           val d = depth + 1
-          s"PathType(AbsClosure(dm$d => ${emit(typ, d)}), ${emit(left, depth)}, ${emit(right, depth)})"
+          s"PathType(AbsClosure(dm$d => ${emitInner(typ, d)}), ${emit(left, depth)}, ${emit(right, depth)})"
         case Abstract.Coe(dir, tp, base) =>
           val d = depth + 1
-          s"Coe(${emit(dir, depth)}, AbsClosure(dm$d => ${emit(tp, d)}), ${emit(base, depth)})"
+          s"Coe(${emit(dir, depth)}, AbsClosure(dm$d => ${emitInner(tp, d)}), ${emit(base, depth)})"
         case Abstract.Hcom(dir, tp, base, faces) =>
           val d = depth + 2
           s"Hcom(${emit(dir, depth)}, " +
               s"${emit(tp, depth)}, " +
               s"${emit(base, depth)}, " +
-              s"Seq(${faces.map(a => s"Face(${emit(a.pair, depth)}, AbsClosure(dm$d => ${emit(a.body, d)}))").mkString(", ")})" +
+              s"Seq(${faces.map(a => s"Face(${emit(a.pair, depth)}, AbsClosure(dm$d => ${emitInner(a.body, d)}))").mkString(", ")})" +
               s")"
         case Abstract.Com(dir, tp, base, faces) =>
           val d = depth + 2
           s"Com(${emit(dir, depth)}, " +
-              s"AbsClosure(dm${depth + 1} => ${emit(tp, depth + 1)}), " +
+              s"AbsClosure(dm${depth + 1} => ${emitInner(tp, depth + 1)}), " +
               s"${emit(base, depth)}, " +
-              s"Seq(${faces.map(a => s"Face(${emit(a.pair, depth)}, AbsClosure(dm$d => ${emit(a.body, d)}))").mkString(", ")})" +
+              s"Seq(${faces.map(a => s"Face(${emit(a.pair, depth)}, AbsClosure(dm$d => ${emitInner(a.body, d)}))").mkString(", ")})" +
               s")"
         case Abstract.Restricted(t, dir) =>
           s"${emit(t, depth)}.restrict(${emit(dir, depth)})"
@@ -152,23 +160,6 @@ trait PlatformEvaluator extends BaseEvaluator {
         case Abstract.Dimension.Restricted(d, pair) =>
           s"${emit(d, depth)}.restrict(${emit(pair, depth)})"
       }
-    }
-  }
-  protected def platformEvalRecursive(terms: Map[Int, Abstract]): Map[Int, Value] = {
-    val emitter = new Emitter(terms.keySet)
-    val rr = new scala.collection.mutable.ArrayBuffer[Value]()
-    for (_ <- 0 to terms.keySet.max) rr.append(null)
-    for (t <- terms) {
-      val res = emitter.emit(t._2, -1)
-      val src = holderSrc(res)
-      debug("==================")
-      debug(t._2)
-      debug("==================")
-      debug(res)
-      debug("==================")
-      rr.update(t._1, extractFromHolder(compile[Holder](src), rr))
-    }
-    Map.empty ++ terms.transform((f, _) => rr(f))
   }
 
   private def holderSrc(res: String): String = {
@@ -180,20 +171,20 @@ trait PlatformEvaluator extends BaseEvaluator {
          |
          |
          |new Holder {
-         |  def value(ctx: Context, rs: Seq[Value], vs: Seq[Value], cs: Seq[Closure], ps: Seq[Pattern]) = $res
+         |  def value(ctx: Context, vs: Seq[Value], cs: Seq[Closure], ps: Seq[Pattern]) = $res
          |}
        """.stripMargin
   }
 
 
   protected def platformEval(term: Abstract): Value = {
-    val res = new Emitter(Set.empty).emit(term, -1)
+    val res = emit(term, -1)
     val src = holderSrc(res)
     debug("==================")
     debug(term)
     debug("==================")
     debug(res)
     debug("==================")
-    extractFromHolder(compile[Holder](src), Seq.empty)
+    extractFromHolder(compile[Holder](src))
   }
 }

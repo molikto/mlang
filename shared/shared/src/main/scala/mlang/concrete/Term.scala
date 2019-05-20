@@ -8,7 +8,8 @@ sealed trait Term
 case class NameType(names: Seq[Name], ty: Term)
 
 object NameType {
-  type FlatSeq = Seq[(Name, Term)]
+  type Flat = (Name, Term)
+  type FlatSeq = Seq[Flat]
 
   def flatten(names: Seq[NameType]): NameType.FlatSeq = names.flatMap(n => {
     if (n.names.isEmpty) {
@@ -35,7 +36,7 @@ object Term {
     val names = fields.flatMap(_.names)
   }
 
-  case class Constructor(name: Tag, term: Seq[NameType])
+  case class Constructor(name: Name, term: Seq[NameType])
   case class Sum(constructors: Seq[Constructor]) extends Term with Block
 
   case class App(left: Term, right: Seq[Term]) extends Term
@@ -81,12 +82,11 @@ object Declaration {
   object Modifier {
     case object WithConstructor extends Modifier
     case object Inductively extends Modifier
-    case object Ignored extends Modifier
     case object __Debug extends Modifier
   }
-  case class Define(modifiers: Seq[Modifier],name: Name, parameters: Seq[NameType], typ: Option[Term], term: Term) extends Declaration
+  case class Define(modifiers: Seq[Modifier], name: Name, parameters: Seq[NameType], typ: Option[Term], term: Term) extends Declaration
   // depending on our algorithm, recursive ones might not need to declare first
-  case class Declare( modifiers: Seq[Modifier],name: Name, parameters: Seq[NameType], typ: Term) extends Declaration
+  case class Declare(modifiers: Seq[Modifier], name: Name, parameters: Seq[NameType], typ: Term) extends Declaration
 }
 
 

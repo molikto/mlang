@@ -1,6 +1,8 @@
 package mlang.core
 
 import mlang.concrete.{Pattern => Patt}
+import mlang.core
+import mlang.core.Value.ClosureGraph
 import mlang.name._
 
 import scala.collection.mutable
@@ -15,7 +17,6 @@ object ContextBuilderException {
   case class AlreadyDeclared() extends ContextBuilderException
   case class AlreadyDefined() extends ContextBuilderException
   case class NotDeclared() extends ContextBuilderException
-
 }
 
 
@@ -29,60 +30,81 @@ object ContextBuilder {
 
 import ContextBuilder._
 
-trait ContextBuilder extends Context {
+trait ContextBuilder extends ContextWithMetaOps {
 
   type Self <: ContextBuilder
 
   protected implicit def create(a: Layers): Self
 
 
-  def newTermsLayer(): Self = Layer.Terms(Seq.empty) +: layers
-
   def newRestrictionLayer(pair: Value.DimensionPair): Self = {
-    Layer.Restriction(pair) +: layers
+    Layer.Restriction(pair, createMetas()) +: layers
   }
 
-  def newDimensionLayer(n: Name): (Self, Value.Dimension) = {
-    val gen = dgen()
-    val v = Value.Dimension.Generic(gen)
-    val ctx: Self = Layer.Dimension(gen, n, v) +: layers
-    (ctx, v)
+
+
+
+  def newDimensionLayer(n: Name, dimension: Option[Long] = None): (Self, Value.Dimension.Generic) = {
+    val l = Layer.Dimension(dimension.getOrElse(dgen()), n, createMetas())
+    val ctx: Self = l +: layers
+    (ctx, l.value)
   }
 
-  def newDimensionLayer(n: Name, v: Value.Dimension): Self = {
-    val gen = dgen()
-    Layer.Dimension(gen, n, v) +: layers
+
+
+  def lookupDefined(a: Name): Option[(Int, Value)] = layers.head match {
+    case Layer.Defines(_, defines) =>
+      val index = defines.indexWhere(_.name.intersect(a))
+      if (index < 0) {
+        None
+      } else {
+        val ds = defines(index)
+        Some((index, ds.typ))
+      }
+    case _ => logicError()
   }
 
-  protected def headTerms: Seq[Binder] = layers.head.asInstanceOf[Layer.Terms].terms
+  def newDefinesLayer(): Self = Layer.Defines(createMetas(), Seq.empty) +: layers
 
-  def newDefinition(name: Name, typ: Value, v: Value) : Self = {
-    headTerms.find(_.name.intersect(name)) match {
-      case Some(_) => throw ContextBuilderException.AlreadyDeclared()
-      case _ =>
-        val g = gen()
-        Layer.Terms(headTerms :+ Binder(g, name, typ, false, false, v)) +: layers.tail
-    }
-  }
-
-  def newDefinitionChecked(index: Int, name: Name, v: Value) : Self = {
-    headTerms(index) match {
-      case Binder(id, n0, typ, defined, _, _) =>
-        if (defined) {
-          throw ContextBuilderException.AlreadyDefined()
-        } else {
-          assert(n0 == name)
-          Layer.Terms(headTerms.updated(index, Binder(id, name, typ, true, false, v))) +: layers.tail
+  def newDefinition(name: Name, typ: Value, v: Value.Reference) : (Self, Int, Value.Generic) = {
+    layers.head match {
+      case Layer.Defines(metas, defines) =>
+        defines.find(_.name.intersect(name)) match {
+          case Some(_) => throw ContextBuilderException.AlreadyDeclared()
+          case _ =>
+            val g = Value.Generic(gen(), typ)
+            (Layer.Defines(metas, defines :+ DefineItem(ParameterBinder(name, g), Some(v))) +: layers.tail, defines.size, g)
         }
+      case _ => logicError()
     }
   }
 
-  def newDeclaration(name: Name, typ: Value) : Self = {
-    headTerms.find(_.name.intersect(name)) match {
-      case Some(_) => throw ContextBuilderException.AlreadyDeclared()
-      case _ =>
-        val g = gen()
-        Layer.Terms(headTerms :+ Binder(g, name, typ, false, false, Value.Generic(g, typ))) +: layers.tail
+
+  def newDefinitionChecked(index: Int, name: Name, v: Value.Reference) : Self = {
+    layers.head match {
+      case Layer.Defines(metas, defines) =>
+        defines(index) match {
+          case DefineItem(typ0, None) =>
+            assert(typ0.name == name)
+            Layer.Defines(metas, defines.updated(index, DefineItem(typ0, Some(v)))) +: layers.tail
+          case _ =>
+            throw ContextBuilderException.AlreadyDefined()
+        }
+      case _ => logicError()
+    }
+  }
+
+  def newDeclaration(name: Name, typ: Value) : (Self, Int, Value.Generic) = {
+    layers.head match {
+      case Layer.Defines(metas, defines) =>
+        defines.find(_.name.intersect(name)) match {
+          case Some(_) => throw ContextBuilderException.AlreadyDeclared()
+          case _ =>
+            val g = Value.Generic(gen(), typ)
+            val p = ParameterBinder(name, g)
+            (Layer.Defines(metas, defines :+ DefineItem(p, None)) +: layers.tail, defines.size, g)
+        }
+      case _ => logicError()
     }
   }
 
@@ -94,53 +116,81 @@ trait ContextBuilder extends Context {
 //    }
 //  }
 
-  def newTermLayer(name: Name, typ: Value): (Self, Value) = {
-    val g = gen()
-    val v = Value.Generic(g, typ)
-    (Layer.Term(Binder(g, name, typ, true, true, v)) +: layers, v)
+
+  def newParameterLayer(name: Name, typ: Value): (Self, Value) = {
+    val g = Value.Generic(gen(), typ)
+    (Layer.Parameter(ParameterBinder(name, g), createMetas()) +: layers, g)
   }
 
-  def newAbstraction(name: Name, typ: Value) : (Self, Value) = {
-    headTerms.find(_.name.intersect(name)) match {
-      case Some(_) => throw ContextBuilderException.AlreadyDeclared()
-      case _ =>
-        val g = gen()
-        val v = Value.Generic(g, typ)
-        (Layer.Terms(headTerms :+ Binder(g, name, typ, true, true, v)) +: layers.tail, v)
+  def newParameterLayerProvided(name: Name, g: Value.Generic): Self = {
+    Layer.Parameter(ParameterBinder(name, g), createMetas()) +: layers
+  }
+
+
+
+
+
+  def newParametersLayer(): Self = Layer.ParameterGraph(Seq.empty, createMetas()) +: layers
+
+
+  def newParameter(name: Name, typ: Value) : (Self, Value) = {
+    layers.head match {
+      case Layer.ParameterGraph(binders, metas) =>
+        binders.find(_.name.intersect(name)) match {
+          case Some(_) => throw ContextBuilderException.AlreadyDeclared()
+          case _ =>
+            val g = gen()
+            val v = Value.Generic(g, typ)
+            assert(metas.debug_allFrozen)
+            (Layer.ParameterGraph(
+              binders :+ ParameterBinder(name, v), metas) +: layers.tail, v)
+        }
+      case _ => logicError()
     }
   }
 
-  def newAbstractionsLayer(pattern: Patt, typ: Value): (Self, Value, Pattern) = {
-    val vvv = mutable.ArrayBuffer[Binder]()
+
+
+
+
+  def newPatternLayer(pattern: Patt, typ: Value): (Self, Value, Pattern) = {
+    val vvv = mutable.ArrayBuffer[ParameterBinder]()
+    def recs(maps: Seq[Patt], nodes: ClosureGraph): Seq[(Value, Pattern)] = {
+      var vs =  Seq.empty[(Value, Pattern)]
+      var graph = nodes
+      for (i <- maps.indices) {
+        val tv = rec(maps(i), graph(i).independent.typ)
+        graph = ClosureGraph.reduce(graph, vs.size, tv._1)
+        vs = vs :+ tv
+      }
+      vs
+    }
+
     def rec(p: Patt, t: Value): (Value, Pattern) = {
       p match {
         case Patt.Atom(name) =>
           var ret: (Value, Pattern) = null
+          var indexaa = 0
           name.asRef match {
             case Some(ref) =>
               t.whnf match {
-                case Value.Sum(_, cs) if cs.exists(c => c.name == ref && c.parameters == 0) =>
-                  ret = (Value.Construct(ref, Seq.empty), Pattern.Construct(ref, Seq.empty))
+                case Value.Sum(_, cs) if { indexaa = cs.indexWhere(c => c.name.by(ref) && c.nodes.isEmpty); indexaa >= 0 } =>
+                  ret = (Value.Construct(indexaa, Seq.empty), Pattern.Construct(indexaa, Seq.empty))
                 case _ =>
               }
             case _ =>
           }
           if (ret == null) {
-            val open = Value.Generic(gen(), t)
-            vvv.append(Binder(gen(), name, t, true, true, open))
-            ret = (open, Pattern.Atom)
+            val open = ParameterBinder(name, Value.Generic(gen(), t))
+            vvv.append(open)
+            ret = (open.value, Pattern.Atom)
           }
           ret
         case Patt.Group(maps) =>
           t.whnf match {
-            case r@Value.Record(_, nodes) =>
+            case Value.Record(_, _, nodes) =>
               if (maps.size == nodes.size) {
-                var vs =  Seq.empty[(Value, Pattern)]
-                for (m  <- maps) {
-                  val it = r.projectedType(vs.map(_._1), vs.size)
-                  val tv = rec(m, it)
-                  vs = vs :+ tv
-                }
+                val vs = recs(maps, nodes)
                 (Value.Make(vs.map(_._1)), Pattern.Make(vs.map(_._2)))
               } else {
                 throw PatternExtractException.MakeWrongSize()
@@ -150,28 +200,24 @@ trait ContextBuilder extends Context {
         case Patt.NamedGroup(name, maps) =>
           t.whnf match {
             case Value.Sum(_, cs) =>
-              cs.find(_.name == name) match {
-                case Some(c) =>
-                  if (c.nodes.size == maps.size) {
-                    val vs = new mutable.ArrayBuffer[(Value, Pattern)]()
-                    for ((m, n) <- maps.zip(c.nodes)) {
-                      val it = n(vs.map(_._1))
-                      val tv = rec(m, it)
-                      vs.append(tv)
-                    }
-                    (Value.Construct(name, vs.map(_._1)), Pattern.Construct(name, vs.map(_._2)))
-                  } else {
-                    throw PatternExtractException.ConstructWrongSize()
-                  }
-                case _ =>
-                  throw PatternExtractException.ConstructUnknownName()
+              val index = cs.indexWhere(_.name.by(name))
+              if (index >= 0) {
+                val c = cs(index)
+                if (c.nodes.size == maps.size) {
+                  val vs = recs(maps, c.nodes)
+                  (Value.Construct(index, vs.map(_._1)), Pattern.Construct(index, vs.map(_._2)))
+                } else {
+                  throw PatternExtractException.ConstructWrongSize()
+                }
+              } else {
+                throw PatternExtractException.ConstructUnknownName()
               }
             case _ => throw PatternExtractException.ConstructNotSumType()
           }
       }
     }
     val (os, p) = rec(pattern, typ)
-    val ctx: Self = Layer.Terms(vvv) +: layers
+    val ctx: Self = Layer.MultiParameters(vvv, createMetas()) +: layers
     (ctx, os, p)
   }
 }

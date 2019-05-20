@@ -14,48 +14,111 @@ object ContextException {
   case class ConstantSortWrong() extends ContextException
 }
 
-case class Binder(id: Long, name: Name, typ: Value, isDefined: Boolean, isAbstraction: Boolean, value: Value)
+
+case class ParameterBinder(name: Name, value: Value.Generic) {
+  def id: Long = value.id
+  def typ: Value = value.typ
+}
+
+sealed trait Depends[T] {
+  def t: T
+}
+
+
+// a defined term acts like a parameter when it doesn't have a body
+case class DefineItem(typ0: ParameterBinder, ref0: Option[Value.Reference]) {
+  def typ: Value = typ0.value.typ
+  def id: Long = typ0.id
+  def name: Name = typ0.name
+  def isDefined = ref0.isDefined
+  def ref = ref0.getOrElse(typ0.value)
+}
 
 object Context {
   type Layers = Seq[Layer]
+
+  class Metas(val metas: mutable.ArrayBuffer[Value.Meta], var frozen: Int) {
+    def debug_allFrozen: Boolean = metas.size == frozen
+
+    def freeze(): Seq[Value.Meta] = {
+      val vs = metas.slice(frozen, metas.size)
+      frozen = metas.size
+      vs
+    }
+
+    def apply(i: Int): Value.Meta = metas(i)
+
+    var debug_final = false
+    def size: Int = metas.size
+
+    def isEmpty: Boolean = metas.isEmpty
+    def nonEmpty: Boolean = metas.nonEmpty
+    def head: Value.Meta = metas.head
+
+    def append(a: Value.Meta): Unit = {
+      if (debug_final) logicError()
+      metas.append(a)
+    }
+  }
 }
 
-sealed trait Layer
+import Context._
+
+sealed trait Layer {
+  val metas: Metas
+}
 
 object Layer {
-  case class Term(binder: Binder) extends Layer
-  case class Terms(terms: Seq[Binder]) extends Layer
-  case class Dimension(id: Long, name: Name, value: Value.Dimension) extends Layer
-  case class Restriction(res: Value.DimensionPair) extends Layer
+
+  sealed trait Parameters extends Layer {
+    def binders: Seq[ParameterBinder]
+  }
+  case class Parameter(binder: ParameterBinder, metas: Metas) extends Layer // lambda expression
+
+  case class MultiParameters(binders: Seq[ParameterBinder], metas: Metas) extends Parameters
+
+  case class ParameterGraph(defined: Seq[ParameterBinder], metas: Metas) extends Parameters {
+    def binders: Seq[ParameterBinder] = defined
+  }
+
+  case class Defines(metas: Metas, terms: Seq[DefineItem]) extends Layer // notice the metas is FIRST!!
+  case class Dimension(id: Long, name: Name, metas: Metas) extends Layer {
+    val value = Value.Dimension.Generic(id)
+  }
+  case class Restriction(res: Value.DimensionPair, metas: Metas) extends Layer // no meta should be resolved here
 }
 
 
 import Context._
-trait Context {
+trait Context extends ContextBaseForMeta {
 
   protected val layers: Layers
 
+  def getMetaReference(depth: Int, index: Int): Value.Meta = layers(depth).metas(index)
   // get value directly without resolving faces
-  def getTerm(depth: Int, index: Int): Binder =
-    if (index == -1) layers(depth).asInstanceOf[Layer.Term].binder
-    else layers(depth).asInstanceOf[Layer.Terms].terms(index)
+  def getReference(depth: Int, index: Int): Value = layers(depth) match {
+    case Layer.Parameter(binder, _) if index == -1 => binder.value
+    case ps: Layer.Parameters  => ps.binders(index).value
+    case Layer.Defines(_, terms) => terms(index).ref
+    case _ => logicError()
+  }
 
   def getDimension(depth: Int): Value.Dimension = layers(depth).asInstanceOf[Layer.Dimension].value
 
-  def rebindReference(v: Reference): Option[Abstract.TermReference] = {
+  def rebindReference(v: Reference): Option[Abstract.Reference] = {
     var up = 0
     var index = -1
     var ls = layers
-    var binder: Abstract.TermReference= null
+    var binder: Abstract.Reference= null
     while (ls.nonEmpty && binder == null) {
       var i = 0
       ls.head match {
-        case Layer.Terms(ll0) =>
-          var ll = ll0
+        case d: Layer.Defines =>
+          var ll = d.terms
           while (ll.nonEmpty && binder == null) {
-            if (ll.head.value.eq(v.value)) {
+            if (ll.head.isDefined && ll.head.ref0.get.value.eq(v.value)) {
               index = i
-              binder = Abstract.TermReference(up, index, v.closed)
+              binder = Abstract.Reference(up, index)
             }
             i += 1
             ll = ll.tail
@@ -89,8 +152,8 @@ trait Context {
     var binder: Abstract.Dimension.Reference = null
     while (ls.nonEmpty && binder == null) {
       ls.head match {
-        case Layer.Dimension(idd, _, _) =>
-          if (idd == id) {
+        case d: Layer.Dimension =>
+          if (d.id == id) {
             binder = Abstract.Dimension.Reference(up)
           }
         case _ =>
@@ -107,28 +170,55 @@ trait Context {
     }
   }
 
-  def rebindGeneric(id: Long): Abstract.TermReference = {
+  def containsGeneric(id: Long): Boolean = {
+    rebindGeneric0(id) != null
+  }
+
+  def rebindGeneric(id: Long): Abstract.Reference = {
+    val binder = rebindGeneric0(id)
+    if (binder == null) {
+      logicError()
+    } else {
+      binder
+    }
+  }
+
+  private def rebindGeneric0(id: Long): Abstract.Reference = {
     var up = 0
     var index = -1
     var ls = layers
-    var binder: Abstract.TermReference = null
+    var binder: Abstract.Reference = null
     while (ls.nonEmpty && binder == null) {
       var i = 0
       ls.head match {
-        case Layer.Terms(ll0) =>
-          var ll = ll0
+        case t: Layer.Parameters =>
+          var ll = t.binders
           while (ll.nonEmpty && binder == null) {
             if (ll.head.id == id) {
               index = i
-              binder = Abstract.TermReference(up, index)
+              binder = Abstract.Reference(up, index)
             }
             i += 1
             ll = ll.tail
           }
-        case Layer.Term(l) =>
-          if (l.id == id) {
+        case t: Layer.Defines =>
+          var ll = t.terms
+          while (ll.nonEmpty && binder == null) {
+            if (ll.head.id == id) {
+              if (ll.head.isDefined) {
+                logicError()
+              } else {
+                index = i
+                binder = Abstract.Reference(up, index)
+              }
+            }
+            i += 1
+            ll = ll.tail
+          }
+        case p:Layer.Parameter =>
+          if (p.binder.id == id) {
             index = i
-            binder = Abstract.TermReference(up, -1)
+            binder = Abstract.Reference(up, -1)
           }
         case _ =>
       }
@@ -137,11 +227,7 @@ trait Context {
         up += 1
       }
     }
-    if (binder == null) {
-      logicError()
-    } else {
-      binder
-    }
+    binder
   }
 
   def lookupTerm(name: Ref): (Value, Abstract) = {
@@ -171,28 +257,43 @@ trait Context {
     while (ls.nonEmpty && binder == null) {
       var i = 0
       ls.head match {
-        case Layer.Terms(ll0) =>
-          var ll = ll0
+        case ly: Layer.Parameters =>
+          var ll = ly.binders
           var index = -1
           while (ll.nonEmpty && binder == null) {
             if (ll.head.name.by(name)) {
               index = i
-              binder = (ll.head.typ, Abstract.TermReference(up, index), ll.head.isAbstraction)
+              binder = (ll.head.typ,
+                  Abstract.Reference(up, index),
+                  true)
             }
             i += 1
             ll = ll.tail
           }
-        case Layer.Term(b) =>
-          if (b.name.by(name)) {
-            binder = (b.typ, Abstract.TermReference(up, -1), true)
+        case ly: Layer.Defines =>
+          var ll = ly.terms
+          var index = -1
+          while (ll.nonEmpty && binder == null) {
+            if (ll.head.name.by(name)) {
+              index = i
+              binder = (ll.head.typ,
+                  Abstract.Reference(up, index),
+                  false)
+            }
+            i += 1
+            ll = ll.tail
           }
-        case d@Layer.Dimension(_, n, _) =>
-          if (n.by(name)) {
+        case p:Layer.Parameter =>
+          if (p.binder.name.by(name)) {
+            binder = (p.binder.typ, Abstract.Reference(up, -1), true)
+          }
+        case d: Layer.Dimension =>
+          if (d.name.by(name)) {
             binder = (d.value, Abstract.Dimension.Reference(up), true)
           } else {
             dimensionsUnder.append(d.id)
           }
-        case l@Layer.Restriction(_) =>
+        case l: Layer.Restriction =>
           faces.append(l)
       }
       if (binder == null) {
@@ -203,7 +304,7 @@ trait Context {
     if (binder == null) {
       throw ContextException.NonExistingReference(name)
     } else {
-      def contains(a: Value.Dimension) = {
+      def contains(a: Value.Dimension): Boolean = {
         a match {
           case Dimension.Generic(id) => dimensionsUnder.contains(id)
           case _ => true // can only be constants, faces is normalized

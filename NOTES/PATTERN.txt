@@ -5,3 +5,48 @@ just false = Bool
 
 test : (b : Bool) → just b
 test _ = true
+
+
+
+
+
+// this is OK in Agda
+
+test : Set₁
+
+test2 : test ≡ Set
+
+test = Set
+
+test2 = refl
+
+
+
+// this is also OK in Agda
+
+test : Set₁ -> Set₁
+test _ = Set
+
+test2 : Set₁
+
+
+test3 : test test2 ≡ Set
+test3 = refl
+
+test2 = Set
+
+
+
+// this is not
+
+
+test : Set₁ -> Set₁
+test a = a
+
+test2 : Set₁
+
+
+test3 : test test2 ≡ Set
+test3 = refl
+
+test2 = Set
