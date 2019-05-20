@@ -85,9 +85,7 @@ private trait ReifierContext extends ReifierCommon with ContextBuilder {
       case Value.Record(level, names, nodes) =>
         Record(level, names, reify(nodes))
       case Value.Sum(level, constructors) =>
-        Sum(level, constructors.map(c => {
-          Constructor(c.name, reify(c.nodes))
-        }))
+        Sum(level, constructors.map(c => Constructor(c.name, reify(c.nodes))))
       case Value.PathType(ty, left, right) =>
         PathType(reify(ty), reify(left), reify(right))
       case Value.Make(_) =>
@@ -99,9 +97,7 @@ private trait ReifierContext extends ReifierCommon with ContextBuilder {
       case Value.Lambda(closure) =>
         Lambda(reify(closure))
       case Value.PatternLambda(id, ty, cases) =>
-        PatternLambda(id, reify(ty), cases.map(c => {
-          Case(c.pattern, reify(c.pattern.atomCount, c.closure))
-        }))
+        PatternLambda(id, reify(ty), cases.map(c => Case(c.pattern, reify(c.pattern.atomCount, c.closure))))
       case Value.PathLambda(body) =>
         PathLambda(reify(body))
       case m: Value.Meta =>

@@ -103,7 +103,7 @@ class TypeChecker private (protected override val layers: Layers)
         val na = Abstract.AbsClosure(ctx.finishReify(), ctx.check(a.term, btr))
         val naa = ctx0.eval(na)
         val nv = naa(dv.from)
-        if (!Conversion.equalTerm(btr, bv.restrict(dav), nv)) {
+        if (!Unify.equalTerm(btr, bv.restrict(dav), nv)) {
           throw TypeCheckException.CapNotMatching()
         }
         (Abstract.Face(daa, na), naa(dim0), dav)
@@ -117,7 +117,7 @@ class TypeChecker private (protected override val layers: Layers)
         val dfv = r._3.restrict(l._3)
         // only used to test if this restriction is false face or not
         if (!dfv.isFalse) {
-          if (!Conversion.equalTerm(
+          if (!Unify.equalTerm(
             btt.restrict(l._3).restrict(dfv),
             l._2.restrict(dfv),
             r._2.restrict(l._3))) {
@@ -229,7 +229,7 @@ class TypeChecker private (protected override val layers: Layers)
           case None =>
             val (lt, la) = infer(left)
             val (rt, ra) = infer(right)
-            if (Conversion.equalType(lt, rt)) {
+            if (Unify.unifyType(lt, rt)) {
               val ta = newDimensionLayer(Name.empty)._1.reify(lt)
               if (debug.enabled) debug(s"infer path type: $ta")
               (Value.Universe(Value.inferLevel(lt)), Abstract.PathType(Abstract.AbsClosure(Seq.empty, ta), la, ra))
@@ -369,7 +369,7 @@ class TypeChecker private (protected override val layers: Layers)
           newMeta(cp)
         case _ =>
           val (tt, ta) = infer(term)
-          if (Conversion.equalType(tt, cp)) ta
+          if (Unify.unifyType(tt, cp)) ta
           else {
             info(s"${reify(tt.whnf)}")
             info(s"${reify(cp.whnf)}")
@@ -401,8 +401,8 @@ class TypeChecker private (protected override val layers: Layers)
             val a1 = c1.check(body, t1, tail)
             val ps = Abstract.AbsClosure(c1.finishReify(), a1)
             val pv = eval(ps)
-            val leftEq = Conversion.equalTerm(typ(False), pv(False), left)
-            val rightEq = Conversion.equalTerm(typ(True), pv(True), right)
+            val leftEq = Unify.equalTerm(typ(False), pv(False), left)
+            val rightEq = Unify.equalTerm(typ(True), pv(True), right)
             if (leftEq && rightEq) {
               Abstract.PathLambda(ps)
             } else {
