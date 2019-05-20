@@ -6,6 +6,7 @@ case class Dependency(i: Int, meta: Boolean)
 
 sealed trait Abstract {
 
+
   import Abstract._
 
   def termDependencies(i: Int): Set[Int] = dependencies(i).flatMap {
@@ -46,11 +47,15 @@ object Abstract {
     val term: Abstract
     val metas: Seq[Abstract]
     def dependencies(i: Int): Set[Dependency] = term.dependencies(i + 1)
+
   }
   sealed trait ClosureT extends MetaEnclosedT {
   }
 
-  case class Closure(metas: Seq[Abstract], term: Abstract) extends ClosureT
+  case class Closure(metas: Seq[Abstract], term: Abstract) extends ClosureT {
+
+  }
+
   case class AbsClosure(metas: Seq[Abstract], term: Abstract) extends ClosureT
   case class MultiClosure(metas: Seq[Abstract], term: Abstract) extends ClosureT
   case class MetaEnclosed(metas: Seq[Abstract], term: Abstract) extends MetaEnclosedT // used by closure graph

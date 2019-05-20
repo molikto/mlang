@@ -47,13 +47,14 @@ define refl(A: type, x: A): x ≡ x = i → x
 
 the meta is solved with
 
-debug: meta solved with Let(ArrayBuffer(),List(),Reference(1,0))
-debug: meta solved with Let(ArrayBuffer(),List(),Reference(1,8))
+debug: meta solved with Reference(0,0) // or in code ⇒ nat
+debug: meta solved with Reference(0,8) // or in code ⇒ sixteen1
 
 these are LOCAL variables, and they are VERY SHORT!!
 
-*/
+what more we can do? we can pick the shortest one from the chain of evaluation steps
 
+*/
 define sixteen_eq: sixteen ≡ sixteen2 = refl(_, _)
 
 

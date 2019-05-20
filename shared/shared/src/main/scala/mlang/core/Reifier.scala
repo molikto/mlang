@@ -186,7 +186,13 @@ private class ReifierContextBase(layersBefore: Context.Layers) extends ReifierCo
     if (c == 1) {
       Let(ms, abs, Reference(0, data.find(_._2.isEmpty).get._1))
     } else {
-      Let(ms, abs, body)
+      if (ms.isEmpty && abs.isEmpty) {
+        // TODO move body up so save some code
+        // body.diff(-1)
+        Let(ms, abs, body)
+      } else {
+        Let(ms, abs, body)
+      }
     }
   }
 
