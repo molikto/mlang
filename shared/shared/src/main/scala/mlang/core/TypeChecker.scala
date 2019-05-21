@@ -73,12 +73,7 @@ class TypeChecker private (protected override val layers: Layers)
   override protected implicit def create(a: Layers): Self = new TypeChecker(a)
 
 
-  def checkValidRestrictions(ds: Seq[Value.DimensionPair]) = {
-    val res = ds.exists(a => a.isTrue) || ds.flatMap(r => ds.map(d => (r, d))).exists(p => {
-      p._1.from == p._2.from && !p._1.from.isConstant &&
-          p._1.to.isConstant && p._2.to.isConstant && p._1.to != p._2.to
-    })
-    if (!res) throw TypeCheckException.RequiresValidRestriction()
+  def checkValidRestrictions(ds0: Seq[Value.DimensionPair]) = {
   }
 
   def checkCompatibleCapAndFaces(
@@ -126,9 +121,9 @@ class TypeChecker private (protected override val layers: Layers)
         }
       }
     }
-    // this is an extension for validity now, we don't make a difference between i=j and j=i
-    val ds = res.map(_._3.sorted)
-    checkValidRestrictions(ds)
+    if (!Value.DimensionPair.checkValidRestrictions(res.map(_._3))) {
+      throw TypeCheckException.RequiresValidRestriction()
+    }
     res.map(_._1)
   }
 

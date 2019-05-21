@@ -301,6 +301,7 @@ trait Context extends ContextBaseForMeta {
         up += 1
       }
     }
+    val rs = faces.map(_.res)
     if (binder == null) {
       throw ContextException.NonExistingReference(name)
     } else {
@@ -310,38 +311,25 @@ trait Context extends ContextBaseForMeta {
           case _ => true // can only be constants, faces is normalized
         }
       }
-      // TODO fold duplicated ones
-      def recvd(a: Value.Dimension, seq: Seq[Layer.Restriction]): Value.Dimension = {
-        seq.foldLeft(a) { (a, h) =>
-          a.restrict(h.res)
-        }
+      def recad(j: Abstract.Dimension, seq: Seq[Value.DimensionPair]): Abstract.Dimension = {
+        if (seq.isEmpty) j
+        else Abstract.Dimension.Restricted(j, rs.map(a => rebindDimensionPair(a)))
       }
-      def recad(a: Abstract.Dimension, seq: Seq[Layer.Restriction]): Abstract.Dimension = {
-        seq.foldLeft(a) { (a, h) =>
-          Abstract.Dimension.Restricted(a, rebindDimensionPair(h.res))
-        }
-      }
-      def recv(a: Value, seq: Seq[Layer.Restriction]): Value = {
-        seq.foldLeft(a) { (a, h) =>
-          a.restrict(h.res)
-        }
-      }
-      def reca(a: Abstract, seq: Seq[Layer.Restriction]): Abstract = {
-        seq.foldLeft(a) { (a, h) =>
-          Abstract.Restricted(a, rebindDimensionPair(h.res))
-        }
+      def reca(j: Abstract, seq: Seq[Value.DimensionPair]): Abstract = {
+        if (seq.isEmpty) j
+        else Abstract.Restricted(j, rs.map(a => rebindDimensionPair(a)))
       }
       binder match {
         case (t: Value, j: Abstract, abs: Boolean) =>
           if (abs) {
-            (recv(t, faces), reca(j, faces))
+            (t.restrict(rs), reca(j, rs))
           } else {
             // in case of definitions, don't restrict any thing defined after it. they don't have a clue what it is
-            val rs = faces.filter(r => !contains(r.res.from) || !contains(r.res.to))
-            (recv(t, rs), reca(j, rs))
+            val rs0 = rs.filter(r => !contains(r.from) || !contains(r.to))
+            (t.restrict(rs), reca(j, rs0))
           }
         case (t: Value.Dimension, j: Abstract.Dimension, _: Boolean) =>
-          (recvd(t, faces), recad(j, faces))
+          (t.restrict(rs), recad(j, rs))
         case _ => logicError()
       }
     }

@@ -100,7 +100,7 @@ object Abstract {
 
   case class Com(direction: DimensionPair, tp: AbsClosure, base: Abstract, faces: Seq[Face]) extends Abstract
 
-  case class Restricted(term: Abstract, restriction: DimensionPair) extends Abstract
+  case class Restricted(term: Abstract, restriction: Seq[DimensionPair]) extends Abstract
 
   // restriction doesn't take binding, but they have a level non-the-less
   case class Face(pair: DimensionPair, body: AbsClosure) {
@@ -114,6 +114,6 @@ object Abstract {
     case class Reference(up: Int) extends Dimension
     case object True extends Dimension
     case object False extends Dimension
-    case class Restricted(a: Dimension, restriction: DimensionPair) extends Dimension
+    case class Restricted(a: Dimension, restriction: Seq[DimensionPair]) extends Dimension
   }
 }

@@ -132,9 +132,7 @@ private trait ReifierContext extends ReifierCommon with ContextBuilder {
           faces.map(r => Face(reify(r.restriction), newRestrictionLayer(r.restriction).reify(r.body)))
         )
       case Value.Restricted(a, pair) =>
-        pair.foldLeft(reify(a)) { (c, p) =>
-          Restricted(c, reify(p))
-        }
+        Restricted(reify(a), pair.map(k => reify(k)))
     }
   }
 

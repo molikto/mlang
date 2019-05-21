@@ -1,6 +1,7 @@
 package mlang.core
 
 import mlang.name._
+import mlang.utils.{DisjointSet, debug}
 
 import scala.collection.mutable
 
@@ -20,8 +21,10 @@ sealed trait Value {
 
   def from: Value = if (_from == null) this else _from
 
+  def restrict(a: Seq[DimensionPair]): Value = a.foldLeft(this) {(t, v) => t.restrict(v) }
+
   // TODO how does it interact with recursive references?
-  def restrict(lv: DimensionPair): Value = this match {
+  def restrict(lv: DimensionPair): Value =  this match {
     case u: Universe => u
     case Function(domain, codomain) =>
       Function(domain.restrict(lv), codomain.restrict(lv))
@@ -76,7 +79,6 @@ sealed trait Value {
 
   private var _from: Value = _
   private var _whnf: Value = _
-  private var _isStable: Boolean = true
 
 
 
@@ -92,9 +94,10 @@ sealed trait Value {
 
   // it asserts that if one value cannot be reduced more, it will be eq the original
   def whnf: Value = {
-    if (_whnf == null || !_isStable) {
+    if (_whnf == null) {
+      // TODO can we sort by restriction first?
       def eqFaces(f1: Seq[Face], f2: Seq[Face]): Boolean = f1.eq(f2) || (f1.size == f2.size && f1.zip(f2).forall(p => {
-        p._1.restriction == p._2.restriction && p._1.body.eq(p._2.body)
+        p._1.restriction.sameRestrict(p._2.restriction) && p._1.body.eq(p._2.body)
       }))
       val candidate = this match {
         case a: HeadCanonical =>
@@ -155,17 +158,26 @@ sealed trait Value {
             case a => a
           }
         case Restricted(a, restriction) =>
-          a match {
-            case o: Generic =>
-              // this must performed here, because our value has a late-eval stuff happening
-              Generic(o.id, restriction.foldLeft(o.typ) { (v, r) =>
-                v.restrict(r)
-              })
-            case _ =>
-              restriction.foldLeft(a.whnf) { (v, r) =>
-                v.restrict(r).whnf
-              }
+          def restr(a: Value) = DimensionPair.normalizeRestriction(restriction) match {
+            case Seq() => a
+            case b => Restricted(a, b)
           }
+          def rec(v: Value): Value = {
+            v match {
+              case g: Generic =>
+                restr(g)
+              case k@Meta(m) =>
+                m match {
+                  case Meta.Closed(v) => rec(v)
+                  case _: Meta.Open =>
+                    restr(k)
+                }
+              case Restricted(_, _) => logicError() // our code will not produce stuff like this yet
+              case Reference(v) => rec(v)
+              case a => a.restrict(restriction).whnf
+            }
+          }
+          rec(a)
       }
       candidate._from = this
       candidate match {
@@ -290,7 +302,7 @@ sealed trait Value {
     if (pair.isTrue) {
       returns(this)
     } else {
-      rs.find(a => a.restriction.from == a.restriction.to) match { // always true face
+      rs.find(a => a.restriction.isTrue) match { // always true face
         case Some(n) =>
           returns(n.body(pair.to))
         case None =>
@@ -438,7 +450,6 @@ object Value {
     }
 
     def get(nodes: ClosureGraph, name: Int, values: Int => Value): Value = {
-      val b = nodes(name)
       var i = 0
       var g = nodes
       while (i < name) {
@@ -453,7 +464,7 @@ object Value {
       from(i) match {
         case IndependentWithMeta(ds, mss, typ) =>
           val ns = PrivateValuedWithMeta(ds, mss, typ, a)
-          val ms: Seq[Value] = from.flatMap {
+          val mms: Seq[Value] = from.flatMap {
             case DependentWithMeta(_, ms, _) => (0 until ms).map(_ => null: Value)
             case IndependentWithMeta(_, ms, _) => ms
             case PrivateValuedWithMeta(_, ms, _, _) => ms
@@ -463,10 +474,10 @@ object Value {
             case _ => null
           })
           from.map {
-            case DependentWithMeta(ds, _, c) if ds.forall(j => vs(j) != null) =>
-              val t = c(ms, vs)
-              IndependentWithMeta(ds, t._1, t._2)
-            case a => a
+            case DependentWithMeta(dss, _, c) if dss.forall(j => vs(j) != null) =>
+              val t = c(mms, vs)
+              IndependentWithMeta(dss, t._1, t._2)
+            case k => k
           }.updated(i, ns)
         case _ => logicError()
       }
@@ -499,14 +510,14 @@ object Value {
 
 
   implicit class MultiClosure(private val func: Seq[Value] => Value) extends AnyVal {
-    def eq(b: MultiClosure) = func.eq(b.func)
+    def eq(b: MultiClosure): Boolean = func.eq(b.func)
     def apply() = func(Seq.empty)
     def apply(seq: Seq[Value]): Value = func(seq)
     def restrict(lv: DimensionPair): MultiClosure = Value.MultiClosure(v => this(v).restrict(lv))
   }
 
   implicit class Closure(private val func: Value => Value) extends AnyVal {
-    def eq(b: Closure) = func.eq(b.func)
+    def eq(b: Closure): Boolean = func.eq(b.func)
     def apply(seq: Value): Value = func(seq)
     def restrict(lv: DimensionPair): Closure = Value.Closure(v => this(v).restrict(lv))
   }
@@ -520,16 +531,46 @@ object Value {
   }
 
   implicit class AbsClosure(private val func: Dimension => Value) extends AnyVal {
-    def eq(b: AbsClosure) = func.eq(b.func)
+    def eq(b: AbsClosure): Boolean = func.eq(b.func)
     def apply(seq: Dimension): Value = func(seq)
     def restrict(lv: DimensionPair): AbsClosure = Value.AbsClosure(v => this(v).restrict(lv))
     def mapd(a: (Value, Dimension) => Value): AbsClosure = AbsClosure(d => a(this(d), d))
     def map(a: Value => Value): AbsClosure = AbsClosure(d => a(this(d)))
   }
 
+  object DimensionPair {
+    def checkValidRestrictions(ds0: Seq[DimensionPair]): Boolean = {
+      // TODO this is an extension for validity now, we don't make a difference between i=j and j=i
+      val ds = ds0.map(_.sorted)
+      ds.exists(a => a.isTrue) || ds.flatMap(r => ds.map(d => (r, d))).exists(p => {
+        p._1.from == p._2.from && !p._1.from.isConstant &&
+            p._1.to.isConstant && p._2.to.isConstant && p._1.to != p._2.to
+      })
+    }
+
+    def normalizeRestriction(pairs: Seq[DimensionPair]): Seq[DimensionPair] = {
+      val a = DisjointSet[Dimension]()
+      for (p <- pairs) {
+        if (!a.contains(p.from)) a += p.from
+        if (!a.contains(p.to)) a += p.to
+        a.union(p.from, p.to)
+      }
+      val seq = a.sets.map(_.toSeq).filter(_.size <= 1).toSeq
+          .map(_.sortWith((a, b) => (a max b) == b))
+          .sortWith((a, b) => (a.last max b.last) == b.last)
+      if (debug.enabled) assert(!seq.exists(_.endsWith(Seq(Dimension.False, Dimension.True))))
+      seq.flatMap(a => a.dropRight(1).map(b => DimensionPair(b, a.last)))
+    }
+
+    def sameRestrict(p: Seq[DimensionPair], r: Seq[DimensionPair]): Boolean = {
+      normalizeRestriction(p) == normalizeRestriction(r)
+    }
+  }
 
   case class DimensionPair(from: Dimension, to: Dimension) {
-    def restrict(lv: DimensionPair): DimensionPair = DimensionPair(from.restrict(lv), to.restrict(lv))
+    def restrict(a: DimensionPair) = DimensionPair(from.restrict(a), to.restrict(a))
+
+    def sameRestrict(p: DimensionPair): Boolean = this.sorted == p.sorted
 
     def reverse: DimensionPair = DimensionPair(to, from)
 
@@ -560,10 +601,15 @@ object Value {
         c
       case (_: Dimension.Generic, c) =>
         c
-      case (a, b) =>
-        assert(a == b, "You should trim false faces")
-        a
+      case (Dimension.True, _) =>
+        Dimension.True
+      case (_, Dimension.True) =>
+        Dimension.True
+      case _ =>
+        Dimension.False
     }
+
+    def restrict(seq: Seq[DimensionPair]): Dimension = seq.foldLeft(this) { (t, v) => t.restrict(v) }
 
     def restrict(pair: DimensionPair): Dimension = this match {
       case Dimension.Generic(id) =>
@@ -605,14 +651,12 @@ object Value {
     override def toString: String = "Reference"
   }
 
-  case class Generic(id: Long, @lateinit var typ: Value) extends Stuck {
-    var debug_restricted = false
-  }
+  case class Generic(id: Long, @lateinit var typ: Value) extends Stuck
 
   case class Universe(level: Int) extends HeadCanonical
 
   object Universe {
-    def up(i: Int) = Universe(i) // type : type for now
+    def up(i: Int) = Universe(i) // TODO type : type for now
   }
 
   case class Function(domain: Value, codomain: Closure) extends HeadCanonical
@@ -707,8 +751,10 @@ object Value {
   // only works for values of path type and universe types
   def infer(t1: Value): Value = {
     t1.whnf match {
-      case Generic(_, v1) =>
-        v1
+      case g: Generic =>
+        g.typ
+      case Restricted(a, fs) =>
+        fs.foldLeft(infer(a)) { (t, r) => t.restrict(r) }
       case Universe(level) => Universe.up(level)
       case Function(domain, codomain) =>
         (infer(domain), infer(codomain(Generic(vgen(), domain)))) match {
@@ -794,6 +840,7 @@ object Value {
           // this rule is really wired...
           unapply(typ(Dimension.Generic(vdgen())).whnf)
         case Hcom(_, tp, _, _) => unapply(tp)
+        case Restricted(a, _) => unapply(a)
         case _ => None
       }
     }

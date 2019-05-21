@@ -2,7 +2,7 @@ package mlang.core
 
 import Value._
 import mlang.name.Name
-import mlang.utils.{Benchmark, debug, info}
+import mlang.utils.{Benchmark, debug}
 
 import scala.collection.mutable
 import scala.util.{Failure, Success, Try}
@@ -42,10 +42,10 @@ trait Unify extends Reifier with BaseEvaluator with PlatformEvaluator {
     }
   }
 
-  // TODO this is potentially non-terminating now, if the domain/codomain changes each time, this can happens for indexed types I think
+  // FIXME this is potentially non-terminating now, if the domain/codomain changes each time, this can happens for indexed types I think
   private val patternAssumptions = mutable.ArrayBuffer[Assumption]()
 
-  // TODO handle parameterized recursively defined ones, we should only allow them in top level, and make recursive reference non-reducible?
+  // FIXME handle parameterized recursively defined ones, we should only allow them in top level, and make recursive reference non-reducible?
   private val typeAssumptions = mutable.ArrayBuffer[(Value, Value)]()
 
   private def sameTypePatternLambdaWithAssumptions(domain: Value, l1: PatternLambda, l2: PatternLambda): Boolean = {
@@ -199,8 +199,8 @@ trait Unify extends Reifier with BaseEvaluator with PlatformEvaluator {
           exception.printStackTrace()
         }
         None
-      case Success(value) =>
-        Some(value)
+      case Success(v) =>
+        Some(v)
     }
   }
 
@@ -208,15 +208,19 @@ trait Unify extends Reifier with BaseEvaluator with PlatformEvaluator {
     (tmm1.whnf, tmm2.whnf) match {
       case (Generic(i1, v1), Generic(i2, v2)) =>
         if (i1 == i2) {
-          if (debug.enabled) {
-            if (!recType(v1, v2)) {
-              logicError()
-            }
-          }
+          assert(v1.eq(v2))
           Some(v1)
         } else {
           None
         }
+      case (Restricted(v1, r1), Restricted(v2, r2)) =>
+        recNeutral(v1, v2).flatMap(tp => {
+          if (DimensionPair.sameRestrict(r1, r2)) {
+            Some(tp.restrict(r1))
+          } else {
+            None
+          }
+        })
       case (App(l1, a1), App(l2, a2)) =>
         recNeutral(l1, l2).flatMap(_.whnf match {
           case Function(d, c) =>
@@ -252,7 +256,7 @@ trait Unify extends Reifier with BaseEvaluator with PlatformEvaluator {
         }
       case (Hcom(d1, t1, b1, r1), Hcom(d2, t2, b2, r2)) =>
         if (d1 == d2 && recType(t1, t2) && recTerm(t1, b1, b2)) {
-          if (r1.size == r2.size && r1.zip(r2).forall(p => p._1.restriction == p._2.restriction && recAbsClosure(t1.restrict(p._1.restriction), p._1.body, p._2.body))) {
+          if (r1.size == r2.size && r1.zip(r2).forall(p => p._1.restriction.sameRestrict(p._2.restriction) && recAbsClosure(t1.restrict(p._1.restriction), p._1.body, p._2.body))) {
             Some(t1)
           } else {
             None

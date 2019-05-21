@@ -134,6 +134,10 @@ trait PlatformEvaluator extends BaseEvaluator {
       }
     }
 
+  private def emit(pair: Seq[Abstract.DimensionPair], depth: Int): String = {
+    s"Seq(${pair.map(a => emit(a, depth)).mkString(", ")})"
+  }
+
     private def emit(pair: Abstract.DimensionPair, depth: Int): String = {
       s"DimensionPair(${emit(pair.from, depth)}, ${emit(pair.to, depth)})"
     }
