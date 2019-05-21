@@ -317,12 +317,12 @@ trait Unify extends Reifier with BaseEvaluator with PlatformEvaluator {
       (typ.whnf, t1.whnf, t2.whnf) match {
         case (Function(d, cd), s1, s2) =>
           val c = Generic(gen(), d)
-          recTerm(cd(c), s1.app(c), s2.app(c))
+          recTerm(cd(c), app(s1, c), app(s2, c))
         case (PathType(ty, _, _), s1, s2) =>
           val c = Dimension.Generic(dgen())
-          recTerm(ty(c), s1.papp(c), s2.papp(c))
+          recTerm(ty(c), papp(s1, c), papp(s2, c))
         case (Record(_, _, ns), m1, m2) =>
-          recTerms(ns, i => m1.project(i), i => m2.project(i))
+          recTerms(ns, i => project(m1, i), i => project(m2, i))
         case (Sum(_, cs), Construct(n1, v1), Construct(n2, v2)) =>
           n1 == n2 && { val c = cs(n1) ;
             assert(c.nodes.size == v1.size && v2.size == v1.size)

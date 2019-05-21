@@ -83,15 +83,6 @@ sealed trait Value {
 
 
 
-  def wrap(a: Value, map: Value => Value): Value = {
-    val w = a.whnf
-    if (w.eq(a)) {
-      this
-    } else {
-      map(a)
-    }
-  }
-
   // it asserts that if one value cannot be reduced more, it will be eq the original
   def whnf: Value = {
     if (_whnf == null) {
@@ -122,38 +113,39 @@ sealed trait Value {
         case Let(_, body) =>
           body.whnf
         case App(lambda, argument) =>
-          lambda.whnf.app(argument, whn) match {
+          app(lambda.whnf, argument, _.whnf) match {
             case App(l2, a2) if lambda.eq(l2) && a2.eq(argument) => this
             case a => a
           }
         case PatternStuck(lambda, stuck) =>
-          lambda.app(stuck.whnf, whn) match {
+          split(lambda, stuck.whnf, _.whnf) match {
             case PatternStuck(l2, s2) if lambda.eq(l2) && stuck.eq(s2) => this
             case a => a
           }
         case Projection(make, field) =>
-          make.whnf.project(field, whn) match {
+          project(make.whnf, field, _.whnf) match {
             case Projection(m2, f2) if make.eq(m2) && field == f2 => this
             case a => a
           }
         case PathApp(left, stuck) =>
-          left.whnf.papp(stuck, whn) match {
+          // we MUST perform this, because this doesn't care
+          papp(left.whnf, stuck) match {
             case PathApp(l2, s2) if left.eq(l2) && stuck == s2 => this
-            case a => a
+            case a => a.whnf
           }
         case Coe(direction, tp, base) =>
           // kan ops case analysis on tp, so they perform their own whnf
-          base.coe(direction, tp, whn) match {
-            case Coe(d2, t2, b2) if d2 ==direction && t2.eq(tp) && base.eq(b2) => this
+          coe(direction, tp, base, _.whnf) match {
+            case Coe(d2, t2, b2) if d2 == direction && t2.eq(tp) && base.eq(b2) => this
             case a => a
           }
         case Hcom(direction, tp, base, faces) =>
-          base.hcom(direction, tp, faces, whn) match {
+          hcom(direction, tp, base, faces, _.whnf) match {
             case Hcom(d2, t2, b2, f2) if direction == d2 && tp.eq(t2) && base.eq(b2) && eqFaces(faces, f2) => this
             case a => a
           }
         case Com(direction, tp, base, faces) =>
-          base.com(direction, tp, faces, whn) match {
+          com(direction, tp, base, faces, _.whnf) match {
             case Com(d2, t2, b2, f2) if direction == d2 && tp.eq(t2) && base.eq(b2) && eqFaces(faces, f2) => this
             case a => a
           }
@@ -195,207 +187,13 @@ sealed trait Value {
 
 
 
-  // also used to decide how
-  def app(v: Value, returns: Value => Value = id): Value = this match {
-    case Lambda(closure) =>
-      returns(closure(v))
-    case p@PatternLambda(_, _, cases) =>
-      // using first match is even ok for overlapping ones
-      var res: Value = null
-      var cs = cases
-      while (cs.nonEmpty && res == null) {
-        res = cs.head.tryApp(v).orNull
-        cs = cs.tail
-      }
-      if (res != null) {
-        returns(res)
-      } else {
-        PatternStuck(p, v)
-      }
-    case _ =>
-      App(this, v)
-  }
 
-
-  private def coe(pair: DimensionPair, typ: AbsClosure, returns: Value => Value = id): Value =
-    if (pair.isTrue) { // just to base
-      returns(this)
-    } else {
-      typ(Dimension.Generic(vdgen())).whnf match {
-        case Function(_, _) =>
-          def func(a: Value): Function = a.whnf match {
-            case f@Function(_, _) => f
-            case _ => logicError()
-          }
-          returns(Lambda(Value.Closure(a => {
-            val a_ = Coe(pair.reverse, typ.map(a => func(a).domain), a)
-            val app_ = App(this, a_)
-            Coe(pair,
-              typ.mapd((f, d) => func(f).codomain(Coe(DimensionPair(pair.to, d), typ.map(a => func(a).domain), a))),
-              app_)
-          })))
-        case Record(_, _, graph) =>
-          if (graph.isEmpty) {
-            returns(this)
-          } else {
-            def recor(a: Value): Record = a.whnf match {
-              case f: Record => f
-              case _ => logicError()
-            }
-            val closures = mutable.ArrayBuffer[AbsClosure]()
-            for (i <- graph.indices) {
-              closures.append(
-                AbsClosure(dim => {
-                  graph(i) match {
-                    case _: ClosureGraph.Independent =>
-                      Coe(
-                        DimensionPair(pair.from, dim),
-                        typ.map(ror => recor(ror).nodes(i).independent.typ),
-                        Projection(this, i)
-                      )
-                    case _: ClosureGraph.Dependent =>
-                      Coe(
-                        DimensionPair(pair.from, dim),
-                        typ.mapd((ror, d) => { ClosureGraph.get(recor(ror).nodes, i, j => closures(j)(d)) }),
-                        Projection(this, i)
-                      )
-                  }
-                })
-              )
-            }
-            returns(Make(closures.map(_.apply(pair.to))))
-          }
-        case PathType(_, _, _) =>
-          def pah(a: Value): PathType = a.whnf match {
-            case f: PathType => f
-            case _ => logicError()
-          }
-          returns(PathLambda(AbsClosure(dim => {
-            Com(
-              pair,
-              typ.map(a => pah(a).typ(dim)),
-              PathApp(this, dim),
-              Seq(
-                { val dp = DimensionPair(dim, Dimension.True); Face(dp, typ.map(a => pah(a).right.restrict(dp))) },
-                { val dp = DimensionPair(dim, Dimension.False); Face(dp, typ.map(a => pah(a).left.restrict(dp))) }
-              ))
-          })))
-        case Sum(l, c) =>
-          ???
-        case _ =>
-          Coe(pair, typ, this)
-      }
-    }
-
-  private def com(pair: DimensionPair, typ: AbsClosure, restriction0: Seq[Face], returns: Value => Value = id): Value = {
-    // do we need to implement the extra shortcuts?
-    returns(Hcom(
-      pair,
-      typ(pair.to),
-      Coe(pair, typ, this),
-      restriction0.map(n => Face(n.restriction, n.body.mapd((j, d) => Coe(DimensionPair(d, pair.to), typ, j))))))
-  }
-
-  private def hcom(pair: DimensionPair, typ: Value, restriction0: Seq[Face], returns: Value => Value = id): Value = {
-    val rs0 = restriction0.filter(!_.restriction.isFalse)
-    val rs = if (rs0.size == restriction0.size) restriction0 else rs0
-    if (pair.isTrue) {
-      returns(this)
-    } else {
-      rs.find(a => a.restriction.isTrue) match { // always true face
-        case Some(n) =>
-          returns(n.body(pair.to))
-        case None =>
-          typ.whnf match {
-            case Function(_, codomain) => returns(Lambda(Value.Closure(a =>
-              Hcom(pair, codomain(a), App(this, a), rs.map(n => Face(n.restriction, n.body.map(j => App(j, a)))))
-            )))
-            case Record(_, _, graph) =>
-              if (graph.isEmpty) {
-                returns(this)
-              } else {
-                def recor(a: Value): Record = a.whnf match {
-                  case f: Record => f
-                  case _ => logicError()
-                }
-                val closures = mutable.ArrayBuffer[AbsClosure]()
-                for (i <- graph.indices) {
-                  closures.append(
-                    AbsClosure(dim => {
-                      graph(i) match {
-                        case in: ClosureGraph.Independent =>
-                          Hcom(
-                            DimensionPair(pair.from, dim),
-                            in.typ,
-                            Projection(this, i),
-                            rs.map(n => Face(n.restriction, n.body.map(j => Projection(j, i))))
-                          )
-                        case _: ClosureGraph.Dependent =>
-                          Com(
-                            DimensionPair(pair.from, dim),
-                            AbsClosure(k => ClosureGraph.get(graph, i, j => closures(j)(k))),
-                            Projection(this, 0),
-                            rs.map(n => Face(n.restriction, n.body.map(j => Projection(j, i))))
-                          )
-                      }
-                    })
-                  )
-                }
-                returns(Make(closures.map(_.apply(pair.to))))
-              }
-            case PathType(ty, left, right) =>
-              returns(PathLambda(AbsClosure(dim => {
-                Hcom(
-                  pair,
-                  ty(dim),
-                  PathApp(this, dim),
-                  Seq(
-                    { val dp = DimensionPair(dim, Dimension.True); Face(dp, AbsClosure(right.restrict(dp))) },
-                    { val dp = DimensionPair(dim, Dimension.False); Face(dp, AbsClosure(left.restrict(dp))) },
-                  ) ++ rs.map(n => Face(n.restriction, n.body.map(j => PathApp(j, dim)))))
-              })))
-            case Sum(l, c) =>
-              ???
-            case _ =>
-              Hcom(pair, typ, this, rs)
-          }
-      }
-    }
-  }
-
-  def papp(d: Dimension, returns: Value => Value = id): Value = this match {
-    case PathLambda(c) =>
-      returns(c(d))
-    case a =>
-      def constantCase(isOne: Boolean) = {
-        infer(a).whnf match {
-          case PathType(_, left, right) =>
-            returns(if (isOne) right else left)
-          case _ => logicError()
-        }
-      }
-      d match {
-        case Dimension.True =>
-          constantCase(true)
-        case Dimension.False =>
-          constantCase(false)
-        case _: Dimension.Generic =>
-          PathApp(this, d)
-      }
-  }
 
 
   def makerType(i: Int): Value = this.whnf match {
     case s: Sum => s.constructors(i).makerType
     case v: Record => v.makerType
     case _ => logicError()
-  }
-
-  def project(name: Int, returns: Value => Value = id): Value = {
-    this match {
-      case Make(vs) => returns(vs(name))
-      case _ => Projection(this, name)
-    }
   }
 }
 
@@ -508,6 +306,210 @@ object Value {
     }
   }
 
+  def app(lambda: Value, argument: Value, returns: Value => Value = id): Value = {
+    lambda match {
+      case Lambda(closure) =>
+        returns(closure(argument))
+      case p : PatternLambda =>
+        split(p, argument, returns)
+      case _ =>
+        App(lambda, argument)
+    }
+  }
+
+  def split(l: PatternLambda, argument: Value, returns: Value => Value = id): Value = {
+    // using first match is even ok for overlapping ones
+    var res: Value = null
+    var cs = l.cases
+    while (cs.nonEmpty && res == null) {
+      res = cs.head.tryApp(argument).orNull
+      cs = cs.tail
+    }
+    if (res != null) {
+      returns(res)
+    } else {
+      PatternStuck(l, argument)
+    }
+  }
+
+
+  def project(v: Value, name: Int, returns: Value => Value = id): Value = {
+    v match {
+      case Make(vs) => returns(vs(name))
+      case _ => Projection(v, name)
+    }
+  }
+
+  def papp(l: Value, d: Dimension, returns: Value => Value = id): Value = l match {
+    case PathLambda(c) =>
+      returns(c(d))
+    case a =>
+      def constantCase(isOne: Boolean) = {
+        infer(a).whnf match {
+          case PathType(_, left, right) =>
+            returns(if (isOne) right else left)
+          case _ => logicError()
+        }
+      }
+      d match {
+        case Dimension.True =>
+          constantCase(true)
+        case Dimension.False =>
+          constantCase(false)
+        case _: Dimension.Generic =>
+          PathApp(l, d)
+      }
+  }
+
+  def id(v: Value) = v
+
+  private def coe(pair: DimensionPair, typ: AbsClosure, base: Value, returns: Value => Value = id): Value =
+    if (pair.isTrue) { // just to base
+      returns(base)
+    } else {
+      typ(Dimension.Generic(vdgen())).whnf match {
+        case Function(_, _) =>
+          def func(a: Value): Function = a.whnf match {
+            case f@Function(_, _) => f
+            case _ => logicError()
+          }
+          returns(Lambda(Value.Closure(a => {
+            val a_ = Coe(pair.reverse, typ.map(a => func(a).domain), a)
+            val app_ = App(base, a_)
+            Coe(pair,
+              typ.mapd((f, d) => func(f).codomain(Coe(DimensionPair(pair.to, d), typ.map(a => func(a).domain), a))),
+              app_)
+          })))
+        case Record(_, _, graph) =>
+          if (graph.isEmpty) {
+            returns(base)
+          } else {
+            def recor(a: Value): Record = a.whnf match {
+              case f: Record => f
+              case _ => logicError()
+            }
+            val closures = mutable.ArrayBuffer[AbsClosure]()
+            for (i <- graph.indices) {
+              closures.append(
+                AbsClosure(dim => {
+                  graph(i) match {
+                    case _: ClosureGraph.Independent =>
+                      Coe(
+                        DimensionPair(pair.from, dim),
+                        typ.map(ror => recor(ror).nodes(i).independent.typ),
+                        Projection(base, i)
+                      )
+                    case _: ClosureGraph.Dependent =>
+                      Coe(
+                        DimensionPair(pair.from, dim),
+                        typ.mapd((ror, d) => { ClosureGraph.get(recor(ror).nodes, i, j => closures(j)(d)) }),
+                        Projection(base, i)
+                      )
+                  }
+                })
+              )
+            }
+            returns(Make(closures.map(_.apply(pair.to))))
+          }
+        case PathType(_, _, _) =>
+          def pah(a: Value): PathType = a.whnf match {
+            case f: PathType => f
+            case _ => logicError()
+          }
+          returns(PathLambda(AbsClosure(dim => {
+            Com(
+              pair,
+              typ.map(a => pah(a).typ(dim)),
+              PathApp(base, dim),
+              Seq(
+                { val dp = DimensionPair(dim, Dimension.True); Face(dp, typ.map(a => pah(a).right.restrict(dp))) },
+                { val dp = DimensionPair(dim, Dimension.False); Face(dp, typ.map(a => pah(a).left.restrict(dp))) }
+              ))
+          })))
+        case Sum(l, c) =>
+          ???
+        case _ =>
+          Coe(pair, typ, base)
+      }
+    }
+
+  private def com(pair: DimensionPair, typ: AbsClosure, base: Value, restriction0: Seq[Face], returns: Value => Value = id): Value = {
+    // do we need to implement the extra shortcuts?
+    returns(Hcom(
+      pair,
+      typ(pair.to),
+      Coe(pair, typ, base),
+      restriction0.map(n => Face(n.restriction, n.body.mapd((j, d) => Coe(DimensionPair(d, pair.to), typ, j))))))
+  }
+
+  private def hcom(pair: DimensionPair, typ: Value, base: Value, restriction0: Seq[Face], returns: Value => Value = id): Value = {
+    val rs0 = restriction0.filter(!_.restriction.isFalse)
+    val rs = if (rs0.size == restriction0.size) restriction0 else rs0
+    if (pair.isTrue) {
+      returns(base)
+    } else {
+      rs.find(a => a.restriction.isTrue) match { // always true face
+        case Some(n) =>
+          returns(n.body(pair.to))
+        case None =>
+          typ.whnf match {
+            case Function(_, codomain) => returns(Lambda(Value.Closure(a =>
+              Hcom(pair, codomain(a), App(base, a), rs.map(n => Face(n.restriction, n.body.map(j => App(j, a)))))
+            )))
+            case Record(_, _, graph) =>
+              if (graph.isEmpty) {
+                returns(base)
+              } else {
+                def recor(a: Value): Record = a.whnf match {
+                  case f: Record => f
+                  case _ => logicError()
+                }
+                val closures = mutable.ArrayBuffer[AbsClosure]()
+                for (i <- graph.indices) {
+                  closures.append(
+                    AbsClosure(dim => {
+                      graph(i) match {
+                        case in: ClosureGraph.Independent =>
+                          Hcom(
+                            DimensionPair(pair.from, dim),
+                            in.typ,
+                            Projection(base, i),
+                            rs.map(n => Face(n.restriction, n.body.map(j => Projection(j, i))))
+                          )
+                        case _: ClosureGraph.Dependent =>
+                          Com(
+                            DimensionPair(pair.from, dim),
+                            AbsClosure(k => ClosureGraph.get(graph, i, j => closures(j)(k))),
+                            Projection(base, 0),
+                            rs.map(n => Face(n.restriction, n.body.map(j => Projection(j, i))))
+                          )
+                      }
+                    })
+                  )
+                }
+                returns(Make(closures.map(_.apply(pair.to))))
+              }
+            case PathType(ty, left, right) =>
+              returns(PathLambda(AbsClosure(dim => {
+                Hcom(
+                  pair,
+                  ty(dim),
+                  PathApp(base, dim),
+                  Seq(
+                    { val dp = DimensionPair(dim, Dimension.True); Face(dp, AbsClosure(right.restrict(dp))) },
+                    { val dp = DimensionPair(dim, Dimension.False); Face(dp, AbsClosure(left.restrict(dp))) },
+                  ) ++ rs.map(n => Face(n.restriction, n.body.map(j => PathApp(j, dim)))))
+              })))
+            case Sum(l, c) =>
+              ???
+            case _ =>
+              Hcom(pair, typ, base, rs)
+          }
+      }
+    }
+  }
+
+
 
   implicit class MultiClosure(private val func: Seq[Value] => Value) extends AnyVal {
     def eq(b: MultiClosure): Boolean = func.eq(b.func)
@@ -528,6 +530,7 @@ object Value {
 
   object AbsClosure {
     def apply(a: Value): AbsClosure = AbsClosure(_ => a)
+    type StuckPos = AbsClosure
   }
 
   implicit class AbsClosure(private val func: Dimension => Value) extends AnyVal {
@@ -681,11 +684,11 @@ object Value {
 
   case class Restricted(a: Value, faces: Seq[DimensionPair]) extends Syntaxial
 
-  case class Coe(direction: DimensionPair, tp: AbsClosure, base: Value) extends Stuck
+  case class Coe(direction: DimensionPair, tp: AbsClosure.StuckPos, base: Value) extends Stuck
 
-  case class Com(direction: DimensionPair, tp: AbsClosure, base: Value, faces: Seq[Face]) extends Stuck
+  case class Com(direction: DimensionPair, tp: AbsClosure.StuckPos, base: Value, faces: Seq[Face]) extends Stuck
 
-  case class Hcom(direction: DimensionPair, tp: Value, base: Value, faces: Seq[Face]) extends Stuck
+  case class Hcom(direction: DimensionPair, tp: StuckPos, base: Value, faces: Seq[Face]) extends Stuck
 
   case class Make(values: Seq[Value]) extends HeadCanonical
 
@@ -820,10 +823,6 @@ object Value {
       None
     }
   }
-
-  def id(v: Value): Value = v
-
-  def whn (v: Value): Value = v.whnf
 
 
 
