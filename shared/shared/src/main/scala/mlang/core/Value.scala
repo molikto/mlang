@@ -90,21 +90,6 @@ sealed trait Value {
     }
   }
 
-  def whnfOpenMetaHead: Boolean = {
-    this match {
-      case Meta(_) => true
-      case App(lambda, _) => lambda.whnfOpenMetaHead
-      case Projection(make, _) => make.whnfOpenMetaHead
-      case PatternStuck(_, stuck) => stuck.whnfOpenMetaHead
-      case PathApp(left, _) => left.whnfOpenMetaHead
-      case Coe(_, typ, _) =>
-        // this rule is really wired...
-        typ(Dimension.Generic(vdgen())).whnf.whnfOpenMetaHead
-      case Hcom(_, tp, _, _) => tp.whnfOpenMetaHead
-      case _ => false
-    }
-  }
-
   // it asserts that if one value cannot be reduced more, it will be eq the original
   def whnf: Value = {
     if (_whnf == null || !_isStable) {
@@ -182,11 +167,13 @@ sealed trait Value {
               }
           }
       }
-      if (!candidate.eq(this)) candidate._from = this
-      if (!candidate.whnfOpenMetaHead) {
-        // remember for stable values
-        _whnf = candidate
-        candidate._whnf = candidate
+      candidate._from = this
+      candidate match {
+        case Value.OpenMetaHeaded(_) =>
+        case _ =>
+          // remember for stable values
+          _whnf = candidate
+          candidate._whnf = candidate
       }
       candidate
     } else {
@@ -607,18 +594,18 @@ object Value {
     sealed trait State
 
     case class Closed(v: Value) extends State
-    case class Open(id: Long, typ: Value, context: ContextBaseForMeta) extends State
+    case class Open(id: Long, typ: Value) extends State
   }
   case class Meta(@polarized_mutation var v: Meta.State) extends Syntaxial {
     def solved: Value = v.asInstanceOf[Meta.Closed].v
     def isSolved: Boolean = v.isInstanceOf[Meta.Closed]
   }
 
-  case class Reference(@polarized_mutation var value: Value) extends Syntaxial {
+  case class Reference(@lateinit var value: Value) extends Syntaxial {
     override def toString: String = "Reference"
   }
 
-  case class Generic(id: Long, @polarized_mutation var typ: Value) extends Stuck {
+  case class Generic(id: Long, @lateinit var typ: Value) extends Stuck {
     var debug_restricted = false
   }
 
@@ -792,5 +779,24 @@ object Value {
 
   def whn (v: Value): Value = v.whnf
 
+
+
+  object OpenMetaHeaded {
+
+    def unapply(value: Value): Option[Meta] = {
+      value match {
+        case o: Meta => Some(o)
+        case App(lambda, _) => unapply(lambda)
+        case Projection(make, _) => unapply(make)
+        case PatternStuck(_, stuck) => unapply(stuck)
+        case PathApp(left, _) => unapply(left)
+        case Coe(_, typ, _) =>
+          // this rule is really wired...
+          unapply(typ(Dimension.Generic(vdgen())).whnf)
+        case Hcom(_, tp, _, _) => unapply(tp)
+        case _ => None
+      }
+    }
+  }
 }
 

@@ -207,6 +207,7 @@ object Reifier {
   private def reify(v: Value, layers: Seq[Layer]): Abstract = Benchmark.Reify { new ReifierContextBase(layers).reifyValue(v)  }
 }
 trait Reifier extends ReifierCommon {
+
   def reify(v: Value): Abstract = Reifier.reify(v, layers)
 
 

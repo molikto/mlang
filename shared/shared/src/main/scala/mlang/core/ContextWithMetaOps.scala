@@ -25,7 +25,7 @@ trait ContextWithMetaOps extends Context {
 
   protected def createMetas(): Metas = new Metas(mutable.ArrayBuffer.empty, 0)
 
-  def solvedMeta(meta: Value.Meta): Abstract.MetaReference = {
+  protected def solvedMeta(meta: Value.Meta): Abstract.MetaReference = {
     assert(meta.isSolved)
     val ms = layers.head.metas
     if (ms.debug_final) logicError()
@@ -34,9 +34,9 @@ trait ContextWithMetaOps extends Context {
     Abstract.MetaReference(0, index)
   }
 
-  def newMeta(typ: Value): Abstract.MetaReference = {
+  protected def newMeta(typ: Value): Abstract.MetaReference = {
     val id = mgen()
-    val v = Value.Meta(Value.Meta.Open(id, typ, this))
+    val v = Value.Meta(Value.Meta.Open(id, typ))
     val ms = layers.head.metas
     if (ms.debug_final) logicError()
     val index = ms.size
@@ -44,15 +44,15 @@ trait ContextWithMetaOps extends Context {
     Abstract.MetaReference(0, index)
   }
 
-  def rebindMeta(meta: Value.Meta): Abstract.MetaReference = {
+  protected def rebindMeta(meta: Value.Meta): Abstract.MetaReference = {
     rebindOrAddMeta0(meta, false)
   }
 
-  def rebindOrAddMeta(meta: Value.Meta): Abstract.MetaReference = {
+  protected def rebindOrAddMeta(meta: Value.Meta): Abstract.MetaReference = {
     rebindOrAddMeta0(meta, true)
   }
 
-  def rebindOrAddMeta0(meta: Value.Meta, allowAdd: Boolean): Abstract.MetaReference = {
+  private def rebindOrAddMeta0(meta: Value.Meta, allowAdd: Boolean): Abstract.MetaReference = {
     var up = 0
     var index = -1
     var ls = layers
@@ -84,13 +84,13 @@ trait ContextWithMetaOps extends Context {
     }
   }
 
-  def finish(): Seq[Value.Meta] = {
+  protected def finish(): Seq[Value.Meta] = {
     val ret = freeze()
     layers.head.metas.debug_final = true
     ret
   }
 
-  def freeze(): Seq[Value.Meta] = {
+  protected def freeze(): Seq[Value.Meta] = {
     val vs = layers.head.metas.freeze()
     if (!vs.forall(_.isSolved)) throw ContextWithMetaOpsException.MetaNotSolved()
     vs

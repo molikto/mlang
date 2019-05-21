@@ -37,6 +37,10 @@ trait ContextBuilder extends ContextWithMetaOps {
   protected implicit def create(a: Layers): Self
 
 
+  def drop(up: Int): Self = {
+    create(layers.drop(up))
+  }
+
   def newRestrictionLayer(pair: Value.DimensionPair): Self = {
     Layer.Restriction(pair, createMetas()) +: layers
   }
