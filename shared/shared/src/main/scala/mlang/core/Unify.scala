@@ -178,6 +178,7 @@ class Unify {
       abs = Abstract.Lambda(Abstract.Closure(Seq.empty, abs))
       tt = tt.asInstanceOf[Value.Function].codomain(g)
     }
+    // FIXME we also need to check indirect dependencies
     if (abs.dependencies(0).contains(Dependency(index, true))) {
       error("Meta solution contains itself")
     }
