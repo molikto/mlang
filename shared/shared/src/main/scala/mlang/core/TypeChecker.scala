@@ -211,6 +211,7 @@ class TypeChecker private (protected override val layers: Layers)
         (Value.Universe(fl), Abstract.Sum(fl, fs.map(_._2).zip(constructors).map(a =>
           Abstract.Constructor(a._2.name, a._1.map(k => k._2), a._1.zipWithIndex.map(kk => (0 until kk._2, kk._1._3))))))
       case Term.Coe(direction, tp, base) =>
+        // LATER does these needs finish off implicits?
         val (dv, da) = checkDimensionPair(direction)
         val (cl, ta) = checkLine(tp)
         val la = check(base, cl(dv.from))
@@ -259,27 +260,25 @@ class TypeChecker private (protected override val layers: Layers)
         throw TypeCheckException.CannotInferLambda()
       case Term.Projection(left, right) =>
         val (lt, la) = infer(left)
-        val ltwhnf = lt.whnf
         val lv = eval(la)
-        def ltr = ltwhnf.asInstanceOf[Value.Record]
+        lazy val ltr = lt.whnf.asInstanceOf[Value.Record]
         def error() = throw TypeCheckException.UnknownProjection()
-        var indexaa = -1
-        val lvwhnf = lv.whnf
+        var index = -1
         lv.whnf match {
-          case m: Value.Make if { indexaa = ltr.names.indexWhere(_.by(right)) ; indexaa >= 0 } =>
-            val index = indexaa
+          case m: Value.Make if { index = ltr.names.indexWhere(_.by(right)) ; index >= 0 } =>
             reduceMore(ltr.projectedType(m.values, index), Abstract.Projection(la, index))
           // TODO user defined projections
           case r: Value.Record if right == Ref.make =>
             reduceMore(r.makerType, Abstract.Maker(la, -1))
-          case r: Value.Sum if { indexaa = r.constructors.indexWhere(_.name.by(right)); indexaa >= 0 } =>
-            reduceMore(r.constructors(indexaa).makerType, Abstract.Maker(la, indexaa))
+          case r: Value.Sum if { index = r.constructors.indexWhere(_.name.by(right)); index >= 0 } =>
+            reduceMore(r.constructors(index).makerType, Abstract.Maker(la, index))
           case _ => error()
         }
       case Term.App(lambda, arguments) =>
         if (arguments.isEmpty) throw TypeCheckException.EmptyArguments()
         val (lt, la) = infer(lambda, true)
-        inferApp(lt, la, arguments)
+        val (v1, v2) = inferApp(lt, la, arguments)
+        reduceMore(v1, v2) // because inferApp stops when arguments is finished
       case Term.Let(declarations, in) =>
         val (ctx, ms, da) = newLayerCheckDeclarations(declarations)
         val (it, ia) = ctx.infer(in)
