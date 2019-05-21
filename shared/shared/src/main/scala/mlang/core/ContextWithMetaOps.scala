@@ -45,14 +45,24 @@ trait ContextWithMetaOps extends Context {
   }
 
   protected def rebindMeta(meta: Value.Meta): Abstract.MetaReference = {
-    rebindOrAddMeta0(meta, false)
+    val ret = rebindMeta0(meta)
+    if (ret == null) {
+      logicError()
+    }
+    ret
+  }
+
+
+  protected def rebindMetaOpt(meta: Value.Meta): Option[Abstract.MetaReference] = {
+    Option(rebindMeta0(meta))
   }
 
   protected def rebindOrAddMeta(meta: Value.Meta): Abstract.MetaReference = {
-    rebindOrAddMeta0(meta, true)
+    val ret = rebindMeta0(meta)
+    if (ret == null) solvedMeta(meta)
   }
 
-  private def rebindOrAddMeta0(meta: Value.Meta, allowAdd: Boolean): Abstract.MetaReference = {
+  private def rebindMeta0(meta: Value.Meta): Abstract.MetaReference = {
     var up = 0
     var index = -1
     var ls = layers
@@ -73,15 +83,7 @@ trait ContextWithMetaOps extends Context {
         up += 1
       }
     }
-    if (binder == null) {
-      if (allowAdd) {
-        solvedMeta(meta)
-      } else {
-        logicError()
-      }
-    } else {
-      binder
-    }
+    binder
   }
 
   protected def finish(): Seq[Value.Meta] = {

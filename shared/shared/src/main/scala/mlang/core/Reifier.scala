@@ -9,24 +9,16 @@ import mlang.utils.Benchmark
 import scala.collection.mutable
 
 
-trait ReifierCommon extends ContextBuilder {
-  def reify(v: Value): Abstract
-
-  def freezeReify(): Seq[Abstract] = {
-    val vs = freeze()
-    vs.map(a => reify(a.solved))
-  }
-
-  def finishReify(): Seq[Abstract] = {
-    val vs = finish()
-    vs.map(a => reify(a.solved))
-  }
-}
-
-private trait ReifierContext extends ReifierCommon with ContextBuilder {
+private trait ReifierContext extends ContextBuilder {
   def base: ReifierContextBase
 
   override type Self <: ReifierContext
+
+
+  val metas = mutable.ArrayBuffer.empty[Abstract]
+
+
+  protected def reifyMetas(): Seq[Abstract] = metas
 
   def reifyReference(r: Value.Reference): Abstract.Reference = {
     rebindReference(r) match {
@@ -46,7 +38,7 @@ private trait ReifierContext extends ReifierCommon with ContextBuilder {
       val n = graph(i)
       val it = n.independent.typ
       val ttt = ctx.reify(it)
-      val pair = (n.dependencies, Abstract.MetaEnclosed(ctx.freezeReify(), ttt))
+      val pair = (n.dependencies, Abstract.MetaEnclosed(ctx.reifyMetas(), ttt))
       as = as :+ pair
       val (ctx0, tm) = ctx.newParameter(Name.empty, null)
       ctx = ctx0
@@ -58,13 +50,13 @@ private trait ReifierContext extends ReifierCommon with ContextBuilder {
   def reify(v: Value.Closure): Abstract.Closure = {
     val (ctx, tm) = newParameterLayer(Name.empty, null)
     val ta = ctx.reify(v(tm))
-    Abstract.Closure(ctx.finishReify(), ta)
+    Abstract.Closure(ctx.reifyMetas(), ta)
   }
 
   def reify(v: Value.AbsClosure): Abstract.AbsClosure = {
     val (ctx, tm) = newDimensionLayer(Name.empty, None)
     val ta = ctx.reify(v(tm))
-    Abstract.AbsClosure(ctx.finishReify(), ta)
+    Abstract.AbsClosure(ctx.reifyMetas(), ta)
   }
 
   def reify(size: Int, v: Value.MultiClosure): Abstract.MultiClosure = {
@@ -73,7 +65,7 @@ private trait ReifierContext extends ReifierCommon with ContextBuilder {
       (c, ctx._2 :+ ns)
     }
     val ta = ctx.reify(v(ns))
-    Abstract.MultiClosure(ctx.finishReify(), ta)
+    Abstract.MultiClosure(ctx.reifyMetas(), ta)
   }
 
   def reify(v: Value): Abstract = {
@@ -101,7 +93,18 @@ private trait ReifierContext extends ReifierCommon with ContextBuilder {
       case Value.PathLambda(body) =>
         PathLambda(reify(body))
       case m: Value.Meta =>
-        rebindOrAddMeta(m)
+        m.v match {
+          case Meta.Closed(c) =>
+            rebindMetaOpt(m) match {
+              case Some(k) => k
+              case None =>
+                // TODO add to the level where it can be defined with minimal dependency
+                metas.append(reify(c))
+                solvedMeta(m)
+            }
+          case _: Meta.Open =>
+            rebindOrAddMeta(m)
+        }
       case Value.Generic(id, _) =>
         rebindGeneric(id)
       case c: Value.Reference =>
@@ -120,7 +123,7 @@ private trait ReifierContext extends ReifierCommon with ContextBuilder {
         }
         val abs = items.map(p => ctx.reify(p))
         val bd = ctx.reify(body)
-        Let(ctx.finishReify(), abs, bd)
+        Let(ctx.reifyMetas(), abs, bd)
       case Value.PathApp(left, stuck) =>
         PathApp(reify(left), reify(stuck))
       case Value.Coe(dir, tp, base) =>
@@ -180,7 +183,7 @@ private class ReifierContextBase(layersBefore: Context.Layers) extends ReifierCo
     val c = data.count(_._2.isEmpty)
     assert(c <= 1)
     val abs = data.sortBy(_._1).map(_._2.getOrElse(body))
-    val ms = finishReify()
+    val ms = reifyMetas()
     if (c == 1) {
       Let(ms, abs, Reference(0, data.find(_._2.isEmpty).get._1))
     } else {
@@ -204,12 +207,12 @@ private class ReifierContextBase(layersBefore: Context.Layers) extends ReifierCo
 object Reifier {
   private def reify(v: Value, layers: Seq[Layer]): Abstract = Benchmark.Reify { new ReifierContextBase(layers).reifyValue(v)  }
 }
-trait Reifier extends ReifierCommon {
+trait Reifier extends ContextBuilder {
 
-  def reify(v: Value): Abstract = Reifier.reify(v, layers)
+  protected def reify(v: Value): Abstract = Reifier.reify(v, layers)
 
 
-  def reify(v: Value.Closure): Abstract.Closure = {
+  protected def reify(v: Value.Closure): Abstract.Closure = {
     val l = debug_metasSize
     val (c, t) = newParameterLayer(Name.empty, null)
     val r = Abstract.Closure(Seq.empty, c.asInstanceOf[Reifier].reify(v(t)))
@@ -217,4 +220,15 @@ trait Reifier extends ReifierCommon {
     assert(c.debug_metasSize == 0) // also we don't create in that one!
     r
   }
+
+  protected def freezeReify(): Seq[Abstract] = {
+    val vs = freeze()
+    vs.map(a => reify(a.solved))
+  }
+
+  protected def finishReify(): Seq[Abstract] = {
+    val vs = finish()
+    vs.map(a => reify(a.solved))
+  }
+
 }

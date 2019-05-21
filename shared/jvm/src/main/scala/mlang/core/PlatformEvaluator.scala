@@ -65,7 +65,7 @@ trait PlatformEvaluator extends BaseEvaluator {
             s"m${depth - up}($index)"
           }
         case Abstract.Let(metas, definitions, in) =>
-          if (definitions.isEmpty) {
+          if (metas.isEmpty && definitions.isEmpty) {
             emit(in, depth + 1)
           } else {
             val d = depth + 1

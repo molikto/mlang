@@ -50,7 +50,14 @@ define record_of_refl = record {
 
 define refl(#A: type, #x: A): x ≡ x = i → x
 
+
 define test_record_of_refl: eight ≡ eight = record_of_refl.make(refl(#_, #eight)).eq
+
+define test_record_of_metas = record {
+  field test: (#a: nat, b: a ≡ a) ⇒ type
+  field a c: test(refl(#_, #four))
+  field b: test(refl(#_, #eight))
+}
 
 /*
 
