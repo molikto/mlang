@@ -5,7 +5,6 @@
 
 * next... NOW!
     * is my implementation of unification correct?
-       * is unification under restricted context handled?
        * why unification result doesn't needs to be type checked or am I wrong?
     * fix the problem of reading back inductive definitions: they rarely do the thing you want. so maybe only allow inductive at top level
     * understand how the more complicated part of a cubical theory implemented

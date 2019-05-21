@@ -82,23 +82,23 @@ trait PlatformEvaluator extends BaseEvaluator {
                 s"Let(r$d, body)" +
                 s"}"
           }
-        case Abstract.Function(domain, codomain) =>
+        case Abstract.Function(domain, impict, codomain) =>
           val d = depth + 1
-          s"Function(${emit(domain, depth)}, Closure(r$d => ${emitInner(codomain, d)}))"
+          s"Function(${emit(domain, depth)}, $impict, Closure(r$d => ${emitInner(codomain, d)}))"
         case Abstract.Lambda(closure) =>
           val d = depth + 1
           s"Lambda(Closure(r$d => ${emitInner(closure, d)}))"
         case Abstract.App(left, right) =>
           s"App(${emit(left, depth)}, ${emit(right, depth)})"
-        case Abstract.Record(level, names, nodes) =>
+        case Abstract.Record(level, names, ms, nodes) =>
           val d = depth + 1
-          s"""Record($level, Seq(${names.map(n => source(n)).mkString(", ")}), ${emitGraph(nodes, d)})"""
+          s"""Record($level, Seq(${names.map(n => source(n)).mkString(", ")}), ${emit(ms)}, ${emitGraph(nodes, d)})"""
         case Abstract.Projection(left, field) =>
-          s"Project(${emit(left, depth)}, $field)"
+          s"Projection(${emit(left, depth)}, $field)"
         case Abstract.Sum(level, constructors) =>
           val d = depth + 1 // we some how have have one layer for the constructor names
           s"""Sum($level, Seq(${constructors.zipWithIndex.map(c =>
-            s"Constructor(${source(c._1.name)}, ${emitGraph(c._1.params, d)})").mkString(", ")}))"""
+            s"Constructor(${source(c._1.name)}, ${emit(c._1.implicits)}, ${emitGraph(c._1.params, d)})").mkString(", ")}))"""
         case Abstract.Maker(sum, field) =>
           s"Maker(${emit(sum, depth)}, $field)"
         case Abstract.PatternLambda(id, codomain, cases) =>
@@ -133,6 +133,11 @@ trait PlatformEvaluator extends BaseEvaluator {
           s"${emit(t, depth)}.restrict(${emit(dir, depth)})"
       }
     }
+
+  private def emit(pair: Seq[Boolean]): String = {
+    s"Seq(${pair.map(_.toString).mkString(", ")})"
+  }
+
 
   private def emit(pair: Seq[Abstract.DimensionPair], depth: Int): String = {
     s"Seq(${pair.map(a => emit(a, depth)).mkString(", ")})"

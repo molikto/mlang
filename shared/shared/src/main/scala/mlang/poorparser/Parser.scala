@@ -31,8 +31,8 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
     override def whitespaceChar: Parser[Char] = elem("", _ == '│') | super.whitespaceChar
   }
 
-  lexical.reserved ++= List("define", "declare", "case", "__debug", "as", "coe", "hcom", "com","field", "ignored", "match", "make", "record", "type", "sum", "inductively", "run", "with_constructors", "I", "_")
-  lexical.delimiters ++= List("{", "}", "[", "]", ":", ",", "(", ")", "≡", "─", "┬", "┌", "⊏", "└", "├", "⇒", "→", "+", "-", ";", "=", "@", "\\", ".", "|")
+  lexical.reserved ++= List("define", "declare", "case", "__debug", "as", "coe", "hcom", "com","field", "ignored", "match", "record", "type", "sum", "inductively", "run", "with_constructors", "I", "_")
+  lexical.delimiters ++= List("{", "}", "[", "]", ":", ",", "(", ")", "#", "≡", "─", "┬", "┌", "⊏", "└", "├", "⇒", "→", "+", "-", ";", "=", "@", "\\", ".", "|")
 
   def delimited[T](a: String, t: Parser[T], b: String): Parser[T] = a ~> t <~ b
 
@@ -61,8 +61,8 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
 
   lazy val let: PackratParser[Let] = keyword("run") ~> delimited("{", rep(declaration) ~ term, "}") ^^ { a => Let(a._1, a._2)}
 
-  lazy val teleInner =  rep1sep(opt(rep1(ident)) ~  (":" ~> term), ",") ^^ {
-    a => a.map(a => NameType(a._1.getOrElse(Seq.empty).map(a => Name(Text(a))), a._2)) }
+  lazy val teleInner =  rep1sep(opt(rep1(nonEmptyImplicitPattern)) ~  (":" ~> term), ",") ^^ {
+    a => a.map(a => NameType(a._1.getOrElse(Seq.empty), a._2)) }
 
   lazy val tele: PackratParser[Seq[NameType]] = delimited("(", teleInner, ")")
 
@@ -118,14 +118,20 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
 
   lazy val pi: PackratParser[Function] = tele ~ ("⇒" ~> term) ^^ {a => Function(a._1, a._2)} |
     (term <~ "⇒") ~ term ^^ { a => Function(Seq(NameType(Seq.empty, a._1)), a._2)}
-
-  lazy val atomicPattern: PackratParser[Name] = "─" ^^ {_ => Name.empty } | ident ^^ { a =>
+  
+  lazy val nonEmptyAtomicPattern: PackratParser[Name] = ident ^^ { a =>
     Name(Text(a))
   }
+  
+  lazy val nonEmptyImplicitPattern: PackratParser[(Boolean, Name)] = (opt("#") ~ nonEmptyAtomicPattern) ^^ {a => (a._1.isDefined, a._2) }
+
+  lazy val atomicPattern: PackratParser[Name] = "─" ^^ {_ => Name.empty } | nonEmptyAtomicPattern
+
+  lazy val implicitPattern: PackratParser[(Boolean, Name)] = (opt("#") ~ atomicPattern) ^^ {a => (a._1.isDefined, a._2) }
 
 
   lazy val lambda: PackratParser[Lambda] =
-    atomicPattern ~ ("→" ~> term) ^^ {a => Lambda(a._1, a._2) }
+    implicitPattern ~ ("→" ~> term) ^^ {a => Lambda(a._1._2, a._1._1, a._2) }
 
   lazy val groupPattern: PackratParser[Pattern] =  delimited("(", rep1sep(pattern, ","),")") ^^ { a => Pattern.Group(a) }
 
@@ -148,15 +154,15 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
     a._1._1 +: a._1._2 :+ a._2
   }
 
-  lazy val patternCases: PackratParser[PatternLambda] = (patternCaseEmpty | patternCaseSingle | patternMultiple) ^^ {
-    a => PatternLambda(a)
+  lazy val patternCases: PackratParser[PatternLambda] = opt("#") ~ (patternCaseEmpty | patternCaseSingle | patternMultiple) ^^ {
+    a => PatternLambda(a._1.isDefined, a._2)
   }
-  lazy val patternLambda : PackratParser[Term] =  "─" ~> patternContinue ^^ { a => Term.Lambda(Name.empty, a) } |  patternCases
+  lazy val patternLambda : PackratParser[Term] =  "─" ~> patternContinue ^^ { a => Term.Lambda(Name.empty, false, a) } |  patternCases
 
-  lazy val app: PackratParser[App] = term ~ delimited("(", repsep(term, ","), ")") ^^ {a => App(a._1, a._2)}
+  lazy val app: PackratParser[App] = term ~ delimited("(", repsep(opt("#") ~ term, ","), ")") ^^ {a => App(a._1, a._2.map(k => (k._1.isDefined, k._2)))}
 
 
-  lazy val record: PackratParser[Record] = keyword("record") ~> delimited("{", rep(((keyword("field") ~> rep1(ident) <~ ":") ~ term) ^^ {a => NameType(a._1.map(k => Name(Text(k))), a._2)}), "}") ^^ {a => Record(a) }
+  lazy val record: PackratParser[Record] = keyword("record") ~> delimited("{", rep(((keyword("field") ~> rep1(nonEmptyImplicitPattern) <~ ":") ~ term) ^^ {a => NameType(a._1, a._2)}), "}") ^^ {a => Record(a) }
 
   lazy val projection: PackratParser[Projection] = (term <~ ".") ~ ident ^^ {a => Projection(a._1, a._2)}
 

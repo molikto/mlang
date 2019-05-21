@@ -57,6 +57,10 @@ object TypeCheckException {
   case class CannotInferMeta() extends TypeCheckException
 
   case class NotDefinedReferenceForTypeExpressions() extends TypeCheckException
+
+  case class DimensionLambdaCannotBeImplicit() extends TypeCheckException
+
+  case class NotExpectingImplicitArgument() extends TypeCheckException
 }
 
 
@@ -130,7 +134,8 @@ class TypeChecker private (protected override val layers: Layers)
 
   def checkLine(a: Term): (Value.AbsClosure, Abstract.AbsClosure) = {
     a match {
-      case Term.Lambda(n, body) =>
+      case Term.Lambda(n, b, body) =>
+        if (b) throw TypeCheckException.DimensionLambdaCannotBeImplicit()
         val ctx = newDimensionLayer(n)._1
         val (_, ta0) = ctx.inferLevel(body)
         val ta = Abstract.AbsClosure(ctx.finishReify(), ta0)
@@ -140,16 +145,31 @@ class TypeChecker private (protected override val layers: Layers)
     }
   }
 
+  private def finishOffImplicits(v: Value, abs: Abstract): (Value, Abstract) = {
+    v.whnf match {
+      case Value.Function(d, i, c) if i =>
+        val (mv, ma) = newMeta(d)
+        finishOffImplicits(c(mv), Abstract.App(abs, ma))
+      case _ => (v, abs)
+    }
+  }
 
-  private def infer(term: Term): (Value, Abstract) = {
+  private def infer(term: Term, noReduceMore: Boolean = false): (Value, Abstract) = {
     debug(s"infer $term")
+    def reduceMore(v: Value, abs: Abstract): (Value, Abstract) = {
+      if (noReduceMore) {
+        (v, abs)
+      } else {
+        finishOffImplicits(v, abs)
+      }
+    }
     val res = term match {
       case Term.Universe(i) =>
         (Value.Universe.up(i), Abstract.Universe(i))
       case Term.Reference(name) =>
         // should lookup always return a value? like a open reference?
         val (binder, abs) = lookupTerm(name)
-        (binder, abs)
+        reduceMore(binder, abs)
       case Term.Hole =>
         throw TypeCheckException.CannotInferMeta()
       case Term.ConstantDimension(_) =>
@@ -170,13 +190,13 @@ class TypeChecker private (protected override val layers: Layers)
         }
         for (i <- r.names.indices) {
           for (j <- (i + 1) until r.names.size) {
-            if (r.names(i) intersect r.names(j)) {
+            if (r.names(i)._2 intersect r.names(j)._2) {
               throw TypeCheckException.FieldsDuplicated()
             }
           }
         }
         val (fl, fs) = newLayerInferFlatLevel(fields)
-        (Value.Universe(fl), Abstract.Record(fl, fs.map(_._1), fs.map(a => (a._2.term.termDependencies(0).toSeq.sorted, a._2))))
+        (Value.Universe(fl), Abstract.Record(fl, fs.map(_._1), fs.map(_._2), fs.map(a => (a._3.term.termDependencies(0).toSeq.sorted, a._3))))
       case Term.Sum(constructors) =>
         for (i <- constructors.indices) {
           for (j <- (i + 1) until constructors.size) {
@@ -188,8 +208,8 @@ class TypeChecker private (protected override val layers: Layers)
         // TODO in case of HIT, each time a constructor finished, we need to construct a partial sum and update the value
         val fs = constructors.map(c => newLayerInferFlatLevel(c.term))
         val fl = fs.map(_._1).max
-        (Value.Universe(fl), Abstract.Sum(fl, fs.map(_._2.map(_._2)).zip(constructors).map(a =>
-          Abstract.Constructor(a._2.name, a._1.zipWithIndex.map(kk => (0 until kk._2, kk._1))))))
+        (Value.Universe(fl), Abstract.Sum(fl, fs.map(_._2).zip(constructors).map(a =>
+          Abstract.Constructor(a._2.name, a._1.map(k => k._2), a._1.zipWithIndex.map(kk => (0 until kk._2, kk._1._3))))))
       case Term.Coe(direction, tp, base) =>
         val (dv, da) = checkDimensionPair(direction)
         val (cl, ta) = checkLine(tp)
@@ -211,7 +231,8 @@ class TypeChecker private (protected override val layers: Layers)
         typ match {
           case Some(tp) =>
             tp match {
-              case Term.Lambda(name, body) =>
+              case Term.Lambda(name, b, body) =>
+                if (b) throw TypeCheckException.DimensionLambdaCannotBeImplicit()
                 val ctx = newDimensionLayer(name)._1
                 val (tl, ta) = ctx.inferLevel(body)
                 val ca = Abstract.AbsClosure(ctx.finishReify(), ta)
@@ -232,30 +253,32 @@ class TypeChecker private (protected override val layers: Layers)
               throw TypeCheckException.InferPathEndPointsTypeNotMatching()
             }
         }
-      case Term.PatternLambda(_) =>
+      case p: Term.PatternLambda =>
         throw TypeCheckException.CannotInferReturningTypeWithPatterns()
-      case Term.Lambda(_, _) =>
+      case l: Term.Lambda =>
         throw TypeCheckException.CannotInferLambda()
       case Term.Projection(left, right) =>
         val (lt, la) = infer(left)
+        val ltwhnf = lt.whnf
         val lv = eval(la)
-        def ltr = lt.asInstanceOf[Value.Record]
+        def ltr = ltwhnf.asInstanceOf[Value.Record]
         def error() = throw TypeCheckException.UnknownProjection()
         var indexaa = -1
+        val lvwhnf = lv.whnf
         lv.whnf match {
           case m: Value.Make if { indexaa = ltr.names.indexWhere(_.by(right)) ; indexaa >= 0 } =>
             val index = indexaa
-            (ltr.projectedType(m.values, index), Abstract.Projection(la, index))
+            reduceMore(ltr.projectedType(m.values, index), Abstract.Projection(la, index))
           // TODO user defined projections
           case r: Value.Record if right == Ref.make =>
-            (r.makerType, Abstract.Maker(la, -1))
+            reduceMore(r.makerType, Abstract.Maker(la, -1))
           case r: Value.Sum if { indexaa = r.constructors.indexWhere(_.name.by(right)); indexaa >= 0 } =>
-            (r.constructors(indexaa).makerType, Abstract.Maker(la, indexaa))
+            reduceMore(r.constructors(indexaa).makerType, Abstract.Maker(la, indexaa))
           case _ => error()
         }
       case Term.App(lambda, arguments) =>
         if (arguments.isEmpty) throw TypeCheckException.EmptyArguments()
-        val (lt, la) = infer(lambda)
+        val (lt, la) = infer(lambda, true)
         inferApp(lt, la, arguments)
       case Term.Let(declarations, in) =>
         val (ctx, ms, da) = newLayerCheckDeclarations(declarations)
@@ -289,17 +312,17 @@ class TypeChecker private (protected override val layers: Layers)
     }
   }
 
-  private def newLayerInferFlatLevel(terms: Seq[NameType]): (Int, Seq[(Name, Abstract.MetaEnclosed)]) = {
+  private def newLayerInferFlatLevel(terms: Seq[NameType]): (Int, Seq[(Name, Boolean, Abstract.MetaEnclosed)]) = {
     var ctx = newParametersLayer()
     var l = 0
     val fas = terms.flatMap(f => {
-      val fs = if (f.names.isEmpty) Seq(Name.empty) else f.names
+      val fs = NameType.flatten(Seq(f))
       fs.map(n => {
         val (fl, fa) = ctx.inferLevel(f.ty)
         l = l max fl
         val ms = ctx.freezeReify()
-        ctx = ctx.newParameter(n, ctx.eval(fa))._1
-        (n, Abstract.MetaEnclosed(ms, fa))
+        ctx = ctx.newParameter(n._2, ctx.eval(fa))._1
+        (n._2, n._1, Abstract.MetaEnclosed(ms, fa))
       })
     })
     (l, fas)
@@ -308,16 +331,17 @@ class TypeChecker private (protected override val layers: Layers)
   private def inferTelescope(domain: NameType.FlatSeq, codomain: Term): (Int, Abstract) = {
     domain match {
       case head +: tail =>
-        head._2 match {
+        head._3 match {
           case Term.I =>
-            val ctx = newDimensionLayer(head._1)._1
+            if (head._1) throw TypeCheckException.DimensionLambdaCannotBeImplicit()
+            val ctx = newDimensionLayer(head._2)._1
             val (cl, ca) = ctx.inferTelescope(tail, codomain)
             (cl, Abstract.PathType(Abstract.AbsClosure(ctx.finishReify(), ca), ???, ???))
           case _ =>
-            val (dl, da) = inferLevel(head._2)
-            val ctx = newParameterLayer(head._1, eval(da))._1
+            val (dl, da) = inferLevel(head._3)
+            val ctx = newParameterLayer(head._2, eval(da))._1
             val (cl, ca) = ctx.inferTelescope(tail, codomain)
-            (dl max cl, Abstract.Function(da, Abstract.Closure(ctx.finishReify(), ca)))
+            (dl max cl, Abstract.Function(da, head._1, Abstract.Closure(ctx.finishReify(), ca)))
         }
       case Seq() =>
         val (l, a) = inferLevel(codomain)
@@ -325,18 +349,26 @@ class TypeChecker private (protected override val layers: Layers)
     }
   }
 
-  private def inferApp(lt: Value, la: Abstract, arguments: Seq[Term]): (Value, Abstract) = {
+  private def inferApp(lt: Value, la: Abstract, arguments: Seq[(Boolean, Term)]): (Value, Abstract) = {
     arguments match {
       case head +: tail =>
         lt.whnf match {
-          case Value.Function(domain, codomain) =>
-            val aa = check(head, domain)
-            val av = eval(aa)
-            val lt1 = codomain(av)
-            val la1 = Abstract.App(la, aa)
-            inferApp(lt1, la1, tail)
+          case f@Value.Function(domain, fimp, codomain) =>
+            if (fimp == head._1) {
+              val aa = check(head._2, domain)
+              val av = eval(aa)
+              val lt1 = codomain(av)
+              val la1 = Abstract.App(la, aa)
+              inferApp(lt1, la1, tail)
+            } else if (fimp) {
+              val (lt1, la1) = finishOffImplicits(f, la)
+              inferApp(lt1, la1, arguments)
+            } else {
+              throw TypeCheckException.NotExpectingImplicitArgument()
+            }
           case Value.PathType(typ, _, _) =>
-            val (dv, da) = checkDimension(head)
+            if (head._1) throw TypeCheckException.DimensionLambdaCannotBeImplicit()
+            val (dv, da) = checkDimension(head._2)
             val lt1 = typ(dv)
             val la1 = Abstract.PathApp(la, da)
             inferApp(lt1, la1, tail)
@@ -361,7 +393,7 @@ class TypeChecker private (protected override val layers: Layers)
     def fallback(): Abstract = {
       term match {
         case Term.Hole =>
-          newMeta(cp)
+          newMeta(cp)._2
         case _ =>
           val (tt, ta) = infer(term)
           if (unifyType(tt, cp)) ta
@@ -373,23 +405,31 @@ class TypeChecker private (protected override val layers: Layers)
       }
     }
     cp.whnf match {
-      case Value.Function(domain, codomain) =>
+      case Value.Function(domain, fimp, codomain) =>
         term match {
-          case Term.Lambda(n, body) =>
+          case Term.Lambda(n, limp, body) if fimp == limp =>
             val (ctx, v) = newParameterLayer(n.nonEmptyOrElse(hint), domain)
             val ba = ctx.check(body, codomain(v), tail)
             Abstract.Lambda(Abstract.Closure(ctx.finishReify(), ba))
-          case Term.PatternLambda(cases) =>
+          case Term.PatternLambda(limp, cases) if fimp == limp =>
             Abstract.PatternLambda(TypeChecker.pgen(), reify(codomain), cases.map(c => {
               val (ctx, v, pat) = newPatternLayer(c.pattern, domain)
               val ba = ctx.check(c.body, codomain(v), tail)
               Abstract.Case(pat, Abstract.MultiClosure(ctx.finishReify(), ba))
             }))
-          case _ => fallback()
+          case _ =>
+            if (fimp) {
+              val (ctx, v) = newParameterLayer(Name.empty, domain)
+              val ba = ctx.check(term, codomain(v), tail)
+              Abstract.Lambda(Abstract.Closure(ctx.finishReify(), ba))
+            } else {
+              fallback()
+            }
         }
       case Value.PathType(typ, left, right) =>
         term match {
-          case Term.Lambda(n, body) =>
+          case Term.Lambda(n, b, body) =>
+            if (b) throw TypeCheckException.DimensionLambdaCannotBeImplicit()
             val (c1, dv) = newDimensionLayer(n.nonEmptyOrElse(hint))
             val t1 = typ(dv)
             import Value.Dimension._
@@ -414,7 +454,7 @@ class TypeChecker private (protected override val layers: Layers)
       s: Declaration,
       mis: mutable.ArrayBuffer[CodeInfo[Value.Meta]],
       vis: mutable.ArrayBuffer[DefinitionInfo]): Self = {
-    def wrapBody(t: Term, n: Int): Term = if (n == 0) t else wrapBody(Term.Lambda(Name.empty, t), n - 1)
+    def wrapBody(t: Term, imp: Seq[Boolean]): Term = if (imp.size == 0) t else wrapBody(Term.Lambda(Name.empty, imp.last, t), imp.dropRight(1))
     def appendMetas(ms: Seq[Value.Meta]): Unit = {
       for (m <- ms) {
         mis.append(CodeInfo(reify(m.solved), m))
@@ -475,12 +515,12 @@ class TypeChecker private (protected override val layers: Layers)
             val (ctx, index, generic) = newDeclaration(name, tv) // allows recursive definitions
             fillTo(vis, index); assert(vis(index) == null)
             vis.update(index, DefinitionInfo(None, CodeInfo(ta, generic)))
-            val lambdaNameHints = pps.map(_._1) ++(t match {
+            val lambdaNameHints = pps.map(_._2) ++(t match {
               case Term.Function(d, _) =>
-                NameType.flatten(d).map(_._1)
+                NameType.flatten(d).map(_._2)
               case _ => Seq.empty
             })
-            val va = ctx.check(wrapBody(v, pps.size), tv, lambdaNameHints)
+            val va = ctx.check(wrapBody(v, pps.map(_._1)), tv, lambdaNameHints)
             appendMetas(ctx.freeze())
             val ref = Value.Reference(null) // the reason we
             val ctx2 = ctx.newDefinitionChecked(index, name, ref)

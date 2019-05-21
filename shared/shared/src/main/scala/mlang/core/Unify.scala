@@ -89,7 +89,7 @@ trait Unify extends Reifier with BaseEvaluator with PlatformEvaluator {
     if (c1.eq(c2)) {
       true
     } else {
-      c1.name == c2.name && recClosureGraph(c1.nodes, c2.nodes)
+      c1.name == c2.name && c1.ims == c2.ims && recClosureGraph(c1.nodes, c2.nodes)
     }
   }
 
@@ -125,12 +125,12 @@ trait Unify extends Reifier with BaseEvaluator with PlatformEvaluator {
     } else {
       typeAssumptions.append((tm1, tm2))
       (tm1.whnf, tm2.whnf) match {
-        case (Function(d1, c1), Function(d2, c2)) =>
-          recType(d1, d2) && recTypeClosure(d1, c1, c2)
+        case (Function(d1, i1, c1), Function(d2, i2, c2)) =>
+          recType(d1, d2) && i1 == i2 && recTypeClosure(d1, c1, c2)
         case (Universe(l1), Universe(l2)) =>
           l1 == l2
-        case (Record(l1, m1, n1), Record(l2, m2, n2)) =>
-          l1 == l2 && m1 == m2 && recClosureGraph(n1, n2)
+        case (Record(l1, m1, i1, n1), Record(l2, m2, i2, n2)) =>
+          l1 == l2 && m1 == m2 && i1 == i2 && recClosureGraph(n1, n2)
         case (Sum(l1, c1), Sum(l2, c2)) =>
           l1 == l2 && c1.size == c2.size && c1.zip(c2).forall(p => recConstructor(p._1, p._2))
         case (PathType(t1, l1, r1), PathType(t2, l2, r2)) =>
@@ -223,7 +223,7 @@ trait Unify extends Reifier with BaseEvaluator with PlatformEvaluator {
         })
       case (App(l1, a1), App(l2, a2)) =>
         recNeutral(l1, l2).flatMap(_.whnf match {
-          case Function(d, c) =>
+          case Function(d, _, c) =>
           if (recTerm(d, a1, a2)) {
             Some(c(a1))
           } else {
@@ -315,13 +315,13 @@ trait Unify extends Reifier with BaseEvaluator with PlatformEvaluator {
       true
     } else {
       (typ.whnf, t1.whnf, t2.whnf) match {
-        case (Function(d, cd), s1, s2) =>
+        case (Function(d, _, cd), s1, s2) =>
           val c = Generic(gen(), d)
           recTerm(cd(c), app(s1, c), app(s2, c))
         case (PathType(ty, _, _), s1, s2) =>
           val c = Dimension.Generic(dgen())
           recTerm(ty(c), papp(s1, c), papp(s2, c))
-        case (Record(_, _, ns), m1, m2) =>
+        case (Record(_, _, _, ns), m1, m2) =>
           recTerms(ns, i => project(m1, i), i => project(m2, i))
         case (Sum(_, cs), Construct(n1, v1), Construct(n2, v2)) =>
           n1 == n2 && { val c = cs(n1) ;
@@ -330,6 +330,9 @@ trait Unify extends Reifier with BaseEvaluator with PlatformEvaluator {
           }
         case (Universe(_), tt1, tt2) =>
           recType(tt1, tt2) // it will call unify neutral at then end
+        case (OpenMetaHeaded(_), _, _) =>
+          debug("meta directed not handled", 2)
+          false
         case (_, tt1, tt2) => recNeutral(tt1, tt2)
       }
     }
@@ -361,9 +364,9 @@ trait Unify extends Reifier with BaseEvaluator with PlatformEvaluator {
           ret
         case Pattern.Make(maps) =>
           t.whnf match {
-            case Record(_, _, nodes) =>
-              if (maps.size == nodes.size) {
-                Make(recs(maps, nodes))
+            case r: Record  =>
+              if (maps.size == r.nodes.size) {
+                Make(recs(maps, r.nodes))
               } else {
                 logicError()
               }

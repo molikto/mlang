@@ -26,16 +26,16 @@ sealed trait Value {
   // TODO how does it interact with recursive references?
   def restrict(lv: DimensionPair): Value =  this match {
     case u: Universe => u
-    case Function(domain, codomain) =>
-      Function(domain.restrict(lv), codomain.restrict(lv))
-    case Record(level, ns, nodes) =>
-      Record(level, ns, ClosureGraph.restrict(nodes, lv))
+    case Function(domain, im, codomain) =>
+      Function(domain.restrict(lv), im, codomain.restrict(lv))
+    case Record(level, ms, ns, nodes) =>
+      Record(level, ms, ns, ClosureGraph.restrict(nodes, lv))
     case Make(values) =>
       Make(values.map(_.restrict(lv)))
     case Construct(name, vs) =>
       Construct(name, vs.map(_.restrict(lv)))
     case Sum(level, constructors) =>
-      Sum(level, constructors.map(n => Constructor(n.name, ClosureGraph.restrict(n.nodes, lv))))
+      Sum(level, constructors.map(n => Constructor(n.name, n.ims, ClosureGraph.restrict(n.nodes, lv))))
     case Lambda(closure) =>
       Lambda(closure.restrict(lv))
     case PatternLambda(id, typ, cases) =>
@@ -281,7 +281,7 @@ object Value {
       }
     }
 
-    def makerAndType(graph: ClosureGraph, vc: Seq[Value] => Value, tc: Value): (Value, Value) = {
+    def makerAndType(graph: ClosureGraph, ims: Seq[Boolean], vc: Seq[Value] => Value, tc: Value): (Value, Value) = {
       def rmake(known: Seq[Value]): Value = {
         val size = graph.size - known.size
         size match {
@@ -294,7 +294,7 @@ object Value {
         size match {
           case 0 => tc
           case _ =>
-            Function(graph(index).independent.typ, Closure(p => {
+            Function(graph(index).independent.typ, ims(index), Closure(p => {
               val ng = reduce(graph, index, p)
               rtyp(index + 1, ng)
           }))
@@ -368,9 +368,9 @@ object Value {
       returns(base)
     } else {
       typ(Dimension.Generic(vdgen())).whnf match {
-        case Function(_, _) =>
+        case Function(_, _, _) =>
           def func(a: Value): Function = a.whnf match {
-            case f@Function(_, _) => f
+            case f: Function => f
             case _ => logicError()
           }
           returns(Lambda(Value.Closure(a => {
@@ -380,7 +380,7 @@ object Value {
               typ.mapd((f, d) => func(f).codomain(Coe(DimensionPair(pair.to, d), typ.map(a => func(a).domain), a))),
               app_)
           })))
-        case Record(_, _, graph) =>
+        case Record(_, _, _, graph) =>
           if (graph.isEmpty) {
             returns(base)
           } else {
@@ -453,10 +453,10 @@ object Value {
           returns(n.body(pair.to))
         case None =>
           typ.whnf match {
-            case Function(_, codomain) => returns(Lambda(Value.Closure(a =>
+            case Function(_, _, codomain) => returns(Lambda(Value.Closure(a =>
               Hcom(pair, codomain(a), App(base, a), rs.map(n => Face(n.restriction, n.body.map(j => App(j, a)))))
             )))
-            case Record(_, _, graph) =>
+            case Record(_, _, _, graph) =>
               if (graph.isEmpty) {
                 returns(base)
               } else {
@@ -662,16 +662,16 @@ object Value {
     def up(i: Int) = Universe(i) // TODO type : type for now
   }
 
-  case class Function(domain: Value, codomain: Closure) extends HeadCanonical
+  case class Function(domain: Value, impict: Boolean, codomain: Closure) extends HeadCanonical
   case class App(lambda: StuckPos, argument: Value) extends Stuck
 
   // TODO should have a field: recursive, and it must be recursive, the will not be able to calculus
-  case class Record(level: Int, names: Seq[Name], nodes: ClosureGraph) extends HeadCanonical {
+  case class Record(level: Int, names: Seq[Name], ims: Seq[Boolean], nodes: ClosureGraph) extends HeadCanonical {
     assert(names.size == nodes.size)
 
     private def rthis(): Value = Reference(this)
 
-    private lazy val makerAndType: (Value, Value) = ClosureGraph.makerAndType(nodes, vs => Make(vs), rthis())
+    private lazy val makerAndType: (Value, Value) = ClosureGraph.makerAndType(nodes, ims, vs => Make(vs), rthis())
     lazy val maker: Value = makerAndType._1
     lazy val makerType: Value = makerAndType._2
 
@@ -700,13 +700,13 @@ object Value {
   case class Construct(name: Int, vs: Seq[Value]) extends HeadCanonical
   // TODO sum should have a type, it can be indexed, so a pi type ends with type_i
   // TODO should have a field: recursive, and it must be recursive, also in case of indexed, use Constructor instead of value
-  case class Constructor(name: Name, nodes: ClosureGraph) {
+  case class Constructor(name: Name, ims: Seq[Boolean], nodes: ClosureGraph) {
     private[Value] var _sum: Sum = _
     private def rthis(): Value = Reference(_sum)
 
     private def index = _sum.constructors.indexWhere(_.eq(this))
 
-    private lazy val makerAndType: (Value, Value) = ClosureGraph.makerAndType(nodes, vs => Construct(index, vs), rthis())
+    private lazy val makerAndType: (Value, Value) = ClosureGraph.makerAndType(nodes, ims, vs => Construct(index, vs), rthis())
     lazy val maker: Value = makerAndType._1
     lazy val makerType: Value = makerAndType._2
   }
@@ -759,12 +759,12 @@ object Value {
       case Restricted(a, fs) =>
         fs.foldLeft(infer(a)) { (t, r) => t.restrict(r) }
       case Universe(level) => Universe.up(level)
-      case Function(domain, codomain) =>
+      case Function(domain, _, codomain) =>
         (infer(domain), infer(codomain(Generic(vgen(), domain)))) match {
           case (Universe(l1), Universe(l2)) => Universe(l1 max l2)
           case _ => logicError()
         }
-      case Record(level, _ , _) =>
+      case Record(level, _ , _, _) =>
         Universe(level)
       case Sum(level, _) =>
         Universe(level)
@@ -772,7 +772,7 @@ object Value {
         infer(typ.apply(Dimension.Generic(vdgen())))
       case App(l1, a1) =>
         infer(l1).whnf match {
-          case Function(_, c) =>
+          case Function(_, _, c) =>
             c(a1)
           case _ => logicError()
         }

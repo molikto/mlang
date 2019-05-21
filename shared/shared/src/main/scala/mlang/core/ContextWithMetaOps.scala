@@ -34,14 +34,14 @@ trait ContextWithMetaOps extends Context {
     Abstract.MetaReference(0, index)
   }
 
-  protected def newMeta(typ: Value): Abstract.MetaReference = {
+  protected def newMeta(typ: Value): (Value.Meta, Abstract.MetaReference) = {
     val id = mgen()
     val v = Value.Meta(Value.Meta.Open(id, typ))
     val ms = layers.head.metas
     if (ms.debug_final) logicError()
     val index = ms.size
     ms.append(v)
-    Abstract.MetaReference(0, index)
+    (v, Abstract.MetaReference(0, index))
   }
 
   protected def rebindMeta(meta: Value.Meta): Abstract.MetaReference = {

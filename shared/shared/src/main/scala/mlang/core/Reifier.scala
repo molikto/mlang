@@ -80,12 +80,12 @@ private trait ReifierContext extends ReifierCommon with ContextBuilder {
     v match {
       case Value.Universe(level) =>
         Universe(level)
-      case Value.Function(domain, codomain) =>
-        Function(reify(domain), reify(codomain))
-      case Value.Record(level, names, nodes) =>
-        Record(level, names, reify(nodes))
+      case Value.Function(domain, i, codomain) =>
+        Function(reify(domain), i, reify(codomain))
+      case Value.Record(level, names, is, nodes) =>
+        Record(level, names, is, reify(nodes))
       case Value.Sum(level, constructors) =>
-        Sum(level, constructors.map(c => Constructor(c.name, reify(c.nodes))))
+        Sum(level, constructors.map(c => Constructor(c.name, c.ims, reify(c.nodes))))
       case Value.PathType(ty, left, right) =>
         PathType(reify(ty), reify(left), reify(right))
       case Value.Make(_) =>

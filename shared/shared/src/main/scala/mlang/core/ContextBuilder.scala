@@ -192,9 +192,9 @@ trait ContextBuilder extends ContextWithMetaOps {
           ret
         case Patt.Group(maps) =>
           t.whnf match {
-            case Value.Record(_, _, nodes) =>
-              if (maps.size == nodes.size) {
-                val vs = recs(maps, nodes)
+            case r: Value.Record =>
+              if (maps.size == r.nodes.size) {
+                val vs = recs(maps, r.nodes)
                 (Value.Make(vs.map(_._1)), Pattern.Make(vs.map(_._2)))
               } else {
                 throw PatternExtractException.MakeWrongSize()

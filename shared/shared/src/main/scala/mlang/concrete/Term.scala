@@ -5,17 +5,17 @@ import mlang.name._
 
 sealed trait Term
 
-case class NameType(names: Seq[Name], ty: Term)
+case class NameType(names: Seq[(Boolean, Name)], ty: Term)
 
 object NameType {
-  type Flat = (Name, Term)
+  type Flat = (Boolean, Name, Term)
   type FlatSeq = Seq[Flat]
 
   def flatten(names: Seq[NameType]): NameType.FlatSeq = names.flatMap(n => {
     if (n.names.isEmpty) {
-      Seq((Name.empty, n.ty))
+      Seq((false, Name.empty, n.ty))
     } else {
-      n.names.map(m => (m, n.ty))
+      n.names.map(m => (m._1, m._2, n.ty))
     }
   })
 }
@@ -39,14 +39,14 @@ object Term {
   case class Constructor(name: Name, term: Seq[NameType])
   case class Sum(constructors: Seq[Constructor]) extends Term with Block
 
-  case class App(left: Term, right: Seq[Term]) extends Term
+  case class App(left: Term, right: Seq[(Boolean, Term)]) extends Term
 
   case class Projection(left: Term, right: Ref) extends Term
 
 
   case class Case(pattern: Pattern, body: Term)
-  case class PatternLambda(branches: Seq[Case]) extends Term
-  case class Lambda(name: Name, body: Term) extends Term
+  case class PatternLambda(implt: Boolean, branches: Seq[Case]) extends Term
+  case class Lambda(name: Name, imps: Boolean, body: Term) extends Term
 
   // TODO can you define a macro in a abstracted context?
   case class Let(declarations: Seq[Declaration], in: Term) extends Term with Block

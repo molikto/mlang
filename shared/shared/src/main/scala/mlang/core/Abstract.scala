@@ -20,10 +20,10 @@ sealed trait Abstract {
     //case MetaReference(up, index) => Set.empty
     case Reference(up, index) => if (i == up) Set(Dependency(index, false)) else Set.empty
     case MetaReference(up, index) => if (i == up) Set(Dependency(index, true)) else Set.empty
-    case Function(domain, codomain) => domain.dependencies(i) ++ codomain.dependencies(i)
+    case Function(domain, _, codomain) => domain.dependencies(i) ++ codomain.dependencies(i)
     case Lambda(closure) => closure.dependencies(i)
     case App(left, right) => left.dependencies(i) ++ right.dependencies(i)
-    case Record(_, _, nodes) => nodes.flatMap(_._2.dependencies(i)).toSet
+    case Record(_, _, _, nodes) => nodes.flatMap(_._2.dependencies(i)).toSet
     case Projection(left, _) => left.dependencies(i)
     case Sum(_, constructors) => constructors.flatMap(_.params.flatMap(_._2.dependencies(i))).toSet
     case Maker(sum, _) => sum.dependencies(i)
@@ -69,17 +69,17 @@ object Abstract {
 
   case class MetaReference(up: Int, index: Int) extends Abstract
 
-  case class Function(domain: Abstract, codomain: Closure) extends Abstract
+  case class Function(domain: Abstract, impict: Boolean, codomain: Closure) extends Abstract
 
   case class Lambda(closure: Closure) extends Abstract
 
   case class App(left: Abstract, right: Abstract) extends Abstract
 
-  case class Record(level: Int, names: Seq[Name], graph: ClosureGraph) extends Abstract
+  case class Record(level: Int, names: Seq[Name], implicits: Seq[Boolean], graph: ClosureGraph) extends Abstract
 
   case class Projection(left: Abstract, field: Int) extends Abstract
 
-  case class Constructor(name: Name, params: ClosureGraph)
+  case class Constructor(name: Name, implicits: Seq[Boolean], params: ClosureGraph)
 
   case class Sum(level: Int, constructors: Seq[Constructor]) extends Abstract
 
