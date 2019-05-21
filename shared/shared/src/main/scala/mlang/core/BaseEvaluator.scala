@@ -61,6 +61,7 @@ trait BaseEvaluator extends Context {
     Benchmark.Eval {
       term match {
         case Abstract.Reference(up, index) => getReference(up, index)
+        case Abstract.MetaReference(up, index) => getMetaReference(up, index)
         case Abstract.Universe(i) => Value.Universe(i)
         case _ =>
           val ret = platformEval(term)
