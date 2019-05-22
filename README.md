@@ -49,7 +49,7 @@
     
 ## help wanted
 
-here are some issues that are easy to do, and they are a good way to familiarize yourself with the project, they are marked with `help_wanted` in issues list, and in the code, search for `[issue 123]` where `123` is the issue number will lead you to where need to be modified.
+here are some issues that are easy to do, and they are a good way to familiarize yourself with the project, they are marked with `good first issue` in issues list, and in the code, search for `[issue 123]` where `123` is the issue number will lead you to where need to be modified.
     
 there are other kind of TODOs in the project, they are `LATER`, `TODO`, and `FIXME`, use IntelliJ IDEA to browse them.
 
