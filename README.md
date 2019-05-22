@@ -45,6 +45,22 @@
         * modules and compile unit
     * universe polymorphism: do we want Agda style (no cumulative), or redtt style, or Coq style?
     * coinductive types
+    * misc
+        * translate to Agda to do correctness checking
+    * math
+        * quick sort and properties
+        * symmetry book
+        * cubical Agda
+        * Agda stdlib
+        * Artin's or Lang's *Algebra*
+        * Agda's test cases and it's issues
+        * https://ncatlab.org/homotopytypetheory/show/open+problems#higher_algebra_and_higher_category_theory
+            * seems interesting: limits problem?
+        * https://github.com/HoTT/HoTT
+        * unimath
+        * the big problems list
+        * Agda Katas
+
     
     
 ## help wanted
@@ -168,20 +184,4 @@ we use the most simple meta solving algorithm, no constraint etc.
 
 ## math
 
-* quick sort and properties
-* symmetry book
-* cubical Agda
-* Agda stdlib
-* Artin's or Lang's *Algebra*
-* Agda's test cases and it's issues
-* https://ncatlab.org/homotopytypetheory/show/open+problems#higher_algebra_and_higher_category_theory
-    * seems interesting: limits problem?
-* https://github.com/HoTT/HoTT
-* unimath
-* the big problems list
-* Agda Katas
 
-
-## misc
-
-* translate to Agda to do correctness checking
