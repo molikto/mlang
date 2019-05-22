@@ -1,0 +1,15 @@
+
+
+
+
+define some_test2 = run { // these also passes in Agda
+  define test: type ⇒ type = a → a
+
+  declare test2: type
+
+  define test3: test(test2) ≡ type = refl
+
+  define test2 = type
+
+  test2
+}

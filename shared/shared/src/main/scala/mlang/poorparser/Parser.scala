@@ -1,6 +1,8 @@
 package mlang.poorparser
 
 
+import java.io.File
+
 import mlang.name._
 
 import scala.util.parsing.combinator.syntactical.StandardTokenParsers
@@ -174,8 +176,21 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
       Sum(a.flatten)
     }
 
-
-  def parse(a: String): ParseResult[Module] = Benchmark.Parsing {
+  def parse(a: String) = Benchmark.Parsing {
     (rep(declaration) ^^ { a=> Module(a) })(new PackratReader(new lexical.Scanner(a)))
   }
+
+  def parseOrThrow(a: String): Module = parse(a) match {
+    case Success(result, next) =>
+      if (next.atEnd) {
+        result
+      } else {
+        throw new Exception("Parse failed with last " + result.declarations.lastOption + "and remaining " + next.rest.toString)
+      }
+    case NoSuccess(msg, _) =>
+      throw new Exception(s"Parse failed with $msg")
+  }
+
+  def parseOrThrow(f: File): Module = parseOrThrow(scala.io.Source.fromFile(f).getLines().mkString("\n"))
+
 }

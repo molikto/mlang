@@ -70,7 +70,7 @@ object TypeCheckException {
 object TypeChecker {
   private val pgen = new LongGen.Positive()
   private val igen = new LongGen.Positive()
-  val empty = new TypeChecker(Seq.empty)
+  val topLevel = new TypeChecker(Seq.empty).newDefinesLayer()
 }
 
 class TypeChecker private (protected override val layers: Layers)
@@ -284,7 +284,7 @@ class TypeChecker private (protected override val layers: Layers)
         val (v1, v2) = inferApp(lt, la, arguments)
         reduceMore(v1, v2) // because inferApp stops when arguments is finished
       case Term.Let(declarations, in) =>
-        val (ctx, ms, da) = newLayerCheckDeclarations(declarations, false)
+        val (ctx, ms, da) = newDefinesLayer().checkDeclarations(declarations, false)
         val (it, ia) = ctx.infer(in)
         val ms0 = ctx.freezeReify()
         (it, Abstract.Let(ms ++ ms0, da, ia))
@@ -578,7 +578,7 @@ class TypeChecker private (protected override val layers: Layers)
                 val va = check(v, typ, Seq.empty)
                 appendMetas(freeze())
                 val ref = Value.Reference(null)
-                var ctx = newDefinitionChecked(index, name, ref)
+                val ctx = newDefinitionChecked(index, name, ref)
                 ref.value = ctx.eval(va)
                 vis(index).code = Some(CodeInfo(va, ref))
                 reevalStuff(ctx, Dependency(index, false))
@@ -602,9 +602,9 @@ class TypeChecker private (protected override val layers: Layers)
     }
   }
 
-  private def newLayerCheckDeclarations(seq: Seq[Declaration], topLevel: Boolean): (Self, Seq[Abstract], Seq[Abstract]) = {
+  private def checkDeclarations(seq: Seq[Declaration], topLevel: Boolean): (Self, Seq[Abstract], Seq[Abstract]) = {
     // how to handle mutual recursive definitions, calculate strong components
-    var ctx = newDefinesLayer()
+    var ctx = this
     val ms = mutable.ArrayBuffer.empty[CodeInfo[Value.Meta]]
     val vs = mutable.ArrayBuffer.empty[DefinitionInfo]
     for (s <- seq) {
@@ -629,17 +629,17 @@ class TypeChecker private (protected override val layers: Layers)
   }
 
 
-  def check(m: Module): Unit = Benchmark.TypeChecking {
-    newLayerCheckDeclarations(m.declarations, true)
+  def check(m: Module): TypeChecker = Benchmark.TypeChecking {
+    checkDeclarations(m.declarations, true)._1
   }
 }
 
 private case class CodeInfo[T](
-    val code: Abstract,
-    val t: T) {
+    code: Abstract,
+    t: T) {
   val dependencies = code.dependencies(0)
 }
 private case class DefinitionInfo(
     var code: Option[CodeInfo[Value.Reference]],
-    val typ: CodeInfo[Value.Generic])
+    typ: CodeInfo[Value.Generic])
 

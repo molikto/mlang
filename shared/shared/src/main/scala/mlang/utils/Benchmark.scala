@@ -15,9 +15,10 @@ object Benchmark {
 
     private def self: Long = _t - childs.map(_._t).sum
 
-    def report(indent: Int): Unit = {
+    def reportAndReset(indent: Int): Unit = {
       info(s"${(0 until (indent * 2)).map(_ => ' ').mkString("")}Phase $name self time: ${self}ms, total time ${_t}ms")
-      childs.foreach(_.report(indent + 1))
+      childs.foreach(_.reportAndReset(indent + 1))
+      _t = 0
     }
   }
 
@@ -68,7 +69,7 @@ object Benchmark {
 
   var _current: Instance = root
 
-  def report(): Unit = {
-    root.childs.foreach(_.report(0))
+  def reportAndReset(): Unit = {
+    root.childs.foreach(_.reportAndReset(0))
   }
 }
