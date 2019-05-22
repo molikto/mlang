@@ -15,13 +15,13 @@
         * **DONE** coe, com, hcom; checking, computation
         * sum type's Kan ops; fcom, higher inductive types
         * univalance
-    * **DONE** unification and implicit arguments
+    * unification and implicit arguments
+        * **DONE** locally scoped meta and very simple solving
         * user defined implicit right form
-    * more about unification and implicits
-        * is my implementation of unification correct?
+        * correctness verification of the whole stuff
            * why unification result doesn't needs to be type checked or am I wrong?
     * fix inductive definitions
-    * ~~~~~~~~~~
+    * ~~~~~~~~
     * user defined eliminations
     * implicit conversions
     * pretty printer (from readback abstract syntax)
@@ -33,12 +33,12 @@
         * non-dependent closures, can we do it so it subtypes?
     * **SOUNDNESS** positivity checker
     * **SOUNDNESS** coverage checker
+    * **SOUNDNESS** confluence checker (for overlapping patterns)
     * **SOUNDNESS** termination checking
     * more recursive types
         * inductive families of two flavor
         * inductive-inductive
         * inductive-recursive
-        * overlapping patterns
         * is [this](https://arend.readthedocs.io/en/latest/language-reference/definitions/hits/#conditions) sound?
     * better error reporting
     * structural editor
@@ -181,7 +181,4 @@ other than this, our algorithm is pretty ignorance about metas. open metas is mu
 #### meta solving
 
 we use the most simple meta solving algorithm, no constraint etc.
-
-## math
-
 

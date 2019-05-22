@@ -16,6 +16,8 @@ define inductively nat: type = sum {
   case suc(: nat)
 }
 
+define refl(#A: type, #x: A): x ≡ x = i → x
+
 define suc(a: nat): nat = nat.suc(a)
 
 define plus:
@@ -31,11 +33,27 @@ define multi:
 
 define one = nat.suc(nat.zero)
 
+define fib:
+(: nat) ⇒ nat =
+┌ zero → nat.zero
+├ suc(zero) → one
+└ suc(suc(b)) → plus(fib(nat.suc(b)), fib(b))
+
+
+
 define two = nat.suc(one)
 
 define four = plus(two, two)
 
 define eight = plus(four, four)
+
+define nine = nat.suc(eight)
+
+define ten = plus(eight, two)
+
+define thirty_four = plus(ten, plus(ten, plus(ten, four)))
+
+define fib_ten_eq: thirty_four ≡ fib(nine) = refl
 
 define sixteen = plus(eight, eight)
 
@@ -48,7 +66,6 @@ define record_of_refl = record {
 }
 
 
-define refl(#A: type, #x: A): x ≡ x = i → x
 
 
 define test_record_of_refl: eight ≡ eight = record_of_refl.make(refl(#_, #eight)).eq
