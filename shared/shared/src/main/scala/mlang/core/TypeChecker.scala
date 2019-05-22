@@ -62,6 +62,8 @@ object TypeCheckException {
   case class DimensionLambdaCannotBeImplicit() extends TypeCheckException
 
   case class NotExpectingImplicitArgument() extends TypeCheckException
+
+  case class RecursiveTypesMustBeDefinedAtTopLevel() extends TypeCheckException
 }
 
 
@@ -282,7 +284,7 @@ class TypeChecker private (protected override val layers: Layers)
         val (v1, v2) = inferApp(lt, la, arguments)
         reduceMore(v1, v2) // because inferApp stops when arguments is finished
       case Term.Let(declarations, in) =>
-        val (ctx, ms, da) = newLayerCheckDeclarations(declarations)
+        val (ctx, ms, da) = newLayerCheckDeclarations(declarations, false)
         val (it, ia) = ctx.infer(in)
         val ms0 = ctx.freezeReify()
         (it, Abstract.Let(ms ++ ms0, da, ia))
@@ -454,7 +456,7 @@ class TypeChecker private (protected override val layers: Layers)
   private def checkDeclaration(
       s: Declaration,
       mis: mutable.ArrayBuffer[CodeInfo[Value.Meta]],
-      vis: mutable.ArrayBuffer[DefinitionInfo]): Self = {
+      vis: mutable.ArrayBuffer[DefinitionInfo], topLevel: Boolean): Self = {
     def wrapBody(t: Term, imp: Seq[Boolean]): Term = if (imp.isEmpty) t else wrapBody(Term.Lambda(Name.empty, imp.last, t), imp.dropRight(1))
     def appendMetas(ms: Seq[Value.Meta]): Unit = {
       for (m <- ms) {
@@ -511,7 +513,11 @@ class TypeChecker private (protected override val layers: Layers)
         // a inductive type definition
         var inductively =
           if (ms.contains(Modifier.Inductively)) {
-            Abstract.Inductively(TypeChecker.igen())
+            if (topLevel) {
+              Abstract.Inductively(TypeChecker.igen())
+            } else {
+              throw TypeCheckException.RecursiveTypesMustBeDefinedAtTopLevel()
+            }
           } else null
         val ret = t0 match {
           case Some(t) =>
@@ -596,13 +602,13 @@ class TypeChecker private (protected override val layers: Layers)
     }
   }
 
-  private def newLayerCheckDeclarations(seq: Seq[Declaration]): (Self, Seq[Abstract], Seq[Abstract]) = {
+  private def newLayerCheckDeclarations(seq: Seq[Declaration], topLevel: Boolean): (Self, Seq[Abstract], Seq[Abstract]) = {
     // how to handle mutual recursive definitions, calculate strong components
     var ctx = newDefinesLayer()
     val ms = mutable.ArrayBuffer.empty[CodeInfo[Value.Meta]]
     val vs = mutable.ArrayBuffer.empty[DefinitionInfo]
     for (s <- seq) {
-      val ctx0 = ctx.checkDeclaration(s, ms, vs)
+      val ctx0 = ctx.checkDeclaration(s, ms, vs, topLevel)
       ctx = ctx0
     }
     if (vs.exists(a => a.code.isEmpty)) {
@@ -624,7 +630,7 @@ class TypeChecker private (protected override val layers: Layers)
 
 
   def check(m: Module): Unit = Benchmark.TypeChecking {
-    newLayerCheckDeclarations(m.declarations)
+    newLayerCheckDeclarations(m.declarations, true)
   }
 }
 

@@ -286,6 +286,12 @@ define ig = run { // "{" starts a let expression
     case one two three
   }
 
+  /* don't work because inductive definitions must be at top level
+  define inductively fin3 = sum {
+    case one two three
+  }
+  */
+
   define fin3_pair = record {
     field a b: fin3
   }
