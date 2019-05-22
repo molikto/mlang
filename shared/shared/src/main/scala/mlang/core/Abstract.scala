@@ -14,6 +14,40 @@ sealed trait Abstract {
     case _ => Set.empty[Int]
   }
 
+  def diff(depth: Int, x: Int): Abstract = this match {
+    case _: Universe => this
+    case Reference(up, index) =>
+      if (up > depth) {
+        assert(up + x >= 0)
+        Reference(up + x, index)
+      } else {
+        this
+      }
+    case MetaReference(up, index) =>
+      if (up > depth) {
+        MetaReference(up + x, index)
+      } else {
+        this
+      }
+    case Function(domain, impict, codomain) =>
+      Function(domain.diff(depth, x), impict, codomain.diff(depth, x))
+    case Lambda(closure) => Lambda(closure.diff(depth, x))
+    case App(left, right) => App(left.diff(depth, x), right.diff(depth, x))
+    case Record(level, names, implicits, graph) => Record(level, names, implicits, graph.map(a => (a._1, a._2.diff(depth, x))))
+    case Projection(left, field) => Projection(left.diff(depth, x), field)
+    case Sum(level, constructors) => Sum(level, constructors.map(c => Constructor(c.name, c.implicits, c.params.map(a => (a._1, a._2.diff(depth, x))))))
+    case Maker(sum, field) => Maker(sum.diff(depth, x), field)
+    case Let(metas, definitions, in) => Let(metas.map(_.diff(depth + 1, x)), definitions.map(_.diff(depth + 1, x)), in.diff(depth + 1, x))
+    case PatternLambda(id, typ, cases) => PatternLambda(id, typ.diff(depth, x), cases.map(a => Case(a.pattern, a.body.diff(depth + 1, x))))
+    case PathLambda(body) => PathLambda(body.diff(depth, x))
+    case PathType(typ, left, right) => PathType(typ.diff(depth, x), left.diff(depth, x), right.diff(depth, x))
+    case PathApp(let, r) => PathApp(let.diff(depth, x), r.diff(depth, x))
+    case Coe(direction, tp, base) => Coe(direction.diff(depth, x), tp.diff(depth, x), base.diff(depth, x))
+    case Hcom(direction, tp, base, faces) => Hcom(direction.diff(depth, x), tp.diff(depth, x), base.diff(depth, x), faces.map(_.diff(depth, x)))
+    case Com(direction, tp, base, faces) => Com(direction.diff(depth, x), tp.diff(depth, x), base.diff(depth, x), faces.map(_.diff(depth, x)))
+    case Restricted(term, restriction) => Restricted(term.diff(depth, x), restriction.map(_.diff(depth, x)))
+  }
+
   def dependencies(i: Int): Set[Dependency] = this match {
     case Universe(_) => Set.empty
     //case Reference(up, index) => if (i == up) Set(index) else Set.empty
@@ -53,12 +87,18 @@ object Abstract {
   }
 
   case class Closure(metas: Seq[Abstract], term: Abstract) extends ClosureT {
-
+    def diff(depth: Int, x: Int): Closure = Closure(metas.map(_.diff(depth + 1, x)), term.diff(depth + 1, x))
   }
 
-  case class AbsClosure(metas: Seq[Abstract], term: Abstract) extends ClosureT
-  case class MultiClosure(metas: Seq[Abstract], term: Abstract) extends ClosureT
-  case class MetaEnclosed(metas: Seq[Abstract], term: Abstract) extends MetaEnclosedT // used by closure graph
+  case class AbsClosure(metas: Seq[Abstract], term: Abstract) extends ClosureT {
+    def diff(depth: Int, x: Int): AbsClosure = AbsClosure(metas.map(_.diff(depth + 1, x)), term.diff(depth + 1, x))
+  }
+  case class MultiClosure(metas: Seq[Abstract], term: Abstract) extends ClosureT {
+    def diff(depth: Int, x: Int): MultiClosure = MultiClosure(metas.map(_.diff(depth + 1, x)), term.diff(depth + 1, x))
+  }
+  case class MetaEnclosed(metas: Seq[Abstract], term: Abstract) extends MetaEnclosedT {
+    def diff(depth: Int, x: Int): MetaEnclosed = MetaEnclosed(metas.map(_.diff(depth + 1, x)), term.diff(depth + 1, x))
+  }
 
 
   type ClosureGraph = Seq[(Seq[Int], MetaEnclosed)]
@@ -104,12 +144,33 @@ object Abstract {
 
   // restriction doesn't take binding, but they have a level non-the-less
   case class Face(pair: DimensionPair, body: AbsClosure) {
+    def diff(depth: Int, x: Int): Face = Face(pair.diff(depth, x), body.diff(depth, x))
+
     def dependencies(i: Int): Set[Dependency] = body.dependencies(i + 1)
   }
 
-  case class DimensionPair(from: Dimension, to: Dimension)
+  case class DimensionPair(from: Dimension, to: Dimension) {
+    def diff(depth: Int, x: Int): DimensionPair = DimensionPair(from.diff(depth, x), to.diff(depth, x))
 
-  sealed trait Dimension
+  }
+
+  sealed trait Dimension {
+    def diff(depth: Int, x: Int): Abstract.Dimension = {
+      this match {
+        case Dimension.Reference(up) =>
+          if (up > depth) {
+            Dimension.Reference(up + x)
+          } else {
+            this
+          }
+        case Dimension.Restricted(a, restriction) =>
+          Dimension.Restricted(a.diff(depth, x), restriction.map(_.diff(depth, x)))
+        case _ => this
+      }
+    }
+
+  }
+
   object Dimension {
     case class Reference(up: Int) extends Dimension
     case object True extends Dimension

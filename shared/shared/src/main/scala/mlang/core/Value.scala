@@ -23,7 +23,7 @@ sealed trait Value {
 
   def restrict(a: Seq[DimensionPair]): Value = a.foldLeft(this) {(t, v) => t.restrict(v) }
 
-  // TODO how does it interact with recursive references?
+  // FIXME how does it interact with recursive references?
   def restrict(lv: DimensionPair): Value =  this match {
     case u: Universe => u
     case Function(domain, im, codomain) =>

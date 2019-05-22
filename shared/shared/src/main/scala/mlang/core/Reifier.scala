@@ -98,7 +98,8 @@ private trait ReifierContext extends ContextBuilder {
             rebindMetaOpt(m) match {
               case Some(k) => k
               case None =>
-                // TODO add to the level where it can be defined with minimal dependency
+                // TODO [issue 2] add to the level where it can be defined with minimal dependency
+                // find proper level, and use `Abstract.diff` to correct the dbi
                 metas.append(reify(c))
                 solvedMeta(m)
             }
@@ -188,9 +189,7 @@ private class ReifierContextBase(layersBefore: Context.Layers) extends ReifierCo
       Let(ms, abs, Reference(0, data.find(_._2.isEmpty).get._1))
     } else {
       if (ms.isEmpty && abs.isEmpty) {
-        // TODO move body up so save some code
-        // body.diff(-1)
-        Let(ms, abs, body)
+        body.diff(0, -1)
       } else {
         Let(ms, abs, body)
       }

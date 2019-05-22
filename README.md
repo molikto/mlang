@@ -3,12 +3,6 @@
 
 [![Join the chat at https://gitter.im/mlang-discuess/community](https://badges.gitter.im/mlang-discuess/community.svg)](https://gitter.im/mlang-discuess/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
-* next... NOW!
-    * is my implementation of unification correct?
-       * why unification result doesn't needs to be type checked or am I wrong?
-    * fix the problem of reading back inductive definitions: they rarely do the thing you want. so maybe only allow inductive at top level
-    * understand how the more complicated part of a cubical theory implemented
-    
 * roadmap
     * **DONE** totally unsafe MLTT basics
         * function types with eta, record types with eta, inductive types (structural)
@@ -19,11 +13,14 @@
     * cubical features
         * **DONE** path type
         * **DONE** coe, com, hcom; checking, computation
-        * extension type?
         * sum type's Kan ops; fcom, higher inductive types
         * univalance
     * **DONE** unification and implicit arguments
         * user defined implicit right form
+    * more about unification and implicits
+        * is my implementation of unification correct?
+           * why unification result doesn't needs to be type checked or am I wrong?
+    * fix inductive definitions
     * ~~~~~~~~~~
     * user defined eliminations
     * implicit conversions
@@ -50,6 +47,11 @@
     * coinductive types
     
     
+## help wanted
+
+here are some issues that are easy to do, and they are a good way to familiarize yourself with the project, they are marked with `help_wanted` in issues list, and in the code, search for `[issue 123]` where `123` is the issue number will lead you to where need to be modified.
+    
+there are other kind of TODOs in the project, they are `LATER`, `TODO`, and `FIXME`, use IntelliJ IDEA to browse them.
 
 ## internals
 
@@ -79,13 +81,7 @@
 
 our value is untyped, higher order abstract syntax
 
-we represent recursive references directly by recursive data structure
-
-because recursive definitions is always terminating, this means all recursive references is guarded. this allows us to directly model recursive reference in a direct way (model recursive references as recursive references in host language, or, hoas for recursive references)
-
-this means non-guarded recursive references will be rejected by evaluator, which is a acceptable minor detail
-
-a recursive type like `nat` is ok because we consider the record and constructor fields all as guarded by a "multi closure", or a closure with a list of values
+we represent recursive references directly by recursive data structure, with a trick of mutation and nulls
 
 unlike normalization by evaluation, redux (application, projection, cubical hcom etc.) etc is translated to stuck values. this is because elaborator needs to fill holes by reify from value, and directly normalizing all redux (out side of a closure) will make the term very big
 
@@ -103,8 +99,7 @@ this class is just dbi core term, it exists is because hoas is not composable, y
 
 the conversion from `Abstract` to `Value` is called `eval`, we have currently a compiler by using the Scala compiler directly
 
-abstract and values is "type free", let expressions don't have types, etc. the context will have the types when needed. this is natural in a type directed way. also it allows syntaxial analysis of dependencies. but it do makes pretty printing complicated?
-
+abstract and values is "type free", let expressions don't have types, etc. the context will have the types when needed. this is natural in a type directed way
 
 I think one thing can be done on Abstract is common expression reduction.
 
@@ -127,6 +122,8 @@ the conversion checking handles recursive definitions by memorizing equalities b
 
 something similar should be possible with recursive type definitions, in this case, we should treat the recursive references as "open" and do caching
 
+at least we want to be semi-decidable, this allows more equality to be checked.
+
 
 ### kan types
 
@@ -134,44 +131,40 @@ context restrictions is done by quoting any **reference** not defined in the res
 
 we have `hcom`, `coe` as eliminations, in a normalized closed value, they should not appear. they interact with restrictions, just like a path lambda interact with dimensions, then they are inductively defined on all type formers
 
+restriction will not reduce on any kind of reference, they are forced by whnf.
+
 
 ### meta variables
+
+#### local representation
 
 conceptually, implicit variables and meta variables are *just* (abstract in the sense before) terms that omitted and can be inferred from other part of the term.
 
 in this sense, each new scoping have a list of definitions like a let expression. and in abstract code, each closure do have a list of meta values, and each usage is also a closed meta reference to them.
 
+for closure, let expression and telescopes in record and sum type, we have 3 different way of representing them in abstract world
 
-so each meta has a scope, in the case of inside a closure, it is simple. instantiating a closure will give values to metas of that scope. 
+we don't explicitly present metas in value world, like we have direct references in value world. it can still be reified, just read it in current closure
 
-leaving a scope will make sure all metas inside is solved, and the code is returned.
+#### context representation
 
-so this way reify will always readback open metas in current context, or closed metas.
+we make sure all meta is solved when a context is closed, this way the solved meta can generate abstract properly. see `finishReify` usages
 
-in case of closed metas not yet present, 
+#### mutable metas
 
-#### harder part: let and record expressions
+having mutable metas and mutable context means our values is mutable. meta solving will mutate the context and the value world.
 
-for let expressions, we can assume let expression introduce a single meta scope, and each new definition / declare will freeze the metas.
+also adding a new meta will mutate the context. 
 
+this means: unification and type checking is side-effecting. this means one need to be careful when writing these code.
 
-for record and constructor parameters it is harder
+also this means whnf is not stable in some cases (open meta headed ones). so we don't remember unstable ones
 
+other than this, our algorithm is pretty ignorance about metas. open metas is much like a generic variable, closed metas is much like a reference, when evaluation on them doesn't work, we just stuck, when unification doesn't work, just return false. what can be wrong with this? (funny face)
 
+#### meta solving
 
-### implicit on the right
-
-problems:
-
-* special handle for `refl`
-* how to define `reverse`?
-    * type predicate `project list(/a/).reverse = `
-    * value predicate
-    * `\a\≡_{x ⇒ \A[x]\}\b\.reverse = `
-cong: `f: /A/ ⇒ /B[A]/, p: /x/ ≡_A /y/, f(x) ≡B(p) f(y)`
-* how to make inductive type parameters injective?
-
-we lost the ability to infer type `a: (x) ⇒ f(x) ≡ g(x)` by application
+we use the most simple meta solving algorithm, no constraint etc.
 
 ## math
 

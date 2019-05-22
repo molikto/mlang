@@ -97,7 +97,7 @@ class TypeChecker private (protected override val layers: Layers)
         throw TypeCheckException.RemoveFalseFace()
       } else {
         val ctx0 = newRestrictionLayer(dav)
-        val (ctx, fd) = ctx0.newDimensionLayer(ident, Some(dim0.id))
+        val (ctx, fd) = ctx0.newDimensionLayer(ident, Some(dim0))
         val btr = bt(fd).restrict(dav)
         val na = Abstract.AbsClosure(ctx.finishReify(), ctx.check(a.term, btr))
         val naa = ctx0.eval(na)

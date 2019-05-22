@@ -82,8 +82,8 @@ object Layer {
   }
 
   case class Defines(metas: Metas, terms: Seq[DefineItem]) extends Layer // notice the metas is FIRST!!
-  case class Dimension(id: Long, name: Name, metas: Metas) extends Layer {
-    val value = Value.Dimension.Generic(id)
+  case class Dimension(value: Value.Dimension.Generic, name: Name, metas: Metas) extends Layer {
+    def id = value.id
   }
   case class Restriction(res: Value.DimensionPair, metas: Metas) extends Layer // no meta should be resolved here
 }

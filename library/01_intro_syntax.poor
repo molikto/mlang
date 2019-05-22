@@ -13,7 +13,7 @@
 
 define inductively nat: type = sum {
   case zero
-  case suc(:nat)
+  case suc(: nat)
 }
 
 define suc(a: nat): nat = nat.suc(a)
