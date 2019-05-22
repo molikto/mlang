@@ -45,9 +45,6 @@ trait Unify extends Reifier with BaseEvaluator with PlatformEvaluator {
   // FIXME this is potentially non-terminating now, if the domain/codomain changes each time, this can happens for indexed types I think
   private val patternAssumptions = mutable.ArrayBuffer[Assumption]()
 
-  // FIXME handle parameterized recursively defined ones, we should only allow them in top level, and make recursive reference non-reducible?
-  private val typeAssumptions = mutable.ArrayBuffer[(Value, Value)]()
-
   private def sameTypePatternLambdaWithAssumptions(domain: Value, l1: PatternLambda, l2: PatternLambda): Boolean = {
     if (l1.id == l2.id) {
       true
@@ -133,10 +130,7 @@ trait Unify extends Reifier with BaseEvaluator with PlatformEvaluator {
   private def recType(tm1: Value, tm2: Value): Boolean = {
     if (tm1.eq(tm2)) {
       true
-    } else if (typeAssumptions.exists(a => a._1.eq(tm1) && a._2.eq(tm2))) { // recursive defined sum and record
-      true
     } else {
-      typeAssumptions.append((tm1, tm2))
       (tm1.whnf, tm2.whnf) match {
         case (Function(d1, i1, c1), Function(d2, i2, c2)) =>
           recType(d1, d2) && i1 == i2 && recTypeClosure(d1, c1, c2)
