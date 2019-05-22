@@ -60,6 +60,7 @@ trait ContextWithMetaOps extends Context {
   protected def rebindOrAddMeta(meta: Value.Meta): Abstract.MetaReference = {
     val ret = rebindMeta0(meta)
     if (ret == null) solvedMeta(meta)
+    else ret
   }
 
   private def rebindMeta0(meta: Value.Meta): Abstract.MetaReference = {
