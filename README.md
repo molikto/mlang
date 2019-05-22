@@ -19,6 +19,8 @@ the project can be imported into IntelliJ IDEA, and to run/debug, just setup a p
 ## help wanted
 
 here are some issues that are easy to do, and they are a good way to familiarize yourself with the project, they are marked with `good first issue` in issues list, and in the code, search for `[issue 123]` where `123` is the issue number will lead you to where need to be modified.
+
+if you need more background on a issue, plz go to gitter and just ask.
     
 there are other kind of TODOs in the project, they are `LATER`, `TODO`, and `FIXME`, use IntelliJ IDEA to browse them.
 
