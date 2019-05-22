@@ -671,7 +671,6 @@ object Value {
     def restrict(lv: DimensionPair): Inductively = this
   }
 
-  // TODO should have a field: recursive, and it must be recursive, the will not be able to calculus
   case class Record(
       level: Int,
       inductively: Option[Inductively],
@@ -710,7 +709,6 @@ object Value {
 
   case class Construct(name: Int, vs: Seq[Value]) extends HeadCanonical
   // TODO sum should have a type, it can be indexed, so a pi type ends with type_i
-  // TODO should have a field: recursive, and it must be recursive, also in case of indexed, use Constructor instead of value
   case class Constructor(name: Name, ims: Seq[Boolean], nodes: ClosureGraph) {
     private[Value] var _sum: Sum = _
     private def rthis(): Value = Reference(_sum)
