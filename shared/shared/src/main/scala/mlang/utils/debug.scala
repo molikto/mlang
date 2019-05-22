@@ -8,3 +8,5 @@ class Printer(val prefix: String, val threshold: Int, val level: Int) {
 object debug extends Printer("debug", 1, 0)
 
 object info extends Printer("info",0, 0)
+
+object warn extends Printer("warn", 0, 0)

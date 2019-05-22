@@ -117,6 +117,19 @@ trait Unify extends Reifier with BaseEvaluator with PlatformEvaluator {
   }
 
 
+  def recInd(dd1: Inductively, dd2: Inductively): Boolean = dd1.id == dd2.id
+
+  @inline def maybeNominal(id1: Option[Inductively], id2: Option[Inductively], el: => Boolean): Boolean = {
+    (id1, id2) match {
+      case (None, None) =>
+        // structural
+        el
+      case (Some(dd1), Some(dd2)) => recInd(dd1, dd2) // nominal
+      case _ => false
+    }
+
+  }
+
   private def recType(tm1: Value, tm2: Value): Boolean = {
     if (tm1.eq(tm2)) {
       true
@@ -129,10 +142,10 @@ trait Unify extends Reifier with BaseEvaluator with PlatformEvaluator {
           recType(d1, d2) && i1 == i2 && recTypeClosure(d1, c1, c2)
         case (Universe(l1), Universe(l2)) =>
           l1 == l2
-        case (Record(l1, m1, i1, n1), Record(l2, m2, i2, n2)) =>
-          l1 == l2 && m1 == m2 && i1 == i2 && recClosureGraph(n1, n2)
-        case (Sum(l1, c1), Sum(l2, c2)) =>
-          l1 == l2 && c1.size == c2.size && c1.zip(c2).forall(p => recConstructor(p._1, p._2))
+        case (Record(l1, id1, m1, i1, n1), Record(l2, id2, m2, i2, n2)) =>
+          maybeNominal(id1, id2, l1 == l2 && m1 == m2 && i1 == i2 && recClosureGraph(n1, n2))
+        case (Sum(l1, id1, c1), Sum(l2, id2, c2)) =>
+          maybeNominal(id1, id2, l1 == l2 && c1.size == c2.size && c1.zip(c2).forall(p => recConstructor(p._1, p._2)))
         case (PathType(t1, l1, r1), PathType(t2, l2, r2)) =>
           recTypeAbsClosure(t1, t2) &&
               recTerm(t1(Dimension.False), l1, l2) &&
@@ -321,10 +334,10 @@ trait Unify extends Reifier with BaseEvaluator with PlatformEvaluator {
         case (PathType(ty, _, _), s1, s2) =>
           val c = Dimension.Generic(dgen())
           recTerm(ty(c), papp(s1, c), papp(s2, c))
-        case (Record(_, _, _, ns), m1, m2) =>
-          recTerms(ns, i => project(m1, i), i => project(m2, i))
-        case (Sum(_, cs), Construct(n1, v1), Construct(n2, v2)) =>
-          n1 == n2 && { val c = cs(n1) ;
+        case (r: Record, m1, m2) =>
+          recTerms(r.nodes, i => project(m1, i), i => project(m2, i))
+        case (s: Sum, Construct(n1, v1), Construct(n2, v2)) =>
+          n1 == n2 && { val c = s.constructors(n1) ;
             assert(c.nodes.size == v1.size && v2.size == v1.size)
             recTerms(c.nodes, v1, v2)
           }
@@ -374,8 +387,8 @@ trait Unify extends Reifier with BaseEvaluator with PlatformEvaluator {
           }
         case Pattern.Construct(name, maps) =>
           t.whnf match {
-            case Sum(_, cs) =>
-              val c = cs(name)
+            case sum: Sum =>
+              val c = sum.constructors(name)
               if (c.nodes.size == maps.size) {
                 Construct(name, recs(maps, c.nodes))
               } else {

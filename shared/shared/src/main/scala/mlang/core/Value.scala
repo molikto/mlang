@@ -28,14 +28,14 @@ sealed trait Value {
     case u: Universe => u
     case Function(domain, im, codomain) =>
       Function(domain.restrict(lv), im, codomain.restrict(lv))
-    case Record(level, ms, ns, nodes) =>
-      Record(level, ms, ns, ClosureGraph.restrict(nodes, lv))
+    case Record(level, inductively, ms, ns, nodes) =>
+      Record(level, inductively.map(_.restrict(lv)), ms, ns, ClosureGraph.restrict(nodes, lv))
     case Make(values) =>
       Make(values.map(_.restrict(lv)))
     case Construct(name, vs) =>
       Construct(name, vs.map(_.restrict(lv)))
-    case Sum(level, constructors) =>
-      Sum(level, constructors.map(n => Constructor(n.name, n.ims, ClosureGraph.restrict(n.nodes, lv))))
+    case Sum(level, inductively, constructors) =>
+      Sum(level, inductively.map(_.restrict(lv)), constructors.map(n => Constructor(n.name, n.ims, ClosureGraph.restrict(n.nodes, lv))))
     case Lambda(closure) =>
       Lambda(closure.restrict(lv))
     case PatternLambda(id, typ, cases) =>
@@ -380,7 +380,8 @@ object Value {
               typ.mapd((f, d) => func(f).codomain(Coe(DimensionPair(pair.to, d), typ.map(a => func(a).domain), a))),
               app_)
           })))
-        case Record(_, _, _, graph) =>
+        case r: Record =>
+          val graph = r.nodes
           if (graph.isEmpty) {
             returns(base)
           } else {
@@ -426,7 +427,7 @@ object Value {
                 { val dp = DimensionPair(dim, Dimension.False); Face(dp, typ.map(a => pah(a).left.restrict(dp))) }
               ))
           })))
-        case Sum(l, c) =>
+        case Sum(l, inductively, c) =>
           ???
         case _ =>
           Coe(pair, typ, base)
@@ -456,7 +457,8 @@ object Value {
             case Function(_, _, codomain) => returns(Lambda(Value.Closure(a =>
               Hcom(pair, codomain(a), App(base, a), rs.map(n => Face(n.restriction, n.body.map(j => App(j, a)))))
             )))
-            case Record(_, _, _, graph) =>
+            case r: Record =>
+              val graph = r.nodes
               if (graph.isEmpty) {
                 returns(base)
               } else {
@@ -500,7 +502,7 @@ object Value {
                     { val dp = DimensionPair(dim, Dimension.False); Face(dp, AbsClosure(left.restrict(dp))) },
                   ) ++ rs.map(n => Face(n.restriction, n.body.map(j => PathApp(j, dim)))))
               })))
-            case Sum(l, c) =>
+            case Sum(l, inductively, c) =>
               ???
             case _ =>
               Hcom(pair, typ, base, rs)
@@ -665,8 +667,17 @@ object Value {
   case class Function(domain: Value, impict: Boolean, codomain: Closure) extends HeadCanonical
   case class App(lambda: StuckPos, argument: Value) extends Stuck
 
+  case class Inductively(id: Long) {
+    def restrict(lv: DimensionPair): Inductively = this
+  }
+
   // TODO should have a field: recursive, and it must be recursive, the will not be able to calculus
-  case class Record(level: Int, names: Seq[Name], ims: Seq[Boolean], nodes: ClosureGraph) extends HeadCanonical {
+  case class Record(
+      level: Int,
+      inductively: Option[Inductively],
+      names: Seq[Name],
+      ims: Seq[Boolean],
+      nodes: ClosureGraph) extends HeadCanonical {
     assert(names.size == nodes.size)
 
     private def rthis(): Value = Reference(this)
@@ -711,7 +722,11 @@ object Value {
     lazy val makerType: Value = makerAndType._2
   }
 
-  case class Sum(level: Int, constructors: Seq[Constructor]) extends HeadCanonical {
+
+  case class Sum(
+      level: Int,
+      inductively: Option[Inductively],
+      constructors: Seq[Constructor]) extends HeadCanonical {
     for (c <- constructors) {
       c._sum = this
     }
@@ -764,10 +779,10 @@ object Value {
           case (Universe(l1), Universe(l2)) => Universe(l1 max l2)
           case _ => logicError()
         }
-      case Record(level, _ , _, _) =>
-        Universe(level)
-      case Sum(level, _) =>
-        Universe(level)
+      case r: Record =>
+        Universe(r.level)
+      case s: Sum =>
+        Universe(s.level)
       case PathType(typ, _, _) =>
         infer(typ.apply(Dimension.Generic(vdgen())))
       case App(l1, a1) =>

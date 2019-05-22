@@ -16,7 +16,27 @@ define inductively nat: type = sum {
   case suc(: nat)
 }
 
+define inductively nat2: type = sum {
+  case zero
+  case suc(: nat)
+}
+
+
 define refl(#A: type, #x: A): x ≡ x = i → x
+
+// this fails because we have nominal equality for recursive types!
+// define fails: nat ≡ nat2 = refl
+
+define flat: type = sum {
+   case true false
+}
+
+define flat2: type = sum {
+   case true false
+}
+
+// non-recursive record and sum has structural equality, their case/field name/order needs to be exactly the same
+define flat_is_ok: flat ≡ flat2 = refl
 
 define suc(a: nat): nat = nat.suc(a)
 
@@ -289,9 +309,4 @@ define ig = run { // "{" starts a let expression
 }
 
 define ignored_again = ig(fin3_copy.one, fin3_copy.one, fin3_copy.three)
-
-define list(a: type): type = sum {
-  case nil
-  case cons(:a, :list(a))
-}
 

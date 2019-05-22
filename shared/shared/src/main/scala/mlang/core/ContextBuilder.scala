@@ -179,7 +179,7 @@ trait ContextBuilder extends ContextWithMetaOps {
           name.asRef match {
             case Some(ref) =>
               t.whnf match {
-                case Value.Sum(_, cs) if { indexaa = cs.indexWhere(c => c.name.by(ref) && c.nodes.isEmpty); indexaa >= 0 } =>
+                case sum: Value.Sum if { indexaa = sum.constructors.indexWhere(c => c.name.by(ref) && c.nodes.isEmpty); indexaa >= 0 } =>
                   ret = (Value.Construct(indexaa, Seq.empty), Pattern.Construct(indexaa, Seq.empty))
                 case _ =>
               }
@@ -204,10 +204,10 @@ trait ContextBuilder extends ContextWithMetaOps {
           }
         case Patt.NamedGroup(name, maps) =>
           t.whnf match {
-            case Value.Sum(_, cs) =>
-              val index = cs.indexWhere(_.name.by(name))
+            case sum: Value.Sum =>
+              val index = sum.constructors.indexWhere(_.name.by(name))
               if (index >= 0) {
-                val c = cs(index)
+                val c = sum.constructors(index)
                 if (c.nodes.size == maps.size) {
                   val vs = recs(maps, c.nodes)
                   (Value.Construct(index, vs.map(_._1)), Pattern.Construct(index, vs.map(_._2)))

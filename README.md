@@ -31,7 +31,6 @@ there are other kind of TODOs in the project, they are `LATER`, `TODO`, and `FIX
     * **DONE** locally scoped meta and very simple solving
     * correctness verification of the whole stuff
        * why unification result doesn't needs to be type checked or am I wrong?
-* fix inductive definitions
 * ~~~~~~~~
 * a story for universe, currently type in type
 * user defined eliminations
@@ -47,7 +46,8 @@ there are other kind of TODOs in the project, they are `LATER`, `TODO`, and `FIX
 * **SOUNDNESS** positivity checker
 * **SOUNDNESS** coverage checker
 * **SOUNDNESS** confluence checker (for overlapping patterns)
-* **SOUNDNESS** termination checking
+* **SOUNDNESS** termination checking: currently you don't need modifier `inductively` to write a recursive type, with termination checking, you should not be able to do this
+    * relax the syntax check for inductive definitions
 * more recursive types
     * inductive families of two flavor
     * inductive-inductive
@@ -116,9 +116,9 @@ we also consider reference, let expression as redux, but they are redux that don
 unlike almost all implementations, we try to treat type definitions structural. validity of recursive definitions can mostly done by syntax restrictions, just like how people makes "nested inductive definitions" works (I suppose). so there is no "schema" of parameterized inductive type definitions, just recursive sum types under a telescope, the "schema" then is a semantics level predicate, not syntax level construction
 
 
-but for recursive types, they cannot have structural equality, I think a good idea is restrict them to be defined on toplevel, also make them has nominal equality (id'ed `Sum` and `Record` type, just like id'ed pattern expressions)
+but for recursive types, they cannot have structural equality, so currently we restrict them to be defined on toplevel, also make them has nominal equality (id'ed `Sum` and `Record` type, just like id'ed pattern expressions)
 
-then the problem is how to deal with parameterized ones...
+we don't allow parameterized ones yet. but this is a easy fix
 
 #### dbi core term `Abstract`
 

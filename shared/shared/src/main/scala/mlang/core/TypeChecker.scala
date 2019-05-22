@@ -2,11 +2,12 @@ package mlang.core
 
 import mlang.concrete.{Pattern => Patt, _}
 import Context._
+import mlang.concrete.Declaration.Modifier
+import mlang.core
 import mlang.name._
 import mlang.utils._
 
 import scala.collection.mutable
-import scala.collection.mutable.ArrayBuffer
 import scala.language.implicitConversions
 
 
@@ -66,6 +67,7 @@ object TypeCheckException {
 
 object TypeChecker {
   private val pgen = new LongGen.Positive()
+  private val igen = new LongGen.Positive()
   val empty = new TypeChecker(Seq.empty)
 }
 
@@ -196,7 +198,7 @@ class TypeChecker private (protected override val layers: Layers)
           }
         }
         val (fl, fs) = newLayerInferFlatLevel(fields)
-        (Value.Universe(fl), Abstract.Record(fl, fs.map(_._1), fs.map(_._2), fs.map(a => (a._3.term.termDependencies(0).toSeq.sorted, a._3))))
+        (Value.Universe(fl), Abstract.Record(fl, None, fs.map(_._1), fs.map(_._2), fs.map(a => (a._3.term.termDependencies(0).toSeq.sorted, a._3))))
       case Term.Sum(constructors) =>
         for (i <- constructors.indices) {
           for (j <- (i + 1) until constructors.size) {
@@ -208,7 +210,7 @@ class TypeChecker private (protected override val layers: Layers)
         // TODO in case of HIT, each time a constructor finished, we need to construct a partial sum and update the value
         val fs = constructors.map(c => newLayerInferFlatLevel(c.term))
         val fl = fs.map(_._1).max
-        (Value.Universe(fl), Abstract.Sum(fl, fs.map(_._2).zip(constructors).map(a =>
+        (Value.Universe(fl), Abstract.Sum(fl, None, fs.map(_._2).zip(constructors).map(a =>
           Abstract.Constructor(a._2.name, a._1.map(k => k._2), a._1.zipWithIndex.map(kk => (0 until kk._2, kk._1._3))))))
       case Term.Coe(direction, tp, base) =>
         // LATER does these needs finish off implicits?
@@ -453,7 +455,7 @@ class TypeChecker private (protected override val layers: Layers)
       s: Declaration,
       mis: mutable.ArrayBuffer[CodeInfo[Value.Meta]],
       vis: mutable.ArrayBuffer[DefinitionInfo]): Self = {
-    def wrapBody(t: Term, imp: Seq[Boolean]): Term = if (imp.size == 0) t else wrapBody(Term.Lambda(Name.empty, imp.last, t), imp.dropRight(1))
+    def wrapBody(t: Term, imp: Seq[Boolean]): Term = if (imp.isEmpty) t else wrapBody(Term.Lambda(Name.empty, imp.last, t), imp.dropRight(1))
     def appendMetas(ms: Seq[Value.Meta]): Unit = {
       for (m <- ms) {
         mis.append(CodeInfo(reify(m.solved), m))
@@ -498,12 +500,20 @@ class TypeChecker private (protected override val layers: Layers)
       }
       rec(changed)
     }
+    if (s.modifiers.contains(Declaration.Modifier.__Debug)) {
+      val a = 1
+    }
     s match {
       case Declaration.Define(ms, name, ps, t0, v) =>
-        if (ms.contains(Declaration.Modifier.__Debug)) {
-          val a = 1
-        }
-        t0 match {
+        // TODO implement with constructor
+//        if (ms.contains(Modifier.WithConstructor)) {
+//        }
+        // a inductive type definition
+        var inductively =
+          if (ms.contains(Modifier.Inductively)) {
+            Abstract.Inductively(TypeChecker.igen())
+          } else null
+        val ret = t0 match {
           case Some(t) =>
             // term with type
             info(s"define $name")
@@ -519,7 +529,21 @@ class TypeChecker private (protected override val layers: Layers)
                 NameType.flatten(d).map(_._2)
               case _ => Seq.empty
             })
-            val va = ctx.check(wrapBody(v, pps.map(_._1)), tv, lambdaNameHints)
+            val va0 = ctx.check(wrapBody(v, pps.map(_._1)), tv, lambdaNameHints)
+            val va = if (inductively != null) {
+              if (!pps.isEmpty) {
+                warn("we don't support parameterized inductive type yet")
+                ???
+              }
+              val tt = Some(inductively)
+              va0 match {
+                case s: Abstract.Sum => inductively = null; assert(s.inductively.isEmpty); s.copy(inductively = tt)
+                case s: Abstract.Record => inductively = null; assert(s.inductively.isEmpty); s.copy(inductively = tt)
+                case ig => ig
+              }
+            } else {
+              va0
+            }
             appendMetas(ctx.freeze())
             val ref = Value.Reference(null) // the reason we
             val ctx2 = ctx.newDefinitionChecked(index, name, ref)
@@ -556,9 +580,11 @@ class TypeChecker private (protected override val layers: Layers)
                 ctx
             }
         }
+        if (inductively != null) warn(s"${name.toString} is not a inductive type but has modifier inductively")
+        ret
       case Declaration.Declare(ms, name, ps, t) =>
         info(s"declare $name")
-        if (ms.nonEmpty) throw TypeCheckException.ForbiddenModifier()
+        if (ms.exists(_ != Modifier.__Debug)) throw TypeCheckException.ForbiddenModifier()
         val (_, ta) = inferTelescope(NameType.flatten(ps), t)
         appendMetas(freeze())
         val tv = eval(ta)

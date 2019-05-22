@@ -33,9 +33,9 @@ sealed trait Abstract {
       Function(domain.diff(depth, x), impict, codomain.diff(depth, x))
     case Lambda(closure) => Lambda(closure.diff(depth, x))
     case App(left, right) => App(left.diff(depth, x), right.diff(depth, x))
-    case Record(level, names, implicits, graph) => Record(level, names, implicits, graph.map(a => (a._1, a._2.diff(depth, x))))
+    case Record(level, id, names, implicits, graph) => Record(level, id.map(_.diff(depth, x)), names, implicits, graph.map(a => (a._1, a._2.diff(depth, x))))
     case Projection(left, field) => Projection(left.diff(depth, x), field)
-    case Sum(level, constructors) => Sum(level, constructors.map(c => Constructor(c.name, c.implicits, c.params.map(a => (a._1, a._2.diff(depth, x))))))
+    case Sum(level, id, constructors) => Sum(level, id.map(_.diff(depth, x)), constructors.map(c => Constructor(c.name, c.implicits, c.params.map(a => (a._1, a._2.diff(depth, x))))))
     case Maker(sum, field) => Maker(sum.diff(depth, x), field)
     case Let(metas, definitions, in) => Let(metas.map(_.diff(depth + 1, x)), definitions.map(_.diff(depth + 1, x)), in.diff(depth + 1, x))
     case PatternLambda(id, typ, cases) => PatternLambda(id, typ.diff(depth, x), cases.map(a => Case(a.pattern, a.body.diff(depth + 1, x))))
@@ -57,9 +57,9 @@ sealed trait Abstract {
     case Function(domain, _, codomain) => domain.dependencies(i) ++ codomain.dependencies(i)
     case Lambda(closure) => closure.dependencies(i)
     case App(left, right) => left.dependencies(i) ++ right.dependencies(i)
-    case Record(_, _, _, nodes) => nodes.flatMap(_._2.dependencies(i)).toSet
+    case Record(_, id, _, _, nodes) => id.map(_.dependencies(i)).getOrElse(Set.empty) ++ nodes.flatMap(_._2.dependencies(i)).toSet
     case Projection(left, _) => left.dependencies(i)
-    case Sum(_, constructors) => constructors.flatMap(_.params.flatMap(_._2.dependencies(i))).toSet
+    case Sum(_, id, constructors) =>  id.map(_.dependencies(i)).getOrElse(Set.empty) ++ constructors.flatMap(_.params.flatMap(_._2.dependencies(i))).toSet
     case Maker(sum, _) => sum.dependencies(i)
     case Let(metas, definitions, in) =>
       metas.flatMap(a => a.dependencies(i + 1)).toSet  ++ definitions.flatMap(a => a.dependencies(i + 1)).toSet ++ in.dependencies(i + 1)
@@ -101,6 +101,11 @@ object Abstract {
   }
 
 
+  case class Inductively(id: Long) {
+    def dependencies(i: Int): Set[Dependency] = Set.empty
+    def diff(depth: Int, x: Int): Inductively = this
+  }
+
   type ClosureGraph = Seq[(Seq[Int], MetaEnclosed)]
 
   case class Universe(i: Int) extends Abstract
@@ -115,13 +120,13 @@ object Abstract {
 
   case class App(left: Abstract, right: Abstract) extends Abstract
 
-  case class Record(level: Int, names: Seq[Name], implicits: Seq[Boolean], graph: ClosureGraph) extends Abstract
+  case class Record(level: Int, inductively: Option[Inductively], names: Seq[Name], implicits: Seq[Boolean], graph: ClosureGraph) extends Abstract
 
   case class Projection(left: Abstract, field: Int) extends Abstract
 
   case class Constructor(name: Name, implicits: Seq[Boolean], params: ClosureGraph)
 
-  case class Sum(level: Int, constructors: Seq[Constructor]) extends Abstract
+  case class Sum(level: Int, inductively: Option[Inductively], constructors: Seq[Constructor]) extends Abstract
 
 
   case class Maker(sum: Abstract, field: Int) extends Abstract
