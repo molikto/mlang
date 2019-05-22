@@ -3,71 +3,79 @@
 
 [![Join the chat at https://gitter.im/mlang-discuess/community](https://badges.gitter.im/mlang-discuess/community.svg)](https://gitter.im/mlang-discuess/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
-* roadmap
-    * **DONE** totally unsafe MLTT basics
-        * function types with eta, record types with eta, inductive types (structural)
-        * bidirectional elaborating type checker with mutual recursive definitions
-        * readback
-        * type directed conversion check with eta and recursive definitions
-        * basic `.poor` syntax and parser
-    * cubical features
-        * **DONE** path type
-        * **DONE** coe, com, hcom; checking, computation
-        * sum type's Kan ops; fcom, higher inductive types
-        * univalance
-    * unification and implicit arguments
-        * **DONE** locally scoped meta and very simple solving
-        * user defined implicit right form
-        * correctness verification of the whole stuff
-           * why unification result doesn't needs to be type checked or am I wrong?
-    * fix inductive definitions
-    * ~~~~~~~~
-    * user defined eliminations
-    * implicit conversions
-    * pretty printer (from readback abstract syntax)
-    * record calculus
-        * one problem is dependency graph introduces syntax stuff in equality
-    * small features
-        * HTML pretty print
-        * naming shadowing
-        * non-dependent closures, can we do it so it subtypes?
-    * **SOUNDNESS** positivity checker
-    * **SOUNDNESS** coverage checker
-    * **SOUNDNESS** confluence checker (for overlapping patterns)
-    * **SOUNDNESS** termination checking
-    * more recursive types
-        * inductive families of two flavor
-        * inductive-inductive
-        * inductive-recursive
-        * is [this](https://arend.readthedocs.io/en/latest/language-reference/definitions/hits/#conditions) sound?
-    * better error reporting
-    * structural editor
-        * modules and compile unit
-    * universe polymorphism: do we want Agda style (no cumulative), or redtt style, or Coq style?
-    * coinductive types
-    * misc
-        * translate to Agda to do correctness checking
-    * math
-        * quick sort and properties
-        * symmetry book
-        * cubical Agda
-        * Agda stdlib
-        * Artin's or Lang's *Algebra*
-        * Agda's test cases and it's issues
-        * https://ncatlab.org/homotopytypetheory/show/open+problems#higher_algebra_and_higher_category_theory
-            * seems interesting: limits problem?
-        * https://github.com/HoTT/HoTT
-        * unimath
-        * the big problems list
-        * Agda Katas
 
-    
-    
+A cubical type theory implementation with implicit arguments, structural record and sum types and more. see roadmap section for details.
+
+see `library` folder for sample code.
+
 ## help wanted
 
 here are some issues that are easy to do, and they are a good way to familiarize yourself with the project, they are marked with `good first issue` in issues list, and in the code, search for `[issue 123]` where `123` is the issue number will lead you to where need to be modified.
     
 there are other kind of TODOs in the project, they are `LATER`, `TODO`, and `FIXME`, use IntelliJ IDEA to browse them.
+
+## roadmap
+
+* **DONE** totally unsafe MLTT basics
+    * function types with eta, record types with eta, inductive types (structural)
+    * bidirectional elaborating type checker with mutual recursive definitions
+    * readback
+    * type directed conversion check with eta and recursive definitions
+    * basic `.poor` syntax and parser
+* cubical features
+    * **DONE** path type
+    * **DONE** coe, com, hcom; checking, computation
+    * sum type's Kan ops; fcom, higher inductive types
+    * univalance
+* unification and implicit arguments
+    * **DONE** locally scoped meta and very simple solving
+    * correctness verification of the whole stuff
+       * why unification result doesn't needs to be type checked or am I wrong?
+* fix inductive definitions
+* ~~~~~~~~
+* a story for universe, currently type in type
+* user defined eliminations
+    * user defined implicit right form
+* implicit conversions
+* pretty printer (from readback abstract syntax)
+* record calculus
+    * one problem is dependency graph introduces syntax stuff in equality
+* small features
+    * HTML pretty print
+    * naming shadowing
+    * non-dependent closures, can we do it so it subtypes?
+* **SOUNDNESS** positivity checker
+* **SOUNDNESS** coverage checker
+* **SOUNDNESS** confluence checker (for overlapping patterns)
+* **SOUNDNESS** termination checking
+* more recursive types
+    * inductive families of two flavor
+    * inductive-inductive
+    * inductive-recursive
+    * is [this](https://arend.readthedocs.io/en/latest/language-reference/definitions/hits/#conditions) sound?
+* better error reporting
+* structural editor
+    * modules and compile unit
+* universe polymorphism: do we want Agda style (no cumulative), or redtt style, or Coq style?
+* coinductive types
+* misc
+    * translate to Agda to do correctness checking
+* math
+    * quick sort and properties
+    * symmetry book
+    * cubical Agda
+    * Agda stdlib
+    * Artin's or Lang's *Algebra*
+    * Agda's test cases and it's issues
+    * https://ncatlab.org/homotopytypetheory/show/open+problems#higher_algebra_and_higher_category_theory
+        * seems interesting: limits problem?
+    * https://github.com/HoTT/HoTT
+    * unimath
+    * the big problems list
+    * Agda Katas
+
+    
+    
 
 ## internals
 
@@ -107,7 +115,10 @@ we also consider reference, let expression as redux, but they are redux that don
 
 unlike almost all implementations, we try to treat type definitions structural. validity of recursive definitions can mostly done by syntax restrictions, just like how people makes "nested inductive definitions" works (I suppose). so there is no "schema" of parameterized inductive type definitions, just recursive sum types under a telescope, the "schema" then is a semantics level predicate, not syntax level construction
 
-the treatment of recursive types needs to be more careful I think, because recursive calls is not guarded by pattern matching. but I think a clean implementation is possible.
+
+but for recursive types, they cannot have structural equality, I think a good idea is restrict them to be defined on toplevel, also make them has nominal equality (id'ed `Sum` and `Record` type, just like id'ed pattern expressions)
+
+then the problem is how to deal with parameterized ones...
 
 #### dbi core term `Abstract`
 

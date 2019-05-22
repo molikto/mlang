@@ -15,7 +15,7 @@ object Main extends Parser {
         case Success(result, next) =>
           if (next.atEnd) checker.check(result)
           else throw new Exception("Parse failed with last " + result.declarations.lastOption + "and remaining " + next.rest.toString)
-        case NoSuccess(msg, next) =>
+        case NoSuccess(msg, _) =>
           throw new Exception(s"Parse failed with $msg")
       }
     })
