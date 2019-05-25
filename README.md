@@ -27,22 +27,21 @@ there are other kind of TODOs in the project, they are `LATER`, `TODO`, and `FIX
 ## roadmap
 
 * **DONE** totally unsafe MLTT basics
-    * function types with eta, record types with eta, inductive types (structural)
+    * function types with eta, record types with eta, sum types
     * bidirectional elaborating type checker with mutual recursive definitions
     * readback
     * type directed conversion check with eta and recursive definitions
     * basic `.poor` syntax and parser
 * **DONE** cumulative universe with "up" operator for global definitions (see [here](https://mazzo.li/epilogue/index.html%3Fp=857&cpage=1.html))
-    * **THEORY** what's the relationship of checked type with `infer`, `inferLevel` etc. that performed directly on value level?
+    * **QUESTION** what's the relationship of checked type with `infer`, `inferLevel` etc. that performed directly on value level?
+* **DONE** locally scoped meta; very simple unification; implicit arguments syntax
+    * **QUESTION** correctness verification of the whole stuff
+        * why unification result doesn't needs to be type checked or am I wrong?
 * cubical features
     * **DONE** path type
     * **DONE** coe, com, hcom; checking, computation
     * sum type's Kan ops; fcom, higher inductive types
     * univalance
-* unification and implicit arguments
-    * **DONE** locally scoped meta and very simple solving
-    * correctness verification of the whole stuff
-       * why unification result doesn't needs to be type checked or am I wrong?
 * ~~~~~~~~
 * a story for universe, currently type in type
 * user defined eliminations
@@ -70,8 +69,9 @@ there are other kind of TODOs in the project, they are `LATER`, `TODO`, and `FIX
     * modules and compile unit
 * universe polymorphism: do we want Agda style (no cumulative), or redtt style, or Coq style?
 * coinductive types
-* misc
+* testing
     * translate to Agda to do correctness checking
+    * core type checker and core type check 
 * math
     * quick sort and properties
     * symmetry book
