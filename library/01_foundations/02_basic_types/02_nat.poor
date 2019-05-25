@@ -88,7 +88,7 @@ define multi:
 define _test_multi = run {
   define sixteen1 = plus(eight, eight)
   define sixteen2 = multi(four, four)
-  define sixteen_eq: sixteen ≡ sixteen2 = refl
+  define sixteen_eq: sixteen1 ≡ sixteen2 = refl
   unit.make
 }
 

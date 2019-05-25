@@ -622,15 +622,22 @@ class TypeChecker private (protected override val layers: Layers)
   private def checkDeclarations(seq: Seq[Declaration], topLevel: Boolean): (Self, Seq[Abstract], Seq[Abstract]) = {
     // how to handle mutual recursive definitions, calculate strong components
     var ctx = this
-    val ms0 = mutable.ArrayBuffer.empty[CodeInfo[Value.Meta]]
-    val vs0 = mutable.ArrayBuffer.empty[DefinitionInfo]
+    val ms = mutable.ArrayBuffer.empty[CodeInfo[Value.Meta]]
+    val vs = mutable.ArrayBuffer.empty[DefinitionInfo]
+
+    // this is a TOTAL hack because we don't have modules yet
+    val __t = Abstract.Universe(0)
+    for (_ <- 0 until layers.head.metas.size) {
+      ms.append(CodeInfo(__t, null))
+    }
+    for (_ <- layers.head.asInstanceOf[Layer.Defines].terms) {
+      vs.append(DefinitionInfo(Some(CodeInfo(__t, null)), CodeInfo(__t, null)))
+    }
+
     for (s <- seq) {
-      val ctx0 = ctx.checkDeclaration(s, ms0, vs0, topLevel)
+      val ctx0 = ctx.checkDeclaration(s, ms, vs, topLevel)
       ctx = ctx0
     }
-    // this is a hack because we don't have modules yet
-    val ms = ms0.dropWhile(_ == null)
-    val vs = vs0.dropWhile(_ == null)
     if (vs.exists(a => a.code.isEmpty)) {
       throw TypeCheckException.DeclarationWithoutDefinition()
     }

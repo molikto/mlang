@@ -1,0 +1,13 @@
+// TypeMismatch
+
+define refl(#A: type, #x: A): x ≡ x = i → x
+
+define r1: ^type = record {
+  field a b: type
+}
+
+define r2: ^type = record {
+  field b a: type
+}
+
+define r_is_ok: r1 ≡ r2 = refl
