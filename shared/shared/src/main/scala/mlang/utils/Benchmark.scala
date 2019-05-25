@@ -33,14 +33,17 @@ object Benchmark {
     }
 
     @inline def apply[T](a: => T): T = {
-      val instance = instances.find(_.parent.eq(_current)).get
       val p = _current
-      _current = instance
-      val t0 = System.currentTimeMillis()
-      val res = a
-      instance._t += (System.currentTimeMillis() - t0)
-      _current = p
-      res
+      try {
+        val instance = instances.find(_.parent.eq(_current)).get
+        _current = instance
+        val t0 = System.currentTimeMillis()
+        val res = a
+        instance._t += (System.currentTimeMillis() - t0)
+        res
+      } finally {
+        _current = p
+      }
     }
   }
 
@@ -70,6 +73,7 @@ object Benchmark {
   var _current: Instance = root
 
   def reportAndReset(): Unit = {
+    assert(_current == root)
     root.childs.foreach(_.reportAndReset(0))
   }
 }

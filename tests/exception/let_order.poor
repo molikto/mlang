@@ -1,8 +1,5 @@
 
-
-
-
-define some_test2 = run { // these also passes in Agda
+define some_test2 = run {
   define test: type ⇒ type = a → a
 
   declare test2: type

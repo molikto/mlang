@@ -36,9 +36,9 @@ trait Unify extends Reifier with BaseEvaluator with PlatformEvaluator {
     }
   }
 
-  protected def unifyType(tm1: Value, tm2: Value): Boolean = {
+  protected def subTypeOf(tm1: Value, tm2: Value): Boolean = {
     Benchmark.Unify {
-      recType(tm1, tm2)
+      recType(tm1, tm2, mode = 1)
     }
   }
 
@@ -63,7 +63,7 @@ trait Unify extends Reifier with BaseEvaluator with PlatformEvaluator {
 
   private implicit def optToBool[T](opt: Option[T]): Boolean = opt.isDefined
 
-  private def recClosureGraph(n1: ClosureGraph, n2: ClosureGraph): Boolean = {
+  private def recClosureGraph(n1: ClosureGraph, n2: ClosureGraph, mode: Int = 0): Boolean = {
     n1.size == n2.size && {
       var g1 = n1
       var g2 = n2
@@ -72,7 +72,7 @@ trait Unify extends Reifier with BaseEvaluator with PlatformEvaluator {
       while (i < n1.size && eq) {
         val t1 = g1(i).independent.typ
         val t2 = g2(i).independent.typ
-        eq = recType(t1, t2)
+        eq = recType(t1, t2, mode)
         val g = Generic(gen(), t1)
         g1 = ClosureGraph.reduce(g1, i, g)
         g2 = ClosureGraph.reduce(g2, i, g)
@@ -82,20 +82,20 @@ trait Unify extends Reifier with BaseEvaluator with PlatformEvaluator {
     }
   }
 
-  private def recConstructor(c1: Constructor, c2: Constructor): Boolean = {
+  private def recConstructor(c1: Constructor, c2: Constructor, mode: Int = 0): Boolean = {
     if (c1.eq(c2)) {
       true
     } else {
-      c1.name == c2.name && c1.ims == c2.ims && recClosureGraph(c1.nodes, c2.nodes)
+      c1.name == c2.name && c1.ims == c2.ims && recClosureGraph(c1.nodes, c2.nodes, mode)
     }
   }
 
 
 
-  private def recTypeClosure(t: Value, c1: Closure, c2: Closure): Option[Value] = {
+  private def recTypeClosure(t: Value, c1: Closure, c2: Closure, mode: Int = 0): Option[Value] = {
     val c = Generic(gen(), t)
     val tt = c1(c)
-    if (recType(tt, c2(c))) {
+    if (recType(tt, c2(c), mode)) {
       Some(tt)
     } else {
       None
@@ -108,9 +108,9 @@ trait Unify extends Reifier with BaseEvaluator with PlatformEvaluator {
   }
 
 
-  private def recTypeAbsClosure(t1: AbsClosure, t2: AbsClosure): Boolean = {
+  private def recTypeAbsClosure(t1: AbsClosure, t2: AbsClosure, mode: Int = 0): Boolean = {
     val c = Dimension.Generic(dgen())
-    recType(t1(c), t2(c))
+    recType(t1(c), t2(c), mode)
   }
 
 
@@ -127,22 +127,31 @@ trait Unify extends Reifier with BaseEvaluator with PlatformEvaluator {
 
   }
 
-  private def recType(tm1: Value, tm2: Value): Boolean = {
+  /**
+    * mode = 1 left <subtype< right
+    * mode = 0 left == right
+    * mode =-1 right < left
+    */
+  private def recType(tm1: Value, tm2: Value, mode: Int = 0): Boolean = {
     if (tm1.eq(tm2)) {
       true
     } else {
       (tm1.whnf, tm2.whnf) match {
         case (Function(d1, i1, c1), Function(d2, i2, c2)) =>
-          recType(d1, d2) && i1 == i2 && recTypeClosure(d1, c1, c2)
+          i1 == i2 && recType(d1, d2, -mode) && recTypeClosure(d1, c1, c2, mode)
         case (Universe(l1), Universe(l2)) =>
-          l1 == l2
+          mode match {
+            case -1 => l2 <= l1
+            case 0 => l1 == l2
+            case 1 => l1 <= l2
+          }
         case (Record(l1, id1, m1, i1, n1), Record(l2, id2, m2, i2, n2)) =>
           // need to check level because of up operator
-          l1 == l2 && maybeNominal(id1, id2, m1 == m2 && i1 == i2 && recClosureGraph(n1, n2))
+          l1 == l2 && maybeNominal(id1, id2, m1 == m2 && i1 == i2 && recClosureGraph(n1, n2, mode))
         case (Sum(l1, id1, c1), Sum(l2, id2, c2)) =>
-          l1 == l2 && maybeNominal(id1, id2, c1.size == c2.size && c1.zip(c2).forall(p => recConstructor(p._1, p._2)))
+          l1 == l2 && maybeNominal(id1, id2, c1.size == c2.size && c1.zip(c2).forall(p => recConstructor(p._1, p._2, mode)))
         case (PathType(t1, l1, r1), PathType(t2, l2, r2)) =>
-          recTypeAbsClosure(t1, t2) &&
+          recTypeAbsClosure(t1, t2, mode) &&
               recTerm(t1(Dimension.False), l1, l2) &&
               recTerm(t1(Dimension.True), r1, r2)
         case (t1, t2) =>

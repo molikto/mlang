@@ -32,6 +32,8 @@ there are other kind of TODOs in the project, they are `LATER`, `TODO`, and `FIX
     * readback
     * type directed conversion check with eta and recursive definitions
     * basic `.poor` syntax and parser
+* **DONE** cumulative universe with "up" operator for global definitions (see [here](https://mazzo.li/epilogue/index.html%3Fp=857&cpage=1.html))
+    * **THEORY** what's the relationship of checked type with `infer`, `inferLevel` etc. that performed directly on value level?
 * cubical features
     * **DONE** path type
     * **DONE** coe, com, hcom; checking, computation

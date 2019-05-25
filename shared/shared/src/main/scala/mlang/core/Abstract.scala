@@ -103,6 +103,7 @@ object Abstract {
   }
 
 
+  // TODO what about put level into Inductively? this makes inferLevel a little bit slower though, or this can be cached?
   case class Inductively(id: Long) {
     def dependencies(i: Int): Set[Dependency] = Set.empty
     def diff(depth: Int, x: Int): Inductively = this

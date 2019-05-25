@@ -8,13 +8,13 @@ import mlang.utils.{Benchmark, debug}
 object Main extends Parser {
 
   def test(a: File, shouldFails: Boolean) = {
-    a.listFiles(_.getName.endsWith(".poor")).foreach(f => {
+    a.listFiles(_.getName.endsWith(".poor")).sortBy(_.getName).foreach(f => {
       debug(s"Testing ${a.getName}/${f.getName}", 5)
       val module = parseOrThrow(f)
       var fails = false
       var cause: Exception = null
       try {
-        TypeChecker.topLevel.check(module)
+        TypeChecker.topLevel().check(module)
       } catch {
         case e: Exception =>
           cause = e
@@ -27,7 +27,7 @@ object Main extends Parser {
   }
 
   def library(file: File): Unit = {
-    var checker = TypeChecker.topLevel
+    var checker = TypeChecker.topLevel()
     def rec(prefix: String, file: File): Unit = {
       file.listFiles().sortBy(_.getName).foreach(f => {
         val name = prefix + f.getName
@@ -56,7 +56,7 @@ object Main extends Parser {
       val tests = new File("tests")
       test(new File(tests, "pass"), false)
       test(new File(tests, "exception"), true)
+      Benchmark.reportAndReset()
     }
-    Benchmark.reportAndReset()
   }
 }

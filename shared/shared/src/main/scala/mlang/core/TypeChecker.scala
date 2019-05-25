@@ -72,7 +72,7 @@ object TypeCheckException {
 object TypeChecker {
   private val pgen = new LongGen.Positive()
   private val igen = new LongGen.Positive()
-  val topLevel = new TypeChecker(Seq.empty).newDefinesLayer()
+  def topLevel(): TypeChecker = new TypeChecker(Seq.empty).newDefinesLayer()
 }
 
 class TypeChecker private (protected override val layers: Layers)
@@ -259,12 +259,18 @@ class TypeChecker private (protected override val layers: Layers)
           case None =>
             val (lt, la) = infer(left)
             val (rt, ra) = infer(right)
-            if (unifyType(lt, rt)) {
-              val ta = newDimensionLayer(Name.empty)._1.reify(lt)
-              if (debug.enabled) debug(s"infer path type: $ta")
-              (Value.Universe(Value.inferLevel(lt)), Abstract.PathType(Abstract.AbsClosure(Seq.empty, ta), la, ra))
-            } else {
-              throw TypeCheckException.InferPathEndPointsTypeNotMatching()
+            val ttt = if (subTypeOf(lt, rt)) {
+              Some(rt)
+            } else if (subTypeOf(rt, lt)) {
+              Some(lt)
+            } else None
+            ttt match {
+              case Some(t) =>
+                val ta = newDimensionLayer(Name.empty)._1.reify(t)
+                if (debug.enabled) debug(s"infer path type: $ta")
+                (Value.Universe(Value.inferLevel(t)), Abstract.PathType(Abstract.AbsClosure(Seq.empty, ta), la, ra))
+              case None =>
+                throw TypeCheckException.InferPathEndPointsTypeNotMatching()
             }
         }
       case p: Term.PatternLambda =>
@@ -408,7 +414,7 @@ class TypeChecker private (protected override val layers: Layers)
           newMeta(cp)._2
         case _ =>
           val (tt, ta) = infer(term)
-          if (unifyType(tt, cp)) ta
+          if (subTypeOf(tt, cp)) ta
           else {
             info(s"${reify(tt.whnf)}")
             info(s"${reify(cp.whnf)}")
