@@ -50,8 +50,8 @@ sealed trait Value {
       Sum(level + 1, inductively.map(_.up(b)), constructors.map(n => Constructor(n.name, n.ims, ClosureGraph.up(n.nodes, b))))
     case Lambda(closure) =>
       Lambda(closure.up(b))
-    case PatternLambda(id, typ, cases) =>
-      PatternLambda(id, typ.up(b), cases.map(a => Case(a.pattern, a.closure.up(b))))
+    case PatternLambda(id, dom, typ, cases) =>
+      PatternLambda(id, dom.up(b), typ.up(b), cases.map(a => Case(a.pattern, a.closure.up(b))))
     case PathType(typ, left, right) =>
       PathType(typ.up(b), left.up(b), right.up(b))
     case PathLambda(body) =>
@@ -102,8 +102,8 @@ sealed trait Value {
       Sum(level, inductively.map(_.restrict(lv)), constructors.map(n => Constructor(n.name, n.ims, ClosureGraph.restrict(n.nodes, lv))))
     case Lambda(closure) =>
       Lambda(closure.restrict(lv))
-    case PatternLambda(id, typ, cases) =>
-      PatternLambda(id, typ.restrict(lv), cases.map(a => Case(a.pattern, a.closure.restrict(lv))))
+    case PatternLambda(id, dom, typ, cases) =>
+      PatternLambda(id, dom.restrict(lv), typ.restrict(lv), cases.map(a => Case(a.pattern, a.closure.restrict(lv))))
     case PathType(typ, left, right) =>
       PathType(typ.restrict(lv), left.restrict(lv), right.restrict(lv))
     case PathLambda(body) =>
@@ -858,7 +858,7 @@ object Value {
     */
   case class Lambda(closure: Closure) extends HeadCanonical
 
-  case class PatternLambda(id: Long, typ: Closure, cases: Seq[Case]) extends HeadCanonical
+  case class PatternLambda(id: Long, domain: Value, typ: Closure, cases: Seq[Case]) extends HeadCanonical
 
   case class PatternStuck(lambda: PatternLambda, stuck: StuckPos) extends Stuck
 

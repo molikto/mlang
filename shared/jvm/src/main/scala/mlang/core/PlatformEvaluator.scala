@@ -110,9 +110,9 @@ trait PlatformEvaluator extends BaseEvaluator {
             s"Constructor(${source(c._1.name)}, ${emit(c._1.implicits)}, ${emitGraph(c._1.params, d)})").mkString(", ")}))"""
         case Abstract.Maker(sum, field) =>
           s"Maker(${emit(sum, depth)}, $field)"
-        case Abstract.PatternLambda(id, codomain, cases) =>
+        case Abstract.PatternLambda(id, dom, codomain, cases) =>
           val d = depth + 1
-          s"PatternLambda($id, Closure(r$d => ${emitInner(codomain, d)}), Seq(${cases.map(c => s"Case(${tunnel(c.pattern)}, MultiClosure(r$d => ${emitInner(c.body, d)}))").mkString(", ")}))"
+          s"PatternLambda($id, ${emit(dom, depth)}, Closure(r$d => ${emitInner(codomain, d)}), Seq(${cases.map(c => s"Case(${tunnel(c.pattern)}, MultiClosure(r$d => ${emitInner(c.body, d)}))").mkString(", ")}))"
         case Abstract.PathApp(left, right) =>
           s"PathApp(${emit(left, depth)}, ${emit(right, depth)})"
         case Abstract.PathLambda(body) =>

@@ -39,7 +39,7 @@ sealed trait Abstract {
     case Sum(level, id, constructors) => Sum(level, id.map(_.diff(depth, x)), constructors.map(c => Constructor(c.name, c.implicits, c.params.map(a => (a._1, a._2.diff(depth, x))))))
     case Maker(sum, field) => Maker(sum.diff(depth, x), field)
     case Let(metas, definitions, in) => Let(metas.map(_.diff(depth + 1, x)), definitions.map(_.diff(depth + 1, x)), in.diff(depth + 1, x))
-    case PatternLambda(id, typ, cases) => PatternLambda(id, typ.diff(depth, x), cases.map(a => Case(a.pattern, a.body.diff(depth + 1, x))))
+    case PatternLambda(id, dom, typ, cases) => PatternLambda(id, dom.diff(depth, x), typ.diff(depth, x), cases.map(a => Case(a.pattern, a.body.diff(depth + 1, x))))
     case PathLambda(body) => PathLambda(body.diff(depth, x))
     case PathType(typ, left, right) => PathType(typ.diff(depth, x), left.diff(depth, x), right.diff(depth, x))
     case PathApp(let, r) => PathApp(let.diff(depth, x), r.diff(depth, x))
@@ -65,7 +65,7 @@ sealed trait Abstract {
     case Maker(sum, _) => sum.dependencies(i)
     case Let(metas, definitions, in) =>
       metas.flatMap(a => a.dependencies(i + 1)).toSet  ++ definitions.flatMap(a => a.dependencies(i + 1)).toSet ++ in.dependencies(i + 1)
-    case PatternLambda(_, cd, cases) => cd.dependencies(i) ++ cases.flatMap(_.body.dependencies(i)).toSet
+    case PatternLambda(_, dom, cd, cases) => dom.dependencies(i) ++ cd.dependencies(i) ++ cases.flatMap(_.body.dependencies(i)).toSet
     case PathLambda(body) => body.dependencies(i)
     case PathType(typ, left, right) => typ.dependencies(i) ++ left.dependencies(i) ++ right.dependencies(i)
     case PathApp(lef, _) => lef.dependencies(i)
@@ -139,7 +139,7 @@ object Abstract {
   case class Let(metas: Seq[Abstract], definitions: Seq[Abstract], in: Abstract) extends Abstract
 
   case class Case(pattern: Pattern, body: MultiClosure)
-  case class PatternLambda(id: Long, typ: Closure, cases: Seq[Case]) extends Abstract
+  case class PatternLambda(id: Long, domain: Abstract, typ: Closure, cases: Seq[Case]) extends Abstract
 
   case class PathLambda(body: AbsClosure) extends Abstract
   case class PathType(typ: AbsClosure, left: Abstract, right: Abstract) extends Abstract

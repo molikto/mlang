@@ -263,13 +263,14 @@ trait Unify extends Reifier with BaseEvaluator with PlatformEvaluator {
           case _ => logicError()
         })
       case (PatternStuck(l1, s1), PatternStuck(l2, s2)) =>
-        recNeutral(s1, s2).flatMap(n => {
-          if (recTypeClosure(n, l1.typ, l2.typ) && sameTypePatternLambdaWithAssumptions(n, l1, l2)) {
-            Some(l1.typ(s1))
-          } else {
-            None
-          }
-        })
+        if (recType(l1.domain, l2.domain)) {
+          val n = l1.domain
+          if (recTerm(l1.domain, s1, s2)) {
+            if (recTypeClosure(n, l1.typ, l2.typ) && sameTypePatternLambdaWithAssumptions(n, l1, l2)) {
+              Some(l1.typ(s1))
+            } else None
+          } else None
+        } else None
       case (PathApp(l1, d1), PathApp(l2, d2)) =>
         if (d1 == d2) {
           recNeutral(l1, l2).map(_.whnf match {

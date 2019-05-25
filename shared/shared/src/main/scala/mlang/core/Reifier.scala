@@ -97,8 +97,8 @@ private trait ReifierContext extends ContextBuilder {
         logicError()
       case Value.Lambda(closure) =>
         Lambda(reify(closure))
-      case Value.PatternLambda(id, ty, cases) =>
-        PatternLambda(id, reify(ty), cases.map(c => Case(c.pattern, reify(c.pattern.atomCount, c.closure))))
+      case Value.PatternLambda(id, dom, ty, cases) =>
+        PatternLambda(id, reify(dom), reify(ty), cases.map(c => Case(c.pattern, reify(c.pattern.atomCount, c.closure))))
       case Value.PathLambda(body) =>
         PathLambda(reify(body))
       case m: Value.Meta =>

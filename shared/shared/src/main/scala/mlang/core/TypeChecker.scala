@@ -431,11 +431,12 @@ class TypeChecker private (protected override val layers: Layers)
             val ba = ctx.check(body, codomain(v), tail)
             Abstract.Lambda(Abstract.Closure(ctx.finishReify(), ba))
           case Term.PatternLambda(limp, cases) if fimp == limp =>
-            Abstract.PatternLambda(TypeChecker.pgen(), reify(codomain), cases.map(c => {
+            val res = cases.map(c => {
               val (ctx, v, pat) = newPatternLayer(c.pattern, domain)
               val ba = ctx.check(c.body, codomain(v), tail)
               Abstract.Case(pat, Abstract.MultiClosure(ctx.finishReify(), ba))
-            }))
+            })
+            Abstract.PatternLambda(TypeChecker.pgen(), reify(domain), reify(codomain), res)
           case _ =>
             if (fimp) {
               val (ctx, v) = newParameterLayer(Name.empty, domain)
