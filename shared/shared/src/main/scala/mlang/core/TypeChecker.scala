@@ -286,7 +286,8 @@ class TypeChecker private (protected override val layers: Layers)
         lv.whnf match {
           case m: Value.Make if { index = ltr.names.indexWhere(_.by(right)) ; index >= 0 } =>
             reduceMore(ltr.projectedType(m.values, index), Abstract.Projection(la, index))
-          // TODO user defined projections
+          // TODO user defined projections for a type, i.e.
+          // TODO [issue 7] implement const_projections syntax
           case r: Value.Record if right == Ref.make =>
             reduceMore(r.makerType, Abstract.Maker(la, -1))
           case r: Value.Sum if { index = r.constructors.indexWhere(_.name.by(right)); index >= 0 } =>
@@ -552,7 +553,7 @@ class TypeChecker private (protected override val layers: Layers)
             })
             val va0 = ctx.check(wrapBody(v, pps.map(_._1)), tv, lambdaNameHints)
             val va = if (inductively != null) {
-              if (!pps.isEmpty) {
+              if (pps.nonEmpty) {
                 warn("we don't support parameterized inductive type yet")
                 ???
               }
@@ -620,12 +621,15 @@ class TypeChecker private (protected override val layers: Layers)
   private def checkDeclarations(seq: Seq[Declaration], topLevel: Boolean): (Self, Seq[Abstract], Seq[Abstract]) = {
     // how to handle mutual recursive definitions, calculate strong components
     var ctx = this
-    val ms = mutable.ArrayBuffer.empty[CodeInfo[Value.Meta]]
-    val vs = mutable.ArrayBuffer.empty[DefinitionInfo]
+    val ms0 = mutable.ArrayBuffer.empty[CodeInfo[Value.Meta]]
+    val vs0 = mutable.ArrayBuffer.empty[DefinitionInfo]
     for (s <- seq) {
-      val ctx0 = ctx.checkDeclaration(s, ms, vs, topLevel)
+      val ctx0 = ctx.checkDeclaration(s, ms0, vs0, topLevel)
       ctx = ctx0
     }
+    // this is a hack because we don't have modules yet
+    val ms = ms0.dropWhile(_ == null)
+    val vs = vs0.dropWhile(_ == null)
     if (vs.exists(a => a.code.isEmpty)) {
       throw TypeCheckException.DeclarationWithoutDefinition()
     }

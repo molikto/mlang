@@ -1,3 +1,18 @@
 
 
 define refl(#A: type, #a: A): a ≡ a = i → a
+
+
+define square(
+  #A: type,
+  #a0 #a1 #b0 #b1: A,
+  u: a0 ≡ a1, v: b0 ≡ b1, r0: a0 ≡ b0, r1: a1 ≡ b1
+): type =
+  r0 ≡[i → u(i) ≡ v(i)] r1
+
+
+//
+// [issue 7] const_projections syntax accepts a reference, then you can use them as `square.constant(p)`
+// const_projections square {
+//   define constant(#A: type, #a: A, p: a ≡ a): square(p, p, p, p) =
+// }
