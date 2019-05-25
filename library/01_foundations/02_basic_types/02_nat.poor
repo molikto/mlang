@@ -42,9 +42,23 @@ define plus(a b: nat): nat = run {
     nat_pair ⇒ nat =
   ┌ (zero, a) → a
   ├ (a, zero) → a
-  ├ (a, zero) → a
   └ (x, suc(y)) → suc(rec(nat_pair.make(x, y)))
   rec(nat_pair.make(a, b))
+}
+
+// currently we use `_test_xxx` to write test codes
+define _test_plus = run {
+  define left_zero(a: nat): plus(a, zero) ≡ a = refl
+  define right_zero(a: nat): plus(zero, a) ≡ a = refl
+  define ttt1(a: nat): nat = plus(two, four)
+  define ttt2(a: nat): nat = plus(four, two)
+  define assert_tt2_eq_holder(b: (nat ⇒ nat) ⇒ type, c: (i: nat ⇒ nat) ⇒ b(i)): b(ttt1) = c(ttt2)
+  define __debug assert_nat_eq_holder2(x y: nat, b: (nat ⇒ nat) ⇒ type, c: (i: nat ⇒ nat) ⇒ b(i)): b(─ → plus(x, y)) = c(─ → plus(x, y))
+  define ttt3(a: nat): nat = plus_alt_2(four, two)
+  define assert_tt2_eq_holder3(b: (nat ⇒ nat) ⇒ type, c: (i: nat ⇒ nat) ⇒ b(i)): b(ttt1) = c(ttt3)
+  define ttt(a b: nat, c: nat ⇒ type, d: type ⇒ type): type = d(c(plus(a, b)))
+
+  unit.make
 }
 
 
@@ -65,21 +79,6 @@ define plus_pointwise:
 define path_plus12: plus ≡ plus2 = fun_ext(nat, ─ → nat, plus, plus2,
 
 */
-
-// currently we use `_test_xxx` to write test codes
-define _test_plus = run {
-  define left_zero(a: nat): plus(a, zero) ≡ a = refl
-  define right_zero(a: nat): plus(zero, a) ≡ a = refl
-  define ttt1(a: nat): nat = plus(two, four)
-  define ttt2(a: nat): nat = plus(four, two)
-  define assert_tt2_eq_holder(b: (nat ⇒ nat) ⇒ type, c: (i: nat ⇒ nat) ⇒ b(i)): b(ttt1) = c(ttt2)
-  define __debug assert_nat_eq_holder2(x y: nat, b: (nat ⇒ nat) ⇒ type, c: (i: nat ⇒ nat) ⇒ b(i)): b(─ → plus(x, y)) = c(─ → plus(x, y))
-  define ttt3(a: nat): nat = plus_alt_2(four, two)
-  define assert_tt2_eq_holder3(b: (nat ⇒ nat) ⇒ type, c: (i: nat ⇒ nat) ⇒ b(i)): b(ttt1) = c(ttt3)
-  define ttt(a b: nat, c: nat ⇒ type, d: type ⇒ type): type = d(c(plus(a, b)))
-
-  unit.make
-}
 
 define multi:
  (a       b: nat) ⇒ nat =
