@@ -62,32 +62,6 @@ define sixteen = plus(eight, eight)
 
 define sixteen2 = multi(four, four)
 
-define record_of_refl = record {
-  field #A: type
-  field #x #y: A
-  field eq: x ≡ y
-}
-
-
-
-
-define test_record_of_refl: eight ≡ eight = record_of_refl.make(refl(#_, #eight)).eq
-
-define record_of_refl2(#A: type): type = record {
-  field #x #y: A
-  field eq: x ≡ y
-}
-
-
-define test_record_of_refl2: eight ≡ eight = record_of_refl2.make(refl(#_, #eight)).eq
-
-
-define test_record_of_metas = record {
-  field test: (#a: nat, b: a ≡ a) ⇒ type
-  field a c: test(refl(#_, #four))
-  field b: test(refl(#_, #eight))
-}
-
 /*
 
 the meta is solved with
@@ -103,15 +77,6 @@ what more we can do? we can pick the shortest one from the chain of evaluation s
 define sixteen_eq: sixteen ≡ sixteen2 = refl
 
 
-
-define fun_ext(#A: type, #B: A ⇒ type, #f #g: (x: A) ⇒ B(x), p: (x: A) ⇒ f(x) ≡ g(x)): f ≡ g =
-  i → x → p(x, i)
-
-define fun_ext2(A: type, B: A ⇒ type, f g: (x: A) ⇒ B(x), p: (x: A) ⇒ f(x) ≡ g(x)): f ≡ g =
-  fun_ext(#_, #_, #_, #_, p)
-
-define fun_ext3(A: type, B: A ⇒ type, f g: (x: A) ⇒ B(x), p: (x: A) ⇒ f(x) ≡ g(x)): f ≡ g =
-  fun_ext(p)
 
 define id(a: type, x: a): a = x
 

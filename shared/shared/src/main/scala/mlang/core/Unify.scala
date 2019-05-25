@@ -163,9 +163,30 @@ trait Unify extends Reifier with BaseEvaluator with PlatformEvaluator {
     }
   }
 
-  def error(s: String) = throw UnificationFailedException(s)
+  private def error(s: String) = throw UnificationFailedException(s)
 
-  def solve(m: Meta, vs: Seq[Value], t20: Value): Value = Benchmark.Solve {
+  private def trySolve(m: Meta, vs: Seq[Value], t20: Value): Option[Value] = {
+    Try(solve(m, vs, t20)) match {
+      case Failure(exception) =>
+        def debugPrint(): Unit =  {
+          if (debug.enabled(1)) {
+            exception.printStackTrace()
+          }
+        }
+        exception match {
+          case _: UnificationFailedException =>
+            debugPrint()
+          case _: RebindNotFoundException =>
+            debugPrint()
+          case e => throw e
+        }
+        None
+      case Success(v) =>
+        Some(v)
+    }
+  }
+
+  private def solve(m: Meta, vs: Seq[Value], t20: Value): Value = Benchmark.Solve {
     var Meta.Open(_, typ) = m.v match {
       case _: Meta.Closed =>
         logicError()
@@ -188,8 +209,8 @@ trait Unify extends Reifier with BaseEvaluator with PlatformEvaluator {
       }
       ctx = ctx.newParameterLayerProvided(Name.empty, o).asInstanceOf[Self]
     }
-    // this might throw error if scope checking fails
     val t2 = t20.from // FIXME is this sound??
+    // this might throw error if scope checking fails
     var abs = ctx.reify(t2)
     for (g <- os) {
       abs = Abstract.Lambda(Abstract.Closure(Seq.empty, abs))
@@ -207,18 +228,6 @@ trait Unify extends Reifier with BaseEvaluator with PlatformEvaluator {
     val v = ctx.eval(abs)
     m.v = Value.Meta.Closed(v)
     typ
-  }
-
-  def tryOption(value: => Value): Option[Value] = {
-    Try(value) match {
-      case Failure(exception) =>
-        if (debug.enabled(1)) {
-          exception.printStackTrace()
-        }
-        None
-      case Success(v) =>
-        Some(v)
-    }
   }
 
   private def recNeutral(tmm1: Value, tmm2: Value): Option[Value] = {
@@ -288,9 +297,9 @@ trait Unify extends Reifier with BaseEvaluator with PlatformEvaluator {
           None
         }
       case (SolvableMetaForm(m, gs), t2) =>
-        tryOption(solve(m, gs, t2))
+        trySolve(m, gs, t2)
       case (t1, SolvableMetaForm(m, gs)) =>
-        tryOption(solve(m, gs, t1))
+        trySolve(m, gs, t1)
       case _ => None
     }
   }

@@ -10,9 +10,16 @@ define square(
 ): type =
   r0 ≡[i → u(i) ≡ v(i)] r1
 
-
 //
 // [issue 7] const_projections syntax accepts a reference, then you can use them as `square.constant(p)`
 // const_projections square {
 //   define constant(#A: type, #a: A, p: a ≡ a): square(p, p, p, p) =
 // }
+
+// define square_constant(#A: type, #a: A, p: a ≡ a): square(p, p, p, p) = refl
+
+
+
+define fun_ext(#A: type, #B: A ⇒ type, #f #g: (x: A) ⇒ B(x), p: (x: A) ⇒ f(x) ≡ g(x)): f ≡ g =
+  i → x → p(x, i)
+

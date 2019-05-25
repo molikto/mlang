@@ -14,6 +14,8 @@ object ContextException {
   case class ConstantSortWrong() extends ContextException
 }
 
+case class RebindNotFoundException() extends Exception
+
 
 case class ParameterBinder(name: Name, value: Value.Generic) {
   def id: Long = value.id
@@ -165,7 +167,7 @@ trait Context extends ContextBaseForMeta {
       }
     }
     if (binder == null) {
-      logicError()
+      throw RebindNotFoundException()
     } else {
       binder
     }
@@ -178,7 +180,7 @@ trait Context extends ContextBaseForMeta {
   def rebindGeneric(id: Long): Abstract.Reference = {
     val binder = rebindGeneric0(id)
     if (binder == null) {
-      logicError()
+      throw RebindNotFoundException()
     } else {
       binder
     }
