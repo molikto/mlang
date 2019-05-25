@@ -34,6 +34,7 @@ there are other kind of TODOs in the project, they are `LATER`, `TODO`, and `FIX
     * basic `.poor` syntax and parser
     * pattern matching
         * overlapping and order independent patterns, see `plus_tests` in library for detail
+            * **QUESTION** so we need to save both domain and codomain in pattern matching, is this ok? see [this](https://github.com/molikto/mlang/commit/a4380b33ac0b97117016ff31a3fb39ab0b8f1ce2) for the code changed
 * **DONE** cumulative universe with "up" operator for global definitions (see [here](https://mazzo.li/epilogue/index.html%3Fp=857&cpage=1.html))
     * **QUESTION** what's the relationship of checked type with `infer`, `inferLevel` etc. that performed directly on value level?
 * **DONE** locally scoped meta; very simple unification; implicit arguments syntax
