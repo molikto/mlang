@@ -1,0 +1,30 @@
+
+define refl(#A: type, #x: A): x ≡ x = i → x
+
+define some_test = run { // these also passes in Agda
+
+  declare test : ^type
+
+  declare test2 : test ≡ type
+
+  define test = type
+
+  define test2 = refl
+
+  test2
+}
+
+
+define some_test2 = run { // these also passes in Agda
+  define test: ^type ⇒ ^type = ─ → type
+
+  declare test2: ^type
+
+  define test3: test(test2) ≡ type = ^refl
+
+  define test2 = type
+
+  test2
+}
+
+

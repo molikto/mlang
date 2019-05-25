@@ -1,0 +1,9 @@
+
+
+
+
+define id(a: type): type = a
+
+define idp(a: type): ^type = id(a)
+
+define eq: ^type = id ≡ idp // here id ≡ idp is actually id ≡[─ → type ⇒ ^type] idp, this type

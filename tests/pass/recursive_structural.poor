@@ -1,0 +1,11 @@
+
+define flat: type = sum {
+   case true false
+}
+
+define flat2: type = sum {
+   case true false
+}
+
+// non-recursive record and sum has structural equality, their case/field name/order needs to be exactly the same
+define flat_is_ok: flat ≡ flat2 = refl

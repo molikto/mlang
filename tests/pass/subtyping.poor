@@ -6,3 +6,14 @@ define test1: ^^type = type
 define test2(a: ^type ⇒ type): type ⇒ ^type = a
 
 define test3(a: ^type ⇒ type, b: type ⇒ ^type, d: a ≡ b): a ≡[─ → type ⇒ ^type] b = d
+
+
+
+define id(a: type): type = a
+
+
+
+define idp(a: type): ^type = id(a)
+
+define eq: ^^type = id ≡ idp
+
