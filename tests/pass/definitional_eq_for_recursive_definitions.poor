@@ -1,0 +1,23 @@
+define inductively nat: type = sum {
+  case zero
+  case suc(: nat)
+}
+
+
+define plus_alt_1:
+ (a       b: nat) ⇒ nat =
+  ─     ┌ zero    → a
+        └ suc(m)  → nat.suc(plus_alt_1(a, m))
+
+define plus_defined_twice:
+ (a       b: nat) ⇒ nat =
+  ─     ┌ zero    → a
+        └ suc(m)  → nat.suc(plus_defined_twice(a, m))
+
+define test001(x y: nat, b: nat ⇒ type, c: (i: nat) ⇒ b(i)): b(plus_alt_1(x, y)) = c(plus_defined_twice(x, y))
+
+
+
+
+define not_related_test(x y: nat, b: nat ⇒ type, c: (i: nat) ⇒ b(i)): b(plus_alt_1(nat.suc(x), y)) = c(plus_alt_1(nat.suc(x), y))
+

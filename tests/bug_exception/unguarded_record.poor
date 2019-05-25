@@ -1,0 +1,11 @@
+
+
+// this loops, just like Agda, eta for recursive record, maybe we should mark non-guarded records and just say they are empty
+
+define err: type = record {
+  field a: err
+}
+
+define test_err(a b: err): a ≡ b = ─ → a
+
+

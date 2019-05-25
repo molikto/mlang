@@ -1,0 +1,56 @@
+/**
+
+"─"
+  - used alone as introduces names as in argument list
+  - used after as pattern, means introduce without name
+"┬" empty pattern
+"⊏" single pattern
+"┌", "└", "├" is patterns with 2+ cases
+
+"│" is just whitespace
+**/
+
+
+
+define fin3_copy = sum {
+  case one two three
+}
+
+define ig = run { // "{" starts a let expression
+
+  define fin3 = sum {
+    case one two three
+  }
+
+  /* don't work because inductive definitions must be at top level
+  define inductively fin3 = sum {
+    case one two three
+  }
+  */
+
+  define fin3_pair = record {
+    field a b: fin3
+  }
+
+
+  define inverse:
+    fin3  ⇒ fin3 =
+  ┌ one   → fin3.three
+  ├ two   → fin3.two
+  └ three → fin3.one
+
+  define test:
+   (intros a       b: fin3) ⇒ fin3 =
+    ─    ┌ one   ┌ one      → fin3.three
+         │       ├ two      → fin3.two
+         │       └ three    → test(fin3.one, fin3.one, fin3.one) // recursive definitions
+         ├ three   ─        → b
+         └ ─       ─        → b // although first is a dash pattern, it doesn't introduce the name (yet)
+
+  test
+}
+
+define ignored_again = ig(fin3_copy.one, fin3_copy.one, fin3_copy.three)
+
+
+

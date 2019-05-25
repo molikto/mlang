@@ -1,8 +1,0 @@
-
-define bool = sum { case true false }
-
-define nat: type = sum {
-  case zero
-  case suc(: nat)
-}
-

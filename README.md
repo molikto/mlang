@@ -6,7 +6,7 @@
 
 A cubical type theory implementation with implicit arguments, structural record and sum types and more. see roadmap section for details.
 
-see `tests` and `library` folder for sample code. currently `library` contains very little stuff, most is in `tests` folder
+see `tests` and `library` folder for sample code
 
 ## build & run & debug
 
@@ -32,6 +32,8 @@ there are other kind of TODOs in the project, they are `LATER`, `TODO`, and `FIX
     * readback
     * type directed conversion check with eta and recursive definitions
     * basic `.poor` syntax and parser
+    * pattern matching
+        * overlapping and order independent patterns, see `plus_tests` in library for detail
 * **DONE** cumulative universe with "up" operator for global definitions (see [here](https://mazzo.li/epilogue/index.html%3Fp=857&cpage=1.html))
     * **QUESTION** what's the relationship of checked type with `infer`, `inferLevel` etc. that performed directly on value level?
 * **DONE** locally scoped meta; very simple unification; implicit arguments syntax
@@ -86,8 +88,6 @@ there are other kind of TODOs in the project, they are `LATER`, `TODO`, and `FIX
     * the big problems list
     * Agda Katas
 
-    
-    
 
 ## internals
 

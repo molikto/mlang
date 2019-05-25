@@ -1,0 +1,10 @@
+
+
+define id(a: type, x: a): a = x
+
+
+define test1(a b: type, f: a ⇒ b, func: (a ⇒ b) ⇒ type, g: func(f)): func(id(_, f)) = g
+
+
+define test0(a b: type, f: a ⇒ b, func: (a ⇒ b) ⇒ type, g: func(f)): func(f) = g
+
