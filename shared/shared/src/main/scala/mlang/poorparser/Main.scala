@@ -10,18 +10,34 @@ object Main extends Parser {
   def test(a: File, shouldFails: Boolean) = {
     a.listFiles(_.getName.endsWith(".poor")).sortBy(_.getName).foreach(f => {
       debug(s"Testing ${a.getName}/${f.getName}", 5)
-      val module = parseOrThrow(f)
-      var fails = false
+      val s = src(f)
+      val module = parseOrThrow(s)
+      var fails = ""
+      val exp = if (shouldFails) {
+        assert(s.startsWith("// "))
+        s.takeWhile(_ != '\n').drop(3)
+      } else {
+        ""
+      }
       var cause: Exception = null
       try {
         TypeChecker.topLevel().check(module)
       } catch {
         case e: Exception =>
           cause = e
-          fails = true
+          fails = e.getClass.getSimpleName
       }
-      if (fails != shouldFails) {
-        throw new Exception(s"Test failure with in ${a.getName}/${f.getName}", cause)
+      if (fails != exp) {
+        val msg = if (shouldFails) {
+          if (fails == "") {
+            "expecting to fail"
+          } else {
+            s"expecting $exp"
+          }
+        } else {
+          "not expecting it to fail"
+        }
+        throw new Exception(s"Test failure with in ${a.getName}/${f.getName}, $msg", cause)
       }
     })
   }
@@ -36,7 +52,7 @@ object Main extends Parser {
           rec(name + "/", f)
         } else if (f.getName.endsWith(".poor")) {
           debug(s"Checking file $name", 5)
-          checker = checker.check(parseOrThrow(f))
+          checker = checker.check(parseOrThrow(src(f)))
         }
       })
     }
@@ -54,8 +70,8 @@ object Main extends Parser {
     }
     if (runTests) {
       val tests = new File("tests")
-      test(new File(tests, "pass"), false)
       test(new File(tests, "exception"), true)
+      test(new File(tests, "pass"), false)
       Benchmark.reportAndReset()
     }
   }

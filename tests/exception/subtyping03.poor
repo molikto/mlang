@@ -1,3 +1,3 @@
-
+// TypeMismatch
 
 define test3(a: ^type ⇒ type, b: type ⇒ ^type, d: a ≡ b): a ≡[─ → ^type ⇒ type] b = d

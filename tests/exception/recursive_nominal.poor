@@ -1,5 +1,6 @@
+// TypeMismatch
 
-
+define refl(#A: type, #x: A): x ≡ x = i → x
 
 
 

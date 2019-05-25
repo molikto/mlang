@@ -1,4 +1,4 @@
-
+// TypeMismatch
 
 
 define test2(a: type ⇒ type): ^type ⇒ type = a

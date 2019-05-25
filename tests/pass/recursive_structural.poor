@@ -1,4 +1,7 @@
 
+
+define refl(#A: type, #x: A): x ≡ x = i → x
+
 define flat: type = sum {
    case true false
 }

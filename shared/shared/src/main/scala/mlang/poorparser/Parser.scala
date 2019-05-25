@@ -183,6 +183,8 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
     (rep(declaration) ^^ { a=> Module(a) })(new PackratReader(new lexical.Scanner(a)))
   }
 
+  def src(a: File): String = scala.io.Source.fromFile(a).getLines().mkString("\n")
+
   def parseOrThrow(a: String): Module = parse(a) match {
     case Success(result, next) =>
       if (next.atEnd) {
@@ -193,7 +195,5 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
     case NoSuccess(msg, _) =>
       throw new Exception(s"Parse failed with $msg")
   }
-
-  def parseOrThrow(f: File): Module = parseOrThrow(scala.io.Source.fromFile(f).getLines().mkString("\n"))
 
 }
