@@ -1,0 +1,19 @@
+
+
+
+
+
+define inductively nat: type = sum {
+  case zero
+  case suc(: nat)
+}
+
+define inductively nat2: type = sum {
+  case zero
+  case suc(: nat)
+}
+
+
+
+// this fails because we have nominal equality for recursive types!
+define fails: nat ≡ nat2 = refl
