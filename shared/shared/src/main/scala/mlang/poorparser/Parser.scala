@@ -34,7 +34,7 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
   }
 
   lexical.reserved ++= List("define", "declare", "case", "__debug", "as", "coe", "hcom", "com","field", "ignored", "match", "record", "type", "sum", "inductively", "run", "with_constructors", "I", "_")
-  lexical.delimiters ++= List("{", "}", "[", "]", ":", ",", "(", ")", "#", "≡", "─", "┬", "┌", "⊏", "└", "├", "⇒", "→", "+", "-", ";", "=", "@", "\\", ".", "|")
+  lexical.delimiters ++= List("{", "}", "[", "]", ":", ",", "(", ")", "#", "≡", "─", "┬", "┌", "⊏", "└", "├", "⇒", "→", "+", "-", ";", "=", "@", "\\", ".", "|", "^")
 
   def delimited[T](a: String, t: Parser[T], b: String): Parser[T] = a ~> t <~ b
 
@@ -57,9 +57,11 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
   }
 
 
-  lazy val universe: PackratParser[Universe] = keyword("type") ~> delimited("(", numericLit, ")") ^^ {a =>
-    Universe(a.toInt)
+  lazy val universe: PackratParser[Universe] = rep1("^") ~ keyword("type") ^^ {a =>
+    Universe(a._1.size)
   } | keyword("type") ^^ { _ => Universe(0) }
+
+  lazy val up: PackratParser[Term] = rep1("^") ~ ident ^^ { a => Up(Reference(a._2), a._1.size) }
 
   lazy val let: PackratParser[Let] = keyword("run") ~> delimited("{", rep(declaration) ~ term, "}") ^^ { a => Let(a._1, a._2)}
 
@@ -84,6 +86,7 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
         projection |
         meta |
         sum |
+        up |
         coe | com | hcom |
         universe |
         delimited("(", term, ")") |

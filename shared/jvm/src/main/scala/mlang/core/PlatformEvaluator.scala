@@ -59,6 +59,8 @@ trait PlatformEvaluator extends BaseEvaluator {
       term match {
         case Abstract.Universe(l) =>
           s"Universe($l)"
+        case Abstract.Up(l, i) =>
+          s"${emit(l, depth)}.up($i)"
         case Abstract.Reference(up, index) =>
           if (up > depth) {
             s"${tunnel(getReference(up - depth - 1, index))}"

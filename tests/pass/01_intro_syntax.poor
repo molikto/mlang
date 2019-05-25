@@ -13,9 +13,12 @@
 
 define refl(#A: type, #x: A): x ≡ x = i → x
 
+define symm(A: type, x y: A, p: x ≡ y): y ≡ x =
+  i → hcom(0, 1, x, k | i=0 → p(k) | i=1 → x)
+
 define some_test = run { // these also passes in Agda
 
-  declare test : type
+  declare test : ^type
 
   declare test2 : test ≡ type
 
@@ -28,11 +31,11 @@ define some_test = run { // these also passes in Agda
 
 
 define some_test2 = run { // these also passes in Agda
-  define test: type ⇒ type = ─ → type
+  define test: ^type ⇒ ^type = ─ → type
 
-  declare test2: type
+  declare test2: ^type
 
-  define test3: test(test2) ≡ type = refl
+  define test3: test(test2) ≡ type = ^refl
 
   define test2 = type
 
@@ -168,8 +171,6 @@ define test1(a b: type, f: a ⇒ b, func: (a ⇒ b) ⇒ type, g: func(f)): func(
 define apd(A: type, P: A ⇒ type, f: (x: A) ⇒ P(x), x y: A, p: x ≡ y): coe(0, 1, i → P(p(i)), f(x)) ≡ f(y) =
   i → coe(i, 1, j → P(p(j)), f(p(i)))
 
-define symm(A: type, x y: A, p: x ≡ y): y ≡ x =
-  i → hcom(0, 1, x, k | i=0 → p(k) | i=1 → x)
 
 define symm_filler(A: type, x y: A, p: x ≡ y): (─ → x) ≡[j → p(j) ≡ x] symm(A, x, y, p) =
   j → i → hcom(0, j, x, k | i=0 → p(k) | i=1 → x)
@@ -177,8 +178,8 @@ define symm_filler(A: type, x y: A, p: x ≡ y): (─ → x) ≡[j → p(j) ≡ 
 define symm_unit(A: type, x: A): (─ → x) ≡[─ → x ≡ x] symm(A, x, x, (─ → x)) =
   symm_filler(A, x, x, ─ → x)
 
-define symmp(A1 A2: type, A: A1 ≡ A2, x: A1, y: A2, p: x ≡[i → A(i)] y): y ≡[i → symm(type, A1, A2, A, i)] x =
-  i → com(0, 1, j → symm_filler(type, A1, A2, A, j, i), x, k | i=0 → p(k) | i=1 → x)
+define symmp(A1 A2: type, A: A1 ≡ A2, x: A1, y: A2, p: x ≡[i → A(i)] y): y ≡[i → ^symm(_, A1, A2, A, i)] x =
+  i → com(0, 1, j → ^symm_filler(_, A1, A2, A, j, i), x, k | i=0 → p(k) | i=1 → x)
 
 define trans(A: type, x y z: A, p1: x ≡ y, p2: y ≡ z): x ≡ z =
   i → hcom(0, 1, p1(i), k | i=0 → x | i=1 → p2(k))

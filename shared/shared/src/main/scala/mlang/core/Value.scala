@@ -19,9 +19,73 @@ import Value._
 
 sealed trait Value {
 
+
   def from: Value = if (_from == null) this else _from
 
+  /**
+    *
+    * HOW DOES restrict interacts with Up
+    *
+    * these two are translated to calls, not Stuck in eval
+    *
+    * they act structurally on all syntax, and block on all references (closed, generic, meta)
+    *
+    * so they block on each other, and we will ensure that the canonical block order is Restrict(Up(XxxReference))
+    *
+    */
   def restrict(a: Seq[DimensionPair]): Value = a.foldLeft(this) {(t, v) => t.restrict(v) }
+
+  def up(b: Int) : Value = this match {
+    case Universe(i) =>
+      Universe(i + b)
+    case Function(domain, im, codomain) =>
+      Function(domain.up(b), im, codomain.up(b))
+    case Record(level, inductively, ms, ns, nodes) =>
+      Record(level + 1, inductively.map(_.up(b)), ms, ns, ClosureGraph.up(nodes, b))
+    case Make(values) =>
+      Make(values.map(_.up(b)))
+    case Construct(name, vs) =>
+      Construct(name, vs.map(_.up(b)))
+    case Sum(level, inductively, constructors) =>
+      Sum(level + 1, inductively.map(_.up(b)), constructors.map(n => Constructor(n.name, n.ims, ClosureGraph.up(n.nodes, b))))
+    case Lambda(closure) =>
+      Lambda(closure.up(b))
+    case PatternLambda(id, typ, cases) =>
+      PatternLambda(id, typ.up(b), cases.map(a => Case(a.pattern, a.closure.up(b))))
+    case PathType(typ, left, right) =>
+      PathType(typ.up(b), left.up(b), right.up(b))
+    case PathLambda(body) =>
+      PathLambda(body.up(b))
+    case App(lambda, argument) =>
+      App(lambda.up(b), argument.up(b))
+    case Coe(direction, tp, base) =>
+      Coe(direction, tp.up(b), base.up(b))
+    case Hcom(direction, tp, base, faces) =>
+      Hcom(direction, tp.up(b), base.up(b), faces.map(n => Face(n.restriction, n.body.up(b))))
+    case Com(direction, tp, base, faces) =>
+      Com(direction, tp.up(b), base.up(b), faces.map(n => Face(n.restriction, n.body.up(b))))
+    case Maker(value, field) =>
+      Maker(value.up(b), field)
+    case Projection(make, field) =>
+      Projection(make.up(b), field)
+    case PatternStuck(lambda, stuck) =>
+      PatternStuck(lambda.up(b).asInstanceOf[PatternLambda], stuck.up(b))
+    case Let(items, body) =>
+      Let(items.map(_.up(b)), body.up(b))
+    case PathApp(left, stuck) =>
+      PathApp(left.up(b), stuck)
+    case Restricted(a, faces) =>
+      Restricted(a.up(b), faces)
+    case Up(c, d) =>
+      if (b + d == 0) c
+      else Up(c, b + d)
+    case g: Generic =>
+      Up(g, b)
+    case o: Meta =>
+      Up(o, b)
+    case o: Reference =>
+      Up(o, b)
+  }
 
   // TODO how does it interact with recursive references?
   def restrict(lv: DimensionPair): Value =  this match {
@@ -62,6 +126,8 @@ sealed trait Value {
       Let(items.map(_.restrict(lv)), body.restrict(lv))
     case PathApp(left, stuck) =>
       PathApp(left.restrict(lv), stuck.restrict(lv))
+    case Up(a, b) =>
+      Restricted(Up(a, b), Seq(lv))
     case Restricted(a, faces) =>
       Restricted(a, lv +: faces)
     case g: Generic =>
@@ -77,8 +143,8 @@ sealed trait Value {
     throw new IllegalArgumentException("Values don't have equal. Either call eq or do conversion checking")
   }
 
-  private var _from: Value = _
-  private var _whnf: Value = _
+  @cached_mutation private var _from: Value = _
+  @cached_mutation private var _whnf: Value = _
 
 
 
@@ -150,26 +216,25 @@ sealed trait Value {
             case a => a
           }
         case Restricted(a, restriction) =>
-          def restr(a: Value) = DimensionPair.normalizeRestriction(restriction) match {
-            case Seq() => a
-            case b => Restricted(a, b)
-          }
-          def rec(v: Value): Value = {
-            v match {
-              case g: Generic =>
-                restr(g)
-              case k@Meta(m) =>
-                m match {
-                  case Meta.Closed(v) => rec(v)
-                  case _: Meta.Open =>
-                    restr(k)
-                }
-              case Restricted(_, _) => logicError() // our code will not produce stuff like this yet
-              case Reference(v) => rec(v)
-              case a => a.restrict(restriction).whnf
+          val normalized = DimensionPair.normalizeRestriction(restriction)
+          if (normalized.isEmpty) {
+            a.whnf
+          } else {
+            a match {
+              case GenericOrOpenMeta(it) => Restricted(it, normalized) // stop case
+              case u: Up => u.whnf match {
+                case Up(GenericOrOpenMeta(it), b) => Restricted(Up(it, b), normalized) // a up's whnf can only block on generics
+                case j => j.restrict(normalized).whnf
+              }
+              case _ => a.restrict(normalized).whnf
             }
           }
-          rec(a)
+        case Up(a, b) =>
+          // a can only be reference
+          a match {
+            case GenericOrOpenMeta(it) => Up(it, b) // stop case
+            case ReferenceTail(v, c) => c.map(_.derefUpSaved(b)).getOrElse(v.up(b)).whnf
+          }
       }
       candidate._from = this
       candidate match {
@@ -202,6 +267,14 @@ object Value {
 
   type ClosureGraph = Seq[ClosureGraph.Node]
   object ClosureGraph {
+    def up(graph: ClosureGraph, uu: Int): ClosureGraph = {
+      graph.map {
+        case DependentWithMeta(ds, mc, c) => DependentWithMeta(ds, mc, (a, b) => { val t = c(a.map(_.up(-uu)), b.map(_.up(-uu))); (t._1.map(_.up(uu)), t._2.up(uu)) })
+        case IndependentWithMeta(ds, ms, typ) => IndependentWithMeta(ds, ms.map(_.up(uu)), typ.up(uu))
+        case _ => logicError()
+      }
+    }
+
     def restrict(graph: ClosureGraph, lv: DimensionPair): ClosureGraph = {
       graph.map {
         case DependentWithMeta(ds, mc, c) => DependentWithMeta(ds, mc, (a, b) => { val t = c(a, b); (t._1.map(_.restrict(lv)), t._2.restrict(lv)) })
@@ -518,12 +591,15 @@ object Value {
     def apply() = func(Seq.empty)
     def apply(seq: Seq[Value]): Value = func(seq)
     def restrict(lv: DimensionPair): MultiClosure = Value.MultiClosure(v => this(v).restrict(lv))
+    def up(b: Int): Value.MultiClosure = Value.MultiClosure(v => this(v.map(_.up(-b))).up(b))
   }
 
   implicit class Closure(private val func: Value => Value) extends AnyVal {
+
     def eq(b: Closure): Boolean = func.eq(b.func)
     def apply(seq: Value): Value = func(seq)
     def restrict(lv: DimensionPair): Closure = Value.Closure(v => this(v).restrict(lv))
+    def up(b: Int): Value.Closure = Value.Closure(v => this(v.up(-b)).up(b))
   }
 
   object Closure {
@@ -539,6 +615,7 @@ object Value {
     def eq(b: AbsClosure): Boolean = func.eq(b.func)
     def apply(seq: Dimension): Value = func(seq)
     def restrict(lv: DimensionPair): AbsClosure = Value.AbsClosure(v => this(v).restrict(lv))
+    def up(b: Int): Value.AbsClosure = Value.AbsClosure(v => this(v).up(b))
     def mapd(a: (Value, Dimension) => Value): AbsClosure = AbsClosure(d => a(this(d), d))
     def map(a: Value => Value): AbsClosure = AbsClosure(d => a(this(d)))
   }
@@ -641,6 +718,7 @@ object Value {
   sealed trait HeadCanonical extends Whnf
   sealed trait Stuck extends Whnf
 
+
   object Meta {
     sealed trait State
 
@@ -652,22 +730,61 @@ object Value {
     def isSolved: Boolean = v.isInstanceOf[Meta.Closed]
   }
 
-  case class Reference(@lateinit var value: Value) extends Syntaxial {
+  case class Reference(@lateinit private var value000: Value) extends Syntaxial {
+    @cached_mutation private val _ups = mutable.ArrayBuffer.empty[Value]
+    def value: Value =  value000
+    def value_=(v: Value): Unit = {
+      _ups.clear()
+      value000 = v
+    }
+
+    def derefUpSaved(b: Int): Value = {
+      if (b < _ups.size && _ups(b) != null) {
+        _ups(b)
+      } else {
+        val v = value.up(b)
+        while (b >= _ups.size) _ups.append(null)
+        _ups.update(b, v)
+        v
+      }
+    }
+
     override def toString: String = "Reference"
+  }
+
+  object ReferenceTail {
+    def rec(a: Value, ref: Option[Reference]): Option[(Value, Option[Reference])] = a match {
+      case Meta(Meta.Closed(v)) => rec(v, ref)
+      case r@Reference(t) => rec(t, Some(r))
+      case els => Some((els, ref))
+    }
+    def unapply(a: Value): Option[(Value, Option[Reference])] = rec(a, None)
+  }
+  object GenericOrOpenMeta {
+    def unapply(a: Value): Option[Value] = a match {
+      case g: Generic => Some(g)
+      case Meta(m: Meta.Open) => Some(a)
+      case _ => None
+    }
   }
 
   case class Generic(id: Long, @lateinit var typ: Value) extends Stuck
 
-  case class Universe(level: Int) extends HeadCanonical
+  case class Universe(level: Int) extends HeadCanonical {
+    assert(level >= 0)
+  }
 
   object Universe {
-    def up(i: Int) = Universe(i) // TODO type : type for now
+    def suc(i: Int) = Universe(i + 1)
   }
+
+  case class Up(term: Value, level: Int) extends Syntaxial
 
   case class Function(domain: Value, impict: Boolean, codomain: Closure) extends HeadCanonical
   case class App(lambda: StuckPos, argument: Value) extends Stuck
 
   case class Inductively(id: Long) {
+    def up(b: Int): Inductively = this
     def restrict(lv: DimensionPair): Inductively = this
   }
 
@@ -745,7 +862,7 @@ object Value {
 
   case class PatternStuck(lambda: PatternLambda, stuck: StuckPos) extends Stuck
 
-  case class Let(var items: Seq[Value], body: Value) extends Syntaxial
+  case class Let(items: Seq[Value], body: Value) extends Syntaxial
 
 
   case class PathType(typ: AbsClosure, left: Value, right: Value) extends HeadCanonical
@@ -771,7 +888,8 @@ object Value {
         g.typ
       case Restricted(a, fs) =>
         fs.foldLeft(infer(a)) { (t, r) => t.restrict(r) }
-      case Universe(level) => Universe.up(level)
+      case Universe(level) => Universe.suc(level)
+      case Up(a, b) => infer(a).up(b)
       case Function(domain, _, codomain) =>
         (infer(domain), infer(codomain(Generic(vgen(), domain)))) match {
           case (Universe(l1), Universe(l2)) => Universe(l1 max l2)
@@ -836,8 +954,6 @@ object Value {
       None
     }
   }
-
-
 
   object OpenMetaHeaded {
 

@@ -64,6 +64,8 @@ object TypeCheckException {
   case class NotExpectingImplicitArgument() extends TypeCheckException
 
   case class RecursiveTypesMustBeDefinedAtTopLevel() extends TypeCheckException
+
+  case class UpCanOnlyBeUsedOnTopLevelDefinition()  extends TypeCheckException
 }
 
 
@@ -169,7 +171,14 @@ class TypeChecker private (protected override val layers: Layers)
     }
     val res = term match {
       case Term.Universe(i) =>
-        (Value.Universe.up(i), Abstract.Universe(i))
+        (Value.Universe.suc(i), Abstract.Universe(i))
+      case Term.Up(a, b) =>
+        val (binder, abs) = lookupTerm(a.name)
+        abs match {
+          case Abstract.Reference(up, _) if up == layers.size - 1 =>
+            reduceMore(binder.up(b), Abstract.Up(abs, b))
+          case _ => throw TypeCheckException.UpCanOnlyBeUsedOnTopLevelDefinition()
+        }
       case Term.Reference(name) =>
         // should lookup always return a value? like a open reference?
         val (binder, abs) = lookupTerm(name)

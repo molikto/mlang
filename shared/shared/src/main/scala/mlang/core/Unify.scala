@@ -137,9 +137,10 @@ trait Unify extends Reifier with BaseEvaluator with PlatformEvaluator {
         case (Universe(l1), Universe(l2)) =>
           l1 == l2
         case (Record(l1, id1, m1, i1, n1), Record(l2, id2, m2, i2, n2)) =>
-          maybeNominal(id1, id2, l1 == l2 && m1 == m2 && i1 == i2 && recClosureGraph(n1, n2))
+          // need to check level because of up operator
+          l1 == l2 && maybeNominal(id1, id2, m1 == m2 && i1 == i2 && recClosureGraph(n1, n2))
         case (Sum(l1, id1, c1), Sum(l2, id2, c2)) =>
-          maybeNominal(id1, id2, l1 == l2 && c1.size == c2.size && c1.zip(c2).forall(p => recConstructor(p._1, p._2)))
+          l1 == l2 && maybeNominal(id1, id2, c1.size == c2.size && c1.zip(c2).forall(p => recConstructor(p._1, p._2)))
         case (PathType(t1, l1, r1), PathType(t2, l2, r2)) =>
           recTypeAbsClosure(t1, t2) &&
               recTerm(t1(Dimension.False), l1, l2) &&

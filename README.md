@@ -106,7 +106,7 @@ there are other kind of TODOs in the project, they are `LATER`, `TODO`, and `FIX
 
 ------
 
-**some of bellow is out of date and wrong now**
+**some of bellow is out of date and wrong now, it mainly serves as a place to clear up my thoughts**
 
 
 ### values
@@ -166,6 +166,7 @@ at least we want to be semi-decidable, this allows more equality to be checked.
 
 context restrictions is done by quoting any **reference** not defined in the restricted context by a restriction. restriction works for all stuff, and it don't further evaluate terms at all. it is the one that calls the restriction will evaluate them further?
 
+
 we have `hcom`, `coe` as eliminations, in a normalized closed value, they should not appear. they interact with restrictions, just like a path lambda interact with dimensions, then they are inductively defined on all type formers
 
 restriction will not reduce on any kind of reference, they are forced by whnf.
@@ -203,3 +204,10 @@ other than this, our algorithm is pretty ignorance about metas. open metas is mu
 
 we use the most simple meta solving algorithm, no constraint etc.
 
+### universe levels
+
+if we allow only toplevel definitions who's closure is all defined to be lifted, then the "up" is entirely transparent, the restriction to top level is because in a parameterized context, you don't know how to up a open variable, but I think one should not count on this?
+
+the problem is for recursive references, you need to deal with lifted open variables
+
+so restriction and up is all defined structurally on values, the difference is: for a closure, a `up` will "de-up" it's parameters, but restriction will also restrict it's parameters

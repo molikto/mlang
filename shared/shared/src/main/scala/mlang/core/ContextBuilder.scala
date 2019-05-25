@@ -175,12 +175,12 @@ trait ContextBuilder extends ContextWithMetaOps {
       p match {
         case Patt.Atom(name) =>
           var ret: (Value, Pattern) = null
-          var indexaa = 0
+          var index = 0
           name.asRef match {
             case Some(ref) =>
               t.whnf match {
-                case sum: Value.Sum if { indexaa = sum.constructors.indexWhere(c => c.name.by(ref) && c.nodes.isEmpty); indexaa >= 0 } =>
-                  ret = (Value.Construct(indexaa, Seq.empty), Pattern.Construct(indexaa, Seq.empty))
+                case sum: Value.Sum if { index = sum.constructors.indexWhere(c => c.name.by(ref) && c.nodes.isEmpty); index >= 0 } =>
+                  ret = (Value.Construct(index, Seq.empty), Pattern.Construct(index, Seq.empty))
                 case _ =>
               }
             case _ =>

@@ -37,6 +37,7 @@ case class DefineItem(typ0: ParameterBinder, ref0: Option[Value.Reference]) {
 object Context {
   type Layers = Seq[Layer]
 
+
   class Metas(val metas: mutable.ArrayBuffer[Value.Meta], var frozen: Int) {
     def debug_allFrozen: Boolean = metas.size == frozen
 

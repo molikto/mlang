@@ -25,6 +25,7 @@ sealed trait Block
 object Term {
 
   case class Universe(level: Int) extends Term
+  case class Up(a: Reference, i: Int) extends Term
 
   case class Reference(name: Ref) extends Term // some name is renamed
 
