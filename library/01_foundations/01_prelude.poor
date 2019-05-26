@@ -5,50 +5,22 @@ define id(#A: type, a: A): A = a
 
 define refl(#A: type, #a: A): a ≡ a = i → a
 
-
-//
-// a0 -u*  a1
-// |       |
-// r0      r1
-// *       *
-// b0 -v* b1
-define square(
-  #A: type,
-  #a0 #a1 #b0 #b1: A,
-  u: a0 ≡ a1, v: b0 ≡ b1, r0: a0 ≡ b0, r1: a1 ≡ b1
-): type =
-  r0 ≡[i → u(i) ≡ v(i)] r1
-
-
-// define square_constant(#A: type, #a: A, p: a ≡ a): square(p, p, p, p) = ???
-
-// TODO alternative definition when we have the feature bellow
-// [issue 7] const_projections syntax accepts a reference, then you can use them as `square.constant(p)`
-// const_projections square {
-//   define constant(#A: type, #a: A, p: a ≡ a): square(p, p, p, p) =
-// }
-
-
 define fun_ext(#A: type, #B: A ⇒ type, #f #g: (x: A) ⇒ B(x), p: (x: A) ⇒ f(x) ≡ g(x)): f ≡ g =
   i → x → p(x, i)
 
-
-
-
-define symm(A: type, x y: A, p: x ≡ y): y ≡ x =
+define symm(#A: type, #x #y: A, p: x ≡ y): y ≡ x =
   i → hcom(0, 1, x, k | i=0 → p(k) | i=1 → x)
 
 define apd(A: type, P: A ⇒ type, f: (x: A) ⇒ P(x), x y: A, p: x ≡ y): coe(0, 1, i → P(p(i)), f(x)) ≡ f(y) =
   i → coe(i, 1, j → P(p(j)), f(p(i)))
 
-
-define symm_filler(A: type, x y: A, p: x ≡ y): (─ → x) ≡[j → p(j) ≡ x] symm(A, x, y, p) =
+define symm_filler(A: type, x y: A, p: x ≡ y): (─ → x) ≡[j → p(j) ≡ x] symm(p) =
   j → i → hcom(0, j, x, k | i=0 → p(k) | i=1 → x)
 
-define symm_unit(A: type, x: A): (─ → x) ≡[─ → x ≡ x] symm(A, x, x, (─ → x)) =
+define symm_unit(A: type, x: A): (─ → x) ≡[─ → x ≡ x] symm((─ → x)) =
   symm_filler(A, x, x, ─ → x)
 
-define symmp(A1 A2: type, A: A1 ≡ A2, x: A1, y: A2, p: x ≡[i → A(i)] y): y ≡[i → ^symm(_, A1, A2, A, i)] x =
+define symmp(A1 A2: type, A: A1 ≡ A2, x: A1, y: A2, p: x ≡[A] y): y ≡[^symm(A)] x =
   i → com(0, 1, j → ^symm_filler(_, A1, A2, A, j, i), x, k | i=0 → p(k) | i=1 → x)
 
 define trans(A: type, x y z: A, p1: x ≡ y, p2: y ≡ z): x ≡ z =

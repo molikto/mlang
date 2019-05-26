@@ -18,14 +18,14 @@ sealed trait Abstract {
     case _: Universe => this
     case Up(t, i) => Up(t.diff(depth, x), i)
     case Reference(up, index) =>
-      if (up > depth) {
+      if (up >= depth) {
         assert(up + x >= 0)
         Reference(up + x, index)
       } else {
         this
       }
     case MetaReference(up, index) =>
-      if (up > depth) {
+      if (up >= depth) {
         MetaReference(up + x, index)
       } else {
         this

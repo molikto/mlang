@@ -1,4 +1,4 @@
-define inductively with_constructor nat: type = sum {
+define inductively nat: type = sum {
   case zero
   case suc(: nat)
 }

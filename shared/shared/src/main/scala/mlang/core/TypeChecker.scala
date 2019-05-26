@@ -82,7 +82,6 @@ class TypeChecker private (protected override val layers: Layers)
 
   override protected implicit def create(a: Layers): Self = new TypeChecker(a)
 
-
   def checkValidRestrictions(ds0: Seq[Value.DimensionPair]) = {
   }
 
@@ -138,16 +137,22 @@ class TypeChecker private (protected override val layers: Layers)
   }
 
 
-  def checkLine(a: Term): (Value.AbsClosure, Abstract.AbsClosure) = {
+  def checkLine(a: Term): (Int, Abstract.AbsClosure) = {
     a match {
       case Term.Lambda(n, b, body) =>
         if (b) throw TypeCheckException.DimensionLambdaCannotBeImplicit()
         val ctx = newDimensionLayer(n)._1
-        val (_, ta0) = ctx.inferLevel(body)
+        val (l, ta0) = ctx.inferLevel(body)
         val ta = Abstract.AbsClosure(ctx.finishReify(), ta0)
-        val tv = eval(ta)
-        (tv, ta)
-      case _ => throw TypeCheckException.ExpectingLambdaTerm()
+        (l, ta)
+      case _ =>
+        val (tv, ta) = infer(a)
+        tv.whnf match {
+          case j@Value.PathType(_, _, _) =>
+            val clo = Abstract.AbsClosure(Seq.empty, Abstract.PathApp(ta.diff(0, 1), Abstract.Dimension.Reference(0)))
+            (Value.inferLevel(j), clo)
+          case _ => throw TypeCheckException.ExpectingLambdaTerm()
+        }
     }
   }
 
@@ -226,12 +231,14 @@ class TypeChecker private (protected override val layers: Layers)
       case Term.Coe(direction, tp, base) =>
         // LATER does these needs finish off implicits?
         val (dv, da) = checkDimensionPair(direction)
-        val (cl, ta) = checkLine(tp)
+        val (_, ta) = checkLine(tp)
+        val cl = eval(ta)
         val la = check(base, cl(dv.from))
         (cl(dv.to), Abstract.Coe(da, ta, la))
       case Term.Com(direction, tp, base, ident, faces) =>
         val (dv, da) = checkDimensionPair(direction)
-        val (cl, ta) = checkLine(tp)
+        val (_, ta) = checkLine(tp)
+        val cl = eval(ta)
         val ba = check(base, cl(dv.from))
         val rs = checkCompatibleCapAndFaces(ident, faces, cl, eval(ba), dv)
         (cl(dv.to), Abstract.Com(da, ta, ba, rs))
@@ -244,18 +251,11 @@ class TypeChecker private (protected override val layers: Layers)
       case Term.PathType(typ, left, right) =>
         typ match {
           case Some(tp) =>
-            tp match {
-              case Term.Lambda(name, b, body) =>
-                if (b) throw TypeCheckException.DimensionLambdaCannotBeImplicit()
-                val ctx = newDimensionLayer(name)._1
-                val (tl, ta) = ctx.inferLevel(body)
-                val ca = Abstract.AbsClosure(ctx.finishReify(), ta)
-                val tv = eval(ca)
-                val la = check(left, tv(Value.Dimension.False))
-                val ra = check(right, tv(Value.Dimension.True))
-                (Value.Universe(tl), Abstract.PathType(ca, la, ra))
-              case _ => throw TypeCheckException.ExpectingLambdaTerm()
-            }
+            val (tl, ca) = checkLine(tp)
+            val tv = eval(ca)
+            val la = check(left, tv(Value.Dimension.False))
+            val ra = check(right, tv(Value.Dimension.True))
+            (Value.Universe(tl), Abstract.PathType(ca, la, ra))
           case None =>
             val (lt, la) = infer(left)
             val (rt, ra) = infer(right)
