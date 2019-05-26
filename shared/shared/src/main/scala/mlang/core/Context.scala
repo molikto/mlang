@@ -97,7 +97,19 @@ trait Context extends ContextBaseForMeta {
 
   protected val layers: Layers
 
+  def getDependency(d: Dependency): Option[Value] = if (d.meta) {
+    getMetaReference(0, d.i) match {
+      case Value.Meta(c: Value.Meta.Closed) => Some(c.v)
+      case _ => None
+    }
+  } else getReference(0, d.i) match {
+    case Value.Reference(v) => Some(v)
+    case g: Value.Generic => None
+    case _ => logicError()
+  }
+
   def getMetaReference(depth: Int, index: Int): Value.Meta = layers(depth).metas(index)
+
   // get value directly without resolving faces
   def getReference(depth: Int, index: Int): Value = layers(depth) match {
     case Layer.Parameter(binder, _) if index == -1 => binder.value

@@ -168,19 +168,13 @@ trait Unify extends Reifier with BaseEvaluator with PlatformEvaluator {
   private def trySolve(m: Meta, vs: Seq[Value], t20: Value): Option[Value] = {
     Try(solve(m, vs, t20)) match {
       case Failure(exception) =>
-        def debugPrint(): Unit =  {
-          if (debug.enabled(1)) {
-            exception.printStackTrace()
-          }
-        }
         exception match {
           case _: UnificationFailedException =>
-            debugPrint()
+            None
           case _: RebindNotFoundException =>
-            debugPrint()
+            None
           case e => throw e
         }
-        None
       case Success(v) =>
         Some(v)
     }
@@ -219,12 +213,20 @@ trait Unify extends Reifier with BaseEvaluator with PlatformEvaluator {
         case _ => logicError()
       }
     }
-    // FIXME we also need to check indirect dependencies
-    if (abs.dependencies(0).contains(Dependency(index, true))) {
-      error("Meta solution contains itself")
+    val toCheck = Seq((Dependency(index, true), abs)).toBuffer
+    val checked = mutable.HashSet.empty[Dependency]
+    while (toCheck.nonEmpty) {
+      val head = toCheck.head
+      val dps = head._2.dependencies(0)
+      if (dps.contains(Dependency(index, true))) {
+        error("Meta solution contains itself")
+      }
+      checked.add(head._1)
+      toCheck.remove(0)
+      toCheck.appendAll(dps.diff(checked).flatMap(a => getDependency(a).map(v => (a, reify(v)))))
     }
     // FIXME type checking??
-    debug(s"meta solved with $abs", 1)
+    debug(s"meta solved with $abs, checked bodies ${checked.size}", 1)
     val v = ctx.eval(abs)
     m.v = Value.Meta.Closed(v)
     typ
