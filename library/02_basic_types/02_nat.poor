@@ -35,6 +35,7 @@ define plus_alt_2:
         └ suc(m)  → plus_alt_2(suc(a), m)
 
 
+
 // this definition allows more definitional equality, but the definition body needs to be confluent, we haven't implemented the check yet.
 define plus(a b: nat): nat = run {
   define nat_pair = record { field a b: nat }
@@ -102,7 +103,6 @@ define _test_fib = run {
   define fib_ten_eq: thirty_four ≡ fib(nine) = refl
   unit.make
 }
-
 
 
 // wish we have `projection` syntax

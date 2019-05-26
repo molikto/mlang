@@ -3,7 +3,8 @@ package mlang.concrete
 import mlang.name._
 
 
-sealed trait Term
+sealed trait Term {
+}
 
 case class NameType(names: Seq[(Boolean, Name)], ty: Term)
 
