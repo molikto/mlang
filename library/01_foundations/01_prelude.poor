@@ -6,6 +6,12 @@ define id(#A: type, a: A): A = a
 define refl(#A: type, #a: A): a ≡ a = i → a
 
 
+//
+// a0 -u*  a1
+// |       |
+// r0      r1
+// *       *
+// b0 -v* b1
 define square(
   #A: type,
   #a0 #a1 #b0 #b1: A,
@@ -13,14 +19,14 @@ define square(
 ): type =
   r0 ≡[i → u(i) ≡ v(i)] r1
 
+
+// define square_constant(#A: type, #a: A, p: a ≡ a): square(p, p, p, p) = ???
+
 // TODO alternative definition when we have the feature bellow
 // [issue 7] const_projections syntax accepts a reference, then you can use them as `square.constant(p)`
 // const_projections square {
 //   define constant(#A: type, #a: A, p: a ≡ a): square(p, p, p, p) =
 // }
-
-// define square_constant(#A: type, #a: A, p: a ≡ a): square(p, p, p, p) = refl
-
 
 
 define fun_ext(#A: type, #B: A ⇒ type, #f #g: (x: A) ⇒ B(x), p: (x: A) ⇒ f(x) ≡ g(x)): f ≡ g =

@@ -53,11 +53,10 @@ define _test_plus = run {
   define ttt1(a: nat): nat = plus(two, four)
   define ttt2(a: nat): nat = plus(four, two)
   define assert_tt2_eq_holder(b: (nat ⇒ nat) ⇒ type, c: (i: nat ⇒ nat) ⇒ b(i)): b(ttt1) = c(ttt2)
-  define __debug assert_nat_eq_holder2(x y: nat, b: (nat ⇒ nat) ⇒ type, c: (i: nat ⇒ nat) ⇒ b(i)): b(─ → plus(x, y)) = c(─ → plus(x, y))
+  define assert_nat_eq_holder2(x y: nat, b: (nat ⇒ nat) ⇒ type, c: (i: nat ⇒ nat) ⇒ b(i)): b(─ → plus(x, y)) = c(─ → plus(x, y))
   define ttt3(a: nat): nat = plus_alt_2(four, two)
   define assert_tt2_eq_holder3(b: (nat ⇒ nat) ⇒ type, c: (i: nat ⇒ nat) ⇒ b(i)): b(ttt1) = c(ttt3)
   define ttt(a b: nat, c: nat ⇒ type, d: type ⇒ type): type = d(c(plus(a, b)))
-
   unit.make
 }
 
