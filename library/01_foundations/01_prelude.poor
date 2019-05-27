@@ -8,20 +8,23 @@ define refl(#A: type, #a: A): a ≡ a = i → a
 define fun_ext(#A: type, #B: A ⇒ type, #f #g: (x: A) ⇒ B(x), p: (x: A) ⇒ f(x) ≡ g(x)): f ≡ g =
   i → x → p(x, i)
 
-define symm(#A: type, #x #y: A, p: x ≡ y): y ≡ x =
+// projection (p: #x ≡ #y) reverse: y ≡ y = ...
+
+define path_reverse(#A: type, #x #y: A, p: x ≡ y): y ≡ x =
   i → hcom(0, 1, x, k | i=0 → p(k) | i=1 → x)
+
+define path_reverse_filler(A: type, x y: A, p: x ≡ y): (─ → x) ≡[j → p(j) ≡ x] path_reverse(p) =
+  j → i → hcom(0, j, x, k | i=0 → p(k) | i=1 → x)
+
+define path_reverse_unit(A: type, x: A): (─ → x) ≡[─ → x ≡ x] path_reverse((─ → x)) =
+  path_reverse_filler(A, x, x, ─ → x)
+
+define symmp(A1 A2: type, A: A1 ≡ A2, x: A1, y: A2, p: x ≡[A] y): y ≡[^path_reverse(A)] x =
+  i → com(0, 1, j → ^path_reverse_filler(_, A1, A2, A, j, i), x, k | i=0 → p(k) | i=1 → x)
 
 define apd(A: type, P: A ⇒ type, f: (x: A) ⇒ P(x), x y: A, p: x ≡ y): coe(0, 1, i → P(p(i)), f(x)) ≡ f(y) =
   i → coe(i, 1, j → P(p(j)), f(p(i)))
 
-define symm_filler(A: type, x y: A, p: x ≡ y): (─ → x) ≡[j → p(j) ≡ x] symm(p) =
-  j → i → hcom(0, j, x, k | i=0 → p(k) | i=1 → x)
-
-define symm_unit(A: type, x: A): (─ → x) ≡[─ → x ≡ x] symm((─ → x)) =
-  symm_filler(A, x, x, ─ → x)
-
-define symmp(A1 A2: type, A: A1 ≡ A2, x: A1, y: A2, p: x ≡[A] y): y ≡[^symm(A)] x =
-  i → com(0, 1, j → ^symm_filler(_, A1, A2, A, j, i), x, k | i=0 → p(k) | i=1 → x)
 
 define trans(A: type, x y z: A, p1: x ≡ y, p2: y ≡ z): x ≡ z =
   i → hcom(0, 1, p1(i), k | i=0 → x | i=1 → p2(k))
