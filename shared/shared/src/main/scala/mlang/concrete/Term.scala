@@ -86,16 +86,10 @@ object Declaration {
     case object Inductively extends Modifier
     case object __Debug extends Modifier
   }
-  sealed trait InvocationForm
-  object InvocationForm {
-    case class Reference(name: Name) extends InvocationForm
-    case class ConstProjection(ref: Ref, name: Name) extends InvocationForm
-    case class Projection(tele: Seq[NameType], name: Name) extends InvocationForm
-  }
 
-  case class Define(modifiers: Seq[Modifier], from: InvocationForm, parameters: Seq[NameType], typ: Option[Term], term: Term) extends Declaration
+  case class Define(modifiers: Seq[Modifier], name: Name,  parameters: Seq[NameType], typ: Option[Term], term: Term) extends Declaration
   // depending on our algorithm, recursive ones might not need to declare first
-  case class Declare(modifiers: Seq[Modifier], from: InvocationForm, parameters: Seq[NameType], typ: Term) extends Declaration
+  case class Declare(modifiers: Seq[Modifier], name: Name, parameters: Seq[NameType], typ: Term) extends Declaration
 }
 
 
