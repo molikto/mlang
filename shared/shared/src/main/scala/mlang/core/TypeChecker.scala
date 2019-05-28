@@ -105,6 +105,8 @@ class TypeChecker private (protected override val layers: Layers)
         val (ctx, fd) = ctx0.newDimensionLayer(ident, Some(dim0))
         val btr = bt(fd).restrict(dav)
         val abs = ctx.check(a.term, btr)
+        // TODO no hurry to finalize this context? use information in cap to infer?
+        // currently if we want a refl face, it cannot do this!!
         val na = Abstract.AbsClosure(ctx.finishReify(), abs)
         val naa = ctx0.eval(na)
         val nv = naa(dv.from)
