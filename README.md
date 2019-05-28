@@ -32,9 +32,8 @@ there are other kind of TODOs in the project, they are `LATER`, `TODO`, and `FIX
     * readback
     * type directed conversion check with eta and recursive definitions
     * basic `.poor` syntax and parser
-    * pattern matching
-        * overlapping and order independent patterns, see `plus_tests` in library for detail
-            * **QUESTION** so we need to save both domain and codomain in pattern matching, is this ok? see [this](https://github.com/molikto/mlang/commit/a4380b33ac0b97117016ff31a3fb39ab0b8f1ce2) for the code changed
+* **DONE** overlapping and order independent patterns, see `plus_tests` in library for detail
+    * **QUESTION** so we need to save both domain and codomain in pattern matching, is this ok? see [this](https://github.com/molikto/mlang/commit/a4380b33ac0b97117016ff31a3fb39ab0b8f1ce2) for the code changed
 * **DONE** cumulative universe with "up" operator for global definitions (see [here](https://mazzo.li/epilogue/index.html%3Fp=857&cpage=1.html))
     * **QUESTION** what's the relationship of checked type with `infer`, `inferLevel` etc. that performed directly on value level?
 * **DONE** locally scoped meta; very simple unification; implicit arguments syntax
@@ -46,20 +45,17 @@ there are other kind of TODOs in the project, they are `LATER`, `TODO`, and `FIX
     * sum type's Kan ops; fcom, higher inductive types
     * univalance
 * ~~~~~~~~
-* a story for universe, currently type in type
 * user defined eliminations
+    * constant projection `square.constant`
+    * projection `1.is_even`
+    * user defined patterns
     * user defined implicit right form
 * implicit conversions
 * pretty printer (from readback abstract syntax)
-* record calculus
-    * one problem is dependency graph introduces syntax stuff in equality
-* small features
-    * HTML pretty print
-    * naming shadowing
-    * non-dependent closures, can we do it so it subtypes?
+* record calculus (one problem is dependency graph introduces syntax stuff in equality)
+* HTML pretty print with inferred types, cross links
 * **SOUNDNESS** positivity checker
-* **SOUNDNESS** coverage checker
-* **SOUNDNESS** confluence checker (for overlapping patterns)
+* **SOUNDNESS** coverage & confluence checker
 * **SOUNDNESS** termination checking: currently you don't need modifier `inductively` to write a recursive type, with termination checking, you should not be able to do this
     * relax the syntax check for inductive definitions
 * more recursive types
@@ -67,11 +63,12 @@ there are other kind of TODOs in the project, they are `LATER`, `TODO`, and `FIX
     * inductive-inductive
     * inductive-recursive
     * is [this](https://arend.readthedocs.io/en/latest/language-reference/definitions/hits/#conditions) sound?
-* better error reporting
+    * coinductive types?
+* usability
+    * disallow or warn naming shadowing
+    * better error reporting
 * structural editor
     * modules and compile unit
-* universe polymorphism: do we want Agda style (no cumulative), or redtt style, or Coq style?
-* coinductive types
 * testing
     * translate to Agda to do correctness checking
     * core type checker and core type check 

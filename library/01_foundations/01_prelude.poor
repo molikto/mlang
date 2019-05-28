@@ -16,6 +16,7 @@ define fun_ext(
 ): f ≡ g = i → x → p(x, i)
 */
 
+// TODO change the syntax to be like redtt so that k don't bind all faces
 define path_reverse(#A: type, #x #y: A, p: x ≡ y): y ≡ x =
   i → hcom(0, 1, x, k | i=0 → p(k) | i=1 → x)
 
@@ -24,13 +25,10 @@ TODO new syntax
 p.reverse
 */
 
-define apd(#A: type, #P: A ⇒ type, f: (x: A) ⇒ P(x), x y: A, p: x ≡ y): coe(0, 1, i → P(p(i)), f(x)) ≡ f(y) =
-  i → coe(i, 1, j → P(p(j)), f(p(i)))
-
 define path_reverse_filler(#A: type, #x #y: A, p: x ≡ y): (─ → x) ≡[j → p(j) ≡ x] path_reverse(p) =
   j → i → hcom(0, j, x, k | i=0 → p(k) | i=1 → x)
 
-define path_reverse_unit(#A: type, x: A): (─ → x) ≡[─ → A] path_reverse(─ → x) =
+define path_reverse_unit(#A: type, x: A): (─ → x) ≡[─ → x ≡ x] path_reverse(─ → x) =
   path_reverse_filler(─ → x)
 
 define dependent_path_reverse(A1 A2: type, A: A1 ≡ A2, x: A1, y: A2, p: x ≡[A] y): y ≡[^path_reverse(A)] x =
@@ -52,7 +50,7 @@ the first one also applies, then we can use the second one, because it has a mor
 */
 
 
-define trans(A: type, x y z: A, p1: x ≡ y, p2: y ≡ z): x ≡ z =
+define trans(#A: type, #x #y #z: A, p1: x ≡ y, p2: y ≡ z): x ≡ z =
   i → hcom(0, 1, p1(i), k | i=0 → x | i=1 → p2(k))
 
 
@@ -60,3 +58,8 @@ define fiber(A B: type, f: A ⇒ B, b: B): type = record {
   field from: A
   field is: f(from) ≡ b
 }
+
+
+// TODO what's a proper name for this?
+define apd(#A: type, #P: A ⇒ type, f: (x: A) ⇒ P(x), x y: A, p: x ≡ y): coe(0, 1, i → P(p(i)), f(x)) ≡ f(y) =
+  i → coe(i, 1, j → P(p(j)), f(p(i)))
