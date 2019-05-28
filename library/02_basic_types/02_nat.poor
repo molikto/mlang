@@ -105,7 +105,7 @@ define _test_fib = run {
 }
 
 
-// wish we have `projection` syntax
+// TODO wish we have `projection` syntax
 // then we can do
 // projection (n: nat) is_even: bool
 declare nat_is_even: nat ⇒ bool
