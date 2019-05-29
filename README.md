@@ -8,13 +8,15 @@ A cubical type theory implementation with implicit arguments, structural record 
 
 see `tests` and `library` folder for sample code
 
-## build & run & debug
+## build & run & debug & editor setup
 
 the project is written in Scala and is a standard SBT project. it can be cross compiled to Scala.js and Scala JVM. currently we are only compiling on JVM.
 
 to compile use `sbt sharedJVM/compile`
 
 the project can be imported into IntelliJ IDEA, and to run/debug, just setup a profile to run `mlang.poorparser.Main` with classpath of module `jvm-shared` (or something like this)
+
+we currently have a `.poor` syntax (because we want a better syntax: a structural editor). it uses some wired unicode characters, so to write library code, import `settings.jar` to IntelliJ IDEA, it defines some "Live Templates", or key shortcuts to input certain characters
 
 ## help wanted
 
