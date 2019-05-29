@@ -9,9 +9,30 @@ define refl(#A: type, #a: A): a ≡ a = i → a
 // x.refl
 define x_refl(#A: type, a: A): a ≡ a = i → a
 
+// a better name?
+define coeij(#A: type, #x #y: A, p: x ≡ y, i j : I): p(i) ≡ p(j) =
+  k → hcom(i, j, p(i) |k=0: x_refl(p(i))
+                      |k=1: p)
 
-define path_reverse_filler(#A: type, #x #y: A, p: x ≡ y, j i: I): A =
-  hcom(0, j, x |i=0: p |i=1: x_refl(x))
+define coeij_(#A: type, #x #y: A, p: x ≡ y, i j : I): p(i) ≡ p(j) =
+  k → hcom(j, i, p(j) |k=0: p
+                      |k=1: x_refl(p(j)))
+
+define connection_both(#A: type, #x #y #z: A, p: x ≡ y, q: y ≡ z): p ≡[i → p(i) ≡ q(i)] q =
+  i → j → hcom(0, 1, y |i=0: coeij(p, 1, j)
+                       |i=1: coeij(q, 0, j)
+                       |j=0: coeij(p, 1, i)
+                       |j=1: coeij(q, 0, i))
+
+define connection_or(#A: type, #x #y: A, p: x ≡ y): p ≡[i → p(i) ≡ y] x_refl(y) =
+  connection_both(p, x_refl(y))
+
+define connection_and(#A: type, #x #y: A, p: x ≡ y): x_refl(x) ≡[i → x ≡ p(i)] p =
+  connection_both(x_refl(x), p)
+
+// is this necessary when we already have coeij?
+define path_reverse_filler(#A: type, #x #y: A, p: x ≡ y, i: I): p(i) ≡ x =
+  coeij_(p, i, 0)
 
 // p.reverse
 define path_reverse(#A: type, #x #y: A, p: x ≡ y): y ≡ x = path_reverse_filler(p, 1)
@@ -21,7 +42,10 @@ define path_reverse_unit(#A: type, x: A): (─ → x) ≡[─ → x ≡ x] path_
   path_reverse_filler(x_refl(x))
 
 
-// TODO define reverse'
+define path_reverse__filler(#A: type, #x #y: A, p: x ≡ y, i : I): y ≡ p(i) =
+  coeij(p, 1, i)
+
+define path_reverse_(#A: type, #x #y: A, p: x ≡ y): y ≡ x = path_reverse__filler(p, 0)
 
 
 // p.reverse statically determined!!
@@ -42,7 +66,10 @@ define path_compose_unit_r(#A: type, #x #y: A, p: x ≡ y): p ≡ path_compose(p
   path_compose_filler(p, x_refl(y))
 
 
-// define path_compose_unit_l(#A: type, #x #y: A, p: x ≡ y): p ≡ path_compose(x_refl(x), p) = ???
+define path_compose_unit_l(#A: type, #x #y: A, p: x ≡ y): p ≡ path_compose(x_refl(x), p) =
+  i → j → hcom(0, 1, x |i=0: k → connection_and(p, j, k)
+                       |j=0: x_refl(x)
+                       |j=1: p)
 
 // how can we statically choose which one to use?
 /*
