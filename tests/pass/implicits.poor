@@ -6,7 +6,7 @@ define fun_ext(#A: type, #B: A ⇒ type, #f #g: (x: A) ⇒ B(x), p: (x: A) ⇒ f
   i → x → p(x, i)
 
 define fun_ext2(A: type, B: A ⇒ type, f g: (x: A) ⇒ B(x), p: (x: A) ⇒ f(x) ≡ g(x)): f ≡ g =
-  fun_ext(#_, #_, #_, #_, p)
+  fun_ext(@_, @_, @_, @_, p)
 
 define fun_ext3(A: type, B: A ⇒ type, f g: (x: A) ⇒ B(x), p: (x: A) ⇒ f(x) ≡ g(x)): f ≡ g =
   fun_ext(p)
@@ -31,7 +31,7 @@ define record_of_refl = record {
 }
 
 
-define test_record_of_refl: zero ≡ zero = record_of_refl.make(refl(#_, #zero)).eq
+define test_record_of_refl: zero ≡ zero = record_of_refl.make(refl(@_, @zero)).eq
 
 define record_of_refl2(#A: type): type = record {
   field #x #y: A
@@ -39,12 +39,12 @@ define record_of_refl2(#A: type): type = record {
 }
 
 
-define test_record_of_refl2: zero ≡ zero = record_of_refl2.make(refl(#_, #zero)).eq
+define test_record_of_refl2: zero ≡ zero = record_of_refl2.make(refl(@_, @zero)).eq
 
 
 define test_record_of_metas = record {
   field test: (#a: nat, b: a ≡ a) ⇒ type
-  field a c: test(refl(#_, #zero))
-  field b: test(refl(#_, #zero))
+  field a c: test(refl(@_, @zero))
+  field b: test(refl(@_, @zero))
 }
 

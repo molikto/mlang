@@ -87,8 +87,8 @@ sealed trait Value {
       Up(o, b)
   }
 
-  // TODO how does it interact with recursive references?
-  def restrict(lv: DimensionPair): Value =  this match {
+  // FIXME how does it interact with recursive references?
+  def restrict(lv: DimensionPair): Value = if (lv.isTrue) this else this match {
     case u: Universe => u
     case Function(domain, im, codomain) =>
       Function(domain.restrict(lv), im, codomain.restrict(lv))
@@ -113,9 +113,23 @@ sealed trait Value {
     case Coe(direction, tp, base) =>
       Coe(direction.restrict(lv), tp.restrict(lv), base.restrict(lv))
     case Hcom(direction, tp, base, faces) =>
-      Hcom(direction.restrict(lv), tp.restrict(lv), base.restrict(lv), faces.map(n => Face(n.restriction.restrict(lv), n.body.restrict(lv))))
+      Hcom(direction.restrict(lv), tp.restrict(lv), base.restrict(lv), faces.flatMap(n => {
+        val r = n.restriction.restrict(lv)
+        if (r.isFalse) {
+          None
+        } else {
+          Some(Face(r, n.body.restrict(lv)))
+        }
+      }))
     case Com(direction, tp, base, faces) =>
-      Com(direction.restrict(lv), tp.restrict(lv), base.restrict(lv), faces.map(n => Face(n.restriction.restrict(lv), n.body.restrict(lv))))
+      Com(direction.restrict(lv), tp.restrict(lv), base.restrict(lv), faces.flatMap(n => {
+        val r = n.restriction.restrict(lv)
+        if (r.isFalse) {
+          None
+        } else {
+          Some(Face(r, n.body.restrict(lv)))
+        }
+      }))
     case Maker(value, field) =>
       Maker(value.restrict(lv), field)
     case Projection(make, field) =>
@@ -802,8 +816,8 @@ object Value {
     lazy val maker: Value = makerAndType._1
     lazy val makerType: Value = makerAndType._2
 
-    def projectedType(values: Seq[Value], name: Int): Value = {
-      ClosureGraph.get(nodes, name, values)
+    def projectedType(values: Value, name: Int): Value = {
+      ClosureGraph.get(nodes, name, i => Projection(values, i))
     }
   }
 
@@ -825,7 +839,6 @@ object Value {
   case class Projection(make: StuckPos, field: Int) extends Stuck
 
   case class Construct(name: Int, vs: Seq[Value]) extends HeadCanonical
-  // TODO sum should have a type, it can be indexed, so a pi type ends with type_i
   case class Constructor(name: Name, ims: Seq[Boolean], nodes: ClosureGraph) {
     private[Value] var _sum: Sum = _
     private def rthis(): Value = Reference(_sum)
@@ -858,6 +871,7 @@ object Value {
     */
   case class Lambda(closure: Closure) extends HeadCanonical
 
+  // FIXME seems we must have domain here?
   case class PatternLambda(id: Long, domain: Value, typ: Closure, cases: Seq[Case]) extends HeadCanonical
 
   case class PatternStuck(lambda: PatternLambda, stuck: StuckPos) extends Stuck
@@ -909,7 +923,7 @@ object Value {
         }
       case Projection(m1, f1) =>
         infer(m1).whnf match {
-          case rr: Record  => rr.projectedType(rr.nodes.indices.map(n => Projection(m1, n)), f1)
+          case rr: Record  => rr.projectedType(m1, f1)
           case _ => logicError()
         }
       case PatternStuck(l1, s1) =>

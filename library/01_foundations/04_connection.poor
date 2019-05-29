@@ -1,0 +1,20 @@
+
+
+
+define connection_or(#A: type, #x #y: A, p: x ≡ y): p ≡[i → p(i) ≡ y] refl =
+  i → j → hcom(1, 0, y |i=0: k → hcom(1, j, y |k=1: x_refl(y) |k=0: p)
+                       |j=0: k → hcom(1, i, y |k=1: x_refl(y) |k=0: p)
+                       |i=1: x_refl(y)
+                       |j=1: x_refl(y))
+
+define connection_and(#A: type, #x #y: A, p: x ≡ y): refl ≡[i → x ≡ p(i)] p =
+  i → j → hcom(0, 1, x |i=0: x_refl(x)
+                       |j=0: x_refl(x)
+                       |i=1: k → hcom(0, j, x |k=0: x_refl(x) |k=1: p)
+                       |j=1: k → hcom(0, i, x |k=0: x_refl(x) |k=1: p))
+
+define connection_both(#A: type, #x #y #z: A, p: x ≡ y, q: y ≡ z): p ≡[i → p(i) ≡ q(i)] q =
+  i → j → hcom(0, 1, y |i=0: k → hcom(1, j, y |k=0: x_refl(y) |k=1: p)
+                       |i=1: k → hcom(0, j, y |k=0: x_refl(y) |k=1: q)
+                       |j=0: k → hcom(1, i, y |k=0: x_refl(y) |k=1: p)
+                       |j=1: k → hcom(0, i, y |k=0: x_refl(y) |k=1: q))

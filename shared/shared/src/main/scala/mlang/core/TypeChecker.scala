@@ -27,12 +27,14 @@ object TypeCheckException {
 
   // elimination mismatch
   case class UnknownAsType() extends TypeCheckException
-  case class UnknownProjection() extends TypeCheckException
+  case class UnknownProjection(name: Ref) extends Exception(s"Unknown projection ${name}") with TypeCheckException
   case class UnknownAsFunction() extends TypeCheckException
 
 
   case class CannotInferLambda() extends TypeCheckException
   case class CannotInferReturningTypeWithPatterns() extends TypeCheckException
+
+  case class CannotInferObjectNow()  extends TypeCheckException
 
 
   case class TypeMismatch() extends TypeCheckException
@@ -59,13 +61,19 @@ object TypeCheckException {
 
   case class NotDefinedReferenceForTypeExpressions() extends TypeCheckException
 
-  case class DimensionLambdaCannotBeImplicit() extends TypeCheckException
 
   case class NotExpectingImplicitArgument() extends TypeCheckException
 
   case class RecursiveTypesMustBeDefinedAtTopLevel() extends TypeCheckException
 
   case class UpCanOnlyBeUsedOnTopLevelDefinition()  extends TypeCheckException
+
+  case class AlreadyDeclared() extends TypeCheckException
+  case class AlreadyDefined() extends TypeCheckException
+  case class NotDeclared() extends TypeCheckException
+  case class SeparateDefinitionCannotHaveTypesNow() extends TypeCheckException
+  case class DimensionLambdaCannotBeImplicit() extends TypeCheckException
+  case class CannotInferPathTypeWithoutBody() extends TypeCheckException
 }
 
 
@@ -86,7 +94,6 @@ class TypeChecker private (protected override val layers: Layers)
   }
 
   def checkCompatibleCapAndFaces(
-      ident: Name,
       faces: Seq[Term.Face],
       bt: Value.AbsClosure,
       bv: Value,
@@ -94,7 +101,7 @@ class TypeChecker private (protected override val layers: Layers)
   ): Seq[Abstract.Face] = {
     // we use this context to evaluate body of faces, it is only used to keep the dimension binding to the same
     // one, but as restricts is already present in abstract terms, it is ok to use this instead of others
-    val (_, dim0) = newParametersLayer().newDimensionLayer(ident)
+    val (_, dim0) = newParametersLayer().newDimensionLayer(Name.empty)
     val btt = bt(dim0)
     val res = faces.map(a => {
       val (dav, daa) = checkDimensionPair(a.dimension)
@@ -102,12 +109,13 @@ class TypeChecker private (protected override val layers: Layers)
         throw TypeCheckException.RemoveFalseFace()
       } else {
         val ctx0 = newRestrictionLayer(dav)
-        val (ctx, fd) = ctx0.newDimensionLayer(ident, Some(dim0))
-        val btr = bt(fd).restrict(dav)
-        val na = Abstract.AbsClosure(ctx.finishReify(), ctx.check(a.term, btr))
+        val btr = bt.restrict(dav)
+        // FIXME no hurry to finalize this context? use information in cap to infer?
+        // currently if we want a refl face, it cannot do this!!
+        val na = ctx0.checkLine(a.term, dim0, btr)
         val naa = ctx0.eval(na)
         val nv = naa(dv.from)
-        if (!unifyTerm(btr, bv.restrict(dav), nv)) {
+        if (!unifyTerm(btr(dim0), bv.restrict(dav), nv)) {
           throw TypeCheckException.CapNotMatching()
         }
         (Abstract.Face(daa, na), naa(dim0), dav)
@@ -137,7 +145,24 @@ class TypeChecker private (protected override val layers: Layers)
   }
 
 
-  def checkLine(a: Term): (Int, Abstract.AbsClosure) = {
+  def checkLine(a: Term, dim: Value.Dimension.Generic, typ: Value.AbsClosure): Abstract.AbsClosure = {
+    a match {
+      case Term.Lambda(n, b, body) =>
+        if (b) throw TypeCheckException.DimensionLambdaCannotBeImplicit()
+        val ctx = newDimensionLayer(n, dim)
+        val ta = ctx.check(body, typ(dim))
+        Abstract.AbsClosure(ctx.finishReify(), ta)
+      case _ =>
+        val ctx = newDimensionLayer(Name.empty)._1 // it is ok to infer in this context, as the name is empty so it doesn't affect much
+        val (tv, ta) = ctx.infer(a)
+        tv.whnf match {
+          case j@Value.PathType(_, _, _) =>
+            Abstract.AbsClosure(ctx.finishReify(), Abstract.PathApp(ta, Abstract.Dimension.Reference(0)))
+          case _ => throw TypeCheckException.ExpectingLambdaTerm()
+        }
+    }
+  }
+  def checkTypeLine(a: Term): (Int, Abstract.AbsClosure) = {
     a match {
       case Term.Lambda(n, b, body) =>
         if (b) throw TypeCheckException.DimensionLambdaCannotBeImplicit()
@@ -146,10 +171,11 @@ class TypeChecker private (protected override val layers: Layers)
         val ta = Abstract.AbsClosure(ctx.finishReify(), ta0)
         (l, ta)
       case _ =>
-        val (tv, ta) = infer(a)
+        val ctx = newDimensionLayer(Name.empty)._1
+        val (tv, ta) = ctx.infer(a)
         tv.whnf match {
           case j@Value.PathType(_, _, _) =>
-            val clo = Abstract.AbsClosure(Seq.empty, Abstract.PathApp(ta.diff(0, 1), Abstract.Dimension.Reference(0)))
+            val clo = Abstract.AbsClosure(ctx.finishReify(), Abstract.PathApp(ta, Abstract.Dimension.Reference(0)))
             (Value.inferLevel(j), clo)
           case _ => throw TypeCheckException.ExpectingLambdaTerm()
         }
@@ -231,32 +257,33 @@ class TypeChecker private (protected override val layers: Layers)
       case Term.Coe(direction, tp, base) =>
         // LATER does these needs finish off implicits?
         val (dv, da) = checkDimensionPair(direction)
-        val (_, ta) = checkLine(tp)
+        val (_, ta) = checkTypeLine(tp)
         val cl = eval(ta)
         val la = check(base, cl(dv.from))
         (cl(dv.to), Abstract.Coe(da, ta, la))
-      case Term.Com(direction, tp, base, ident, faces) =>
+      case Term.Com(direction, tp, base, faces) =>
         val (dv, da) = checkDimensionPair(direction)
-        val (_, ta) = checkLine(tp)
+        val (_, ta) = checkTypeLine(tp)
         val cl = eval(ta)
         val ba = check(base, cl(dv.from))
-        val rs = checkCompatibleCapAndFaces(ident, faces, cl, eval(ba), dv)
+        val rs = checkCompatibleCapAndFaces(faces, cl, eval(ba), dv)
         (cl(dv.to), Abstract.Com(da, ta, ba, rs))
-      case Term.Hcom(direction, base, ident, faces) =>
+      case Term.Hcom(direction, base, faces) =>
         val (dv, da)= checkDimensionPair(direction)
         val (bt, ba) = infer(base)
         val bv = eval(ba)
-        val rs = checkCompatibleCapAndFaces(ident, faces, Value.AbsClosure(bt), bv, dv)
+        val rs = checkCompatibleCapAndFaces(faces, Value.AbsClosure(bt), bv, dv)
         (bt, Abstract.Hcom(da, reify(bt), ba, rs))
       case Term.PathType(typ, left, right) =>
         typ match {
           case Some(tp) =>
-            val (tl, ca) = checkLine(tp)
+            val (tl, ca) = checkTypeLine(tp)
             val tv = eval(ca)
             val la = check(left, tv(Value.Dimension.False))
             val ra = check(right, tv(Value.Dimension.True))
             (Value.Universe(tl), Abstract.PathType(ca, la, ra))
           case None =>
+            // FIXME instead of inferring two side, infer one side then check another; or if we have meta with levels... can we just write a max level???? it seems not that easy... because you run into the same kind of problems
             val (lt, la) = infer(left)
             val (rt, ra) = infer(right)
             val ttt = if (subTypeOf(lt, rt)) {
@@ -273,6 +300,8 @@ class TypeChecker private (protected override val layers: Layers)
                 throw TypeCheckException.InferPathEndPointsTypeNotMatching()
             }
         }
+      case o: Term.Obj =>
+        throw TypeCheckException.CannotInferObjectNow()
       case p: Term.PatternLambda =>
         throw TypeCheckException.CannotInferReturningTypeWithPatterns()
       case l: Term.Lambda =>
@@ -281,18 +310,21 @@ class TypeChecker private (protected override val layers: Layers)
         val (lt, la) = infer(left)
         val lv = eval(la)
         lazy val ltr = lt.whnf.asInstanceOf[Value.Record]
-        def error() = throw TypeCheckException.UnknownProjection()
+        def error() = throw TypeCheckException.UnknownProjection(right)
         var index = -1
-        lv.whnf match {
-          case m: Value.Make if { index = ltr.names.indexWhere(_.by(right)) ; index >= 0 } =>
-            reduceMore(ltr.projectedType(m.values, index), Abstract.Projection(la, index))
-          // TODO user defined projections for a type, i.e.
-          // TODO [issue 7] implement const_projections syntax
-          case r: Value.Record if right == Ref.make =>
-            reduceMore(r.makerType, Abstract.Maker(la, -1))
-          case r: Value.Sum if { index = r.constructors.indexWhere(_.name.by(right)); index >= 0 } =>
-            reduceMore(r.constructors(index).makerType, Abstract.Maker(la, index))
-          case _ => error()
+        lt.whnf match {
+          case m: Value.Record if { index = ltr.names.indexWhere(_.by(right)) ; index >= 0 } =>
+            reduceMore(m.projectedType(lv, index), Abstract.Projection(la, index))
+          case _ =>
+            lv.whnf match {
+              // TODO user defined projections for a type, i.e.
+              // TODO [issue 7] implement const_projections syntax
+              case r: Value.Record if right == Ref.make =>
+                reduceMore(r.makerType, Abstract.Maker(la, -1))
+              case r: Value.Sum if { index = r.constructors.indexWhere(_.name.by(right)); index >= 0 } =>
+                reduceMore(r.constructors(index).makerType, Abstract.Maker(la, index))
+              case _ => error()
+            }
         }
       case Term.App(lambda, arguments) =>
         if (arguments.isEmpty) throw TypeCheckException.EmptyArguments()
@@ -336,6 +368,9 @@ class TypeChecker private (protected override val layers: Layers)
     var l = 0
     val fas = terms.flatMap(f => {
       val fs = NameType.flatten(Seq(f))
+      if (fs.map(_._2).toSet.size != fs.size) {
+        throw TypeCheckException.AlreadyDeclared()
+      }
       fs.map(n => {
         val (fl, fa) = ctx.inferLevel(f.ty)
         l = l max fl
@@ -347,15 +382,46 @@ class TypeChecker private (protected override val layers: Layers)
     (l, fas)
   }
 
-  private def inferTelescope(domain: NameType.FlatSeq, codomain: Term): (Int, Abstract) = {
+
+  private def inferTelescope(domain: NameType.FlatSeq, codomain: Option[Term], body: Term): (Abstract, Abstract) = {
     domain match {
       case head +: tail =>
         head._3 match {
           case Term.I =>
             if (head._1) throw TypeCheckException.DimensionLambdaCannotBeImplicit()
             val ctx = newDimensionLayer(head._2)._1
-            val (cl, ca) = ctx.inferTelescope(tail, codomain)
-            (cl, Abstract.PathType(Abstract.AbsClosure(ctx.finishReify(), ca), ???, ???))
+            val (ta, va) = ctx.inferTelescope(tail, codomain, body)
+            val ms = ctx.finishReify()
+            val cloa = Abstract.AbsClosure(ms, va)
+            val clov = eval(cloa)
+            val left = clov(Value.Dimension.False)
+            val right = clov(Value.Dimension.True)
+            (Abstract.PathType(Abstract.AbsClosure(ms, ta), reify(left), reify(right)), Abstract.PathLambda(cloa))
+          case _ =>
+            val (_, da) = inferLevel(head._3)
+            val ctx = newParameterLayer(head._2, eval(da))._1
+            val (ta, va) = ctx.inferTelescope(tail, codomain, body)
+            val ms = ctx.finishReify()
+            (Abstract.Function(da, head._1, Abstract.Closure(ms, ta)), Abstract.Lambda(Abstract.Closure(ms, va)))
+        }
+      case Seq() =>
+        codomain match {
+          case Some(value) =>
+            val (_, a) = inferLevel(value)
+            (a, check(body, eval(a)))
+          case None =>
+            val (bt, ba) = infer(body)
+            (reify(bt), ba)
+        }
+    }
+  }
+
+  private def inferTelescope(domain: NameType.FlatSeq, codomain: Term): (Int, Abstract) = {
+    domain match {
+      case head +: tail =>
+        head._3 match {
+          case Term.I =>
+            throw TypeCheckException.CannotInferPathTypeWithoutBody()
           case _ =>
             val (dl, da) = inferLevel(head._3)
             val ctx = newParameterLayer(head._2, eval(da))._1
@@ -465,6 +531,13 @@ class TypeChecker private (protected override val layers: Layers)
             }
           case _ => fallback()
         }
+      case r: Value.Record =>
+        term match {
+          case Term.App(Term.Reference(mlang.utils.Text.make), vs) =>
+            inferApp(r.makerType, reify(cp), vs)._2
+          case _ =>
+            fallback()
+        }
       case _ => fallback()
     }
   }
@@ -525,8 +598,8 @@ class TypeChecker private (protected override val layers: Layers)
     s match {
       case Declaration.Define(ms, name, ps, t0, v) =>
         // TODO implement with constructor
-//        if (ms.contains(Modifier.WithConstructor)) {
-//        }
+        //        if (ms.contains(Modifier.WithConstructor)) {
+        //        }
         // a inductive type definition
         var inductively =
           if (ms.contains(Modifier.Inductively)) {
@@ -536,86 +609,92 @@ class TypeChecker private (protected override val layers: Layers)
               throw TypeCheckException.RecursiveTypesMustBeDefinedAtTopLevel()
             }
           } else null
-        val ret = t0 match {
-          case Some(t) =>
-            // term with type
-            info(s"define $name")
-            val pps = NameType.flatten(ps)
-            val (_, ta) = inferTelescope(pps, t)
+        val ret = lookupDefined(name) match {
+          case Some((index, typ, defined)) =>
+            if (defined) {
+              throw TypeCheckException.AlreadyDefined()
+            }
+            info(s"check defined $name")
+            if (ps.nonEmpty || t0.nonEmpty) throw TypeCheckException.SeparateDefinitionCannotHaveTypesNow()
+            val va = check(v, typ, Seq.empty)
             appendMetas(freeze())
-            val tv = eval(ta)
-            val (ctx, index, generic) = newDeclaration(name, tv) // allows recursive definitions
-            fillTo(vis, index); assert(vis(index) == null)
-            vis.update(index, DefinitionInfo(None, CodeInfo(ta, generic)))
-            val lambdaNameHints = pps.map(_._2) ++(t match {
-              case Term.Function(d, _) =>
-                NameType.flatten(d).map(_._2)
-              case _ => Seq.empty
-            })
-            val va0 = ctx.check(wrapBody(v, pps.map(_._1)), tv, lambdaNameHints)
-            val va = if (inductively != null) {
-              if (pps.nonEmpty) {
-                warn("we don't support parameterized inductive type yet")
-                ???
-              }
-              val tt = Some(inductively)
-              va0 match {
-                case s: Abstract.Sum => inductively = null; assert(s.inductively.isEmpty); s.copy(inductively = tt)
-                case s: Abstract.Record => inductively = null; assert(s.inductively.isEmpty); s.copy(inductively = tt)
-                case ig => ig
-              }
-            } else {
-              va0
-            }
-            appendMetas(ctx.freeze())
-            val ref = Value.Reference(null) // the reason we
-            val ctx2 = ctx.newDefinitionChecked(index, name, ref)
-            ref.value = ctx2.eval(va) // we want to eval it under the context with reference to itself
+            val ref = Value.Reference(null)
+            val ctx = newDefinitionChecked(index, name, ref)
+            ref.value = ctx.eval(va)
             vis(index).code = Some(CodeInfo(va, ref))
-            // you don't need to reevaluate stuff here, no one reference me now!
-            info(s"defined $name")
-            ctx2
-          case None =>
-            // term without type
-            if (ps.nonEmpty) ???
-            lookupDefined(name) match {
-              case None => // needs to infer a type
-                info(s"infer $name")
-                val (vt, va) = infer(v)
-                appendMetas(freeze())
-                val ta = reify(vt)
-                val ref = Value.Reference(eval(va))
-                val (ctx, index, generic) = newDefinition(name, vt, ref)
-                fillTo(vis, index); assert(vis(index) == null)
-                vis.update(index, DefinitionInfo(Some(CodeInfo(va, ref)), CodeInfo(ta, generic)))
-                info(s"inferred $name")
-                ctx
-              case Some((index, typ)) => // needs to check against defined type
-                info(s"check defined $name")
-                val va = check(v, typ, Seq.empty)
-                appendMetas(freeze())
-                val ref = Value.Reference(null)
-                val ctx = newDefinitionChecked(index, name, ref)
-                ref.value = ctx.eval(va)
-                vis(index).code = Some(CodeInfo(va, ref))
-                reevalStuff(ctx, Dependency(index, false))
-                info(s"checked $name")
-                ctx
-            }
+            reevalStuff(ctx, Dependency(index, false))
+            info(s"checked $name")
+            ctx
+          case None => t0 match {
+            case Some(t) if !ps.exists(_.ty == Term.I) =>
+              // term with type
+              info(s"define $name")
+              val pps = NameType.flatten(ps)
+              val (_, ta) = inferTelescope(pps, t)
+              appendMetas(freeze())
+              val tv = eval(ta)
+              val (ctx, index, generic) = newDeclaration(name, tv) // allows recursive definitions
+              fillTo(vis, index); assert(vis(index) == null)
+              vis.update(index, DefinitionInfo(None, CodeInfo(ta, generic)))
+              val lambdaNameHints = pps.map(_._2) ++ (t match {
+                case Term.Function(d, _) =>
+                  NameType.flatten(d).map(_._2)
+                case _ => Seq.empty
+              })
+              val va0 = ctx.check(wrapBody(v, pps.map(_._1)), tv, lambdaNameHints)
+              val va = if (inductively != null) {
+                if (pps.nonEmpty) {
+                  warn("we don't support parameterized inductive type yet")
+                  ???
+                }
+                val tt = Some(inductively)
+                va0 match {
+                  case s: Abstract.Sum => inductively = null; assert(s.inductively.isEmpty); s.copy(inductively = tt)
+                  case s: Abstract.Record => inductively = null; assert(s.inductively.isEmpty); s.copy(inductively = tt)
+                  case ig => ig
+                }
+              } else {
+                va0
+              }
+              appendMetas(ctx.freeze())
+              val ref = Value.Reference(null) // the reason we
+              val ctx2 = ctx.newDefinitionChecked(index, name, ref)
+              ref.value = ctx2.eval(va) // we want to eval it under the context with reference to itself
+              vis(index).code = Some(CodeInfo(va, ref))
+              // you don't need to reevaluate stuff here, no one reference me now!
+              info(s"defined $name")
+              ctx2
+            case _ =>
+              // term without type
+              info(s"infer $name")
+              val (ta, va) = inferTelescope(NameType.flatten(ps), t0, v)
+              appendMetas(freeze())
+              val ref = Value.Reference(eval(va))
+              val (ctx, index, generic) = newDefinition(name, eval(ta), ref)
+              fillTo(vis, index); assert(vis(index) == null)
+              vis.update(index, DefinitionInfo(Some(CodeInfo(va, ref)), CodeInfo(ta, generic)))
+              info(s"inferred $name")
+              ctx
+          }
         }
         if (inductively != null) warn(s"${name.toString} is not a inductive type but has modifier inductively")
         ret
       case Declaration.Declare(ms, name, ps, t) =>
-        info(s"declare $name")
-        if (ms.exists(_ != Modifier.__Debug)) throw TypeCheckException.ForbiddenModifier()
-        val (_, ta) = inferTelescope(NameType.flatten(ps), t)
-        appendMetas(freeze())
-        val tv = eval(ta)
-        val (ctx, index, generic) = newDeclaration(name, tv)
-        fillTo(vis, index); assert(vis(index) == null)
-        vis.update(index, DefinitionInfo(None, CodeInfo(ta, generic)))
-        info(s"declared $name")
-        ctx
+        lookupDefined(name) match {
+          case Some(_) =>
+            throw TypeCheckException.AlreadyDeclared()
+          case None =>
+            info(s"declare $name")
+            if (ms.exists(_ != Modifier.__Debug)) throw TypeCheckException.ForbiddenModifier()
+            val (_, ta) = inferTelescope(NameType.flatten(ps), t)
+            appendMetas(freeze())
+            val tv = eval(ta)
+            val (ctx, index, generic) = newDeclaration(name, tv)
+            fillTo(vis, index); assert(vis(index) == null)
+            vis.update(index, DefinitionInfo(None, CodeInfo(ta, generic)))
+            info(s"declared $name")
+            ctx
+        }
     }
   }
 

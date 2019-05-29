@@ -14,9 +14,6 @@ sealed trait ContextBuilderException extends CoreException
 object ContextBuilderException {
 
   
-  case class AlreadyDeclared() extends ContextBuilderException
-  case class AlreadyDefined() extends ContextBuilderException
-  case class NotDeclared() extends ContextBuilderException
 }
 
 
@@ -47,9 +44,15 @@ trait ContextBuilder extends ContextWithMetaOps {
 
 
 
+  def newDimensionLayer(n: Name, dimension: Value.Dimension.Generic): Self = {
+    val l = Layer.Dimension(dimension, n, createMetas())
+    val ctx: Self = l +: layers
+    ctx
+  }
 
-  def newDimensionLayer(n: Name, dimension: Option[Value.Dimension.Generic] = None): (Self, Value.Dimension.Generic) = {
-    val v = dimension.getOrElse(Value.Dimension.Generic(dgen()))
+
+  def newDimensionLayer(n: Name): (Self, Value.Dimension.Generic) = {
+    val v = Value.Dimension.Generic(dgen())
     val l = Layer.Dimension(v, n, createMetas())
     val ctx: Self = l +: layers
     (ctx, v)
@@ -57,14 +60,14 @@ trait ContextBuilder extends ContextWithMetaOps {
 
 
 
-  def lookupDefined(a: Name): Option[(Int, Value)] = layers.head match {
+  def lookupDefined(a: Name): Option[(Int, Value, Boolean)] = layers.head match {
     case Layer.Defines(_, defines) =>
       val index = defines.indexWhere(_.name.intersect(a))
       if (index < 0) {
         None
       } else {
         val ds = defines(index)
-        Some((index, ds.typ))
+        Some((index, ds.typ, ds.isDefined))
       }
     case _ => logicError()
   }
@@ -75,7 +78,7 @@ trait ContextBuilder extends ContextWithMetaOps {
     layers.head match {
       case Layer.Defines(metas, defines) =>
         defines.find(_.name.intersect(name)) match {
-          case Some(_) => throw ContextBuilderException.AlreadyDeclared()
+          case Some(_) => logicError()
           case _ =>
             val g = Value.Generic(gen(), typ)
             (Layer.Defines(metas, defines :+ DefineItem(ParameterBinder(name, g), Some(v))) +: layers.tail, defines.size, g)
@@ -93,7 +96,7 @@ trait ContextBuilder extends ContextWithMetaOps {
             assert(typ0.name == name)
             Layer.Defines(metas, defines.updated(index, DefineItem(typ0, Some(v)))) +: layers.tail
           case _ =>
-            throw ContextBuilderException.AlreadyDefined()
+            logicError()
         }
       case _ => logicError()
     }
@@ -103,7 +106,7 @@ trait ContextBuilder extends ContextWithMetaOps {
     layers.head match {
       case Layer.Defines(metas, defines) =>
         defines.find(_.name.intersect(name)) match {
-          case Some(_) => throw ContextBuilderException.AlreadyDeclared()
+          case Some(_) => logicError()
           case _ =>
             val g = Value.Generic(gen(), typ)
             val p = ParameterBinder(name, g)
@@ -142,7 +145,7 @@ trait ContextBuilder extends ContextWithMetaOps {
     layers.head match {
       case Layer.ParameterGraph(binders, metas) =>
         binders.find(_.name.intersect(name)) match {
-          case Some(_) => throw ContextBuilderException.AlreadyDeclared()
+          case Some(_) => logicError()
           case _ =>
             val g = gen()
             val v = Value.Generic(g, typ)

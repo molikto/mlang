@@ -261,7 +261,7 @@ trait Unify extends Reifier with BaseEvaluator with PlatformEvaluator {
         })
       case (Projection(m1, f1), Projection(m2, f2)) =>
         recNeutral(m1, m2).flatMap(_.whnf match {
-          case r: Record if f1 == f2 => Some(r.projectedType(r.nodes.indices.map(n => Projection(m1, n)), f2))
+          case r: Record if f1 == f2 => Some(r.projectedType(m1, f2))
           case _ => logicError()
         })
       case (PatternStuck(l1, s1), PatternStuck(l2, s2)) =>

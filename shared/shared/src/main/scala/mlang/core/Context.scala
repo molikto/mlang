@@ -219,10 +219,8 @@ trait Context extends ContextBaseForMeta {
         case t: Layer.Defines =>
           var ll = t.terms
           while (ll.nonEmpty && binder == null) {
-            if (ll.head.id == id) {
-              if (ll.head.isDefined) {
-                logicError()
-              } else {
+            if (!ll.head.isDefined) {
+              if (ll.head.id == id) {
                 index = i
                 binder = Abstract.Reference(up, index)
               }

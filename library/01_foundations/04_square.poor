@@ -12,13 +12,11 @@ define square(
 ): type =
   r0 ≡[i → u(i) ≡ v(i)] r1
 
-/* cause error
 define square_constant(#A: type, #a: A, p: a ≡ a): square(p, p, p, p) =
-  i → j → hcom(0, 1, connection_or(p, i, j), k | i=0 → refl(k)
-                                               | j=0 → refl(k)
-                                               | i=1 → connection_and(p, j, k)
-                                               | j=1 → connection_and(p, i, k))
-*/
+  i → j → hcom(0, 1, connection_or(p, i, j) |i=0: x_refl(p(j))
+                                            |j=0: x_refl(p(i))
+                                            |i=1: connection_and(p, j)
+                                            |j=1: connection_and(p, i))
 
 // TODO alternative definition when we have the feature bellow
 // [issue 7] const_projections syntax accepts a reference, then you can use them as `square.constant(p)`

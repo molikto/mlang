@@ -1,65 +1,133 @@
 
 
-
 define id(#A: type, a: A): A = a
+
+
 
 define refl(#A: type, #a: A): a ≡ a = i → a
 
+// x.refl
+define x_refl(#A: type, a: A): a ≡ a = i → a
+
+
+define path_reverse_filler(#A: type, #x #y: A, p: x ≡ y, j i: I): A =
+  hcom(0, j, x |i=0: p |i=1: x_refl(x))
+
+// p.reverse
+define path_reverse(#A: type, #x #y: A, p: x ≡ y): y ≡ x = path_reverse_filler(p, 1)
+
+
+define path_reverse_unit(#A: type, x: A): (─ → x) ≡[─ → x ≡ x] path_reverse(x_refl(x)) =
+  path_reverse_filler(x_refl(x))
+
+
+// TODO define reverse'
+
+
+// p.reverse statically determined!!
+define dependent_path_reverse(#A1 #A2: type, #A: A1 ≡ A2, #x: A1, #y: A2, p: x ≡[A] y): y ≡[^path_reverse(A)] x =
+  i → com(0, 1, j → ^path_reverse_filler(A, j, i), x |i=0: p |i=1: x_refl(x))
+
+
+
+// a * b
+
+define path_compose_filler(#A: type, #x #y #z: A, xy: x ≡ y, yz: y ≡ z, j i: I) =
+  hcom(0, j, xy(i) |i=0: x_refl(x) |i=1: yz)
+
+define path_compose(#A: type, #x #y #z: A, xy: x ≡ y, yz: y ≡ z): x ≡ z =
+  path_compose_filler(xy, yz, 1)
+
+define path_compose_unit_r(#A: type, #x #y: A, p: x ≡ y): p ≡ path_compose(p, x_refl(y)) =
+  path_compose_filler(p, x_refl(y))
+
+
+// define path_compose_unit_l(#A: type, #x #y: A, p: x ≡ y): p ≡ path_compose(x_refl(x), p) = ???
+
+// how can we statically choose which one to use?
+/*
+define dependent_path_compose(
+  #A #B #C: type,
+  #AB: A ≡ B, #BC: B ≡ C,
+  #a: A, #b: B, #c: C,
+  ab: a ≡[AB] b, bc: b ≡[BC] c): a ≡[^path_compose(AB, BC)] c = ???
+*/
+
+
+// TODO what syntax and name should this be? a.transp(p), p.transp(a), a^p, a|P, transp(a, p)???
+define transport(#A #B: type, P: A ≡ B, a: A): B = coe(0, 1, P, a)
+
+define transport_refl(#A: type, a: A): a ≡ transport(─ → A, a) =
+  i → coe(0, i, ─ → A, a)
+
+
+define subst(#A: type, B: A ⇒ type, #x #y: A, p: x ≡ y, bx: B(x)): B(y) =
+  transport(i → B(p(i)), bx)
+
+
+
+// #f #g: (x: #A) ⇒ #B(x),
 define fun_ext(#A: type, #B: A ⇒ type, #f #g: (x: A) ⇒ B(x), p: (x: A) ⇒ f(x) ≡ g(x)): f ≡ g =
   i → x → p(x, i)
-/*
-TODO new syntax
 
-define fun_ext(
-  #f #g: (x: #A) ⇒ #B(x),
-  p: (x: A) ⇒ f(x) ≡ g(x)
-): f ≡ g = i → x → p(x, i)
-*/
-
-// TODO change the syntax to be like redtt so that k don't bind all faces
-define path_reverse(#A: type, #x #y: A, p: x ≡ y): y ≡ x =
-  i → hcom(0, 1, x, k | i=0 → p(k) | i=1 → x)
-
-/*
-TODO new syntax
-p.reverse
-*/
-
-define path_reverse_filler(#A: type, #x #y: A, p: x ≡ y): (─ → x) ≡[j → p(j) ≡ x] path_reverse(p) =
-  j → i → hcom(0, j, x, k | i=0 → p(k) | i=1 → x)
-
-define path_reverse_unit(#A: type, x: A): (─ → x) ≡[─ → x ≡ x] path_reverse(─ → x) =
-  path_reverse_filler(─ → x)
-
-define dependent_path_reverse(A1 A2: type, A: A1 ≡ A2, x: A1, y: A2, p: x ≡[A] y): y ≡[^path_reverse(A)] x =
-  i → com(0, 1, j → ^path_reverse_filler(A, j, i), x, k | i=0 → p(k) | i=1 → x)
-
-/*
-TODO can we statically determine use path_reverse or dependent_path_reverse?
-
-like when type directed name resolution, we say one is a "sub choice" of another, like
-
-define (p: #x ≡[#A] #y).reverse: y ≡[path_reverse(A)] x = ...
-define (p: #x ≡ #y).reverse: y ≡ x = ...
-
-we somehow mark the second one a "sub-case" of first one
-
-so when we type directed name resolving on "reverse", if we checked that second one applies, we need to assert
-the first one also applies, then we can use the second one, because it has a more efficient computational behaviour
-
-*/
+// TODO what's a proper name for this?
+// define apd(#A: type, #B: A ⇒ type, f: (x: A) ⇒ B(x), x y: A, p: x ≡ y): coe(0, 1, i → B(p(i)), f(x)) ≡ f(y) =
+//  i → coe(i, 1, j → B(p(j)), f(p(i)))
 
 
-define trans(#A: type, #x #y #z: A, p1: x ≡ y, p2: y ≡ z): x ≡ z =
-  i → hcom(0, 1, p1(i), k | i=0 → x | i=1 → p2(k))
+// cong(f, p) or p.map(f) or f.path_app(p) even f(p)?
+define path_map(#A: type, #B: A ⇒ type, f: (x: A) ⇒ B(x), #x #y: A, p: x ≡ y): f(x) ≡[i → B(p(i))] f(y) =
+  i → f(p(i))
 
 
-define fiber(A B: type, f: A ⇒ B, b: B): type = record {
+// TODO define cong₂ in Cubical Agda
+
+
+
+
+define is_contractible(A: type) = record {
+  field center: A
+  field to_center: (a: A) ⇒ a ≡ center
+}
+
+// f.fiber(b)??
+define fiber_at(#A #B: type, f: A ⇒ B, b: B): type = record {
   field from: A
   field is: f(from) ≡ b
 }
 
+define is_equiv(A B: type) = record {
+  field f: A ⇒ B
+  field component: (b: B) ⇒ is_contractible(fiber_at(f, b))
+}
 
-// TODO what's a proper name for this?
-define apd(#A: type, #P: A ⇒ type, f: (x: A) ⇒ P(x), x y: A, p: x ≡ y): coe(0, 1, i → P(p(i)), f(x)) ≡ f(y) =
-  i → coe(i, 1, j → P(p(j)), f(p(i)))
+define is_prop(A: type): type = (a b: A) ⇒ a ≡ b
+
+
+define inductively h_level: type = sum {
+  case contractible
+  case suc(: h_level)
+}
+
+/* TODO local match expression or with expression
+define is_h_level:
+  h_level          ⇒ (type ⇒ type) =
+┌ contractible     → is_contractible
+└ suc(b) → match(b,
+    ┌ contractible → is_prop
+    └ suc(c)       → A → (x y: A) ⇒ is_h_level(b)(x ≡ y))
+*/
+
+
+
+define singleton(#A: type, center: A) = record {
+  field a: A
+  field to_center: a ≡ center
+}
+
+/* TODO incomplete
+define singleton_is_contractible(#A: type, center: A):
+   is_contractible(singleton(center)) =
+   make(make(center, refl), a → j → ???)
+*/
+
