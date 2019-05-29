@@ -90,6 +90,17 @@ define is_contractible(A: type) = record {
   field to_center: (a: A) ⇒ a ≡ center
 }
 
+// f.fiber(b)??
+define fiber_at(#A #B: type, f: A ⇒ B, b: B): type = record {
+  field from: A
+  field is: f(from) ≡ b
+}
+
+define is_equiv(A B: type) = record {
+  field f: A ⇒ B
+  field component: (b: B) ⇒ is_contractible(fiber_at(f, b))
+}
+
 define is_prop(A: type): type = (a b: A) ⇒ a ≡ b
 
 

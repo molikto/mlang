@@ -1,7 +1,0 @@
-
-define fiber(A B: type, f: A ⇒ B, b: B): type = record {
-  field from: A
-  field is: f(from) ≡ b
-}
-
-
