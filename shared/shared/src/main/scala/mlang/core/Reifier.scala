@@ -54,7 +54,7 @@ private trait ReifierContext extends ContextBuilder {
   }
 
   def reify(v: Value.AbsClosure): Abstract.AbsClosure = {
-    val (ctx, tm) = newDimensionLayer(Name.empty, None)
+    val (ctx, tm) = newDimensionLayer(Name.empty)
     val ta = ctx.reify(v(tm))
     Abstract.AbsClosure(ctx.reifyMetas(), ta)
   }

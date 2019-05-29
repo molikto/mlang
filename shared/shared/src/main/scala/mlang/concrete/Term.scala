@@ -63,8 +63,8 @@ object Term {
   case class Pair(from: Term, to: Term)
   case class Face(dimension: Pair, term: Term)
   case class Coe(direction: Pair, typ: Term, base: Term) extends Term
-  case class Hcom(direction: Pair, base: Term, ident: Name, faces: Seq[Face]) extends Term
-  case class Com(direction: Pair, typ: Term, base: Term, ident: Name, faces: Seq[Face]) extends Term
+  case class Hcom(direction: Pair, base: Term, faces: Seq[Face]) extends Term
+  case class Com(direction: Pair, typ: Term, base: Term, faces: Seq[Face]) extends Term
 
   case object Hole extends Term
 }

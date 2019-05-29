@@ -87,7 +87,7 @@ sealed trait Value {
       Up(o, b)
   }
 
-  // TODO how does it interact with recursive references?
+  // FIXME how does it interact with recursive references?
   def restrict(lv: DimensionPair): Value =  this match {
     case u: Universe => u
     case Function(domain, im, codomain) =>
@@ -825,7 +825,6 @@ object Value {
   case class Projection(make: StuckPos, field: Int) extends Stuck
 
   case class Construct(name: Int, vs: Seq[Value]) extends HeadCanonical
-  // TODO sum should have a type, it can be indexed, so a pi type ends with type_i
   case class Constructor(name: Name, ims: Seq[Boolean], nodes: ClosureGraph) {
     private[Value] var _sum: Sum = _
     private def rthis(): Value = Reference(_sum)
@@ -858,6 +857,7 @@ object Value {
     */
   case class Lambda(closure: Closure) extends HeadCanonical
 
+  // FIXME seems we must have domain here?
   case class PatternLambda(id: Long, domain: Value, typ: Closure, cases: Seq[Case]) extends HeadCanonical
 
   case class PatternStuck(lambda: PatternLambda, stuck: StuckPos) extends Stuck

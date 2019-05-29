@@ -47,9 +47,15 @@ trait ContextBuilder extends ContextWithMetaOps {
 
 
 
+  def newDimensionLayer(n: Name, dimension: Value.Dimension.Generic): Self = {
+    val l = Layer.Dimension(dimension, n, createMetas())
+    val ctx: Self = l +: layers
+    ctx
+  }
 
-  def newDimensionLayer(n: Name, dimension: Option[Value.Dimension.Generic] = None): (Self, Value.Dimension.Generic) = {
-    val v = dimension.getOrElse(Value.Dimension.Generic(dgen()))
+
+  def newDimensionLayer(n: Name): (Self, Value.Dimension.Generic) = {
+    val v = Value.Dimension.Generic(dgen())
     val l = Layer.Dimension(v, n, createMetas())
     val ctx: Self = l +: layers
     (ctx, v)

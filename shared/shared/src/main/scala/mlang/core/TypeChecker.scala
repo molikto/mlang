@@ -86,7 +86,6 @@ class TypeChecker private (protected override val layers: Layers)
   }
 
   def checkCompatibleCapAndFaces(
-      ident: Name,
       faces: Seq[Term.Face],
       bt: Value.AbsClosure,
       bv: Value,
@@ -94,7 +93,7 @@ class TypeChecker private (protected override val layers: Layers)
   ): Seq[Abstract.Face] = {
     // we use this context to evaluate body of faces, it is only used to keep the dimension binding to the same
     // one, but as restricts is already present in abstract terms, it is ok to use this instead of others
-    val (_, dim0) = newParametersLayer().newDimensionLayer(ident)
+    val (_, dim0) = newParametersLayer().newDimensionLayer(Name.empty)
     val btt = bt(dim0)
     val res = faces.map(a => {
       val (dav, daa) = checkDimensionPair(a.dimension)
@@ -102,15 +101,13 @@ class TypeChecker private (protected override val layers: Layers)
         throw TypeCheckException.RemoveFalseFace()
       } else {
         val ctx0 = newRestrictionLayer(dav)
-        val (ctx, fd) = ctx0.newDimensionLayer(ident, Some(dim0))
-        val btr = bt(fd).restrict(dav)
-        val abs = ctx.check(a.term, btr)
-        // TODO no hurry to finalize this context? use information in cap to infer?
+        val btr = bt.restrict(dav)
+        // FIXME no hurry to finalize this context? use information in cap to infer?
         // currently if we want a refl face, it cannot do this!!
-        val na = Abstract.AbsClosure(ctx.finishReify(), abs)
+        val na = ctx0.checkLine(a.term, dim0, btr)
         val naa = ctx0.eval(na)
         val nv = naa(dv.from)
-        if (!unifyTerm(btr, bv.restrict(dav), nv)) {
+        if (!unifyTerm(btr(dim0), bv.restrict(dav), nv)) {
           throw TypeCheckException.CapNotMatching()
         }
         (Abstract.Face(daa, na), naa(dim0), dav)
@@ -140,7 +137,24 @@ class TypeChecker private (protected override val layers: Layers)
   }
 
 
-  def checkLine(a: Term): (Int, Abstract.AbsClosure) = {
+  def checkLine(a: Term, dim: Value.Dimension.Generic, typ: Value.AbsClosure): Abstract.AbsClosure = {
+    a match {
+      case Term.Lambda(n, b, body) =>
+        if (b) throw TypeCheckException.DimensionLambdaCannotBeImplicit()
+        val ctx = newDimensionLayer(n, dim)
+        val ta = ctx.check(body, typ(dim))
+        Abstract.AbsClosure(ctx.finishReify(), ta)
+      case _ =>
+        val ctx = newDimensionLayer(Name.empty)._1 // it is ok to infer in this context, as the name is empty so it doesn't affect much
+        val (tv, ta) = ctx.infer(a)
+        tv.whnf match {
+          case j@Value.PathType(_, _, _) =>
+            Abstract.AbsClosure(ctx.finishReify(), Abstract.PathApp(ta, Abstract.Dimension.Reference(0)))
+          case _ => throw TypeCheckException.ExpectingLambdaTerm()
+        }
+    }
+  }
+  def checkTypeLine(a: Term): (Int, Abstract.AbsClosure) = {
     a match {
       case Term.Lambda(n, b, body) =>
         if (b) throw TypeCheckException.DimensionLambdaCannotBeImplicit()
@@ -149,10 +163,11 @@ class TypeChecker private (protected override val layers: Layers)
         val ta = Abstract.AbsClosure(ctx.finishReify(), ta0)
         (l, ta)
       case _ =>
-        val (tv, ta) = infer(a)
+        val ctx = newDimensionLayer(Name.empty)._1
+        val (tv, ta) = ctx.infer(a)
         tv.whnf match {
           case j@Value.PathType(_, _, _) =>
-            val clo = Abstract.AbsClosure(Seq.empty, Abstract.PathApp(ta.diff(0, 1), Abstract.Dimension.Reference(0)))
+            val clo = Abstract.AbsClosure(ctx.finishReify(), Abstract.PathApp(ta, Abstract.Dimension.Reference(0)))
             (Value.inferLevel(j), clo)
           case _ => throw TypeCheckException.ExpectingLambdaTerm()
         }
@@ -234,32 +249,33 @@ class TypeChecker private (protected override val layers: Layers)
       case Term.Coe(direction, tp, base) =>
         // LATER does these needs finish off implicits?
         val (dv, da) = checkDimensionPair(direction)
-        val (_, ta) = checkLine(tp)
+        val (_, ta) = checkTypeLine(tp)
         val cl = eval(ta)
         val la = check(base, cl(dv.from))
         (cl(dv.to), Abstract.Coe(da, ta, la))
-      case Term.Com(direction, tp, base, ident, faces) =>
+      case Term.Com(direction, tp, base, faces) =>
         val (dv, da) = checkDimensionPair(direction)
-        val (_, ta) = checkLine(tp)
+        val (_, ta) = checkTypeLine(tp)
         val cl = eval(ta)
         val ba = check(base, cl(dv.from))
-        val rs = checkCompatibleCapAndFaces(ident, faces, cl, eval(ba), dv)
+        val rs = checkCompatibleCapAndFaces(faces, cl, eval(ba), dv)
         (cl(dv.to), Abstract.Com(da, ta, ba, rs))
-      case Term.Hcom(direction, base, ident, faces) =>
+      case Term.Hcom(direction, base, faces) =>
         val (dv, da)= checkDimensionPair(direction)
         val (bt, ba) = infer(base)
         val bv = eval(ba)
-        val rs = checkCompatibleCapAndFaces(ident, faces, Value.AbsClosure(bt), bv, dv)
+        val rs = checkCompatibleCapAndFaces(faces, Value.AbsClosure(bt), bv, dv)
         (bt, Abstract.Hcom(da, reify(bt), ba, rs))
       case Term.PathType(typ, left, right) =>
         typ match {
           case Some(tp) =>
-            val (tl, ca) = checkLine(tp)
+            val (tl, ca) = checkTypeLine(tp)
             val tv = eval(ca)
             val la = check(left, tv(Value.Dimension.False))
             val ra = check(right, tv(Value.Dimension.True))
             (Value.Universe(tl), Abstract.PathType(ca, la, ra))
           case None =>
+            // FIXME instead of inferring two side, infer one side then check another; or if we have meta with levels... can we just write a max level???? it seems not that easy... because you run into the same kind of problems
             val (lt, la) = infer(left)
             val (rt, ra) = infer(right)
             val ttt = if (subTypeOf(lt, rt)) {

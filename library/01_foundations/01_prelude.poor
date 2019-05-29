@@ -5,6 +5,9 @@ define id(#A: type, a: A): A = a
 
 define refl(#A: type, #a: A): a ≡ a = i → a
 
+// TODO x.refl syntax
+define x_refl(#A: type, a: A): a ≡ a = i → a
+
 define fun_ext(#A: type, #B: A ⇒ type, #f #g: (x: A) ⇒ B(x), p: (x: A) ⇒ f(x) ≡ g(x)): f ≡ g =
   i → x → p(x, i)
 /*
@@ -16,9 +19,9 @@ define fun_ext(
 ): f ≡ g = i → x → p(x, i)
 */
 
-// TODO change the syntax to be like redtt so that k don't bind all faces
+// FIXME change the syntax to be like redtt so that k don't bind all faces
 define path_reverse(#A: type, #x #y: A, p: x ≡ y): y ≡ x =
-  i → hcom(0, 1, x, k | i=0 → p(k) | i=1 → x)
+  i → hcom(0, 1, x |i=0: p |i=1: x_refl(x))
 
 /*
 TODO new syntax
@@ -26,13 +29,13 @@ p.reverse
 */
 
 define path_reverse_filler(#A: type, #x #y: A, p: x ≡ y): (─ → x) ≡[j → p(j) ≡ x] path_reverse(p) =
-  j → i → hcom(0, j, x, k | i=0 → p(k) | i=1 → x)
+  j → i → hcom(0, j, x |i=0: p |i=1: x_refl(x))
 
-define path_reverse_unit(#A: type, x: A): (─ → x) ≡[─ → x ≡ x] path_reverse(─ → x) =
-  path_reverse_filler(─ → x)
+define path_reverse_unit(#A: type, x: A): (─ → x) ≡[─ → x ≡ x] path_reverse(x_refl(x)) =
+  path_reverse_filler(x_refl(x))
 
 define dependent_path_reverse(A1 A2: type, A: A1 ≡ A2, x: A1, y: A2, p: x ≡[A] y): y ≡[^path_reverse(A)] x =
-  i → com(0, 1, j → ^path_reverse_filler(A, j, i), x, k | i=0 → p(k) | i=1 → x)
+  i → com(0, 1, j → ^path_reverse_filler(A, j, i), x |i=0: p |i=1: x_refl(x))
 
 /*
 TODO can we statically determine use path_reverse or dependent_path_reverse?
@@ -51,7 +54,7 @@ the first one also applies, then we can use the second one, because it has a mor
 
 
 define trans(#A: type, #x #y #z: A, p1: x ≡ y, p2: y ≡ z): x ≡ z =
-  i → hcom(0, 1, p1(i), k | i=0 → x | i=1 → p2(k))
+  i → hcom(0, 1, p1(i) |i=0: x_refl(x) |i=1: p2)
 
 
 define fiber(A B: type, f: A ⇒ B, b: B): type = record {
