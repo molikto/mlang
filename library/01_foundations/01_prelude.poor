@@ -98,4 +98,4 @@ define is_contractible(A: type) = record {
 
 define singleton_is_contractible(#A: type, center: A):
    is_contractible(singleton(center)) =
-   object(object(center, refl), a → j → ???)
+   make(make(center, refl), a → j → ???)

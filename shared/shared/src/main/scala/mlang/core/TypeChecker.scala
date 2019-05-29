@@ -533,7 +533,7 @@ class TypeChecker private (protected override val layers: Layers)
         }
       case r: Value.Record =>
         term match {
-          case Term.Obj(vs) =>
+          case Term.App(Term.Reference(mlang.utils.Text.make), vs) =>
             inferApp(r.makerType, reify(cp), vs)._2
           case _ =>
             fallback()

@@ -6,6 +6,10 @@ package object utils {
 
   def logicError() = throw new IllegalArgumentException("This state is considered a logic error")
 
+  object Text {
+    val make = Text("make")
+  }
+
   implicit class Text(val s: String) extends AnyVal {
     def string: String = s
     override def toString: String = s.toString

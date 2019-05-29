@@ -83,7 +83,7 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
         app |
         pathType |
         record | interval | undefined |
-        projection | `object` |
+        projection |
         meta |
         sum |
         up |
@@ -102,8 +102,6 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
   lazy val pathType: PackratParser[PathType] = term ~ ("≡" ~> opt(delimited("[", term ,"]")) ~ term) ^^ {a =>
     PathType(a._2._1, a._1, a._2._2)
   }
-
-  lazy val `object`:  PackratParser[Term] = keyword("object") ~> delimited("(", repsep((opt("@") ^^ {a => a.nonEmpty}) ~ term, ","),")") ^^ {a => Obj(a.map(a => (a._1, a._2))) }
 
   lazy val absDimension: PackratParser[Term] = numericLit  ^^ { i => Term.ConstantDimension(if (i == "0") false else if (i == "1") true else throw new Exception("...")) }
 
