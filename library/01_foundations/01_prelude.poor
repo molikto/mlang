@@ -91,10 +91,11 @@ define singleton(#A: type, center: A) = record {
   field to_center: a ≡ center
 }
 
-define is_contractible_at(#C: type, center: C) = (a: C) ⇒ a ≡ center
+define is_contractible(A: type) = record {
+  field center: A
+  field to_center: (a: A) ⇒ a ≡ center
+}
 
-/* TODO: we don't have access to connections here...
 define singleton_is_contractible(#A: type, center: A):
-   is_contractible_at(singleton(center).make(center, refl)) =
-  fiber → i → singleton(center).make(fiber.to_center(i), j → )
-*/
+   is_contractible(singleton(center)) =
+   object(object(center, refl), a → j → ???)

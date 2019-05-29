@@ -33,7 +33,7 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
     override def whitespaceChar: Parser[Char] = elem("", _ == '│') | super.whitespaceChar
   }
 
-  lexical.reserved ++= List("define", "declare", "const_projections", "case", "__debug", "as", "coe", "hcom", "com","field", "ignored", "match", "record", "type", "sum", "inductively", "run", "with_constructors", "I", "_")
+  lexical.reserved ++= List("define", "declare", "const_projections", "case", "__debug", "as", "coe", "hcom", "com","field", "ignored", "match", "record", "type", "sum", "inductively", "run", "with_constructors", "I", "_", "object")
   lexical.delimiters ++= List("{", "}", "[", "]", ":", ",", "(", ")", "#", "≡", "─", "???", "┬", "┌", "⊏", "└", "├", "⇒", "→", "+", "-", ";", "=", "@", "\\", ".", "|", "^")
 
   def delimited[T](a: String, t: Parser[T], b: String): Parser[T] = a ~> t <~ b
@@ -83,7 +83,7 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
         app |
         pathType |
         record | interval | undefined |
-        projection |
+        projection | `object` |
         meta |
         sum |
         up |
@@ -102,6 +102,8 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
   lazy val pathType: PackratParser[PathType] = term ~ ("≡" ~> opt(delimited("[", term ,"]")) ~ term) ^^ {a =>
     PathType(a._2._1, a._1, a._2._2)
   }
+
+  lazy val `object`:  PackratParser[Term] = keyword("object") ~> delimited("(", repsep((opt("@") ^^ {a => a.nonEmpty}) ~ term, ","),")") ^^ {a => Obj(a.map(a => (a._1, a._2))) }
 
   lazy val absDimension: PackratParser[Term] = numericLit  ^^ { i => Term.ConstantDimension(if (i == "0") false else if (i == "1") true else throw new Exception("...")) }
 

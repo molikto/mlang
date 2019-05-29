@@ -34,6 +34,8 @@ object TypeCheckException {
   case class CannotInferLambda() extends TypeCheckException
   case class CannotInferReturningTypeWithPatterns() extends TypeCheckException
 
+  case class CannotInferObjectNow()  extends TypeCheckException
+
 
   case class TypeMismatch() extends TypeCheckException
 
@@ -298,6 +300,8 @@ class TypeChecker private (protected override val layers: Layers)
                 throw TypeCheckException.InferPathEndPointsTypeNotMatching()
             }
         }
+      case o: Term.Obj =>
+        throw TypeCheckException.CannotInferObjectNow()
       case p: Term.PatternLambda =>
         throw TypeCheckException.CannotInferReturningTypeWithPatterns()
       case l: Term.Lambda =>
@@ -526,6 +530,13 @@ class TypeChecker private (protected override val layers: Layers)
               throw TypeCheckException.PathEndPointsNotMatching()
             }
           case _ => fallback()
+        }
+      case r: Value.Record =>
+        term match {
+          case Term.Obj(vs) =>
+            inferApp(r.makerType, reify(cp), vs)._2
+          case _ =>
+            fallback()
         }
       case _ => fallback()
     }
