@@ -1,6 +1,5 @@
 
 
-
 define id(#A: type, a: A): A = a
 
 define refl(#A: type, #a: A): a ≡ a = i → a
@@ -19,14 +18,13 @@ define fun_ext(
 ): f ≡ g = i → x → p(x, i)
 */
 
-// FIXME change the syntax to be like redtt so that k don't bind all faces
-define path_reverse(#A: type, #x #y: A, p: x ≡ y): y ≡ x =
-  i → hcom(0, 1, x |i=0: p |i=1: x_refl(x))
-
 /*
 TODO new syntax
 p.reverse
 */
+define path_reverse(#A: type, #x #y: A, p: x ≡ y): y ≡ x =
+  i → hcom(0, 1, x |i=0: p |i=1: x_refl(x))
+
 
 define path_reverse_filler(#A: type, #x #y: A, p: x ≡ y): (─ → x) ≡[j → p(j) ≡ x] path_reverse(p) =
   j → i → hcom(0, j, x |i=0: p |i=1: x_refl(x))
