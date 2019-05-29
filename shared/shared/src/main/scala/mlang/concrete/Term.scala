@@ -57,6 +57,7 @@ object Term {
   // TODO make expression, type is inferred as non-dependent
 
   case object I extends Term
+  case object Undefined extends Term
   case class PathType(typ: Option[Term], left: Term, right: Term) extends Term
   case class ConstantDimension(isOne: Boolean) extends Term
 

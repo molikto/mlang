@@ -4,7 +4,7 @@ import mlang.core.Abstract._
 import mlang.core.Context.Layers
 import mlang.core.Value.{ClosureGraph, Meta}
 import mlang.name.Name
-import mlang.utils.Benchmark
+import mlang.utils.{Benchmark, debug}
 
 import scala.collection.mutable
 
@@ -139,7 +139,7 @@ private trait ReifierContext extends ContextBuilder {
       case Value.Coe(dir, tp, base) =>
         Coe(reify(dir), reify(tp), reify(base))
       case Value.Hcom(dir, tp, base, faces) =>
-        Hcom(reify(dir), reify(tp), reify(base), faces.map(r => Face(reify(r.restriction), reify(r.body))))
+        Hcom(reify(dir), reify(tp), reify(base), faces.map(r => Face(reify(r.restriction), newRestrictionLayer(r.restriction).reify(r.body))))
       case Value.Com(dir, tp, base, faces) =>
         Com(reify(dir), reify(tp), reify(base),
           faces.map(r => Face(reify(r.restriction), newRestrictionLayer(r.restriction).reify(r.body)))
@@ -177,6 +177,7 @@ private class ReifierContextBase(layersBefore: Context.Layers) extends ReifierCo
 
   def saveOutOfScopeValue(r: Value.Reference): Unit = {
     val index = terms.size
+    debug(s"out of scope value saved??", 2)
     terms.append(DefineItem(ParameterBinder(Name.empty, null), Some(r)))
     val abs = if (r.value.eq(self)) {
       None : Option[Abstract]
