@@ -85,17 +85,38 @@ define path_map(#A: type, #B: A ⇒ type, f: (x: A) ⇒ B(x), #x #y: A, p: x ≡
 
 
 
+define is_contractible(A: type) = record {
+  field center: A
+  field to_center: (a: A) ⇒ a ≡ center
+}
+
+define is_prop(A: type): type = (a b: A) ⇒ a ≡ b
+
+
+define inductively h_level: type = sum {
+  case contractible
+  case suc(: h_level)
+}
+
+/* TODO local match expression or with expression
+define is_h_level:
+  h_level          ⇒ (type ⇒ type) =
+┌ contractible     → is_contractible
+└ suc(b) → match(b,
+    ┌ contractible → is_prop
+    └ suc(c)       → A → (x y: A) ⇒ is_h_level(b)(x ≡ y))
+*/
+
+
 
 define singleton(#A: type, center: A) = record {
   field a: A
   field to_center: a ≡ center
 }
 
-define is_contractible(A: type) = record {
-  field center: A
-  field to_center: (a: A) ⇒ a ≡ center
-}
-
+/* TODO incomplete
 define singleton_is_contractible(#A: type, center: A):
    is_contractible(singleton(center)) =
    make(make(center, refl), a → j → ???)
+*/
+
