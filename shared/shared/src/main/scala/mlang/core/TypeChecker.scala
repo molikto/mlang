@@ -4,6 +4,7 @@ import mlang.concrete.{Pattern => Patt, _}
 import Context._
 import mlang.concrete.Declaration.Modifier
 import mlang.core
+import mlang.core.Value.Dimension
 import mlang.name._
 import mlang.utils._
 
@@ -27,7 +28,7 @@ object TypeCheckException {
 
   // elimination mismatch
   case class UnknownAsType() extends TypeCheckException
-  case class UnknownProjection(name: Ref) extends Exception(s"Unknown projection ${name}") with TypeCheckException
+  case class UnknownProjection() extends Exception(s"Unknown projection") with TypeCheckException
   case class UnknownAsFunction() extends TypeCheckException
 
 
@@ -50,12 +51,14 @@ object TypeCheckException {
 
   case class ExpectingLambdaTerm() extends TypeCheckException
 
-  case class RemoveFalseFace() extends TypeCheckException
   case class CapNotMatching() extends TypeCheckException
   case class FacesNotMatching() extends TypeCheckException
 
   case class RequiresValidRestriction() extends TypeCheckException
   case class TermICanOnlyAppearInDomainOfFunction() extends TypeCheckException
+
+
+  case class CannotInferMakeExpression() extends TypeCheckException
 
   case class CannotInferMeta() extends TypeCheckException
 
@@ -66,7 +69,7 @@ object TypeCheckException {
 
   case class RecursiveTypesMustBeDefinedAtTopLevel() extends TypeCheckException
 
-  case class UpCanOnlyBeUsedOnTopLevelDefinition()  extends TypeCheckException
+  case class UpCanOnlyBeUsedOnTopLevelDefinitionOrUniverse()  extends TypeCheckException
 
   case class AlreadyDeclared() extends TypeCheckException
   case class AlreadyDefined() extends TypeCheckException
@@ -74,6 +77,11 @@ object TypeCheckException {
   case class SeparateDefinitionCannotHaveTypesNow() extends TypeCheckException
   case class DimensionLambdaCannotBeImplicit() extends TypeCheckException
   case class CannotInferPathTypeWithoutBody() extends TypeCheckException
+
+  // TODO maybe we should just show a warning
+  case class RemoveFalseFace() extends TypeCheckException
+  case class RemoveConstantVType() extends TypeCheckException
+  case class VTypeDimensionInconsistent() extends TypeCheckException
 }
 
 
@@ -182,6 +190,8 @@ class TypeChecker private (protected override val layers: Layers)
     }
   }
 
+  def is_equiv = lookupTerm("is_equiv")._1
+
   private def finishOffImplicits(v: Value, abs: Abstract): (Value, Abstract) = {
     v.whnf match {
       case Value.Function(d, i, c) if i =>
@@ -201,14 +211,22 @@ class TypeChecker private (protected override val layers: Layers)
       }
     }
     val res = term match {
-      case Term.Universe(i) =>
-        (Value.Universe.suc(i), Abstract.Universe(i))
+      case Term.Type =>
+        (Value.Universe.level1, Abstract.Universe(0))
       case Term.Up(a, b) =>
-        val (binder, abs) = lookupTerm(a.name)
-        abs match {
-          case Abstract.Reference(up, _) if up == layers.size - 1 =>
-            reduceMore(binder.up(b), Abstract.Up(abs, b))
-          case _ => throw TypeCheckException.UpCanOnlyBeUsedOnTopLevelDefinition()
+        a match {
+          case Term.Up(c, d) =>
+            infer(Term.Up(c, b + d))
+          case Term.Type =>
+            (Value.Universe(b + 1), Abstract.Universe(b))
+          case Term.Reference(ref) =>
+            val (binder, abs) = lookupTerm(ref)
+            abs match {
+              case Abstract.Reference(up, _) if up == layers.size - 1 =>
+                reduceMore(binder.up(b), Abstract.Up(abs, b))
+              case _ => throw TypeCheckException.UpCanOnlyBeUsedOnTopLevelDefinitionOrUniverse()
+            }
+          case _ => throw TypeCheckException.UpCanOnlyBeUsedOnTopLevelDefinitionOrUniverse()
         }
       case Term.Reference(name) =>
         // should lookup always return a value? like a open reference?
@@ -216,10 +234,14 @@ class TypeChecker private (protected override val layers: Layers)
         reduceMore(binder, abs)
       case Term.Hole =>
         throw TypeCheckException.CannotInferMeta()
-      case Term.ConstantDimension(_) =>
+      case Term.True =>
+        throw ContextException.ConstantSortWrong()
+      case Term.False =>
         throw ContextException.ConstantSortWrong()
       case Term.I =>
         throw TypeCheckException.TermICanOnlyAppearInDomainOfFunction()
+      case Term.Make =>
+        throw TypeCheckException.CannotInferMakeExpression()
       case Term.Cast(v, t) =>
         val (_, ta) = inferLevel(t)
         val tv = eval(ta)
@@ -300,8 +322,6 @@ class TypeChecker private (protected override val layers: Layers)
                 throw TypeCheckException.InferPathEndPointsTypeNotMatching()
             }
         }
-      case o: Term.Obj =>
-        throw TypeCheckException.CannotInferObjectNow()
       case p: Term.PatternLambda =>
         throw TypeCheckException.CannotInferReturningTypeWithPatterns()
       case l: Term.Lambda =>
@@ -310,18 +330,25 @@ class TypeChecker private (protected override val layers: Layers)
         val (lt, la) = infer(left)
         val lv = eval(la)
         lazy val ltr = lt.whnf.asInstanceOf[Value.Record]
-        def error() = throw TypeCheckException.UnknownProjection(right)
+        def error() = throw TypeCheckException.UnknownProjection()
         var index = -1
+        def calIndex(a: Text => Int) = {
+          index = right match {
+            case Term.Reference(name) => a(name)
+            case _ => -1
+          }
+          index >= 0
+        }
         lt.whnf match {
-          case m: Value.Record if { index = ltr.names.indexWhere(_.by(right)) ; index >= 0 } =>
+          case m: Value.Record if calIndex(t => ltr.names.indexWhere(_.by(t))) =>
             reduceMore(m.projectedType(lv, index), Abstract.Projection(la, index))
           case _ =>
             lv.whnf match {
               // TODO user defined projections for a type, i.e.
               // TODO [issue 7] implement const_projections syntax
-              case r: Value.Record if right == Ref.make =>
+              case r: Value.Record if right == Term.Make =>
                 reduceMore(r.makerType, Abstract.Maker(la, -1))
-              case r: Value.Sum if { index = r.constructors.indexWhere(_.name.by(right)); index >= 0 } =>
+              case r: Value.Sum if calIndex(t => r.constructors.indexWhere(_.name.by(t))) =>
                 reduceMore(r.constructors(index).makerType, Abstract.Maker(la, index))
               case _ => error()
             }
@@ -331,12 +358,24 @@ class TypeChecker private (protected override val layers: Layers)
         val (lt, la) = infer(lambda, true)
         val (v1, v2) = inferApp(lt, la, arguments)
         reduceMore(v1, v2) // because inferApp stops when arguments is finished
+      case Term.VType(x, a, b, e) =>
+        val (xv, xa) = checkDimension(x)
+        xv match {
+          case g: Dimension.Generic =>
+            val dp = Value.DimensionPair(g, Value.Dimension.False)
+            val ctxr = newRestrictionLayer(dp)
+            val (al, aa) = ctxr.inferLevel(a)
+            val (bl, ba) = inferLevel(b)
+            val ea = ctxr.check(e, Value.App(Value.App(is_equiv, ctxr.eval(aa)), ctxr.eval(ba).restrict(dp)))
+            (Value.Universe(al max bl), Abstract.VType(xa, aa, ba, ea))
+          case _ =>
+            throw TypeCheckException.RemoveConstantVType()
+        }
       case Term.Let(declarations, in) =>
         val (ctx, ms, da) = newDefinesLayer().checkDeclarations(declarations, false)
         val (it, ia) = ctx.infer(in)
         val ms0 = ctx.freezeReify()
         (it, Abstract.Let(ms ++ ms0, da, ia))
-
     }
     debug(s"infer result ${res._2}")
     res
@@ -353,12 +392,10 @@ class TypeChecker private (protected override val layers: Layers)
       case Term.Reference(name) =>
         val (v, a) = lookupDimension(name)
         (v, a)
-      case Term.ConstantDimension(i) =>
-        if (i) {
-          (Value.Dimension.True, Abstract.Dimension.True)
-        } else {
-          (Value.Dimension.False, Abstract.Dimension.False)
-        }
+      case Term.True =>
+        (Value.Dimension.True, Abstract.Dimension.True)
+      case Term.False =>
+        (Value.Dimension.False, Abstract.Dimension.False)
       case _ => throw TypeCheckException.ExpectingDimension()
     }
   }
@@ -512,6 +549,12 @@ class TypeChecker private (protected override val layers: Layers)
               fallback()
             }
         }
+      case Value.VType(x, a, b, e) =>
+        term match {
+          case Term.App(Term.Make, vs0) if vs0.take(2).forall(!_._1) =>
+            ???
+          case _ => fallback()
+        }
       case Value.PathType(typ, left, right) =>
         term match {
           case Term.Lambda(n, b, body) =>
@@ -533,8 +576,8 @@ class TypeChecker private (protected override val layers: Layers)
         }
       case r: Value.Record =>
         term match {
-          case Term.App(Term.Reference(mlang.utils.Text.make), vs) =>
-            inferApp(r.makerType, reify(cp), vs)._2
+          case Term.App(Term.Make, vs) =>
+            inferApp(r.makerType, Abstract.Maker(reify(cp), -1), vs)._2
           case _ =>
             fallback()
         }

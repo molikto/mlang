@@ -25,8 +25,14 @@ sealed trait Block
 
 object Term {
 
-  case class Universe(level: Int) extends Term
-  case class Up(a: Reference, i: Int) extends Term
+  sealed trait Keyword extends Term
+  case object Type extends Keyword
+  case object I extends Keyword
+  case object True extends Keyword
+  case object False extends Keyword
+  case object Make extends Keyword
+
+  case class Up(a: Term, i: Int) extends Term
 
   case class Reference(name: Ref) extends Term // some name is renamed
 
@@ -37,19 +43,21 @@ object Term {
   case class Record(fields: Seq[NameType]) extends Term {
     val names = fields.flatMap(_.names)
   }
-  // TODO obj with inferred type
-  case class Obj(vals: Seq[(Boolean, Term)]) extends Term
 
   case class Constructor(name: Name, term: Seq[NameType])
+
   case class Sum(constructors: Seq[Constructor]) extends Term with Block
 
   case class App(left: Term, right: Seq[(Boolean, Term)]) extends Term
 
-  case class Projection(left: Term, right: Ref) extends Term
-
+  case class Projection(left: Term, right: Term) extends Term {
+    assert(right.isInstanceOf[Keyword] || right.isInstanceOf[Reference])
+  }
 
   case class Case(pattern: Pattern, body: Term)
+
   case class PatternLambda(implt: Boolean, branches: Seq[Case]) extends Term
+
   case class Lambda(name: Name, imps: Boolean, body: Term) extends Term
 
   // TODO can you define a macro in a abstracted context?
@@ -57,19 +65,19 @@ object Term {
 
   // TODO make expression, type is inferred as non-dependent
 
-  case object I extends Term
   case object Undefined extends Term
-  case class PathType(typ: Option[Term], left: Term, right: Term) extends Term
-  case class ConstantDimension(isOne: Boolean) extends Term
 
+  case class PathType(typ: Option[Term], left: Term, right: Term) extends Term
   case class Pair(from: Term, to: Term)
   case class Face(dimension: Pair, term: Term)
   case class Coe(direction: Pair, typ: Term, base: Term) extends Term
   case class Hcom(direction: Pair, base: Term, faces: Seq[Face]) extends Term
   case class Com(direction: Pair, typ: Term, base: Term, faces: Seq[Face]) extends Term
+  case class VType(x: Term, a: Term, b: Term, e: Term) extends Term
 
   case object Hole extends Term
 }
+
 
 case class Module(declarations: Seq[Declaration])
 

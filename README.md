@@ -87,6 +87,8 @@ there are other kind of TODOs in the project, they are `LATER`, `TODO`, and `FIX
     * unimath
     * the big problems list
     * Agda Katas
+* meta-theory
+    * compared to CCHM, Copop != C
 
 
 ## internals

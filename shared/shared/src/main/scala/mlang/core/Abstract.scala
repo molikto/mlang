@@ -152,6 +152,10 @@ object Abstract {
 
   case class Restricted(term: Abstract, restriction: Seq[DimensionPair]) extends Abstract
 
+  case class VType(x: Dimension, a: Abstract, b: Abstract, e: Abstract) extends Abstract
+  case class VMake(x: Dimension, m: Abstract, n: Abstract) extends Abstract
+  case class VProj(x: Dimension, m: Abstract, f: Abstract) extends Abstract
+
   // restriction doesn't take binding, but they have a level non-the-less
   case class Face(pair: DimensionPair, body: AbsClosure) {
     def diff(depth: Int, x: Int): Face = Face(pair.diff(depth, x), body.diff(depth, x))

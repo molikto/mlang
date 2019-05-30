@@ -10,8 +10,6 @@ package object name {
 
   object Ref {
     val empty: Ref = Text("")
-
-    val make: Ref = Text("make")
   }
 
 }

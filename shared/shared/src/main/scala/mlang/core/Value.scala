@@ -790,6 +790,8 @@ object Value {
 
   object Universe {
     def suc(i: Int) = Universe(i + 1)
+    def level0 = Universe(1)
+    def level1 = Universe(1)
   }
 
   case class Up(term: Value, level: Int) extends Syntaxial
@@ -885,6 +887,12 @@ object Value {
 
   // the left and right BOTH stuck
   case class PathApp(left: StuckPos, dimension: Dimension) extends Stuck
+
+  case class VType(x: Value.Dimension, a: Value, b: Value, e: Value) extends Stuck
+
+  case class VMake(x: Value.Dimension, m: Value, n: Value) extends Stuck
+
+  case class VProj(x: Value.Dimension, m: Value, f: Value) extends Stuck
 
   // these values will not be visible to users! also I guess it is ok to be static, it will not overflow right?
   private val vgen = new LongGen.Negative()
