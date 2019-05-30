@@ -59,7 +59,7 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
 
   lazy val universe: PackratParser[Term] = keyword("type") ^^ { _ => Term.Type }
 
-  lazy val up: PackratParser[Term] = rep1("^") ~ ident ^^ { a => Up(Reference(a._2), a._1.size) }
+  lazy val up: PackratParser[Term] = rep1("^") ~ ( universe | reference ) ^^ { a => Up(a._2, a._1.size) }
 
   lazy val let: PackratParser[Let] = keyword("run") ~> delimited("{", rep(declaration) ~ term, "}") ^^ { a => Let(a._1, a._2)}
 
@@ -88,9 +88,9 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
         coe | com | hcom | vtype |
         universe | make |
         delimited("(", term, ")") |
-        absDimension |
-        ident ^^ {a => Reference(a)}
+        absDimension | reference
 
+  lazy val reference = ident ^^ {a => Reference(a)}
   lazy val make: PackratParser[Term] = keyword("make") ^^ {_ => Make }
   lazy val meta: PackratParser[Term] = keyword("_") ^^ {_ => Hole }
 
@@ -172,7 +172,7 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
 
   lazy val record: PackratParser[Record] = keyword("record") ~> delimited("{", rep(((keyword("field") ~> rep1(nonEmptyImplicitPattern) <~ ":") ~ term) ^^ {a => NameType(a._1, a._2)}), "}") ^^ {a => Record(a) }
 
-  lazy val projection: PackratParser[Projection] = (term <~ ".") ~ (keyword("make") ^^ {a => Term.Make: Term} | ident ^^ {a => Reference(Text(a)) }) ^^ {a => Projection(a._1, a._2)}
+  lazy val projection: PackratParser[Projection] = (term <~ ".") ~ (make | reference) ^^ {a => Projection(a._1, a._2)}
 
   lazy val sum: PackratParser[Sum] =
     (keyword("sum") ~> delimited("{", rep(
