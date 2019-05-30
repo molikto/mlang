@@ -132,7 +132,7 @@ class TypeChecker private (protected override val layers: Layers)
           if (!unifyTerm(
             btt.restrict(l._3).restrict(dfv),
             l._2.restrict(dfv),
-            r._2.restrict(l._3))) {
+            r._2.restrict(l._3.restrict(r._3)))) {
             throw TypeCheckException.FacesNotMatching()
           }
         }
