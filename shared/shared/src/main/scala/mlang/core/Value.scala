@@ -41,13 +41,13 @@ sealed trait Value {
     case Function(domain, im, codomain) =>
       Function(domain.up(b), im, codomain.up(b))
     case Record(level, inductively, ms, ns, nodes) =>
-      Record(level + 1, inductively.map(_.up(b)), ms, ns, ClosureGraph.up(nodes, b))
+      Record(level + b, inductively.map(_.up(b)), ms, ns, ClosureGraph.up(nodes, b))
     case Make(values) =>
       Make(values.map(_.up(b)))
     case Construct(name, vs) =>
       Construct(name, vs.map(_.up(b)))
     case Sum(level, inductively, constructors) =>
-      Sum(level + 1, inductively.map(_.up(b)), constructors.map(n => Constructor(n.name, n.ims, ClosureGraph.up(n.nodes, b))))
+      Sum(level + b, inductively.map(_.up(b)), constructors.map(n => Constructor(n.name, n.ims, ClosureGraph.up(n.nodes, b))))
     case Lambda(closure) =>
       Lambda(closure.up(b))
     case PatternLambda(id, dom, typ, cases) =>
