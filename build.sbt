@@ -50,7 +50,7 @@ val sharedSettings = Seq(
     "-P:acyclic:force",
   ),
   autoCompilerPlugins := true,
-  addCompilerPlugin("com.lihaoyi" %% "acyclic" %  "0.1.8"),
-  libraryDependencies += "com.lihaoyi" %% "acyclic" % "0.1.8" % "provided",
+  addCompilerPlugin("com.lihaoyi" %% "acyclic" %  "0.1.9"),
+  libraryDependencies += "com.lihaoyi" %% "acyclic" % "0.1.9" % "provided",
 )
 
