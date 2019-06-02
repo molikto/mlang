@@ -19,7 +19,7 @@ lazy val `client-web` = project.in(file("client-web")).settings(
   sharedSettings,
   scalaJSUseMainModuleInitializer := true,
   libraryDependencies ++= Seq(
-    "org.scala-js" %%% "scalajs-dom" % "0.9.6",
+    "org.scala-js" %%% "scalajs-dom" % "0.9.7",
     "com.lihaoyi" %%% "scalatags" % "0.6.8"
   )
 ).enablePlugins(ScalaJSPlugin).dependsOn(shared.js)
@@ -50,7 +50,7 @@ val sharedSettings = Seq(
     "-P:acyclic:force",
   ),
   autoCompilerPlugins := true,
-  addCompilerPlugin("com.lihaoyi" %% "acyclic" %  "0.1.8"),
-  libraryDependencies += "com.lihaoyi" %% "acyclic" % "0.1.8" % "provided",
+  addCompilerPlugin("com.lihaoyi" %% "acyclic" %  "0.1.9"),
+  libraryDependencies += "com.lihaoyi" %% "acyclic" % "0.1.9" % "provided",
 )
 
