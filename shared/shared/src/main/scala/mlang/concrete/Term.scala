@@ -25,12 +25,11 @@ sealed trait Block
 
 object Term {
 
-  sealed trait Keyword extends Term
-  case object Type extends Keyword
-  case object I extends Keyword
-  case object True extends Keyword
-  case object False extends Keyword
-  case object Make extends Keyword
+  case object Type extends Term
+  case object I extends Term
+  case object True extends Term
+  case object False extends Term
+  case object Make extends Term // special identifier for maker of a record type
 
   case class Up(a: Term, i: Int) extends Term
 
@@ -50,9 +49,7 @@ object Term {
 
   case class App(left: Term, right: Seq[(Boolean, Term)]) extends Term
 
-  case class Projection(left: Term, right: Term) extends Term {
-    assert(right.isInstanceOf[Keyword] || right.isInstanceOf[Reference])
-  }
+  case class Projection(left: Term, right: Term) extends Term
 
   case class Case(pattern: Pattern, body: Term)
 
@@ -74,6 +71,8 @@ object Term {
   case class Hcom(direction: Pair, base: Term, faces: Seq[Face]) extends Term
   case class Com(direction: Pair, typ: Term, base: Term, faces: Seq[Face]) extends Term
   case class VType(x: Term, a: Term, b: Term, e: Term) extends Term
+  case class VMake(m: Term, n: Term) extends Term
+  case class VProj(m: Term) extends Term
 
   case object Hole extends Term
 }

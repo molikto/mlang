@@ -47,6 +47,9 @@ sealed trait Abstract {
     case Hcom(direction, tp, base, faces) => Hcom(direction.diff(depth, x), tp.diff(depth, x), base.diff(depth, x), faces.map(_.diff(depth, x)))
     case Com(direction, tp, base, faces) => Com(direction.diff(depth, x), tp.diff(depth, x), base.diff(depth, x), faces.map(_.diff(depth, x)))
     case Restricted(term, restriction) => Restricted(term.diff(depth, x), restriction.map(_.diff(depth, x)))
+    case VType(y, a, b, e) => VType(y.diff(depth, x), a.diff(depth, x), b.diff(depth, x), e.diff(depth, x))
+    case VMake(y, m, n) => VMake(y.diff(depth, x), m.diff(depth, x), n.diff(depth, x))
+    case VProj(y, m, f) => VProj(y.diff(depth, x), m.diff(depth, x), f.diff(depth, x))
   }
 
   def dependencies(i: Int): Set[Dependency] = this match {
@@ -73,6 +76,9 @@ sealed trait Abstract {
     case Hcom(_, tp, base, faces) => tp.dependencies(i) ++ base.dependencies(i) ++ faces.flatMap(_.dependencies(i)).toSet
     case Com(_, tp, base, faces) => tp.dependencies(i + 1) ++ base.dependencies(i) ++ faces.flatMap(_.dependencies(i)).toSet
     case Restricted(term, _) => term.dependencies(i)
+    case VType(_, a, b, e) => a.dependencies(i) ++ b.dependencies(i) ++ e.dependencies(i)
+    case VMake(_, m, n) => m.dependencies(i) ++ n.dependencies(i)
+    case VProj(_, m, f) => m.dependencies(i) ++ f.dependencies(i)
   }
 }
 
@@ -152,8 +158,8 @@ object Abstract {
 
   case class Restricted(term: Abstract, restriction: Seq[DimensionPair]) extends Abstract
 
-  case class VType(x: Dimension, a: Abstract, b: Abstract, e: Abstract) extends Abstract
-  case class VMake(x: Dimension, m: Abstract, n: Abstract) extends Abstract
+  case class VType(x: Dimension, a: MetaEnclosed, b: Abstract, e: MetaEnclosed) extends Abstract
+  case class VMake(x: Dimension, m: MetaEnclosed, n: Abstract) extends Abstract
   case class VProj(x: Dimension, m: Abstract, f: Abstract) extends Abstract
 
   // restriction doesn't take binding, but they have a level non-the-less

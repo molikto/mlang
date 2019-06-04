@@ -28,7 +28,7 @@ trait PlatformEvaluator extends BaseEvaluator {
 
 
 
-    def emitInner(term: Abstract.ClosureT, d: Int): String = {
+    def emitInner(term: Abstract.MetaEnclosedT, d: Int): String = {
       if (term.metas.isEmpty) {
         emit(term.term, d)
       } else {
@@ -138,6 +138,14 @@ trait PlatformEvaluator extends BaseEvaluator {
               s"${emit(base, depth)}, " +
               s"Seq(${faces.map(a => s"Face(${emit(a.pair, depth)}, AbsClosure(dm$d => ${emitInner(a.body, d)}))").mkString(", ")})" +
               s")"
+        case Abstract.VType(x, a, b, e) =>
+          val d = depth + 1
+          s"VType(${emit(x, depth)}, ${emitInner(a, d)}, ${emit(b, depth)}, ${emitInner(e, d)})"
+        case Abstract.VMake(x, m, n) =>
+          val d = depth + 1
+          s"VMake(${emit(x, depth)}, ${emitInner(m, d)}, ${emit(n, depth)})"
+        case Abstract.VProj(x, m, f) =>
+          s"VProj(${emit(x, depth)}, ${emit(m, depth)}, ${emit(f, depth)})"
         case Abstract.Restricted(t, dir) =>
           s"${emit(t, depth)}.restrict(${emit(dir, depth)})"
       }

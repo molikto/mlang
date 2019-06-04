@@ -207,7 +207,7 @@ private class ReifierContextBase(layersBefore: Context.Layers) extends ReifierCo
   }
 
   override def base: ReifierContextBase = this
-  val gen = new LongGen.Negative()
+  val gen = LongGen.Negative.gen
   override type Self = ReifierContextCont
   override protected implicit def create(a: Layers): ReifierContextCont = new ReifierContextCont(this, a)
 

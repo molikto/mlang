@@ -59,6 +59,9 @@ object TypeCheckException {
 
 
   case class CannotInferMakeExpression() extends TypeCheckException
+  case class CannotInferVMakeExpression() extends TypeCheckException
+
+  case class VProjCannotInfer() extends TypeCheckException
 
   case class CannotInferMeta() extends TypeCheckException
 
@@ -82,6 +85,8 @@ object TypeCheckException {
   case class RemoveFalseFace() extends TypeCheckException
   case class RemoveConstantVType() extends TypeCheckException
   case class VTypeDimensionInconsistent() extends TypeCheckException
+
+  case class VMakeMismatch() extends TypeCheckException
 }
 
 
@@ -242,6 +247,8 @@ class TypeChecker private (protected override val layers: Layers)
         throw TypeCheckException.TermICanOnlyAppearInDomainOfFunction()
       case Term.Make =>
         throw TypeCheckException.CannotInferMakeExpression()
+      case _: Term.VMake =>
+        throw TypeCheckException.CannotInferVMakeExpression()
       case Term.Cast(v, t) =>
         val (_, ta) = inferLevel(t)
         val tv = eval(ta)
@@ -322,6 +329,13 @@ class TypeChecker private (protected override val layers: Layers)
                 throw TypeCheckException.InferPathEndPointsTypeNotMatching()
             }
         }
+      case Term.VProj(m) =>
+        val (mt, ma) = infer(m)
+         mt match {
+          case Value.VType(x, _, b, e) =>
+            (b, Abstract.VProj(rebindDimension(x), ma, Abstract.Projection(reify(e), 0)))
+          case _ => throw TypeCheckException.VProjCannotInfer()
+        }
       case p: Term.PatternLambda =>
         throw TypeCheckException.CannotInferReturningTypeWithPatterns()
       case l: Term.Lambda =>
@@ -363,11 +377,13 @@ class TypeChecker private (protected override val layers: Layers)
         xv match {
           case g: Dimension.Generic =>
             val dp = Value.DimensionPair(g, Value.Dimension.False)
-            val ctxr = newRestrictionLayer(dp)
-            val (al, aa) = ctxr.inferLevel(a)
+            val ctxr1 = newRestrictionLayer(dp)
+            val (al, aa0) = ctxr1.inferLevel(a)
+            val aa = Abstract.MetaEnclosed(ctxr1.finishReify(), aa0)
             val (bl, ba) = inferLevel(b)
-            val ea = ctxr.check(e, Value.App(Value.App(is_equiv, ctxr.eval(aa)), ctxr.eval(ba).restrict(dp)))
-            (Value.Universe(al max bl), Abstract.VType(xa, aa, ba, ea))
+            val ctxr2 = newRestrictionLayer(dp)
+            val ea = ctxr2.check(e, Value.App(Value.App(is_equiv, ctxr1.eval(aa0)), eval(ba).restrict(dp)))
+            (Value.Universe(al max bl), Abstract.VType(xa, aa, ba, Abstract.MetaEnclosed(ctxr2.finishReify(), ea)))
           case _ =>
             throw TypeCheckException.RemoveConstantVType()
         }
@@ -551,8 +567,17 @@ class TypeChecker private (protected override val layers: Layers)
         }
       case Value.VType(x, a, b, e) =>
         term match {
-          case Term.App(Term.Make, vs0) if vs0.take(2).forall(!_._1) =>
-            ???
+          case Term.VMake(tm, tn) =>
+            val dp = Value.DimensionPair(x, Value.Dimension.False)
+            val ctxr = newRestrictionLayer(dp)
+            val m0 = ctxr.check(tm, a)
+            val m = Abstract.MetaEnclosed(ctxr.finishReify(), m0)
+            val n = check(tn, b)
+            if (ctxr.unifyTerm(b.restrict(dp), Value.App(Value.Projection(e, 0), ctxr.eval(m0)), eval(n).restrict(dp))) {
+              Abstract.VMake(rebindDimension(x), m, n)
+            } else {
+              throw TypeCheckException.VMakeMismatch()
+            }
           case _ => fallback()
         }
       case Value.PathType(typ, left, right) =>

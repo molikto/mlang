@@ -13,6 +13,10 @@ object LongGen {
     override def apply(): Long = con.getAndIncrement()
   }
 
+  object Negative {
+    val gen = new Negative()
+    val dgen = new Negative()
+  }
   class Negative extends LongGen {
     private val abs = new AtomicLong(-1)
     override def apply(): Long = abs.getAndDecrement()

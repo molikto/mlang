@@ -33,7 +33,7 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
     override def whitespaceChar: Parser[Char] = elem("", _ == '│') | super.whitespaceChar
   }
 
-  lexical.reserved ++= List("define", "declare", "const_projections", "case", "__debug", "as", "coe", "hcom", "com","field", "ignored", "match", "record", "type", "sum", "inductively", "run", "with_constructors", "I", "_", "make", "V_type")
+  lexical.reserved ++= List("define", "declare", "const_projections", "case", "__debug", "as", "coe", "hcom", "com","field", "ignored", "match", "record", "type", "sum", "inductively", "run", "with_constructors", "I", "_", "make", "V_type", "V_make", "V_proj")
   lexical.delimiters ++= List("{", "}", "[", "]", ":", ",", "(", ")", "#", "≡", "─", "???", "┬", "┌", "⊏", "└", "├", "⇒", "→", "+", "-", ";", "=", "@", "\\", ".", "|", "^")
 
   def delimited[T](a: String, t: Parser[T], b: String): Parser[T] = a ~> t <~ b
@@ -85,7 +85,7 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
         meta |
         sum |
         up |
-        coe | com | hcom | vtype |
+        coe | com | hcom | vtype | vmake | vproj |
         universe | make |
         delimited("(", term, ")") |
         absDimension | reference
@@ -109,7 +109,11 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
     Coe(Pair(a._1._1._1, a._1._1._2), a._1._2, a._2)
   }}
 
-  lazy val vtype: PackratParser[Term]= keyword("V_type") ~> delimited("(", term ~ term ~ term ~ term, ")") ^^ {a => Term.VType(a._1._1._1, a._1._1._2, a._1._2, a._2)}
+  lazy val vtype: PackratParser[Term]= keyword("V_type") ~> (keyword("V_type") ~> delimited("(", term ~ term ~ term ~ term, ")")) ^^ {a => Term.VType(a._1._1._1, a._1._1._2, a._1._2, a._2)}
+
+  lazy val vmake: PackratParser[Term]= keyword("V_make") ~> keyword("V_make") ~>  delimited("(", term ~ term, ")") ^^ {a => Term.VMake(a._1, a._2) }
+
+  lazy val vproj: PackratParser[Term]= keyword("V_proj") ~> keyword("V_proj") ~>  delimited("(", term, ")") ^^ {a => Term.VProj(a) }
 
   lazy val face: PackratParser[Term.Face] = ("|" ~> term <~ "=") ~ (term <~ ":") ~ term ^^ {a => Face(Pair(a._1._1, a._1._2), a._2) }
 

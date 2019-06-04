@@ -58,8 +58,8 @@ trait Unify extends Reifier with BaseEvaluator with PlatformEvaluator {
     }
   }
 
-  private val gen: LongGen = new LongGen.Negative()
-  private val dgen: LongGen = new LongGen.Negative()
+  private val gen: LongGen = LongGen.Negative.gen
+  private val dgen: LongGen = LongGen.Negative.dgen
 
   private implicit def optToBool[T](opt: Option[T]): Boolean = opt.isDefined
 
@@ -359,7 +359,7 @@ trait Unify extends Reifier with BaseEvaluator with PlatformEvaluator {
           }
         case (Universe(_), tt1, tt2) =>
           recType(tt1, tt2) // it will call unify neutral at then end
-        case (OpenMetaHeaded(_), _, _) =>
+        case (OpenMetaHeadedWhnf(_), _, _) =>
           debug("meta directed not handled", 2)
           false
         case (_, tt1, tt2) => recNeutral(tt1, tt2)
