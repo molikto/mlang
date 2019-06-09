@@ -165,67 +165,6 @@ sealed trait Value {
       Restricted(o, Seq(lv))
   }
 
-
-  def subst(ff: Long, tt: Dimension): Value = this match {
-    case u: Universe => u
-    case Function(domain, im, codomain) =>
-      Function(domain.subst(ff, tt), im, codomain.subst(ff, tt))
-    case Record(level, inductively, ms, ns, nodes) =>
-      Record(level, inductively.map(_.subst(ff, tt)), ms, ns, ClosureGraph.subst(nodes, ff, tt))
-    case Make(values) =>
-      Make(values.map(_.subst(ff, tt)))
-    case Construct(name, vs) =>
-      Construct(name, vs.map(_.subst(ff, tt)))
-    case Sum(level, inductively, constructors) =>
-      Sum(level, inductively.map(_.subst(ff, tt)), constructors.map(n => Constructor(n.name, n.ims, ClosureGraph.subst(n.nodes, ff, tt))))
-    case Lambda(closure) =>
-      Lambda(closure.subst(ff, tt))
-    case PatternLambda(id, dom, typ, cases) =>
-      PatternLambda(id, dom.subst(ff, tt), typ.subst(ff, tt), cases.map(a => Case(a.pattern, a.closure.subst(ff, tt))))
-    case PathType(typ, left, right) =>
-      PathType(typ.subst(ff, tt), left.subst(ff, tt), right.subst(ff, tt))
-    case PathLambda(body) =>
-      PathLambda(body.subst(ff, tt))
-    case App(lambda, argument) =>
-      App(lambda.subst(ff, tt), argument.subst(ff, tt))
-    case Coe(direction, tp, base) =>
-      Coe(direction.subst(ff, tt), tp.subst(ff, tt), base.subst(ff, tt))
-    case Hcom(direction, tp, base, faces) =>
-      Hcom(direction.subst(ff, tt), tp.subst(ff, tt), base.subst(ff, tt), faces.map(n => Face(n.restriction.subst(ff, tt), n.body.subst(ff, tt))))
-    case Com(direction, tp, base, faces) =>
-      Com(direction.subst(ff, tt), tp.subst(ff, tt), base.subst(ff, tt), faces.map(n => Face(n.restriction.subst(ff, tt), n.body.subst(ff, tt))))
-    case Maker(value, field) =>
-      Maker(value.subst(ff, tt), field)
-    case Projection(make, field) =>
-      Projection(make.subst(ff, tt), field)
-    case PatternStuck(lambda, stuck) =>
-      PatternStuck(lambda.subst(ff, tt).asInstanceOf[PatternLambda], stuck.subst(ff, tt))
-    case Let(items, body) =>
-      Let(items.map(_.subst(ff, tt)), body.subst(ff, tt))
-    case PathApp(left, stuck) =>
-      PathApp(left.subst(ff, tt), stuck.subst(ff, tt))
-    case VType(x, a, p, e) =>
-      VType(x.subst(ff, tt), a.subst(ff, tt), p.subst(ff, tt), e.subst(ff, tt))
-    case VMake(x, m, n) =>
-      VMake(x.subst(ff, tt), m.subst(ff, tt), n.subst(ff, tt))
-    case VProj(x, m, f) =>
-      VProj(x.subst(ff, tt), m.subst(ff, tt), f.subst(ff, tt))
-    case Up(a, b) =>
-      Up(a.subst(ff, tt), b)
-    case Restricted(a, faces) =>
-      Restricted(a.subst(ff, tt), faces.map(_.subst(ff, tt)))
-    case g: Generic =>
-      g
-    case r: Reference =>
-      r.substCached(ff, tt)
-    case o: Meta =>
-      o.v match {
-        case Meta.Closed(v) => Meta(Meta.Closed(v.subst(ff, tt)))
-        case _: Meta.Open => o
-      }
-  }
-
-
   final override def equals(obj: Any): Boolean = {
     throw new IllegalArgumentException("Values don't have equal. Either call eq or do conversion checking")
   }
@@ -393,17 +332,6 @@ sealed trait Value {
 
 object Value {
 
-  def substScalaFunction[T](c: Object, ff: Long, tt: Dimension): T = {
-//    val fs = c.getClass.getDeclaredFields
-//    for (f <- fs) {
-//      f.setAccessible(true)
-//      f.get(c) match {
-//        case a: Value => f.set(c, a.subst(ff, tt))
-//      }
-//    }
-    ???
-  }
-
   type ClosureGraph = Seq[ClosureGraph.Node]
   object ClosureGraph {
 
@@ -424,13 +352,6 @@ object Value {
     }
 
 
-    def subst(graph: ClosureGraph, ff: Long, tt: Dimension): ClosureGraph = {
-      graph.map {
-        case DependentWithMeta(ds, mc, c) => DependentWithMeta(ds, mc, substScalaFunction(c, ff, tt))
-        case IndependentWithMeta(ds, ms, typ) => IndependentWithMeta(ds, ms.map(_.subst(ff, tt)), typ.subst(ff, tt))
-        case _ => logicError()
-      }
-    }
 
     sealed trait Node {
       def dependencies: Seq[Int]
@@ -786,7 +707,6 @@ object Value {
     def apply() = func(Seq.empty)
     def apply(seq: Seq[Value]): Value = func(seq)
     def restrict(lv: DimensionPair): MultiClosure = Value.MultiClosure(v => this(v).restrict(lv))
-    def subst(ff: Long, tt: Dimension): MultiClosure = substScalaFunction(func, ff, tt)
     def up(b: Int): Value.MultiClosure = Value.MultiClosure(v => this(v.map(_.up(-b))).up(b))
   }
 
@@ -794,7 +714,6 @@ object Value {
     def eq(b: Closure): Boolean = func.eq(b.func)
     def apply(seq: Value): Value = func(seq)
     def restrict(lv: DimensionPair): Closure = Value.Closure(v => this(v).restrict(lv))
-    def subst(ff: Long, tt: Dimension): Closure =  substScalaFunction(func, ff, tt)
     def up(b: Int): Value.Closure = Value.Closure(v => this(v.up(-b)).up(b))
   }
 
@@ -811,7 +730,6 @@ object Value {
     def eq(b: AbsClosure): Boolean = func.eq(b.func)
     def apply(seq: Dimension): Value = func(seq)
     def restrict(lv: DimensionPair): AbsClosure = Value.AbsClosure(v => this(v).restrict(lv))
-    def subst(ff: Long, tt: Dimension): AbsClosure =  substScalaFunction(func, ff, tt)
     def up(b: Int): Value.AbsClosure = Value.AbsClosure(v => this(v).up(b))
     def mapd(a: (Value, Dimension) => Value): AbsClosure = AbsClosure(d => a(this(d), d))
     def map(a: Value => Value): AbsClosure = AbsClosure(d => a(this(d)))
@@ -848,8 +766,6 @@ object Value {
 
   case class DimensionPair(from: Dimension, to: Dimension) {
     def restrict(a: DimensionPair) = DimensionPair(from.restrict(a), to.restrict(a))
-
-    def subst(id: Long, to: Dimension) = DimensionPair(from.subst(id, to), to.subst(id, to))
 
     def sameRestrict(p: DimensionPair): Boolean = this.sorted == p.sorted
 
@@ -893,10 +809,6 @@ object Value {
 
     def restrict(seq: Seq[DimensionPair]): Dimension = seq.foldLeft(this) { (t, v) => t.restrict(v) }
 
-    def subst(from: Long, to: Dimension) = this match {
-      case Dimension.Generic(a) if from == a => to
-      case _ => this
-    }
 
     def restrict(pair: DimensionPair): Dimension = this match {
       case Dimension.Generic(id) =>
@@ -946,17 +858,6 @@ object Value {
       _ups.clear()
       _subs.clear()
       value000 = v
-    }
-
-    def substCached(ff: Long, tt: Dimension): Reference = {
-      _subs.find(a => a._1 == ff && a._2 == tt) match {
-        case Some(value) => value._3
-        case None =>
-          val a = Reference(null)
-          _subs.append((ff, tt, a))
-          a.value000 = value000.subst(ff, tt)
-          a
-      }
     }
 
     def derefUpSaved(b: Int): Value = {

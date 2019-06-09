@@ -1,6 +1,7 @@
 package mlang.utils
 
 import scala.collection.mutable
+import scala.language.postfixOps
 
 /**
   * A disjoint-set data structure (also called union-find data structure)
