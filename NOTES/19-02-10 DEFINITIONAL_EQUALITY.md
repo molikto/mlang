@@ -28,7 +28,7 @@ with odd2(a: nat): bool :=
   | S a => even2(a)
   end.
 
-Fixpoint odd3(a: nat): bool := 
+Fixpoint odd3(a: nat): bool :=
   match a with 
   | O => false
   | S a => even3(a)
