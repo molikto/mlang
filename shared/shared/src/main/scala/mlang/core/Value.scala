@@ -681,7 +681,7 @@ object Value {
                       Face(x0, AbsClosure(y => App(Projection(e, 0), O(y)))),
                       // FIXME it seems redtt doesn't have this face
                       // Face(DimensionPair(x, Dimension.True), AbsClosure(y => Hcom(DimensionPair(pair.from, y), b, base, rs))),
-                    ) ++ rs.map(n => Face(n.restriction, n.body.map(j => VProj(x.restrict(n.restriction), j, Projection(e, 0).restrict(n.restriction)))))))
+                    ) ++ rs.map(n => Face(n.restriction, n.body.map(j => VProj(x.restrict(n.restriction), j, Projection(e.restrict(n.restriction), 0)))))))
               )
             case _ =>
               Hcom(pair, typw, base, rs)
@@ -842,11 +842,9 @@ object Value {
 
     @cached_mutation private val _ups = mutable.ArrayBuffer.empty[Value]
 
-    @cached_mutation private val _subs = mutable.ArrayBuffer.empty[(Long, Dimension, Reference)]
     def value: Value =  value000
     def value_=(v: Value): Unit = {
       _ups.clear()
-      _subs.clear()
       value000 = v
     }
 
@@ -899,7 +897,6 @@ object Value {
 
     def up(b: Int): Inductively = this
     def restrict(lv: DimensionPair): Inductively = this
-    def subst(ff: Long, tt: Dimension): Inductively = this
   }
 
   case class Record(
