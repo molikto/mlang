@@ -62,9 +62,9 @@ sealed trait Value {
     case Coe(direction, tp, base) =>
       Coe(direction, tp.up(b), base.up(b))
     case Hcom(direction, tp, base, faces) =>
-      Hcom(direction, tp.up(b), base.up(b), faces.map(n => Face(n.restriction, n.body.up(b))))
+      Hcom(direction, tp.up(b), base.up(b), faces.map(_.up(b)))
     case Com(direction, tp, base, faces) =>
-      Com(direction, tp.up(b), base.up(b), faces.map(n => Face(n.restriction, n.body.up(b))))
+      Com(direction, tp.up(b), base.up(b), faces.map(_.up(b)))
     case Maker(value, field) =>
       Maker(value.up(b), field)
     case Projection(make, field) =>
@@ -120,23 +120,9 @@ sealed trait Value {
     case Coe(direction, tp, base) =>
       Coe(direction.restrict(lv), tp.restrict(lv), base.restrict(lv))
     case Hcom(direction, tp, base, faces) =>
-      Hcom(direction.restrict(lv), tp.restrict(lv), base.restrict(lv), faces.flatMap(n => {
-        val r = n.restriction.restrict(lv)
-        if (r.isFalse) {
-          None
-        } else {
-          Some(Face(r, n.body.restrict(lv)))
-        }
-      }))
+      Hcom(direction.restrict(lv), tp.restrict(lv), base.restrict(lv), Face.restrict(faces, lv))
     case Com(direction, tp, base, faces) =>
-      Com(direction.restrict(lv), tp.restrict(lv), base.restrict(lv), faces.flatMap(n => {
-        val r = n.restriction.restrict(lv)
-        if (r.isFalse) {
-          None
-        } else {
-          Some(Face(r, n.body.restrict(lv)))
-        }
-      }))
+      Com(direction.restrict(lv), tp.restrict(lv), base.restrict(lv), Face.restrict(faces, lv))
     case Maker(value, field) =>
       Maker(value.restrict(lv), field)
     case Projection(make, field) =>
@@ -574,6 +560,8 @@ object Value {
         case _: Sum =>
           ???
         case VType(x, _, _, _) =>
+          val r = pair.from
+          val r_ = pair.to
           def vtyp(j: Value): VType = j.whnf match {
             case f: VType => f
             case _ => logicError()
@@ -634,7 +622,7 @@ object Value {
           val typw = typ.whnf
           typw match {
             case Function(_, _, codomain) => returns(Lambda(Value.Closure(a =>
-              Hcom(pair, codomain(a), App(base, a), rs.map(n => Face(n.restriction, n.body.map(j => App(j, a)))))
+              Hcom(pair, codomain(a), App(base, a), rs.map(n => Face(n.restriction, n.body.map(j => App(j, a.restrict(n.restriction))))))
             )))
             case r: Record =>
               val graph = r.nodes
@@ -661,7 +649,7 @@ object Value {
                           Com(
                             DimensionPair(pair.from, dim),
                             AbsClosure(k => ClosureGraph.get(graph, i, j => closures(j)(k))),
-                            Projection(base, 0),
+                            Projection(base, i),
                             rs.map(n => Face(n.restriction, n.body.map(j => Projection(j, i))))
                           )
                       }
@@ -679,19 +667,21 @@ object Value {
                   Seq(
                     { val dp = DimensionPair(dim, Dimension.False); Face(dp, AbsClosure(left.restrict(dp))) },
                     { val dp = DimensionPair(dim, Dimension.True); Face(dp, AbsClosure(right.restrict(dp))) },
-                  ) ++ rs.map(n => Face(n.restriction, n.body.map(j => PathApp(j, dim)))))
+                  ) ++ rs.map(n => Face(n.restriction, n.body.map(j => PathApp(j, dim.restrict(n.restriction))))))
               })))
             case Sum(l, inductively, c) =>
               ???
             case VType(x, a, b, e) =>
-              val O = AbsClosure(y => Hcom(DimensionPair(pair.from, y), a, base, rs))
+              val x0 = DimensionPair(x, Dimension.False)
+              val O = AbsClosure(y => Hcom(DimensionPair(pair.from, y).restrict(x0), a /* no need */, base.restrict(x0), Face.restrict(rs, x0)))
               returns(
                 VMake(
                   x, O(pair.to), Hcom(pair, b, VProj(x, base, Projection(e, 0)),
                     Seq(
-                      { val dp = DimensionPair(x, Dimension.False); Face(dp, AbsClosure(y => App(Projection(e, 0), O(y)))) },
-                      { val dp = DimensionPair(x, Dimension.True); Face(dp, AbsClosure(y => Hcom(DimensionPair(pair.from, y), b, base, rs))) },
-                    ) ++ rs.map(n => Face(n.restriction, n.body.map(j => VProj(x, j, Projection(e, 0)))))))
+                      Face(x0, AbsClosure(y => App(Projection(e, 0), O(y)))),
+                      // FIXME it seems redtt doesn't have this face
+                      // Face(DimensionPair(x, Dimension.True), AbsClosure(y => Hcom(DimensionPair(pair.from, y), b, base, rs))),
+                    ) ++ rs.map(n => Face(n.restriction, n.body.map(j => VProj(x.restrict(n.restriction), j, Projection(e, 0).restrict(n.restriction)))))))
               )
             case _ =>
               Hcom(pair, typw, base, rs)
@@ -931,7 +921,22 @@ object Value {
     }
   }
 
-  case class Face(restriction: DimensionPair, body: AbsClosure)
+  object Face {
+    def restrict(faces: Seq[Face], lv: DimensionPair): Seq[Face] = {
+      faces.flatMap(n => {
+        val r = n.restriction.restrict(lv)
+        if (r.isFalse) {
+          None
+        } else {
+          Some(Face(r, n.body.restrict(lv)))
+        }
+      })
+    }
+  }
+  case class Face(restriction: DimensionPair, body: AbsClosure) {
+    def restrict(a: DimensionPair) = Face(restriction.restrict(a), body.restrict(a))
+    def up(a: Int) = Face(restriction, body.up(a))
+  }
 
   case class Restricted(a: Value, faces: Seq[DimensionPair]) extends Syntaxial
 
