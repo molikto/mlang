@@ -20,7 +20,7 @@ lazy val `client-web` = project.in(file("client-web")).settings(
   scalaJSUseMainModuleInitializer := true,
   libraryDependencies ++= Seq(
     "org.scala-js" %%% "scalajs-dom" % "0.9.7",
-    "com.lihaoyi" %%% "scalatags" % "0.6.8"
+    "com.lihaoyi" %%% "scalatags" % "0.7.0"
   )
 ).enablePlugins(ScalaJSPlugin).dependsOn(shared.js)
 
