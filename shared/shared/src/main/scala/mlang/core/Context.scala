@@ -264,9 +264,9 @@ trait Context extends ContextBaseForMeta {
   private def lookup0(name: Ref): (Object, Object) =  {
     var up = 0
     var ls = layers
-    var binder: (Object, Object, Boolean) = null
+    var binder: (Object, Object) = null
     val faces = mutable.ArrayBuffer[Layer.Restriction]()
-    val dimensionsUnder = mutable.ArrayBuffer[Long]()
+    var isGlobalDefinition = false
     while (ls.nonEmpty && binder == null) {
       var i = 0
       ls.head match {
@@ -277,8 +277,7 @@ trait Context extends ContextBaseForMeta {
             if (ll.head.name.by(name)) {
               index = i
               binder = (ll.head.typ,
-                  Abstract.Reference(up, index),
-                  true)
+                  Abstract.Reference(up, index))
             }
             i += 1
             ll = ll.tail
@@ -290,21 +289,19 @@ trait Context extends ContextBaseForMeta {
             if (ll.head.name.by(name)) {
               index = i
               binder = (ll.head.typ,
-                  Abstract.Reference(up, index),
-                  false)
+                  Abstract.Reference(up, index))
+              isGlobalDefinition = ls.size == 1 // FIXME maybe this should be better
             }
             i += 1
             ll = ll.tail
           }
         case p:Layer.Parameter =>
           if (p.binder.name.by(name)) {
-            binder = (p.binder.typ, Abstract.Reference(up, -1), true)
+            binder = (p.binder.typ, Abstract.Reference(up, -1))
           }
         case d: Layer.Dimension =>
           if (d.name.by(name)) {
-            binder = (d.value, Abstract.Dimension.Reference(up), true)
-          } else {
-            dimensionsUnder.append(d.id)
+            binder = (d.value, Abstract.Dimension.Reference(up))
           }
         case l: Layer.Restriction =>
           faces.append(l)
@@ -318,13 +315,7 @@ trait Context extends ContextBaseForMeta {
     if (binder == null) {
       throw ContextException.NonExistingReference(name)
     } else {
-      def contains(a: Value.Dimension): Boolean = {
-        a match {
-          case Dimension.Generic(id) => dimensionsUnder.contains(id)
-          case _ => true // can only be constants, faces is normalized
-        }
-      }
-      def recad(j: Abstract.Dimension, seq: Seq[Value.DimensionPair]): Abstract.Dimension = {
+     def recad(j: Abstract.Dimension, seq: Seq[Value.DimensionPair]): Abstract.Dimension = {
         if (seq.isEmpty) j
         else Abstract.Dimension.Restricted(j, rs.map(a => rebindDimensionPair(a)))
       }
@@ -333,15 +324,13 @@ trait Context extends ContextBaseForMeta {
         else Abstract.Restricted(j, rs.map(a => rebindDimensionPair(a)))
       }
       binder match {
-        case (t: Value, j: Abstract, abs: Boolean) =>
-          if (abs) {
-            (t.restrict(rs), reca(j, rs))
+        case (t: Value, j: Abstract) =>
+          if (isGlobalDefinition) {
+            (t, j)
           } else {
-            // in case of definitions, don't restrict any thing defined after it. they don't have a clue what it is
-            val rs0 = rs.filter(r => !contains(r.from) || !contains(r.to))
-            (t.restrict(rs), reca(j, rs0))
+            (t.restrict(rs), reca(j, rs))
           }
-        case (t: Value.Dimension, j: Abstract.Dimension, _: Boolean) =>
+        case (t: Value.Dimension, j: Abstract.Dimension) =>
           (t.restrict(rs), recad(j, rs))
         case _ => logicError()
       }

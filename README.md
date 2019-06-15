@@ -29,15 +29,16 @@ there are other kind of TODOs in the project, they are `LATER`, `TODO`, and `FIX
 ## roadmap
 
 * **DONE** totally unsafe MLTT basics
-    * function types with eta, record types with eta, sum types
-    * bidirectional elaborating type checker with mutual recursive definitions
-    * readback
+    * function types, record types, sum types
+    * bidirectional elaborating type checker
+    * mutual recursive definitions
+        * **QUESTION** can you recur inside a up or restriction? a way to  disallow this is to make sure all recursive reference doesn't happens under a restriction/lift
     * type directed conversion check with eta and recursive definitions
+    * concrete syntax, core syntax, core semantics and reification
     * basic `.poor` syntax and parser
 * **DONE** overlapping and order independent patterns, see `plus_tests` in library for detail
     * **QUESTION** so we need to save both domain and codomain in pattern matching, is this ok? see [this](https://github.com/molikto/mlang/commit/a4380b33ac0b97117016ff31a3fb39ab0b8f1ce2) for the code changed
 * **DONE** cumulative universe with "up" operator for global definitions (see [here](https://mazzo.li/epilogue/index.html%3Fp=857&cpage=1.html))
-    * **QUESTION** what's the relationship of checked type with `infer`, `inferLevel` etc. that performed directly on value level?
 * **DONE** locally scoped meta; very simple unification; implicit arguments syntax
     * **QUESTION** correctness verification of the whole stuff
         * why unification result doesn't needs to be type checked or am I wrong?
@@ -113,7 +114,9 @@ there are other kind of TODOs in the project, they are `LATER`, `TODO`, and `FIX
 **some of bellow is out of date and wrong now, it mainly serves as a place to clear up my thoughts**
 
 
-### values
+### core term and values
+
+our "core term" is class `Abstract` and core value is `Value`
 
 #### hoas core term `Value`
 
@@ -123,7 +126,9 @@ we represent recursive references directly by recursive data structure, with a t
 
 unlike normalization by evaluation, redux (application, projection, cubical hcom etc.) etc is translated to stuck values. this is because elaborator needs to fill holes by reify from value, and directly normalizing all redux (out side of a closure) will make the term very big
 
-we also consider reference, let expression as redux, but they are redux that don't need any arguments
+we also consider reference, let expression as redux, but they are redux that don't need any arguments, they are considered "syntaxal redux" which means even for a open value, they will not have these as heads
+
+values is considered "context free", all operation done on a value don't need to be pass in a context object
 
 #### structural types
 
@@ -166,15 +171,6 @@ something similar should be possible with recursive type definitions, in this ca
 at least we want to be semi-decidable, this allows more equality to be checked.
 
 
-### kan types
-
-context restrictions is done by quoting any **reference** not defined in the restricted context by a restriction. restriction works for all stuff, and it don't further evaluate terms at all. it is the one that calls the restriction will evaluate them further?
-
-
-we have `hcom`, `coe` as eliminations, in a normalized closed value, they should not appear. they interact with restrictions, just like a path lambda interact with dimensions, then they are inductively defined on all type formers
-
-restriction will not reduce on any kind of reference, they are forced by whnf.
-
 
 ### meta variables
 
@@ -194,13 +190,17 @@ we make sure all meta is solved when a context is closed, this way the solved me
 
 #### mutable metas
 
-having mutable metas and mutable context means our values is mutable. meta solving will mutate the context and the value world.
+we are not using an contextual monad, but directly using mutation and using JVM referential equality.
 
-also adding a new meta will mutate the context. 
+we represent not solved metas directly by a holder value with no value solved, we maintain so that all references is the same *JVM object*, so setting a value for it set for all references. because closing a context will ensure all metas is solved, we never need to read back a open meta body, this helps to maintain reference equality.
 
-this means: unification and type checking is side-effecting. this means one need to be careful when writing these code.
+also adding a new meta is direct mutate the context. 
 
-also this means whnf is not stable in some cases (open meta headed ones). so we don't remember unstable ones
+having mutable metas and mutable context means our values is mutable.
+
+this means: unification and type checking is side-effecting. this means one need to be careful when writing these code. call order maters. you should `finishReify` at the last thing you do in this context.
+
+also this means whnf is not stable in some cases. this seems to be transparent to outside of `Value.scala`, but it means we cannot remember whnf of open meta headed values, because they might change after open meta is solved. this doesn't have more effect though.
 
 other than this, our algorithm is pretty ignorance about metas. open metas is much like a generic variable, closed metas is much like a reference, when evaluation on them doesn't work, we just stuck, when unification doesn't work, just return false. what can be wrong with this? (funny face)
 
@@ -212,6 +212,32 @@ we use the most simple meta solving algorithm, no constraint etc.
 
 if we allow only toplevel definitions who's closure is all defined to be lifted, then the "up" is entirely transparent, the restriction to top level is because in a parameterized context, you don't know how to up a open variable, but I think one should not count on this?
 
-the problem is for recursive references, you need to deal with lifted open variables
+the problem is for recursive references, you need to deal with lifted open variables, we so don't allow up an recursive reference
 
 so restriction and up is all defined structurally on values, the difference is: for a closure, a `up` will "de-up" it's parameters, but restriction will also restrict it's parameters
+
+in value world, we only allow `Up` values on references, open/closed normal/meta references, this is apparent on how the constructor `Up` is called
+
+this means restriction and up only can has the order `Restriction(Up(...))`
+
+notice that for Let expression, you don't lift the definitions, this is the same with context restrictions (see bellow), so syntaxal values are something needs special attention
+
+### kan types
+
+#### restrictions
+
+restricted layer happens for face expression, vtype and vmake expressions.
+
+context restrictions is done by quoting any **reference** not defined in the restricted context by a restriction (might be multiple layers). for lambda parameter, consider you instinated an lambda parameter as a value that contains other parameters, and the restricted version will be    
+
+restriction will not reduce on any kind of reference, they are forced by whnf.
+
+like lift operator, which has a "deup" for lambda parameters, restrictions will also de-restrict lambda parameters
+
+restriction is done by total ordering all ids, and get the large one, thi means that you need to make sure the if you want to compare to value, or referencing a pair of value/type, their restriction is the same.
+
+#### kan ops
+
+we have `hcom`, `coe` as eliminations, in a normalized closed value, they should not appear. they interact with restrictions, just like a path lambda interact with dimensions, then they are inductively defined on all type formers
+
+

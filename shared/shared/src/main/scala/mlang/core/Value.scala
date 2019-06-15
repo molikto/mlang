@@ -1,5 +1,6 @@
 package mlang.core
 
+import javax.security.auth.login.AppConfigurationEntry.LoginModuleControlFlag
 import mlang.name._
 import mlang.utils.{DisjointSet, debug, warn}
 
@@ -19,7 +20,6 @@ import Value._
 
 
 sealed trait Value {
-
 
   def from: Value = if (_from == null) this else _from
 
@@ -71,8 +71,6 @@ sealed trait Value {
       Projection(make.up(b), field)
     case PatternStuck(lambda, stuck) =>
       PatternStuck(lambda.up(b).asInstanceOf[PatternLambda], stuck.up(b))
-    case Let(items, body) =>
-      Let(items.map(_.up(b)), body.up(b))
     case PathApp(left, stuck) =>
       PathApp(left.up(b), stuck)
     case VType(x, a, p, e) =>
@@ -81,6 +79,8 @@ sealed trait Value {
       VMake(x, m.up(b), n.up(b))
     case VProj(x, m, f) =>
       VProj(x, m.up(b), f.up(b))
+    case Let(items, body) =>
+      Let(items, body.up(b))
     case Restricted(a, faces) =>
       Restricted(a.up(b), faces)
     case Up(c, d) =>
@@ -92,6 +92,8 @@ sealed trait Value {
       Up(o, b)
     case o: Reference =>
       Up(o, b)
+    case _: Internal =>
+      logicError()
   }
 
   // FIXME how does it interact with recursive references?
@@ -129,8 +131,6 @@ sealed trait Value {
       Projection(make.restrict(lv), field)
     case PatternStuck(lambda, stuck) =>
       PatternStuck(lambda.restrict(lv).asInstanceOf[PatternLambda], stuck.restrict(lv))
-    case Let(items, body) =>
-      Let(items.map(_.restrict(lv)), body.restrict(lv))
     case PathApp(left, stuck) =>
       PathApp(left.restrict(lv), stuck.restrict(lv))
     case VType(x, a, p, e) =>
@@ -139,6 +139,11 @@ sealed trait Value {
       VMake(x.restrict(lv), m.restrict(lv), n.restrict(lv))
     case VProj(x, m, f) =>
       VProj(x.restrict(lv), m.restrict(lv), f.restrict(lv))
+    case Let(items, body) =>
+      Let(items, body.restrict(lv))
+    case Derestricted(v, lv0) =>
+      assert(lv == lv0)
+      v
     case Up(a, b) =>
       Restricted(Up(a, b), Seq(lv))
     case Restricted(a, faces) =>
@@ -243,12 +248,14 @@ sealed trait Value {
             case _: Dimension.Generic => this
             case Dimension.False => a.whnf
             case Dimension.True => b.whnf
+            case _: Dimension.Internal => logicError()
           }
         case VMake(x, m, n) =>
           x match {
             case g: Dimension.Generic => this
             case Dimension.False => m
             case Dimension.True => n
+            case _: Dimension.Internal => logicError()
           }
         case VProj(x, m, f) =>
           x match {
@@ -267,6 +274,7 @@ sealed trait Value {
               }
             case Dimension.False => app(f, m).whnf
             case Dimension.True => m.whnf
+            case _: Dimension.Internal => logicError()
           }
         case Restricted(a, restriction) =>
           val normalized = DimensionPair.normalizeRestriction(restriction)
@@ -288,6 +296,8 @@ sealed trait Value {
             case GenericOrOpenMeta(it) => Up(it, b) // stop case
             case ReferenceTail(v, c) => c.map(_.derefUpSaved(b)).getOrElse(v.up(b)).whnf
           }
+        case _: Internal =>
+          logicError()
       }
       candidate._from = this
       candidate match {
@@ -323,7 +333,8 @@ object Value {
 
     def up(graph: ClosureGraph, uu: Int): ClosureGraph = {
       graph.map {
-        case DependentWithMeta(ds, mc, c) => DependentWithMeta(ds, mc, (a, b) => { val t = c(a.map(_.up(-uu)), b.map(_.up(-uu))); (t._1.map(_.up(uu)), t._2.up(uu)) })
+        case DependentWithMeta(ds, mc, c) =>
+          DependentWithMeta(ds, mc, (a, b) => { val t = c(a.map(_.up(-uu)), b.map(_.up(-uu))); (t._1.map(_.up(uu)), t._2.up(uu)) })
         case IndependentWithMeta(ds, ms, typ) => IndependentWithMeta(ds, ms.map(_.up(uu)), typ.up(uu))
         case _ => logicError()
       }
@@ -331,8 +342,10 @@ object Value {
 
     def restrict(graph: ClosureGraph, lv: DimensionPair): ClosureGraph = {
       graph.map {
-        case DependentWithMeta(ds, mc, c) => DependentWithMeta(ds, mc, (a, b) => { val t = c(a, b); (t._1.map(_.restrict(lv)), t._2.restrict(lv)) })
-        case IndependentWithMeta(ds, ms, typ) => IndependentWithMeta(ds, ms.map(_.restrict(lv)), typ.restrict(lv))
+        case DependentWithMeta(ds, mc, c) =>
+          DependentWithMeta(ds, mc, (a, b) => { val t = c(a.map(k => Derestricted(k, lv)), b.map(k => Derestricted(k, lv))); (t._1.map(_.restrict(lv)), t._2.restrict(lv)) })
+        case IndependentWithMeta(ds, ms, typ) =>
+          IndependentWithMeta(ds, ms.map(_.restrict(lv)), typ.restrict(lv))
         case _ => logicError()
       }
     }
@@ -487,6 +500,8 @@ object Value {
           constantCase(false)
         case _: Dimension.Generic =>
           PathApp(l, d)
+        case _: Dimension.Internal =>
+          logicError()
       }
   }
 
@@ -568,7 +583,8 @@ object Value {
           }
           returns(if (x != fresh) {
             VMake(x,
-              Coe(pair, typ.map(a => vtyp(a).a), base),
+              // FIXME the second parameter for Coe don't need restriction?
+              { val pr = DimensionPair(x, Dimension.False);  Coe(pair.restrict(pr), typ.map(a => vtyp(a).a  ), base) },
               Com(pair,
                 typ.map(a => vtyp(a).b),
                 VProj(x, base, Projection(vtyp(typ(pair.from)).e, 0)),// this is ok because we know M is of this type!!
@@ -696,14 +712,14 @@ object Value {
     def eq(b: MultiClosure): Boolean = func.eq(b.func)
     def apply() = func(Seq.empty)
     def apply(seq: Seq[Value]): Value = func(seq)
-    def restrict(lv: DimensionPair): MultiClosure = Value.MultiClosure(v => this(v).restrict(lv))
+    def restrict(lv: DimensionPair): MultiClosure = Value.MultiClosure(v => this(v.map(a => Derestricted(a, lv))).restrict(lv))
     def up(b: Int): Value.MultiClosure = Value.MultiClosure(v => this(v.map(_.up(-b))).up(b))
   }
 
   implicit class Closure(private val func: Value => Value) extends AnyVal {
     def eq(b: Closure): Boolean = func.eq(b.func)
     def apply(seq: Value): Value = func(seq)
-    def restrict(lv: DimensionPair): Closure = Value.Closure(v => this(v).restrict(lv))
+    def restrict(lv: DimensionPair): Closure = Value.Closure(v => this(Derestricted(v, lv)).restrict(lv))
     def up(b: Int): Value.Closure = Value.Closure(v => this(v.up(-b)).up(b))
   }
 
@@ -719,7 +735,7 @@ object Value {
   implicit class AbsClosure(private val func: Dimension => Value) extends AnyVal {
     def eq(b: AbsClosure): Boolean = func.eq(b.func)
     def apply(seq: Dimension): Value = func(seq)
-    def restrict(lv: DimensionPair): AbsClosure = Value.AbsClosure(v => this(v).restrict(lv))
+    def restrict(lv: DimensionPair): AbsClosure = Value.AbsClosure(v => this(Dimension.Derestricted(v, lv)).restrict(lv))
     def up(b: Int): Value.AbsClosure = Value.AbsClosure(v => this(v).up(b))
     def mapd(a: (Value, Dimension) => Value): AbsClosure = AbsClosure(d => a(this(d), d))
     def map(a: Value => Value): AbsClosure = AbsClosure(d => a(this(d)))
@@ -801,6 +817,9 @@ object Value {
 
 
     def restrict(pair: DimensionPair): Dimension = this match {
+      case Dimension.Derestricted(d, pair2) =>
+        assert(pair2 == pair)
+        d
       case Dimension.Generic(id) =>
         if (pair.from.matches(id) || pair.to.matches(id)) {
           pair.from max pair.to
@@ -812,7 +831,9 @@ object Value {
   }
 
   object Dimension {
+    sealed trait Internal extends Dimension
     case class Generic(id: Long) extends Dimension
+    private[Value] case class Derestricted(a: Dimension, lv: DimensionPair) extends Internal
 
     object True extends Dimension
     object False extends Dimension
@@ -821,6 +842,7 @@ object Value {
   type StuckPos = Value
   // these serve the purpose of recovering syntax
   sealed trait Syntaxial extends Value
+  sealed trait Internal extends Value
   sealed trait Whnf extends Value
   sealed trait HeadCanonical extends Whnf
   sealed trait Stuck extends Whnf
@@ -935,7 +957,9 @@ object Value {
     def up(a: Int) = Face(restriction, body.up(a))
   }
 
+
   case class Restricted(a: Value, faces: Seq[DimensionPair]) extends Syntaxial
+  private case class Derestricted(a: Value, lv: DimensionPair) extends Internal
 
   case class Coe(direction: DimensionPair, tp: AbsClosure.StuckPos, base: Value) extends Stuck
 
@@ -1011,7 +1035,8 @@ object Value {
     case _ => logicError()
   }
 
-  // only works for values of path type and universe types
+  // it is like in type directed conversion checking, this works because we always call infer on whnf, so neutural values
+  // can infer it's type
   def infer(t1: Value): Value = {
     t1.whnf match {
       case g: Generic =>
@@ -1105,6 +1130,7 @@ object Value {
         case Restricted(a, _) => unapply(a)
         case _: Com => logicError()
         case _: Syntaxial => logicError()
+        case _: Internal => logicError()
       }
     }
   }

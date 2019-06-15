@@ -146,6 +146,8 @@ private trait ReifierContext extends ContextBuilder {
         )
       case Value.Restricted(a, pair) =>
         Restricted(reify(a), pair.map(k => reify(k)))
+      case _: Value.Internal =>
+        logicError()
     }
   }
 
@@ -219,7 +221,6 @@ object Reifier {
 trait Reifier extends ContextBuilder {
 
   protected def reify(v: Value): Abstract = Reifier.reify(v, layers)
-
 
   protected def reify(v: Value.Closure): Abstract.Closure = {
     val l = debug_metasSize

@@ -241,6 +241,14 @@ trait Unify extends Reifier with BaseEvaluator with PlatformEvaluator {
         } else {
           None
         }
+      case (Up(v1, b1), Up(v2, b2)) =>
+        recNeutral(v1, v2).flatMap(tp => {
+          if (b1 == b2) {
+            Some(tp.up(b1))
+          } else {
+            None
+          }
+        })
       case (Restricted(v1, r1), Restricted(v2, r2)) =>
         recNeutral(v1, v2).flatMap(tp => {
           if (DimensionPair.sameRestrict(r1, r2)) {
