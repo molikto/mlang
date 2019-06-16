@@ -557,42 +557,35 @@ object Value {
       val lfresh = dgen()
       val fresh = Dimension.Generic(lfresh)
       typ(fresh).whnf match {
-        case f: Function =>
-          def func(a: Value): Function = a.whnf match {
-            case f: Function => f
-            case _ => logicError()
-          }
+        case Function(domain, _, codomain) =>
+          val dabs = AbsClosure(k => domain.fsubst(lfresh, k))
           returns(Lambda(Value.Closure(a => {
-            val a_ = Coe(pair.reverse, typ.map(a => func(a).domain), a)
+            val a_ = Coe(pair.reverse, dabs, a)
             val app_ = App(base, a_)
             Coe(pair,
-              typ.mapd((f, d) => func(f).codomain(Coe(DimensionPair(pair.to, d), typ.map(a => func(a).domain), a))),
+              AbsClosure(k => codomain.fsubst(lfresh, k)(Coe(DimensionPair(pair.to, k), dabs, a))),
               app_)
           })))
         case r: Record =>
-          val graph = r.nodes
-          if (graph.isEmpty) {
+          if (r.nodes.isEmpty) {
             returns(base)
           } else {
-            def recor(a: Value): Record = a.whnf match {
-              case f: Record => f
-              case _ => logicError()
-            }
+            def graph(a: Dimension) = ClosureGraph.fsubst(r.nodes, lfresh, a)
             val closures = mutable.ArrayBuffer[AbsClosure]()
-            for (i <- graph.indices) {
+            for (i <- r.nodes.indices) {
               closures.append(
                 AbsClosure(dim => {
-                  graph(i) match {
+                  r.nodes(i) match {
                     case _: ClosureGraph.Independent =>
                       Coe(
                         DimensionPair(pair.from, dim),
-                        typ.map(ror => recor(ror).nodes(i).independent.typ),
+                        AbsClosure(k => graph(k)(i).independent.typ),
                         Projection(base, i)
                       )
                     case _: ClosureGraph.Dependent =>
                       Coe(
                         DimensionPair(pair.from, dim),
-                        typ.mapd((ror, d) => { ClosureGraph.get(recor(ror).nodes, i, j => closures(j)(d)) }),
+                        AbsClosure(k => ClosureGraph.get(graph(k), i, j => closures(j)(k))),
                         Projection(base, i)
                       )
                   }
@@ -601,20 +594,16 @@ object Value {
             }
             returns(Make(closures.map(_.apply(pair.to))))
           }
-        case _: PathType =>
-          def pah(a: Value): PathType = a.whnf match {
-            case f: PathType => f
-            case _ => logicError()
-          }
+        case PathType(typ, left, right) =>
           returns(PathLambda(AbsClosure(dim => {
             Com(
               pair,
-              typ.map(a => pah(a).typ(dim)),
+              AbsClosure(k => typ.fsubst(lfresh, k)(dim)),
               PathApp(base, dim),
               Seq(
-                { val dp = DimensionPair(dim, Dimension.False); Face(dp, typ.map(a => pah(a).left.restrict(dp))) },
-                { val dp = DimensionPair(dim, Dimension.True); Face(dp, typ.map(a => pah(a).right.restrict(dp))) },
-              ))
+                { val dp = DimensionPair(dim, Dimension.False); Face(dp, AbsClosure(a => left.fsubst(lfresh, a).restrict(dp))) },
+                { val dp = DimensionPair(dim, Dimension.True); Face(dp,AbsClosure(a => right.fsubst(lfresh, a).restrict(dp))) }
+                  ))
           })))
         case _: Sum =>
           ???
@@ -642,6 +631,7 @@ object Value {
             def basep(src: Dimension, dest: Dimension) = {
               Coe(DimensionPair(src, dest), babs, VProj(src, base, Projection(e.fsubst(lfresh, src), 0)))
             }
+            ???
           })
         case _ =>
           Coe(pair, typ, base)
