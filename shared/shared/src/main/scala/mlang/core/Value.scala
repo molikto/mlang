@@ -612,7 +612,7 @@ object Value {
           val r_ = pair.to
           val aabs = AbsClosure(s => a.fsubst(lfresh, s))
           val babs = AbsClosure(s => b.fsubst(lfresh, s))
-          returns(if (x != fresh) { // in this case we can use `map` on `typ`
+          returns(if (x != fresh) {
             VMake(x,
               Coe(pair, aabs, base).restrict(DimensionPair(x, Dimension.False)),
               Com(pair,

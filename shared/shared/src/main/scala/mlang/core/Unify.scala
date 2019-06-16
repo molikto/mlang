@@ -360,6 +360,8 @@ trait Unify extends Reifier with BaseEvaluator with PlatformEvaluator {
           recTerm(ty(c), papp(s1, c), papp(s2, c))
         case (r: Record, m1, m2) =>
           recTerms(r.nodes, i => project(m1, i), i => project(m2, i))
+        case (VType(x, a, b, e), m1, m2) =>
+          ???
         case (s: Sum, Construct(n1, v1), Construct(n2, v2)) =>
           n1 == n2 && { val c = s.constructors(n1) ;
             assert(c.nodes.size == v1.size && v2.size == v1.size)

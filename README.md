@@ -236,8 +236,12 @@ like lift operator, which has a "deup" for lambda parameters, restrictions will 
 
 restriction is done by total ordering all ids, and get the large one, thi means that you need to make sure the if you want to compare to value, or referencing a pair of value/type, their restriction is the same.
 
+
+
 #### kan ops
 
 we have `hcom`, `coe` as eliminations, in a normalized closed value, they should not appear. they interact with restrictions, just like a path lambda interact with dimensions, then they are inductively defined on all type formers
+
+how to verify computation rules: they must preserve types, they must preserve properties of kan ops (stationary hcom/coe and face hcom)
 
 
