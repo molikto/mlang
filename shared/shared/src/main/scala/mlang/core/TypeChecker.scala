@@ -312,7 +312,7 @@ class TypeChecker private (protected override val layers: Layers)
             val ra = check(right, tv(Value.Dimension.True))
             (Value.Universe(tl), Abstract.PathType(ca, la, ra))
           case None =>
-            // FIXME instead of inferring two side, infer one side then check another; or if we have meta with levels... can we just write a max level???? it seems not that easy... because you run into the same kind of problems
+            // FIXME instead of inferring two side, infer one side then check another; or if we have meta with levels... can we just write a max level? it seems not that easy... because you run into the same kind of problems
             val (lt, la) = infer(left)
             val (rt, ra) = infer(right)
             val ttt = if (subTypeOf(lt, rt)) {
@@ -630,7 +630,7 @@ class TypeChecker private (protected override val layers: Layers)
           val m = mis(i)
           val handle = Dependency(i, true)
           if (!done.contains(handle) && m.dependencies.contains(changed)) {
-            m.t.v = Value.Meta.Closed(ctx.eval(m.code))
+            m.t.state = Value.Meta.Closed(ctx.eval(m.code))
             rec(handle)
           }
         }

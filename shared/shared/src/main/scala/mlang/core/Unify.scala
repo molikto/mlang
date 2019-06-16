@@ -181,7 +181,7 @@ trait Unify extends Reifier with BaseEvaluator with PlatformEvaluator {
   }
 
   private def solve(m: Meta, vs: Seq[Value], t20: Value): Value = Benchmark.Solve {
-    var Meta.Open(_, typ) = m.v match {
+    var Meta.Open(_, typ) = m.state match {
       case _: Meta.Closed =>
         logicError()
       case o: Meta.Open =>
@@ -228,7 +228,7 @@ trait Unify extends Reifier with BaseEvaluator with PlatformEvaluator {
     // FIXME type checking??
     debug(s"meta solved with $abs, checked bodies ${checked.size}", 1)
     val v = ctx.eval(abs)
-    m.v = Value.Meta.Closed(v)
+    m.state = Value.Meta.Closed(v)
     typ
   }
 

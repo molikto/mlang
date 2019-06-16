@@ -36,7 +36,7 @@ trait PlatformEvaluator extends BaseEvaluator {
             s"val m$d = new scala.collection.mutable.ArrayBuffer[Meta](); " +
             s"for (_ <- 0 until ${term.metas.size}) m$d.append(Meta(null)); " +
             s"${term.metas.zipWithIndex.map(a =>
-              s"m$d(${a._2}).v = Meta.Closed(${emit(a._1, d)}); ").mkString("")}" +
+              s"m$d(${a._2}).state = Meta.Closed(${emit(a._1, d)}); ").mkString("")}" +
             s"${emit(term.term, d)}; " +
             s"}"
       }
@@ -84,7 +84,7 @@ trait PlatformEvaluator extends BaseEvaluator {
                 s"val m$d = new scala.collection.mutable.ArrayBuffer[Meta](); " +
                 s"for (_ <- 0 until ${metas.size}) m$d.append(Meta(null)); " +
                 s"${metas.zipWithIndex.map(a =>
-                  s"m$d(${a._2}).v = Meta.Closed(${emit(a._1, d)}); ").mkString("")}" +
+                  s"m$d(${a._2}).state = Meta.Closed(${emit(a._1, d)}); ").mkString("")}" +
                 s"${definitions.zipWithIndex.map(a =>
                   s"r$d(${a._2}).value = ${emit(a._1, d)}; ").mkString("")}" +
                 s"val body = ${emit(in, d)}; " +
@@ -175,6 +175,7 @@ trait PlatformEvaluator extends BaseEvaluator {
                 s"Dimension.True"
               case Dimension.False =>
                 s"Dimension.False"
+              case _: Dimension.Internal => logicError()
             }
           } else {
             s"dm${depth - up}"

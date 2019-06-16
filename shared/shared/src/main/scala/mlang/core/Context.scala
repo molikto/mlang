@@ -158,6 +158,7 @@ trait Context extends ContextBaseForMeta {
         rebindDimensionGeneric(stuck)
       case Value.Dimension.True => Abstract.Dimension.True
       case Value.Dimension.False => Abstract.Dimension.False
+      case _: Value.Dimension.Internal => logicError()
     }
   }
 

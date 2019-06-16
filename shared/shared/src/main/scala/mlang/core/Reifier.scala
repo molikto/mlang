@@ -102,7 +102,7 @@ private trait ReifierContext extends ContextBuilder {
       case Value.PathLambda(body) =>
         PathLambda(reify(body))
       case m: Value.Meta =>
-        m.v match {
+        m.state match {
           case Meta.Closed(c) =>
             rebindMetaOpt(m) match {
               case Some(k) => k
@@ -129,7 +129,7 @@ private trait ReifierContext extends ContextBuilder {
         Maker(reify(s), i)
       case Value.Let(items, body) =>
         val ctx = items.foldLeft(newDefinesLayer().asInstanceOf[ReifierContext]) { (ctx, item) =>
-          ctx.newDefinition(Name.empty, null, Value.Reference(item))._1
+          ctx.newDefinition(Name.empty, null, item)._1
         }
         val abs = items.map(p => ctx.reify(p))
         val bd = ctx.reify(body)

@@ -96,6 +96,44 @@ sealed trait Value {
       logicError()
   }
 
+  /**
+    * this is fsubst, the `a` parameter can only be negative fresh variables, this is safe because we never reuse a
+    * negative id.
+    */
+  def fsubst(a: Long, b: Dimension): Value = this match {
+    case Up(term, level) => Up(term.fsubst(a, b), level)
+    case Restricted(t, faces) => Restricted(t.fsubst(a, b), faces.map(_.fsubst(a, b)))
+    case Maker(value, field) => Maker(value.fsubst(a, b), field)
+    case Universe(_) => this
+    case Function(domain, impict, codomain) => Function(domain.fsubst(a, b), impict, codomain.fsubst(a, b))
+    case Record(level, inductively, names, ims, nodes) => Record(level, inductively, names, ims, ClosureGraph.fsubst(nodes, a, b))
+    case Make(values) => Make(values.map(_.fsubst(a, b)))
+    case Construct(name, vs) => Construct(name, vs.map(_.fsubst(a, b)))
+    case Sum(level, inductively, constructors) => Sum(level, inductively, constructors.map(c => Constructor(c.name, c.ims, ClosureGraph.fsubst(c.nodes, a, b))))
+    case Lambda(closure) => Lambda(closure.fsubst(a, b))
+    case PatternLambda(id, domain, typ, cases) => PatternLambda(id, domain.fsubst(a, b), typ.fsubst(a, b), cases.map(c => Case(c.pattern, c.closure.fsubst(a, b))))
+    case PathType(typ, left, right) => PathType(typ.fsubst(a, b), left.fsubst(a, b), right.fsubst(a, b))
+    case PathLambda(body) => PathLambda(body.fsubst(a, b))
+    case App(lambda, argument) => App(lambda.fsubst(a, b), argument.fsubst(a, b))
+    case Coe(direction, tp, base) => Coe(direction.fsubst(a, b), tp.fsubst(a, b), base.fsubst(a, b))
+    case Com(direction, tp, base, faces) => Com(direction.fsubst(a, b), tp.fsubst(a, b), base.fsubst(a, b), Face.fsubst(faces, a, b))
+    case Hcom(direction, tp, base, faces) => Hcom(direction.fsubst(a, b), tp.fsubst(a, b), base.fsubst(a, b), Face.fsubst(faces, a, b))
+    case Projection(make, field) => Projection(make.fsubst(a, b), field)
+    case PatternStuck(lambda, stuck) => PatternStuck(lambda.fsubst(a, b).asInstanceOf[PatternLambda], stuck.fsubst(a, b))
+    case PathApp(left, dimension) => PathApp(left.fsubst(a, b), dimension.fsubst(a, b))
+    case VProj(x, m, f) => VProj(x.fsubst(a, b), m.fsubst(a, b), f.fsubst(a, b))
+    case VType(x, j, k, e) => VType(x.fsubst(a, b), j.fsubst(a, b), k.fsubst(a, b), e.fsubst(a, b))
+    case VMake(x, m, n) => VMake(x.fsubst(a, b), m.fsubst(a, b), n.fsubst(a, b))
+    case Let(items, body) => Let(items.map(_.fsubst(a, b).asInstanceOf[Reference]), body.fsubst(a, b))
+    case r: Reference => r.fsubstSaved(a, b)
+    case m@Meta(k) => k match {
+      case _: Meta.Closed => m.fsubstSaved(a, b)
+      case _: Meta.Open => this // open metas and open references are all in context
+    }
+    case _: Generic => this
+    case _: Internal => logicError()
+  }
+
   // FIXME how does it interact with recursive references?
   def restrict(lv: DimensionPair): Value = if (lv.isTrue) this else this match {
     case u: Universe => u
@@ -181,7 +219,7 @@ sealed trait Value {
         case o: Generic =>
           o
         case m: Meta =>
-          m.v match {
+          m.state match {
             case Meta.Closed(v) => v.whnf
             case _: Meta.Open => m
           }
@@ -330,6 +368,15 @@ object Value {
 
   type ClosureGraph = Seq[ClosureGraph.Node]
   object ClosureGraph {
+    def fsubst(graph: ClosureGraph, j: Long, k: Dimension): ClosureGraph = {
+      graph.map {
+        case DependentWithMeta(ds, mc, c) =>
+          DependentWithMeta(ds, mc, (a, b) => { val t = c(a, b); (t._1.map(_.fsubst(j, k)), t._2.fsubst(j, k)) })
+        case IndependentWithMeta(ds, ms, typ) => IndependentWithMeta(ds, ms.map(_.fsubst(j, k)), typ.fsubst(j, k))
+        case _ => logicError()
+      }
+    }
+
 
     def up(graph: ClosureGraph, uu: Int): ClosureGraph = {
       graph.map {
@@ -511,7 +558,7 @@ object Value {
     if (pair.isTrue) { // just to base
       returns(base)
     } else {
-      val fresh = Dimension.Generic(vdgen())
+      val fresh = Dimension.Generic(dgen())
       typ(fresh).whnf match {
         case f: Function =>
           def func(a: Value): Function = a.whnf match {
@@ -581,35 +628,23 @@ object Value {
             case f: VType => f
             case _ => logicError()
           }
-          returns(if (x != fresh) {
+          returns(if (x != fresh) { // in this case we can use `map` on `typ`
             VMake(x,
-              // FIXME the second parameter for Coe don't need restriction?
-              { val pr = DimensionPair(x, Dimension.False);  Coe(pair.restrict(pr), typ.map(a => vtyp(a).a  ), base) },
+              Coe(pair, typ.map(a => vtyp(a).a), base).restrict(DimensionPair(x, Dimension.False)),
               Com(pair,
                 typ.map(a => vtyp(a).b),
-                VProj(x, base, Projection(vtyp(typ(pair.from)).e, 0)),// this is ok because we know M is of this type!!
+                VProj(x, base, Projection(vtyp(typ(r)).e, 0)),// this is ok because we know M is of this type!!
                 Seq(
                   { val dp = DimensionPair(x, Dimension.False);
                     Face(dp, typ.mapd((a, y) => App(
                       Projection(vtyp(a).e, 0),
-                      Coe(DimensionPair(pair.from, y), typ.map(a => vtyp(a).a), base)).restrict(dp))) },
+                      Coe(DimensionPair(r, y), typ.map(a => vtyp(a).a), base)).restrict(dp))) },
                   { val dp = DimensionPair(x, Dimension.True);
                     Face(dp, AbsClosure(y =>
-                      Coe(DimensionPair(pair.from, y), typ.map(a => vtyp(a).b), base).restrict(dp))) },
+                      Coe(DimensionPair(r, y), typ.map(a => vtyp(a).b), base).restrict(dp))) },
                 )))
           } else {
-            pair.from match {
-              case Dimension.False =>
-                ???
-                //VMake(pair.to, base, Coe(pair, typ.map(a => vtyp(a).b), App(Projection(vtyp(typ(Dimension.False)).e, 0), base)))
-              case Dimension.True =>
-//                val O = Projection(App(Projection(vtyp(typ(pair.to)).e, 1), Coe(pair, typ.map(a => vtyp(a).b), base)), 0)
-//                val P = Hcom()
-//                VMake(Projection(O, 0), P)
-                ???
-              case _ =>
-                ???
-            }
+            ???
           })
         case _ =>
           Coe(pair, typ, base)
@@ -695,7 +730,7 @@ object Value {
                   x, O(pair.to), Hcom(pair, b, VProj(x, base, Projection(e, 0)),
                     Seq(
                       Face(x0, AbsClosure(y => App(Projection(e, 0), O(y)))),
-                      // FIXME it seems redtt doesn't have this face
+                      // FIXME it seems redtt doesn't have this face, the face0 is used to satisfy the equality rule for VMake, so face1 seems not useful?
                       // Face(DimensionPair(x, Dimension.True), AbsClosure(y => Hcom(DimensionPair(pair.from, y), b, base, rs))),
                     ) ++ rs.map(n => Face(n.restriction, n.body.map(j => VProj(x.restrict(n.restriction), j, Projection(e.restrict(n.restriction), 0)))))))
               )
@@ -712,15 +747,18 @@ object Value {
     def eq(b: MultiClosure): Boolean = func.eq(b.func)
     def apply() = func(Seq.empty)
     def apply(seq: Seq[Value]): Value = func(seq)
-    def restrict(lv: DimensionPair): MultiClosure = Value.MultiClosure(v => this(v.map(a => Derestricted(a, lv))).restrict(lv))
-    def up(b: Int): Value.MultiClosure = Value.MultiClosure(v => this(v.map(_.up(-b))).up(b))
+    def fsubst(a: Long, b: Dimension): MultiClosure = MultiClosure(v => this(v).fsubst(a, b))
+    def restrict(lv: DimensionPair): MultiClosure = MultiClosure(v => this(v.map(a => Derestricted(a, lv))).restrict(lv))
+    def up(b: Int): MultiClosure = MultiClosure(v => this(v.map(_.up(-b))).up(b))
   }
 
   implicit class Closure(private val func: Value => Value) extends AnyVal {
+
     def eq(b: Closure): Boolean = func.eq(b.func)
     def apply(seq: Value): Value = func(seq)
-    def restrict(lv: DimensionPair): Closure = Value.Closure(v => this(Derestricted(v, lv)).restrict(lv))
-    def up(b: Int): Value.Closure = Value.Closure(v => this(v.up(-b)).up(b))
+    def fsubst(a: Long, b: Dimension): Closure = Closure(v => this(v).fsubst(a, b))
+    def restrict(lv: DimensionPair): Closure = Closure(v => this(Derestricted(v, lv)).restrict(lv))
+    def up(b: Int): Value.Closure = Closure(v => this(v.up(-b)).up(b))
   }
 
   object Closure {
@@ -735,10 +773,11 @@ object Value {
   implicit class AbsClosure(private val func: Dimension => Value) extends AnyVal {
     def eq(b: AbsClosure): Boolean = func.eq(b.func)
     def apply(seq: Dimension): Value = func(seq)
-    def restrict(lv: DimensionPair): AbsClosure = Value.AbsClosure(v => this(Dimension.Derestricted(v, lv)).restrict(lv))
-    def up(b: Int): Value.AbsClosure = Value.AbsClosure(v => this(v).up(b))
     def mapd(a: (Value, Dimension) => Value): AbsClosure = AbsClosure(d => a(this(d), d))
     def map(a: Value => Value): AbsClosure = AbsClosure(d => a(this(d)))
+    def fsubst(a: Long, b: Dimension): AbsClosure = AbsClosure(v => this(v).fsubst(a, b))
+    def restrict(lv: DimensionPair): AbsClosure = AbsClosure(v => this(Dimension.Derestricted(v, lv)).restrict(lv))
+    def up(b: Int): AbsClosure = AbsClosure(v => this(v).up(b))
   }
 
   object DimensionPair {
@@ -771,6 +810,8 @@ object Value {
   }
 
   case class DimensionPair(from: Dimension, to: Dimension) {
+    def fsubst(a: Long, b: Dimension) = DimensionPair(from.fsubst(a, b), to.fsubst(a, b))
+
     def restrict(a: DimensionPair) = DimensionPair(from.restrict(a), to.restrict(a))
 
     def sameRestrict(p: DimensionPair): Boolean = this.sorted == p.sorted
@@ -785,6 +826,8 @@ object Value {
   }
 
   sealed trait Dimension extends {
+    def fsubst(a: Long, b: Dimension): Dimension = if (matches(a)) b else this
+
     def matches(id: Long): Boolean = this match {
       case Dimension.Generic(iid) => iid == id
       case _ => false
@@ -855,21 +898,33 @@ object Value {
     case class Closed(v: Value) extends State
     case class Open(id: Long, typ: Value) extends State
   }
-  case class Meta(@polarized_mutation var v: Meta.State) extends Syntaxial {
-    def solved: Value = v.asInstanceOf[Meta.Closed].v
-    def isSolved: Boolean = v.isInstanceOf[Meta.Closed]
+  case class Meta(@polarized_mutation var state: Meta.State) extends Syntaxial {
+    def solved: Value = state.asInstanceOf[Meta.Closed].v
+    def isSolved: Boolean = state.isInstanceOf[Meta.Closed]
+
+    @cached_mutation private val _fsubsts = mutable.HashMap.empty[(Long, Dimension), Meta]
+    def fsubstSaved(a: Long, b: Dimension): Meta = {
+      if (!_fsubsts.contains((a, b))) {
+        val r = Meta(null)
+        _fsubsts.put((a, b), r)
+        r.state = Meta.Closed(state.asInstanceOf[Meta.Closed].v.fsubst(a, b))
+      }
+      _fsubsts((a, b))
+    }
   }
 
   case class Reference(@lateinit private var value000: Value) extends Syntaxial {
 
-    @cached_mutation private val _ups = mutable.ArrayBuffer.empty[Value]
+
 
     def value: Value =  value000
     def value_=(v: Value): Unit = {
       _ups.clear()
+      _fsubsts.clear()
       value000 = v
     }
 
+    @cached_mutation private val _ups = mutable.ArrayBuffer.empty[Value]
     def derefUpSaved(b: Int): Value = {
       if (b < _ups.size && _ups(b) != null) {
         _ups(b)
@@ -879,6 +934,16 @@ object Value {
         _ups.update(b, v)
         v
       }
+    }
+
+    @cached_mutation private val _fsubsts = mutable.HashMap.empty[(Long, Dimension), Reference]
+    def fsubstSaved(a: Long, b: Dimension): Reference = {
+      if (!_fsubsts.contains((a, b))) {
+        val r = Reference(null)
+        _fsubsts.put((a, b), r)
+        r.value000 = this.fsubst(a, b)
+      }
+      _fsubsts((a, b))
     }
 
     override def toString: String = "Reference"
@@ -941,6 +1006,17 @@ object Value {
   }
 
   object Face {
+    def fsubst(faces: Seq[Face], a: Long, b: Dimension): Seq[Face] = {
+      faces.flatMap(n => {
+        val r = n.restriction.fsubst(a, b)
+        if (r.isFalse) {
+          None
+        } else {
+          Some(Face(r, n.body.fsubst(a, b)))
+        }
+      })
+    }
+
     def restrict(faces: Seq[Face], lv: DimensionPair): Seq[Face] = {
       faces.flatMap(n => {
         val r = n.restriction.restrict(lv)
@@ -1012,7 +1088,7 @@ object Value {
 
   case class PatternStuck(lambda: PatternLambda, stuck: StuckPos) extends Stuck
 
-  case class Let(items: Seq[Value], body: Value) extends Syntaxial
+  case class Let(items: Seq[Reference], body: Value) extends Syntaxial
 
 
   case class PathType(typ: AbsClosure, left: Value, right: Value) extends HeadCanonical
@@ -1027,8 +1103,8 @@ object Value {
   case class VProj(x: Value.Dimension, m: StuckPos, f: Value) extends Stuck
 
   // these values will not be visible to users! also I guess it is ok to be static, it will not overflow right?
-  private val vgen = new LongGen.Negative()
-  private val vdgen = new LongGen.Negative()
+  private val gen = LongGen.Negative.gen
+  private val dgen = LongGen.Negative.dgen
 
   def inferLevel(t1: Value): Int = infer(t1) match {
     case Universe(l) => l
@@ -1046,7 +1122,7 @@ object Value {
       case Universe(level) => Universe.suc(level)
       case Up(a, b) => infer(a).up(b)
       case Function(domain, _, codomain) =>
-        (infer(domain), infer(codomain(Generic(vgen(), domain)))) match {
+        (infer(domain), infer(codomain(Generic(gen(), domain)))) match {
           case (Universe(l1), Universe(l2)) => Universe(l1 max l2)
           case _ => logicError()
         }
@@ -1055,7 +1131,7 @@ object Value {
       case s: Sum =>
         Universe(s.level)
       case PathType(typ, _, _) =>
-        infer(typ.apply(Dimension.Generic(vdgen())))
+        infer(typ.apply(Dimension.Generic(dgen())))
       case App(l1, a1) =>
         infer(l1).whnf match {
           case Function(_, _, c) =>
@@ -1125,7 +1201,7 @@ object Value {
         case VProj(_, m, _) => unapply(m)
         case Coe(_, typ, _) =>
           // FIXME this rule is really wired...
-          unapply(typ(Dimension.Generic(vdgen())).whnf)
+          unapply(typ(Dimension.Generic(dgen())).whnf)
         case Hcom(_, tp, _, _) => unapply(tp)
         case Restricted(a, _) => unapply(a)
         case _: Com => logicError()
