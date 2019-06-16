@@ -718,8 +718,8 @@ class TypeChecker private (protected override val layers: Layers)
                 val level = tv.whnf.asInstanceOf[Value.Universe].level
                 val tt = Some(Abstract.Inductively(inductively.get, level))
                 va0 match {
-                  case s: Abstract.Sum => inductively = null; assert(s.inductively.isEmpty); s.copy(inductively = tt)
-                  case s: Abstract.Record => inductively = null; assert(s.inductively.isEmpty); s.copy(inductively = tt)
+                  case s: Abstract.Sum => inductively = None; assert(s.inductively.isEmpty); s.copy(inductively = tt)
+                  case s: Abstract.Record => inductively = None; assert(s.inductively.isEmpty); s.copy(inductively = tt)
                   case ig => ig
                 }
               } else {
@@ -746,7 +746,7 @@ class TypeChecker private (protected override val layers: Layers)
               ctx
           }
         }
-        if (inductively != null) warn(s"${name.toString} is not a inductive type but has modifier inductively")
+        if (inductively.isDefined) warn(s"${name.toString} is not a inductive type but has modifier inductively")
         ret
       case Declaration.Declare(ms, name, ps, t) =>
         lookupDefined(name) match {
