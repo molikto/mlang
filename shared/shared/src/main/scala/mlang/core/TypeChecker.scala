@@ -269,7 +269,7 @@ class TypeChecker private (protected override val layers: Layers)
           }
         }
         val (fl, fs) = newLayerInferFlatLevel(fields)
-        (Value.Universe(fl), Abstract.Record(fl, None, fs.map(_._1), fs.map(_._2), fs.map(a => (a._3.term.termDependencies(0).toSeq.sorted, a._3))))
+        (Value.Universe(fl), Abstract.Record(None, fs.map(_._1), fs.map(_._2), fs.map(a => (a._3.term.termDependencies(0).toSeq.sorted, a._3))))
       case Term.Sum(constructors) =>
         for (i <- constructors.indices) {
           for (j <- (i + 1) until constructors.size) {
@@ -281,7 +281,7 @@ class TypeChecker private (protected override val layers: Layers)
         // TODO in case of HIT, each time a constructor finished, we need to construct a partial sum and update the value
         val fs = constructors.map(c => newLayerInferFlatLevel(c.term))
         val fl = fs.map(_._1).max
-        (Value.Universe(fl), Abstract.Sum(fl, None, fs.map(_._2).zip(constructors).map(a =>
+        (Value.Universe(fl), Abstract.Sum(None, fs.map(_._2).zip(constructors).map(a =>
           Abstract.Constructor(a._2.name, a._1.map(k => k._2), a._1.zipWithIndex.map(kk => (0 until kk._2, kk._1._3))))))
       case Term.Coe(direction, tp, base) =>
         // LATER does these needs finish off implicits?
@@ -669,14 +669,14 @@ class TypeChecker private (protected override val layers: Layers)
         //        if (ms.contains(Modifier.WithConstructor)) {
         //        }
         // a inductive type definition
-        var inductively =
+        var inductively: Option[Long] =
           if (ms.contains(Modifier.Inductively)) {
             if (topLevel) {
-              Abstract.Inductively(TypeChecker.igen())
+              Some(TypeChecker.igen())
             } else {
               throw TypeCheckException.RecursiveTypesMustBeDefinedAtTopLevel()
             }
-          } else null
+          } else None
         val ret = lookupDefined(name) match {
           case Some((index, typ, defined)) =>
             if (defined) {
@@ -710,12 +710,13 @@ class TypeChecker private (protected override val layers: Layers)
                 case _ => Seq.empty
               })
               val va0 = ctx.check(wrapBody(v, pps.map(_._1)), tv, lambdaNameHints)
-              val va = if (inductively != null) {
+              val va = if (inductively.isDefined) {
                 if (pps.nonEmpty) {
                   warn("we don't support parameterized inductive type yet")
                   ???
                 }
-                val tt = Some(inductively)
+                val level = tv.whnf.asInstanceOf[Value.Universe].level
+                val tt = Some(Abstract.Inductively(inductively.get, level))
                 va0 match {
                   case s: Abstract.Sum => inductively = null; assert(s.inductively.isEmpty); s.copy(inductively = tt)
                   case s: Abstract.Record => inductively = null; assert(s.inductively.isEmpty); s.copy(inductively = tt)

@@ -114,7 +114,7 @@ trait Unify extends Reifier with BaseEvaluator with PlatformEvaluator {
   }
 
 
-  def recInd(dd1: Inductively, dd2: Inductively): Boolean = dd1.id == dd2.id
+  def recInd(dd1: Inductively, dd2: Inductively): Boolean = dd1.id == dd2.id && dd1.level == dd2.level
 
   @inline def maybeNominal(id1: Option[Inductively], id2: Option[Inductively], el: => Boolean): Boolean = {
     (id1, id2) match {
@@ -145,11 +145,11 @@ trait Unify extends Reifier with BaseEvaluator with PlatformEvaluator {
             case 0 => l1 == l2
             case 1 => l1 <= l2
           }
-        case (Record(l1, id1, m1, i1, n1), Record(l2, id2, m2, i2, n2)) =>
+        case (Record(id1, m1, i1, n1), Record(id2, m2, i2, n2)) =>
           // need to check level because of up operator
-          l1 == l2 && maybeNominal(id1, id2, m1 == m2 && i1 == i2 && recClosureGraph(n1, n2, mode))
-        case (Sum(l1, id1, c1), Sum(l2, id2, c2)) =>
-          l1 == l2 && maybeNominal(id1, id2, c1.size == c2.size && c1.zip(c2).forall(p => recConstructor(p._1, p._2, mode)))
+          maybeNominal(id1, id2, m1 == m2 && i1 == i2 && recClosureGraph(n1, n2, mode))
+        case (Sum(id1, c1), Sum(id2, c2)) =>
+          maybeNominal(id1, id2, c1.size == c2.size && c1.zip(c2).forall(p => recConstructor(p._1, p._2, mode)))
         case (PathType(t1, l1, r1), PathType(t2, l2, r2)) =>
           recTypeAbsClosure(t1, t2, mode) &&
               recTerm(t1(Dimension.False), l1, l2) &&

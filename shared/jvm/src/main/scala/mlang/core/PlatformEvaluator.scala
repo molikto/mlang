@@ -51,7 +51,7 @@ trait PlatformEvaluator extends BaseEvaluator {
   def emit(id: Option[Abstract.Inductively], d: Int): String = {
     id match {
       case None => "None"
-      case Some(a) => s"Some(Inductively(${a.id}))"
+      case Some(a) => s"Some(Inductively(${a.id}, ${a.level}))"
     }
   }
 
@@ -99,14 +99,14 @@ trait PlatformEvaluator extends BaseEvaluator {
           s"Lambda(Closure(r$d => ${emitInner(closure, d)}))"
         case Abstract.App(left, right) =>
           s"App(${emit(left, depth)}, ${emit(right, depth)})"
-        case Abstract.Record(level, id, names, ms, nodes) =>
+        case Abstract.Record(id, names, ms, nodes) =>
           val d = depth + 1
-          s"""Record($level, ${emit(id, depth)}, Seq(${names.map(n => source(n)).mkString(", ")}), ${emit(ms)}, ${emitGraph(nodes, d)})"""
+          s"""Record( ${emit(id, depth)}, Seq(${names.map(n => source(n)).mkString(", ")}), ${emit(ms)}, ${emitGraph(nodes, d)})"""
         case Abstract.Projection(left, field) =>
           s"Projection(${emit(left, depth)}, $field)"
-        case Abstract.Sum(level, id, constructors) =>
+        case Abstract.Sum(id, constructors) =>
           val d = depth + 1 // we some how have have one layer for the constructor names
-          s"""Sum($level, ${emit(id, depth)}, Seq(${constructors.zipWithIndex.map(c =>
+          s"""Sum(${emit(id, depth)}, Seq(${constructors.zipWithIndex.map(c =>
             s"Constructor(${source(c._1.name)}, ${emit(c._1.implicits)}, ${emitGraph(c._1.params, d)})").mkString(", ")}))"""
         case Abstract.Maker(sum, field) =>
           s"Maker(${emit(sum, depth)}, $field)"

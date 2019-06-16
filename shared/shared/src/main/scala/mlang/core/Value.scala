@@ -23,6 +23,11 @@ sealed trait Value {
 
   def from: Value = if (_from == null) this else _from
 
+
+  // two helper
+  private def fst: Value = Projection(this, 0)
+  private def snd: Value = Projection(this, 1)
+
   /**
     *
     * HOW DOES restrict interacts with Up
@@ -41,14 +46,14 @@ sealed trait Value {
       Universe(i + b)
     case Function(domain, im, codomain) =>
       Function(domain.up(b), im, codomain.up(b))
-    case Record(level, inductively, ms, ns, nodes) =>
-      Record(level + b, inductively.map(_.up(b)), ms, ns, ClosureGraph.up(nodes, b))
+    case Record(inductively, ms, ns, nodes) =>
+      Record(inductively.map(_.up(b)), ms, ns, ClosureGraph.up(nodes, b))
     case Make(values) =>
       Make(values.map(_.up(b)))
     case Construct(name, vs) =>
       Construct(name, vs.map(_.up(b)))
-    case Sum(level, inductively, constructors) =>
-      Sum(level + b, inductively.map(_.up(b)), constructors.map(n => Constructor(n.name, n.ims, ClosureGraph.up(n.nodes, b))))
+    case Sum(inductively, constructors) =>
+      Sum(inductively.map(_.up(b)), constructors.map(n => Constructor(n.name, n.ims, ClosureGraph.up(n.nodes, b))))
     case Lambda(closure) =>
       Lambda(closure.up(b))
     case PatternLambda(id, dom, typ, cases) =>
@@ -106,10 +111,10 @@ sealed trait Value {
     case Maker(value, field) => Maker(value.fsubst(a, b), field)
     case Universe(_) => this
     case Function(domain, impict, codomain) => Function(domain.fsubst(a, b), impict, codomain.fsubst(a, b))
-    case Record(level, inductively, names, ims, nodes) => Record(level, inductively, names, ims, ClosureGraph.fsubst(nodes, a, b))
+    case Record(inductively, names, ims, nodes) => Record(inductively.map(_.fsubst(a, b)), names, ims, ClosureGraph.fsubst(nodes, a, b))
     case Make(values) => Make(values.map(_.fsubst(a, b)))
     case Construct(name, vs) => Construct(name, vs.map(_.fsubst(a, b)))
-    case Sum(level, inductively, constructors) => Sum(level, inductively, constructors.map(c => Constructor(c.name, c.ims, ClosureGraph.fsubst(c.nodes, a, b))))
+    case Sum(inductively, constructors) => Sum(inductively.map(_.fsubst(a, b)), constructors.map(c => Constructor(c.name, c.ims, ClosureGraph.fsubst(c.nodes, a, b))))
     case Lambda(closure) => Lambda(closure.fsubst(a, b))
     case PatternLambda(id, domain, typ, cases) => PatternLambda(id, domain.fsubst(a, b), typ.fsubst(a, b), cases.map(c => Case(c.pattern, c.closure.fsubst(a, b))))
     case PathType(typ, left, right) => PathType(typ.fsubst(a, b), left.fsubst(a, b), right.fsubst(a, b))
@@ -139,14 +144,14 @@ sealed trait Value {
     case u: Universe => u
     case Function(domain, im, codomain) =>
       Function(domain.restrict(lv), im, codomain.restrict(lv))
-    case Record(level, inductively, ms, ns, nodes) =>
-      Record(level, inductively.map(_.restrict(lv)), ms, ns, ClosureGraph.restrict(nodes, lv))
+    case Record(inductively, ms, ns, nodes) =>
+      Record(inductively.map(_.restrict(lv)), ms, ns, ClosureGraph.restrict(nodes, lv))
     case Make(values) =>
       Make(values.map(_.restrict(lv)))
     case Construct(name, vs) =>
       Construct(name, vs.map(_.restrict(lv)))
-    case Sum(level, inductively, constructors) =>
-      Sum(level, inductively.map(_.restrict(lv)), constructors.map(n => Constructor(n.name, n.ims, ClosureGraph.restrict(n.nodes, lv))))
+    case Sum(inductively, constructors) =>
+      Sum(inductively.map(_.restrict(lv)), constructors.map(n => Constructor(n.name, n.ims, ClosureGraph.restrict(n.nodes, lv))))
     case Lambda(closure) =>
       Lambda(closure.restrict(lv))
     case PatternLambda(id, dom, typ, cases) =>
@@ -368,6 +373,7 @@ object Value {
 
   type ClosureGraph = Seq[ClosureGraph.Node]
   object ClosureGraph {
+
     def fsubst(graph: ClosureGraph, j: Long, k: Dimension): ClosureGraph = {
       graph.map {
         case DependentWithMeta(ds, mc, c) =>
@@ -442,6 +448,20 @@ object Value {
       g(name).independent.typ
     }
 
+
+    def inferLevel(nodes: ClosureGraph): Int = {
+      var level = 0
+      var i = 0
+      var g = nodes
+      while (i < g.size) {
+        val t = g(i).independent.typ
+        level = Value.inferLevel(t) max level
+        val ge = Generic(gen(), t)
+        g = ClosureGraph.reduce(g, i, ge)
+        i += 1
+      }
+      level
+    }
 
     def reduce(from: ClosureGraph, i: Int, a: Value): ClosureGraph = {
       from(i) match {
@@ -612,31 +632,45 @@ object Value {
           val r_ = pair.to
           val aabs = AbsClosure(s => a.fsubst(lfresh, s))
           val babs = AbsClosure(s => b.fsubst(lfresh, s))
+          val a0 = a.fsubst(lfresh, Dimension.False)
+          val b0 = b.fsubst(lfresh, Dimension.False)
+          val e0 = e.fsubst(lfresh, Dimension.False)
           returns(if (x != fresh) {
             VMake(x,
               Coe(pair, aabs, base).restrict(DimensionPair(x, Dimension.False)),
               Com(pair,
                 babs,
-                VProj(x, base, Projection(e.fsubst(lfresh, r), 0)),// this is ok because we know M is of this type!!
+                VProj(x, base, e.fsubst(lfresh, r).fst),// this is ok because we know M is of this type!!
                 Seq(
                   { val dp = DimensionPair(x, Dimension.False);
                     Face(dp, AbsClosure(y => App(
-                      Projection(e.fsubst(lfresh, y), 0),
+                      e.fsubst(lfresh, y).fst,
                       Coe(DimensionPair(r, y), aabs, base)).restrict(dp))) },
                   { val dp = DimensionPair(x, Dimension.True);
                     Face(dp, AbsClosure(y =>
                       Coe(DimensionPair(r, y), babs, base).restrict(dp))) },
                 )))
           } else {
-            def basep(src: Dimension, dest: Dimension) = {
-              Coe(DimensionPair(src, dest), babs, VProj(src, base, Projection(e.fsubst(lfresh, src), 0)))
-            }
+            // based on redtt code, not the paper
+            def basep(src: Dimension, dest: Dimension) =
+              Coe(DimensionPair(src, dest), babs, VProj(src, base, e.fsubst(lfresh, src).fst))
+            def basep0(dest: Dimension) = basep(Dimension.False, dest)
+            def basep1(dest: Dimension) = basep(Dimension.True, dest)
+            def fiber0(b: Value) = app(e0.snd, b).fst
+            /* This gives a path from the fiber `fib` to `fiber0 b`
+              * where `b` is calculated from `fib` as
+              * `ext_apply (do_snd fib) [`Dim1]` directly. */
+            def contr0(fib: Value) = app(app(e0.snd, papp(fib.snd, Dimension.True)).snd, fib)
+            val face_dialog = Face(pair, AbsClosure(_ => basep(r, r_)))
+            val face0 = Face(DimensionPair(r, Dimension.False), AbsClosure(_ => basep0(r_)))
+            def fiber0_ty(b: Value) = ???
             ???
           })
         case _ =>
           Coe(pair, typ, base)
       }
     }
+
 
   private def com(pair: DimensionPair, typ: AbsClosure, base: Value, restriction0: Seq[Face], returns: Value => Value = id): Value = {
     // do we need to implement the extra shortcuts?
@@ -703,7 +737,7 @@ object Value {
                     { val dp = DimensionPair(dim, Dimension.True); Face(dp, AbsClosure(right.restrict(dp))) },
                   ) ++ rs.map(n => Face(n.restriction, n.body.map(j => PathApp(j, dim.restrict(n.restriction))))))
               })))
-            case Sum(l, inductively, c) =>
+            case Sum(inductively, c) =>
               ???
             case VType(x, a, b, e) =>
               val x0 = DimensionPair(x, Dimension.False)
@@ -839,6 +873,7 @@ object Value {
     }
 
 
+
     def restrict(seq: Seq[DimensionPair]): Dimension = seq.foldLeft(this) { (t, v) => t.restrict(v) }
 
 
@@ -963,14 +998,14 @@ object Value {
   case class Function(domain: Value, impict: Boolean, codomain: Closure) extends HeadCanonical
   case class App(lambda: StuckPos, argument: Value) extends Stuck
 
-  case class Inductively(id: Long) {
+  case class Inductively(id: Long, level: Int) {
+    def fsubst(a: Long, b: Dimension): Inductively = this
 
-    def up(b: Int): Inductively = this
+    def up(b: Int): Inductively = copy(level = level + b)
     def restrict(lv: DimensionPair): Inductively = this
   }
 
   case class Record(
-      level: Int,
       inductively: Option[Inductively],
       names: Seq[Name],
       ims: Seq[Boolean],
@@ -1047,7 +1082,6 @@ object Value {
 
 
   case class Sum(
-      level: Int,
       inductively: Option[Inductively],
       constructors: Seq[Constructor]) extends HeadCanonical {
     for (c <- constructors) {
@@ -1110,9 +1144,10 @@ object Value {
           case _ => logicError()
         }
       case r: Record =>
-        Universe(r.level)
+        r.inductively.map(a => Universe(a.level)).getOrElse(Universe(ClosureGraph.inferLevel(r.nodes)))
       case s: Sum =>
-        Universe(s.level)
+        s.inductively.map(a => Universe(a.level)).getOrElse(
+          Universe(if (s.constructors.isEmpty) 0 else s.constructors.map(c => ClosureGraph.inferLevel(c.nodes)).max))
       case PathType(typ, _, _) =>
         infer(typ.apply(Dimension.Generic(dgen())))
       case App(l1, a1) =>

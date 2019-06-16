@@ -7,7 +7,8 @@ lazy val shared = crossProject(JSPlatform, JVMPlatform).in(file("shared")).setti
   sharedSettings,
 
   libraryDependencies ++= Seq(
-    "org.scala-lang.modules" %%% "scala-parser-combinators" % "1.1.2" 
+    "org.scala-lang.modules" %%% "scala-parser-combinators" % "1.1.2" ,
+    "com.lihaoyi" %%% "fansi" % "0.2.7"
   ),
 ).jsConfigure(_.enablePlugins(ScalaJSPlugin)).jvmConfigure(_.settings(
   libraryDependencies ++= Seq(

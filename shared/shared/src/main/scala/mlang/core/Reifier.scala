@@ -70,7 +70,7 @@ private trait ReifierContext extends ContextBuilder {
 
   def reify(id: Option[Value.Inductively]): Option[Inductively] = {
     id match {
-      case Some(value) => Some(Inductively(value.id))
+      case Some(value) => Some(Inductively(value.id, value.level))
       case None => None
     }
   }
@@ -83,10 +83,10 @@ private trait ReifierContext extends ContextBuilder {
         Up(reify(t), i)
       case Value.Function(domain, i, codomain) =>
         Function(reify(domain), i, reify(codomain))
-      case Value.Record(level, id, names, is, nodes) =>
-        Record(level, reify(id), names, is, reify(nodes))
-      case Value.Sum(level, id, constructors) =>
-        Sum(level, reify(id), constructors.map(c => Constructor(c.name, c.ims, reify(c.nodes))))
+      case Value.Record(id, names, is, nodes) =>
+        Record(reify(id), names, is, reify(nodes))
+      case Value.Sum(id, constructors) =>
+        Sum(reify(id), constructors.map(c => Constructor(c.name, c.ims, reify(c.nodes))))
       case Value.PathType(ty, left, right) =>
         PathType(reify(ty), reify(left), reify(right))
       case Value.Make(_) =>
