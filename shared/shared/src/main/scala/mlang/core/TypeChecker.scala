@@ -731,6 +731,14 @@ class TypeChecker private (protected override val layers: Layers)
               ref.value = ctx2.eval(va) // we want to eval it under the context with reference to itself
               vis(index).code = Some(CodeInfo(va, ref))
               // you don't need to reevaluate stuff here, no one reference me now!
+
+              // some definition is specially treated, they are defined in code, but we need to reference them in evaluator.
+              // these definition should not have re-eval behaviour.
+              // FIXME add a primitive modifier so that no error happens with this
+              if (name == Name(Text("fiber_at"))) {
+                assert(Value.fiber_at == null)
+                Value.fiber_at = ref.value
+              }
               info(s"defined $name")
               ctx2
             case _ =>

@@ -371,6 +371,7 @@ sealed trait Value {
 
 object Value {
 
+  var fiber_at: Value = null
   type ClosureGraph = Seq[ClosureGraph.Node]
   object ClosureGraph {
 
@@ -632,9 +633,6 @@ object Value {
           val r_ = pair.to
           val aabs = AbsClosure(s => a.fsubst(lfresh, s))
           val babs = AbsClosure(s => b.fsubst(lfresh, s))
-          val a0 = a.fsubst(lfresh, Dimension.False)
-          val b0 = b.fsubst(lfresh, Dimension.False)
-          val e0 = e.fsubst(lfresh, Dimension.False)
           returns(if (x != fresh) {
             VMake(x,
               Coe(pair, aabs, base).restrict(DimensionPair(x, Dimension.False)),
@@ -651,6 +649,9 @@ object Value {
                       Coe(DimensionPair(r, y), babs, base).restrict(dp))) },
                 )))
           } else {
+            val a0 = a.fsubst(lfresh, Dimension.False)
+            val b0 = b.fsubst(lfresh, Dimension.False)
+            val e0 = e.fsubst(lfresh, Dimension.False)
             // based on redtt code, not the paper
             def basep(src: Dimension, dest: Dimension) =
               Coe(DimensionPair(src, dest), babs, VProj(src, base, e.fsubst(lfresh, src).fst))
@@ -663,8 +664,19 @@ object Value {
             def contr0(fib: Value) = app(app(e0.snd, papp(fib.snd, Dimension.True)).snd, fib)
             val face_dialog = Face(pair, AbsClosure(_ => basep(r, r_)))
             val face0 = Face(DimensionPair(r, Dimension.False), AbsClosure(_ => basep0(r_)))
-            def fiber0_ty(b: Value) = ???
-            ???
+            def fiber0_ty(b: Value) = app(app(app(app(fiber_at, a0), b0), e0), b)
+            val fixer_fiber = {
+              def fiber_at_face0 = Make(Seq(base, PathLambda(AbsClosure(_ => basep0(Dimension.False)))))
+              val bb = basep(r, Dimension.False)
+              Hcom(DimensionPair(Dimension.True, Dimension.False), fiber0_ty(bb), fiber0(bb), Seq(
+                Face(DimensionPair(r, Dimension.False), AbsClosure(f => papp(contr0(fiber_at_face0), f))),
+                Face(DimensionPair(r, Dimension.True), AbsClosure(_ => fiber0(basep1(Dimension.False))))
+              ))
+            }
+            val el0 = fixer_fiber.fst
+            val face_front = Face(DimensionPair(r_, Dimension.False), AbsClosure(f => papp(fixer_fiber.snd, f)))
+            val el1 = Hcom(DimensionPair(Dimension.True, r_), b.fsubst(lfresh, r_), basep(r, r_), Seq(face0, face_dialog, face_front))
+            VMake(r_, el0.restrict(DimensionPair(r_, Dimension.False)), el1)
           })
         case _ =>
           Coe(pair, typ, base)
