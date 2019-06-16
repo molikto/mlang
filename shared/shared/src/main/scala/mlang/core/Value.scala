@@ -665,7 +665,7 @@ object Value {
             val face_dialog = Face(pair, AbsClosure(_ => basep(r, r_)))
             val face0 = Face(DimensionPair(r, Dimension.False), AbsClosure(_ => basep0(r_)))
             def fiber0_ty(b: Value) = app(app(app(app(fiber_at, a0), b0), e0), b)
-            val fixer_fiber = {
+            val fixer_fiber: Value = {
               def fiber_at_face0 = Make(Seq(base, PathLambda(AbsClosure(_ => basep0(Dimension.False)))))
               val bb = basep(r, Dimension.False)
               Hcom(DimensionPair(Dimension.True, Dimension.False), fiber0_ty(bb), fiber0(bb), Seq(
