@@ -423,10 +423,6 @@ object Value {
     private case class PrivateValuedWithMeta(dependencies: Seq[Int], metas: Seq[Value], typ: Value, value: Value) extends Valued {
     }
 
-    def createTemp(nodes: Seq[(Seq[Int], Seq[Value] => Value)]): ClosureGraph = {
-      createMetaAnnotated(nodes.map(a => (a._1, 0, (_: Seq[Value], vs: Seq[Value]) => (Seq.empty[Value], a._2(vs)))))
-    }
-
     def createMetaAnnotated(nodes: Seq[(Seq[Int], Int, (Seq[Value], Seq[Value]) => (Seq[Value], Value))]): ClosureGraph = {
       nodes.map(a => if (a._1.isEmpty) {
         val t = a._3(Seq.empty, Seq.empty)
@@ -558,7 +554,8 @@ object Value {
     if (pair.isTrue) { // just to base
       returns(base)
     } else {
-      val fresh = Dimension.Generic(dgen())
+      val lfresh = dgen()
+      val fresh = Dimension.Generic(lfresh)
       typ(fresh).whnf match {
         case f: Function =>
           def func(a: Value): Function = a.whnf match {
@@ -621,30 +618,30 @@ object Value {
           })))
         case _: Sum =>
           ???
-        case VType(x, _, _, _) =>
+        case VType(x, a, b, e) =>
           val r = pair.from
           val r_ = pair.to
-          def vtyp(j: Value): VType = j.whnf match {
-            case f: VType => f
-            case _ => logicError()
-          }
+          val aabs = AbsClosure(s => a.fsubst(lfresh, s))
+          val babs = AbsClosure(s => b.fsubst(lfresh, s))
           returns(if (x != fresh) { // in this case we can use `map` on `typ`
             VMake(x,
-              Coe(pair, typ.map(a => vtyp(a).a), base).restrict(DimensionPair(x, Dimension.False)),
+              Coe(pair, aabs, base).restrict(DimensionPair(x, Dimension.False)),
               Com(pair,
-                typ.map(a => vtyp(a).b),
-                VProj(x, base, Projection(vtyp(typ(r)).e, 0)),// this is ok because we know M is of this type!!
+                babs,
+                VProj(x, base, Projection(e.fsubst(lfresh, r), 0)),// this is ok because we know M is of this type!!
                 Seq(
                   { val dp = DimensionPair(x, Dimension.False);
-                    Face(dp, typ.mapd((a, y) => App(
-                      Projection(vtyp(a).e, 0),
-                      Coe(DimensionPair(r, y), typ.map(a => vtyp(a).a), base)).restrict(dp))) },
+                    Face(dp, AbsClosure(y => App(
+                      Projection(e.fsubst(lfresh, y), 0),
+                      Coe(DimensionPair(r, y), aabs, base)).restrict(dp))) },
                   { val dp = DimensionPair(x, Dimension.True);
                     Face(dp, AbsClosure(y =>
-                      Coe(DimensionPair(r, y), typ.map(a => vtyp(a).b), base).restrict(dp))) },
+                      Coe(DimensionPair(r, y), babs, base).restrict(dp))) },
                 )))
           } else {
-            ???
+            def basep(src: Dimension, dest: Dimension) = {
+              Coe(DimensionPair(src, dest), babs, VProj(src, base, Projection(e.fsubst(lfresh, src), 0)))
+            }
           })
         case _ =>
           Coe(pair, typ, base)
@@ -680,10 +677,6 @@ object Value {
               if (graph.isEmpty) {
                 returns(base)
               } else {
-                def recor(a: Value): Record = a.whnf match {
-                  case f: Record => f
-                  case _ => logicError()
-                }
                 val closures = mutable.ArrayBuffer[AbsClosure]()
                 for (i <- graph.indices) {
                   closures.append(
