@@ -1,0 +1,18 @@
+
+
+
+define section(#A #B: type, f: A ⇒ B, g: B ⇒ A): type = (b: B) ⇒ f(g(b)) ≡ b
+
+define retract(#A #B: type, f: A ⇒ B, g: B ⇒ A): type = (a: A) ⇒ g(f(a)) ≡ a
+
+define isomorphism(A B: type): type = record {
+  field f: A ⇒ B
+  field g: B ⇒ A
+  field f_is_section: section(f, g)
+  field g_is_retract: retract(f, g)
+}
+
+define isomorphism_refl(A: type): isomorphism(A, A) = make(a → a, a → a, ─ → refl, ─ → refl)
+
+
+// define isomorphsim_fiber_prop_over

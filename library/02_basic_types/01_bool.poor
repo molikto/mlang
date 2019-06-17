@@ -2,3 +2,15 @@
 
 define bool = sum { case true false }
 
+
+define not:
+  bool ⇒ bool =
+┌ true → bool.false
+└ false → bool.true
+
+define not_not(b: bool) = not(not(b))
+
+
+define not_not_id_path(b: bool): (b: bool) ⇒ not_not(b) ≡ b =
+  ─ → refl
+

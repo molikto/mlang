@@ -380,7 +380,7 @@ class TypeChecker private (protected override val layers: Layers)
             val aa = Abstract.MetaEnclosed(ctxr1.finishReify(), aa0)
             val (bl, ba) = inferLevel(b)
             val ctxr2 = newRestrictionLayer(dp)
-            val ea = ctxr2.check(e, Value.App(Value.App(Value.is_equiv, ctxr1.eval(aa0)), eval(ba).restrict(dp)))
+            val ea = ctxr2.check(e, Value.App(Value.App(Value.equiv, ctxr1.eval(aa0)), eval(ba).restrict(dp)))
             (Value.Universe(al max bl), Abstract.VType(xa, aa, ba, Abstract.MetaEnclosed(ctxr2.finishReify(), ea)))
           case _ =>
             throw TypeCheckException.RemoveConstantVType()
@@ -601,6 +601,11 @@ class TypeChecker private (protected override val layers: Layers)
         term match {
           case Term.App(Term.Make, vs) =>
             inferApp(r.makerType, Abstract.Maker(reify(cp), -1), vs)._2
+          case Term.Let(declarations, Term.App(Term.Make, vs)) =>
+            val (ctx, ms, da) = newDefinesLayer().checkDeclarations(declarations, false)
+            val ia= ctx.inferApp(r.makerType, Abstract.Maker(reify(cp), -1), vs)._2
+            val ms0 = ctx.freezeReify()
+            Abstract.Let(ms ++ ms0, da, ia)
           case _ =>
             fallback()
         }
@@ -736,9 +741,9 @@ class TypeChecker private (protected override val layers: Layers)
               if (name == Name(Text("fiber_at"))) {
                 assert(Value.fiber_at == null)
                 Value.fiber_at = ref.value
-              } else if (name == Name(Text("is_equiv"))) {
-                assert(Value.is_equiv == null)
-                Value.is_equiv = ref.value
+              } else if (name == Name(Text("equiv"))) {
+                assert(Value.equiv == null)
+                Value.equiv = ref.value
               }
               info(s"defined $name")
               ctx2

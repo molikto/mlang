@@ -1,0 +1,19 @@
+
+
+
+
+
+define ua(#A #B: type, e: equiv(A, B)): A ≡ B =
+  i → V_type(i, A, B, e)
+
+
+
+define equivs(B: type) = record {
+  field A: type
+  field is: equiv(A, B)
+}
+
+/*
+define univalence(B: type): is_contractible(equivs(B)) =
+  make(make(B, id_equiv(B)), ???)
+*/

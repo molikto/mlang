@@ -1,0 +1,17 @@
+
+define is_contractible(A: type): type = record {
+  field center: A
+  field to_center: (a: A) ⇒ a ≡ center
+}
+
+// primitive
+define fiber_at(#A #B: type, f: A ⇒ B, b: B): type = record {
+  field from: A
+  field is: f(from) ≡ b
+}
+
+define equiv(A B: type): type = record {
+  field f: A ⇒ B
+  field component: (b: B) ⇒ is_contractible(fiber_at(f, b))
+}
+

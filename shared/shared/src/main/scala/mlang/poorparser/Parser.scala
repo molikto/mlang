@@ -109,11 +109,11 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
     Coe(Pair(a._1._1._1, a._1._1._2), a._1._2, a._2)
   }}
 
-  lazy val vtype: PackratParser[Term]= keyword("V_type") ~> (keyword("V_type") ~> delimited("(", term ~ term ~ term ~ term, ")")) ^^ {a => Term.VType(a._1._1._1, a._1._1._2, a._1._2, a._2)}
+  lazy val vtype: PackratParser[Term]=(keyword("V_type") ~> delimited("(", term ~ delimited(",", term, ",") ~ term ~ ("," ~> term), ")")) ^^ {a => Term.VType(a._1._1._1, a._1._1._2, a._1._2, a._2)}
 
-  lazy val vmake: PackratParser[Term]= keyword("V_make") ~> keyword("V_make") ~>  delimited("(", term ~ term, ")") ^^ {a => Term.VMake(a._1, a._2) }
+  lazy val vmake: PackratParser[Term]=  keyword("V_make") ~>  delimited("(", (term <~ ",") ~ term, ")") ^^ {a => Term.VMake(a._1, a._2) }
 
-  lazy val vproj: PackratParser[Term]= keyword("V_proj") ~> keyword("V_proj") ~>  delimited("(", term, ")") ^^ {a => Term.VProj(a) }
+  lazy val vproj: PackratParser[Term]= keyword("V_proj") ~>  delimited("(", term, ")") ^^ {a => Term.VProj(a) }
 
   lazy val face: PackratParser[Term.Face] = ("|" ~> term <~ "=") ~ (term <~ ":") ~ term ^^ {a => Face(Pair(a._1._1, a._1._2), a._2) }
 

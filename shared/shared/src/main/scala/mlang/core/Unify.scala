@@ -155,7 +155,7 @@ trait Unify extends Reifier with BaseEvaluator with PlatformEvaluator {
               recTerm(t1(Dimension.False), l1, l2) &&
               recTerm(t1(Dimension.True), r1, r2)
         case (VType(x1, a1, b1, e1), VType(x2, a2, b2, e2)) =>
-          x1 == x2 && recType(a1, a2) && recType(b1, b2) && recTerm(app(app(Value.is_equiv, a1), b1.restrict(DimensionPair(x1, Dimension.False))), e1, e2)
+          x1 == x2 && recType(a1, a2) && recType(b1, b2) && recTerm(app(app(Value.equiv, a1), b1.restrict(DimensionPair(x1, Dimension.False))), e1, e2)
         case (t1, t2) =>
           recNeutral(t1, t2).map(_.whnf match {
             case Universe(_) => true

@@ -203,8 +203,8 @@ sealed trait Value {
     throw new IllegalArgumentException("Values don't have equal. Either call eq or do conversion checking")
   }
 
-  @cached_mutation private var _from: Value = _
-  @cached_mutation private var _whnf: Value = _
+  @cached_mutation private[Value] var _from: Value = _
+  @cached_mutation private[Value] var _whnf: Value = _
 
 
 
@@ -338,7 +338,9 @@ sealed trait Value {
         case _: Internal =>
           logicError()
       }
-      candidate._from = this
+      // because some values is shared, it means the solved ones is not created for this whnf, we don't say this
+      // is from us
+      if (candidate._from == null) candidate._from = this
       candidate match {
         case Value.OpenMetaHeadedWhnf(_) =>
         case _ =>
@@ -368,7 +370,7 @@ sealed trait Value {
 object Value {
 
 
-  var is_equiv: Value = null
+  var equiv: Value = null
   var fiber_at: Value = null
   type ClosureGraph = Seq[ClosureGraph.Node]
   object ClosureGraph {
@@ -505,7 +507,9 @@ object Value {
         }
       }
       val mv = rmake(Seq.empty)
+      mv._from = mv
       val mt = rtyp(0, graph)
+      mt._from = mt
       (mv, mt)
     }
   }
@@ -993,7 +997,9 @@ object Value {
     }
   }
 
-  case class Generic(id: Long, @lateinit var typ: Value) extends Stuck
+  case class Generic(id: Long, @lateinit var typ: Value) extends Stuck {
+    this._from = this
+  }
 
   case class Universe(level: Int) extends HeadCanonical
 
