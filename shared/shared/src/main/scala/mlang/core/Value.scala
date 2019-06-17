@@ -307,12 +307,8 @@ sealed trait Value {
               @inline def fallback() = if (mw.eq(m)) this else VProj(x, mw, f)
               mw match {
                 case VMake(x2, _, n) =>
-                  if (x != x2) {
-                    warn(s"VProj and VMake has different x?? $x, $x2")
-                    fallback()
-                  } else {
-                    n.whnf
-                  }
+                  assert(x == x2)
+                  n.whnf
                 case _ => fallback()
               }
             case Dimension.False => app(f, m).whnf
@@ -371,6 +367,8 @@ sealed trait Value {
 
 object Value {
 
+
+  var is_equiv: Value = null
   var fiber_at: Value = null
   type ClosureGraph = Seq[ClosureGraph.Node]
   object ClosureGraph {

@@ -53,6 +53,12 @@ private trait ReifierContext extends ContextBuilder {
     Abstract.Closure(ctx.reifyMetas(), ta)
   }
 
+  def reifyMetaEnclosed(v: Value): Abstract.MetaEnclosed = {
+    val ctx = newDefinesLayer()
+    val ta = ctx.reify(v)
+    Abstract.MetaEnclosed(ctx.reifyMetas(), ta)
+  }
+
   def reify(v: Value.AbsClosure): Abstract.AbsClosure = {
     val (ctx, tm) = newDimensionLayer(Name.empty)
     val ta = ctx.reify(v(tm))
@@ -146,6 +152,12 @@ private trait ReifierContext extends ContextBuilder {
         )
       case Value.Restricted(a, pair) =>
         Restricted(reify(a), pair.map(k => reify(k)))
+      case Value.VType(x, a, b, e) =>
+        VType(reify(x), reifyMetaEnclosed(a), reify(b), reifyMetaEnclosed(e))
+      case Value.VMake(x, m, n) =>
+        VMake(reify(x), reifyMetaEnclosed(m), reify(n))
+      case Value.VProj(x, m, f) =>
+        VProj(reify(x), reify(m), reify(f))
       case _: Value.Internal =>
         logicError()
     }

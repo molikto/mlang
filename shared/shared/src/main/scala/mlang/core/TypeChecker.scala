@@ -195,8 +195,6 @@ class TypeChecker private (protected override val layers: Layers)
     }
   }
 
-  def is_equiv = lookupTerm("is_equiv")._1
-
   private def finishOffImplicits(v: Value, abs: Abstract): (Value, Abstract) = {
     v.whnf match {
       case Value.Function(d, i, c) if i =>
@@ -382,7 +380,7 @@ class TypeChecker private (protected override val layers: Layers)
             val aa = Abstract.MetaEnclosed(ctxr1.finishReify(), aa0)
             val (bl, ba) = inferLevel(b)
             val ctxr2 = newRestrictionLayer(dp)
-            val ea = ctxr2.check(e, Value.App(Value.App(is_equiv, ctxr1.eval(aa0)), eval(ba).restrict(dp)))
+            val ea = ctxr2.check(e, Value.App(Value.App(Value.is_equiv, ctxr1.eval(aa0)), eval(ba).restrict(dp)))
             (Value.Universe(al max bl), Abstract.VType(xa, aa, ba, Abstract.MetaEnclosed(ctxr2.finishReify(), ea)))
           case _ =>
             throw TypeCheckException.RemoveConstantVType()
@@ -738,6 +736,9 @@ class TypeChecker private (protected override val layers: Layers)
               if (name == Name(Text("fiber_at"))) {
                 assert(Value.fiber_at == null)
                 Value.fiber_at = ref.value
+              } else if (name == Name(Text("is_equiv"))) {
+                assert(Value.is_equiv == null)
+                Value.is_equiv = ref.value
               }
               info(s"defined $name")
               ctx2
