@@ -24,6 +24,7 @@ sealed trait Value {
   def from: Value = if (_from == null) this else _from
 
 
+
   // two helper
   private def fst: Value = Projection(this, 0)
   private def snd: Value = Projection(this, 1)
@@ -40,6 +41,12 @@ sealed trait Value {
     *
     */
   def restrict(a: Seq[DimensionPair]): Value = a.foldLeft(this) {(t, v) => t.restrict(v) }
+
+  def deref(): Value = this match {
+    case r: Reference => r.value.deref()
+    case Meta(c: Meta.Closed) => c.v.deref()
+    case _ => this
+  }
 
   def up(b: Int) : Value = this match {
     case Universe(i) =>
@@ -322,11 +329,11 @@ sealed trait Value {
           } else {
             a match {
               case GenericOrOpenMeta(it) => Restricted(it, normalized) // stop case
-              case u: Up => u.whnf match {
-                case Up(GenericOrOpenMeta(it), b) => Restricted(Up(it, b), normalized) // a up's whnf can only block on generics
-                case j => j.restrict(normalized).whnf
+              case Up(j, b) => j match {
+                case GenericOrOpenMeta(it) => Restricted(Up(it, b), normalized) // a up's whnf can only block on generics
+                case j => j.deref().restrict(restriction).whnf
               }
-              case _ => a.restrict(normalized).whnf
+              case _ => a.deref().restrict(restriction).whnf
             }
           }
         case Up(a, b) =>
@@ -340,7 +347,13 @@ sealed trait Value {
       }
       // because some values is shared, it means the solved ones is not created for this whnf, we don't say this
       // is from us
-      if (candidate._from == null) candidate._from = this
+      if (!candidate.eq(candidate._from)) { // FIXME these are already defined ones
+        if (!candidate.eq(this)) {
+          candidate._from = this
+        } else {
+          assert(candidate._from == null)
+        }
+      }
       candidate match {
         case Value.OpenMetaHeadedWhnf(_) =>
         case _ =>
@@ -369,6 +382,7 @@ sealed trait Value {
 
 object Value {
 
+  def doApply(maker: Value, values: Seq[Value]) : Value = values.foldLeft(maker) { (m: Value, v: Value) => Value.App(m, v) }
 
   var equiv: Value = null
   var fiber_at: Value = null
@@ -378,8 +392,8 @@ object Value {
     def fsubst(graph: ClosureGraph, j: Long, k: Dimension): ClosureGraph = {
       graph.map {
         case DependentWithMeta(ds, mc, c) =>
-          DependentWithMeta(ds, mc, (a, b) => { val t = c(a, b); (t._1.map(_.fsubst(j, k)), t._2.fsubst(j, k)) })
-        case IndependentWithMeta(ds, ms, typ) => IndependentWithMeta(ds, ms.map(_.fsubst(j, k)), typ.fsubst(j, k))
+          DependentWithMeta(ds, mc, (a, b) => { val t = c(a, b); (t._1.map(_.fsubst(j, k).asInstanceOf[Value.Meta]), t._2.fsubst(j, k)) })
+        case IndependentWithMeta(ds, ms, typ) => IndependentWithMeta(ds, ms.map(_.fsubst(j, k).asInstanceOf[Value.Meta]), typ.fsubst(j, k))
         case _ => logicError()
       }
     }
@@ -388,8 +402,8 @@ object Value {
     def up(graph: ClosureGraph, uu: Int): ClosureGraph = {
       graph.map {
         case DependentWithMeta(ds, mc, c) =>
-          DependentWithMeta(ds, mc, (a, b) => { val t = c(a.map(_.up(-uu)), b.map(_.up(-uu))); (t._1.map(_.up(uu)), t._2.up(uu)) })
-        case IndependentWithMeta(ds, ms, typ) => IndependentWithMeta(ds, ms.map(_.up(uu)), typ.up(uu))
+          DependentWithMeta(ds, mc, (a, b) => { val t = c(a, b.map(_.up(-uu))); (t._1, t._2.up(uu)) })
+        case IndependentWithMeta(ds, ms, typ) => IndependentWithMeta(ds, ms, typ.up(uu))
         case _ => logicError()
       }
     }
@@ -397,9 +411,9 @@ object Value {
     def restrict(graph: ClosureGraph, lv: DimensionPair): ClosureGraph = {
       graph.map {
         case DependentWithMeta(ds, mc, c) =>
-          DependentWithMeta(ds, mc, (a, b) => { val t = c(a.map(k => Derestricted(k, lv)), b.map(k => Derestricted(k, lv))); (t._1.map(_.restrict(lv)), t._2.restrict(lv)) })
+          DependentWithMeta(ds, mc, (a, b) => { val t = c(a, b.map(k => Derestricted(k, lv))); (t._1, t._2.restrict(lv)) })
         case IndependentWithMeta(ds, ms, typ) =>
-          IndependentWithMeta(ds, ms.map(_.restrict(lv)), typ.restrict(lv))
+          IndependentWithMeta(ds, ms, typ.restrict(lv))
         case _ => logicError()
       }
     }
@@ -422,15 +436,15 @@ object Value {
       val value: Value
     }
 
-    private case class DependentWithMeta(dependencies: Seq[Int], metaCount: Int, closure: (Seq[Value], Seq[Value]) => (Seq[Value], Value)) extends Dependent
+    private case class DependentWithMeta(dependencies: Seq[Int], metaCount: Int, closure: (Seq[Value.Meta], Seq[Value]) => (Seq[Value.Meta], Value)) extends Dependent
 
-    private case class IndependentWithMeta(dependencies: Seq[Int], metas: Seq[Value], typ: Value) extends Independent {
+    private case class IndependentWithMeta(dependencies: Seq[Int], metas: Seq[Value.Meta], typ: Value) extends Independent {
     }
 
-    private case class PrivateValuedWithMeta(dependencies: Seq[Int], metas: Seq[Value], typ: Value, value: Value) extends Valued {
+    private case class ValuedWithMeta(dependencies: Seq[Int], metas: Seq[Value.Meta], typ: Value, value: Value) extends Valued {
     }
 
-    def createMetaAnnotated(nodes: Seq[(Seq[Int], Int, (Seq[Value], Seq[Value]) => (Seq[Value], Value))]): ClosureGraph = {
+    def createMetaAnnotated(nodes: Seq[(Seq[Int], Int, (Seq[Value.Meta], Seq[Value]) => (Seq[Value.Meta], Value))]): ClosureGraph = {
       nodes.map(a => if (a._1.isEmpty) {
         val t = a._3(Seq.empty, Seq.empty)
         IndependentWithMeta(a._1, t._1, t._2)
@@ -467,21 +481,22 @@ object Value {
     def reduce(from: ClosureGraph, i: Int, a: Value): ClosureGraph = {
       from(i) match {
         case IndependentWithMeta(ds, mss, typ) =>
-          val ns = PrivateValuedWithMeta(ds, mss, typ, a)
-          val mms: Seq[Value] = from.flatMap {
-            case DependentWithMeta(_, ms, _) => (0 until ms).map(_ => null: Value)
+          val ns = ValuedWithMeta(ds, mss, typ, a)
+          val mms: mutable.Seq[Value.Meta] = from.flatMap {
+            case DependentWithMeta(_, ms, _) => (0 until ms).map(_ => null)
             case IndependentWithMeta(_, ms, _) => ms
-            case PrivateValuedWithMeta(_, ms, _, _) => ms
-          }
+            case ValuedWithMeta(_, ms, _, _) => ms
+          }.toBuffer
           val vs = from.indices.map(j => if (j == i) a else from(j) match {
-            case PrivateValuedWithMeta(_, _, _, v) => v
+            case ValuedWithMeta(_, _, _, v) => v
             case _ => null
           })
           from.map {
             case DependentWithMeta(dss, _, c) if dss.forall(j => vs(j) != null) =>
               val t = c(mms, vs)
               IndependentWithMeta(dss, t._1, t._2)
-            case k => k
+            case i =>
+              i
           }.updated(i, ns)
         case _ => logicError()
       }
@@ -507,9 +522,7 @@ object Value {
         }
       }
       val mv = rmake(Seq.empty)
-      mv._from = mv
       val mt = rtyp(0, graph)
-      mt._from = mt
       (mv, mt)
     }
   }
@@ -934,6 +947,8 @@ object Value {
     def solved: Value = state.asInstanceOf[Meta.Closed].v
     def isSolved: Boolean = state.isInstanceOf[Meta.Closed]
 
+    _from = this
+
     @cached_mutation private val _fsubsts = mutable.HashMap.empty[(Long, Dimension), Meta]
     def fsubstSaved(a: Long, b: Dimension): Meta = {
       if (!_fsubsts.contains((a, b))) {
@@ -947,7 +962,7 @@ object Value {
 
   case class Reference(@lateinit private var value000: Value) extends Syntaxial {
 
-
+    _from = this
 
     def value: Value =  value000
     def value_=(v: Value): Unit = {
@@ -989,6 +1004,7 @@ object Value {
     }
     def unapply(a: Value): Option[(Value, Option[Reference])] = rec(a, None)
   }
+
   object GenericOrOpenMeta {
     def unapply(a: Value): Option[Value] = a match {
       case g: Generic => Some(g)
@@ -998,7 +1014,7 @@ object Value {
   }
 
   case class Generic(id: Long, @lateinit var typ: Value) extends Stuck {
-    this._from = this
+    _from = this
   }
 
   case class Universe(level: Int) extends HeadCanonical

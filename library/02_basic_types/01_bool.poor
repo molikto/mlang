@@ -12,5 +12,6 @@ define not_not(b: bool) = not(not(b))
 
 
 define not_not_id_path(b: bool): (b: bool) ⇒ not_not(b) ≡ b =
-  ─ → refl
+┌ true → refl
+└ false → refl
 

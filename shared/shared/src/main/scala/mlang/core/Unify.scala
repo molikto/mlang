@@ -441,7 +441,7 @@ trait Unify extends Reifier with BaseEvaluator with PlatformEvaluator {
           t.whnf match {
             case r: Record  =>
               if (maps.size == r.nodes.size) {
-                Make(recs(maps, r.nodes))
+                doApply(Maker(t, -1), recs(maps, r.nodes))
               } else {
                 logicError()
               }
@@ -452,7 +452,7 @@ trait Unify extends Reifier with BaseEvaluator with PlatformEvaluator {
             case sum: Sum =>
               val c = sum.constructors(name)
               if (c.nodes.size == maps.size) {
-                Construct(name, recs(maps, c.nodes))
+                doApply(Maker(t, name), recs(maps, c.nodes))
               } else {
                 logicError()
               }

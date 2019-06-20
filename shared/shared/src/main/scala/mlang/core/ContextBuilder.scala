@@ -159,8 +159,6 @@ trait ContextBuilder extends ContextWithMetaOps {
 
 
 
-
-
   def newPatternLayer(pattern: Patt, typ: Value): (Self, Value, Pattern) = {
     val vvv = mutable.ArrayBuffer[ParameterBinder]()
     def recs(maps: Seq[Patt], nodes: ClosureGraph): Seq[(Value, Pattern)] = {
@@ -183,7 +181,7 @@ trait ContextBuilder extends ContextWithMetaOps {
             case Some(ref) =>
               t.whnf match {
                 case sum: Value.Sum if { index = sum.constructors.indexWhere(c => c.name.by(ref) && c.nodes.isEmpty); index >= 0 } =>
-                  ret = (Value.Construct(index, Seq.empty), Pattern.Construct(index, Seq.empty))
+                  ret = (Value.Maker(t, index), Pattern.Construct(index, Seq.empty))
                 case _ =>
               }
             case _ =>
@@ -199,7 +197,7 @@ trait ContextBuilder extends ContextWithMetaOps {
             case r: Value.Record =>
               if (maps.size == r.nodes.size) {
                 val vs = recs(maps, r.nodes)
-                (Value.Make(vs.map(_._1)), Pattern.Make(vs.map(_._2)))
+                (Value.doApply(Value.Maker(t, -1), vs.map(_._1)), Pattern.Make(vs.map(_._2)))
               } else {
                 throw PatternExtractException.MakeWrongSize()
               }
@@ -213,7 +211,7 @@ trait ContextBuilder extends ContextWithMetaOps {
                 val c = sum.constructors(index)
                 if (c.nodes.size == maps.size) {
                   val vs = recs(maps, c.nodes)
-                  (Value.Construct(index, vs.map(_._1)), Pattern.Construct(index, vs.map(_._2)))
+                  (Value.doApply(Value.Maker(t, index), vs.map(_._1)), Pattern.Construct(index, vs.map(_._2)))
                 } else {
                   throw PatternExtractException.ConstructWrongSize()
                 }

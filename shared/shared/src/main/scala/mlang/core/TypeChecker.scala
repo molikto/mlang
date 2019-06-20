@@ -300,7 +300,9 @@ class TypeChecker private (protected override val layers: Layers)
         val (bt, ba) = infer(base)
         val bv = eval(ba)
         val rs = checkCompatibleCapAndFaces(faces, Value.AbsClosure(bt), bv, dv)
-        (bt, Abstract.Hcom(da, reify(bt), ba, rs))
+        val btr = reify(bt)
+        debug(s"infer hcom type $btr", 1)
+        (bt, Abstract.Hcom(da, btr, ba, rs))
       case Term.PathType(typ, left, right) =>
         typ match {
           case Some(tp) =>
@@ -321,7 +323,7 @@ class TypeChecker private (protected override val layers: Layers)
             ttt match {
               case Some(t) =>
                 val ta = newDimensionLayer(Name.empty)._1.reify(t)
-                if (debug.enabled) debug(s"infer path type: $ta")
+                debug(s"infer path type $ta", 1)
                 (Value.Universe(Value.inferLevel(t)), Abstract.PathType(Abstract.AbsClosure(Seq.empty, ta), la, ra))
               case None =>
                 throw TypeCheckException.InferPathEndPointsTypeNotMatching()
@@ -462,7 +464,9 @@ class TypeChecker private (protected override val layers: Layers)
             (a, check(body, eval(a)))
           case None =>
             val (bt, ba) = infer(body)
-            (reify(bt), ba)
+            val btr = reify(bt)
+            debug(s"infer domain $btr", 1)
+            (btr, ba)
         }
     }
   }
@@ -598,12 +602,14 @@ class TypeChecker private (protected override val layers: Layers)
           case _ => fallback()
         }
       case r: Value.Record =>
+        val cpd = reify(cp)
+        debug("reified record make type $cpd", 1)
         term match {
           case Term.App(Term.Make, vs) =>
-            inferApp(r.makerType, Abstract.Maker(reify(cp), -1), vs)._2
+            inferApp(r.makerType, Abstract.Maker(cpd, -1), vs)._2
           case Term.Let(declarations, Term.App(Term.Make, vs)) =>
             val (ctx, ms, da) = newDefinesLayer().checkDeclarations(declarations, false)
-            val ia= ctx.inferApp(r.makerType, Abstract.Maker(reify(cp), -1), vs)._2
+            val ia= ctx.inferApp(r.makerType, Abstract.Maker(cpd, -1), vs)._2
             val ms0 = ctx.freezeReify()
             Abstract.Let(ms ++ ms0, da, ia)
           case _ =>
