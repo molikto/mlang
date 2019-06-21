@@ -15,4 +15,19 @@ define isomorphism(A B: type): type = record {
 define isomorphism_refl(A: type): isomorphism(A, A) = make(a → a, a → a, ─ → refl, ─ → refl)
 
 
-// define isomorphsim_fiber_prop_over
+define isomorphism_symm(#A #B: type):
+  isomorphism(A, B) ⇒ isomorphism(B, A) =
+⊏(f, g, a, b)       → make(g, f, b, a)
+
+
+define isomorphism_trans(#A #B #C: type):
+  isomorphism(A, B) ⇒ isomorphism(B, C) ⇒ isomorphism(A, C) =
+⊏ (f1, g1, a1, b1)  ⊏ (f2, g2, a2, b2)  →
+  make(
+    a → f2(f1(a)),
+    c → g1(g2(c)),
+    c → path_compose(j → f2(a1(g2(c), j)), a2(c)),
+    a → path_compose(j → g1(b2(f1(a), j)), b1(a))
+  )
+
+//  define isomorphsim_fiber_prop_over

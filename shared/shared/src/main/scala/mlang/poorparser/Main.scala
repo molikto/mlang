@@ -3,13 +3,13 @@ package mlang.poorparser
 import java.io.File
 
 import mlang.core.TypeChecker
-import mlang.utils.{Benchmark, debug}
+import mlang.utils.{Benchmark, debug, info}
 
 object Main extends Parser {
 
   def test(a: File, shouldFails: Boolean) = {
     a.listFiles(_.getName.endsWith(".poor")).sortBy(_.getName).foreach(f => {
-      debug(s"Testing ${a.getName}/${f.getName}", 5)
+      info(s"testing ${a.getName}/${f.getName}")
       val s = src(f)
       val module = parseOrThrow(s)
       var fails = ""
@@ -48,10 +48,10 @@ object Main extends Parser {
       file.listFiles().sortBy(_.getName).foreach(f => {
         val name = prefix + f.getName
         if (f.isDirectory) {
-          debug(s"Entering folder $name", 5)
+          info(s"entering folder $name")
           rec(name + "/", f)
         } else if (f.getName.endsWith(".poor")) {
-          debug(s"Checking file $name", 5)
+          info(s"checking file $name")
           checker = checker.check(parseOrThrow(src(f)))
         }
       })

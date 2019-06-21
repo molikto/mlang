@@ -109,7 +109,6 @@ object Abstract {
   }
 
 
-  // FIXME what about put level into Inductively? this makes inferLevel a little bit slower though, or this can be cached? I think we must do this if we want calculus for structural records
   case class Inductively(id: Long, level: Int) {
     def dependencies(i: Int): Set[Dependency] = Set.empty
     def diff(depth: Int, x: Int): Inductively = this
