@@ -32,16 +32,12 @@ there are other kind of TODOs in the project, they are `LATER`, `TODO`, and `FIX
     * function types, record types, sum types
     * bidirectional elaborating type checker
     * mutual recursive definitions
-        * **QUESTION** can you recur inside a up or restriction? a way to  disallow this is to make sure all recursive reference doesn't happens under a restriction/lift
     * type directed conversion check with eta and recursive definitions
     * concrete syntax, core syntax, core semantics and reification
     * basic `.poor` syntax and parser
 * **DONE** overlapping and order independent patterns, see `plus_tests` in library for detail
-    * **QUESTION** so we need to save both domain and codomain in pattern matching, is this ok? see [this](https://github.com/molikto/mlang/commit/a4380b33ac0b97117016ff31a3fb39ab0b8f1ce2) for the code changed
 * **DONE** cumulative universe with "up" operator for global definitions (see [here](https://mazzo.li/epilogue/index.html%3Fp=857&cpage=1.html))
 * **DONE** locally scoped meta; very simple unification; implicit arguments syntax
-    * **QUESTION** correctness verification of the whole stuff
-        * why unification result doesn't needs to be type checked or am I wrong?
 * cubical features
     * **DONE** path type
     * **DONE** coe, com, hcom; checking, computation

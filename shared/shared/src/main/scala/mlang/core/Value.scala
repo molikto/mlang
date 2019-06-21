@@ -664,6 +664,7 @@ object Value {
                       Coe(DimensionPair(r, y), babs, base).restrict(dp))) },
                 )))
           } else {
+            // FIXME not sure this is correct or not
             val a0 = a.fsubst(lfresh, Dimension.False)
             val b0 = b.fsubst(lfresh, Dimension.False)
             val e0 = e.fsubst(lfresh, Dimension.False)
@@ -826,7 +827,7 @@ object Value {
 
   object DimensionPair {
     def checkValidRestrictions(ds0: Seq[DimensionPair]): Boolean = {
-      // TODO this is an extension for validity now, we don't make a difference between i=j and j=i
+      // FIXME this is an extension for validity now, we don't make a difference between i=j and j=i?
       val ds = ds0.map(_.sorted)
       ds.exists(a => a.isTrue) || ds.flatMap(r => ds.map(d => (r, d))).exists(p => {
         p._1.from == p._2.from && !p._1.from.isConstant &&

@@ -619,7 +619,7 @@ class TypeChecker private (protected override val layers: Layers)
     }
   }
 
-
+  // FIXME can you recur inside a up or restriction? a way to disallow this is to make sure all recursive reference doesn't happens under a restriction/lift
   private def checkDeclaration(
       s: Declaration,
       mis: mutable.ArrayBuffer[CodeInfo[Value.Meta]],
