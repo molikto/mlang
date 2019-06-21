@@ -619,6 +619,8 @@ class TypeChecker private (protected override val layers: Layers)
     }
   }
 
+  // FIXME consider use a different setup for global identifiers, so we can implement up only in abstract layer
+  // FIXME also maybe each reference should have a "support" so do less restrictions
   // FIXME can you recur inside a up or restriction? a way to disallow this is to make sure all recursive reference doesn't happens under a restriction/lift
   private def checkDeclaration(
       s: Declaration,

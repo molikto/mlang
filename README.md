@@ -26,6 +26,8 @@ if you need more background on a issue, plz go to gitter and just ask.
     
 there are other kind of TODOs in the project, they are `LATER`, `TODO`, and `FIXME`, use IntelliJ IDEA to browse them.
 
+the one marked `FIXME` in code is important problems needs expert to figure out.
+
 ## roadmap
 
 * **DONE** totally unsafe MLTT basics
@@ -40,9 +42,10 @@ there are other kind of TODOs in the project, they are `LATER`, `TODO`, and `FIX
 * **DONE** locally scoped meta; very simple unification; implicit arguments syntax
 * cubical features
     * **DONE** path type
-    * **DONE** coe, com, hcom; checking, computation
+    * **DONE** coe, com, hcom; checking, computation for basic types
+    * **DONE** V-type and univalence
+    * fibrant universe
     * sum type's Kan ops; fcom, higher inductive types
-    * univalance
 * ~~~~~~~~
 * user defined eliminations
     * constant projection `square.constant`
