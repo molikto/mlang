@@ -2,7 +2,7 @@ package mlang.core
 
 import Value._
 import mlang.name.Name
-import mlang.utils.{Benchmark, debug}
+import mlang.utils.{Benchmark, debug, warn}
 
 import scala.collection.mutable
 import scala.util.{Failure, Success, Try}
@@ -406,7 +406,7 @@ trait Unify extends Reifier with BaseEvaluator with PlatformEvaluator {
         case (Universe(_), tt1, tt2) =>
           recType(tt1, tt2) // it will call unify neutral at then end
         case (OpenMetaHeadedWhnf(_), _, _) =>
-          debug("meta directed not handled", 2)
+          warn("meta directed not handled")
           false
         case (_, tt1, tt2) => recNeutral(tt1, tt2)
       }

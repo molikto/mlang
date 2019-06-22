@@ -565,6 +565,7 @@ object Value {
     case PathLambda(c) =>
       returns(c(d))
     case a =>
+      // I think both yacctt use open variables with types, and an `inferType` thing
       def constantCase(isOne: Boolean) = {
         infer(a).whnf match {
           case PathType(_, left, right) =>
