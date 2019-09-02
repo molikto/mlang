@@ -1,4 +1,4 @@
-package mlang.core
+package mlang.compiler
 
 import java.util.concurrent.atomic.AtomicLong
 

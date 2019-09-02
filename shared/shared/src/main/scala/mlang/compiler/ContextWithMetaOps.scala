@@ -1,6 +1,6 @@
-package mlang.core
+package mlang.compiler
 
-import mlang.core.Context.Metas
+import mlang.compiler.Context.Metas
 
 import scala.collection.mutable
 

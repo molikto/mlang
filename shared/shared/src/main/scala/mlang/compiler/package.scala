@@ -1,6 +1,6 @@
 package mlang
 
-package object core {
+package object compiler {
 
   def logicError() = mlang.utils.logicError()
 

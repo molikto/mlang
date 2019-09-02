@@ -1,8 +1,6 @@
-package mlang.core
+package mlang.compiler
 
-import javax.security.auth.login.AppConfigurationEntry.LoginModuleControlFlag
-import mlang.name._
-import mlang.utils.{DisjointSet, debug, warn}
+import mlang.utils.{DisjointSet, Name, debug, warn}
 
 import scala.collection.mutable
 
@@ -46,6 +44,11 @@ sealed trait Value {
     case r: Reference => r.value.deref()
     case Meta(c: Meta.Closed) => c.v.deref()
     case _ => this
+  }
+
+  def piapp(a: Value) : Value = this match {
+    case Value.Function(_, _, b) => b(a)
+    case _ => logicError()
   }
 
   def up(b: Int) : Value = this match {
@@ -386,6 +389,7 @@ object Value {
 
   var equiv: Value = null
   var fiber_at: Value = null
+  var fiber_at_ty: Value = null
   type ClosureGraph = Seq[ClosureGraph.Node]
   object ClosureGraph {
 
@@ -482,11 +486,11 @@ object Value {
       from(i) match {
         case IndependentWithMeta(ds, mss, typ) =>
           val ns = ValuedWithMeta(ds, mss, typ, a)
-          val mms: mutable.Seq[Value.Meta] = from.flatMap {
+          val mms: Seq[Value.Meta] = from.flatMap {
             case DependentWithMeta(_, ms, _) => (0 until ms).map(_ => null)
             case IndependentWithMeta(_, ms, _) => ms
             case ValuedWithMeta(_, ms, _, _) => ms
-          }.toBuffer
+          }
           val vs = from.indices.map(j => if (j == i) a else from(j) match {
             case ValuedWithMeta(_, _, _, v) => v
             case _ => null
@@ -629,7 +633,7 @@ object Value {
                 })
               )
             }
-            returns(Make(closures.map(_.apply(pair.to))))
+            returns(Make(closures.toSeq.map(_.apply(pair.to))))
           }
         case PathType(typ, left, right) =>
           returns(PathLambda(AbsClosure(dim => {
@@ -656,19 +660,43 @@ object Value {
                 babs,
                 VProj(x, base, e.fsubst(lfresh, r).fst),// this is ok because we know M is of this type!!
                 Seq(
-                  { val dp = DimensionPair(x, Dimension.False);
+                  { val dp = x.pairToFalse();
                     Face(dp, AbsClosure(y => App(
                       e.fsubst(lfresh, y).fst,
                       Coe(DimensionPair(r, y), aabs, base)).restrict(dp))) },
-                  { val dp = DimensionPair(x, Dimension.True);
+                  { val dp = x.pairToTrue();
                     Face(dp, AbsClosure(y =>
                       Coe(DimensionPair(r, y), babs, base).restrict(dp))) },
                 )))
           } else {
-            // FIXME not sure this is correct or not
+            /*
+define is_contractible(A: type): type = record {
+  field center: A
+  field to_center: (a: A) ⇒ a ≡ center
+}
+
+define fiber_at(#A #B: type, f: A ⇒ B, b: B): type = record {
+  field from: A
+  field is: f(from) ≡ b
+}
+
+define equiv(A B: type): type = record {
+  field f: A ⇒ B
+  field component: (b: B) ⇒ is_contractible(fiber_at(f, b))
+}
+             */
             val a0 = a.fsubst(lfresh, Dimension.False)
             val b0 = b.fsubst(lfresh, Dimension.False)
             val e0 = e.fsubst(lfresh, Dimension.False)
+            val N = Coe(pair, babs, VProj(r, base.restrict(r.pairToFalse()), e.fsubst(lfresh, r).fst))
+            val C = app(e.fsubst(lfresh, r_).snd, N) // fiber of f at n is contractible
+            val rp0 = r_.pairToFalse()
+            // this value is under r_ = 0
+            val F = fiber_at_ty.piapp(a0).piapp(b0).piapp(e0.fst).piapp(N.restrict(r_.pairToFalse()))
+            val oneToZero = Dimension.True.pairToFalse()
+            // also under r_ = 0
+            val O = ???
+            // FIXME not sure this is correct or not
             // based on redtt code, not the paper
             def basep(src: Dimension, dest: Dimension) =
               Coe(DimensionPair(src, dest), babs, VProj(src, base, e.fsubst(lfresh, src).fst))
@@ -753,7 +781,7 @@ object Value {
                     })
                   )
                 }
-                returns(Make(closures.map(_.apply(pair.to))))
+                returns(Make(closures.toSeq.map(_.apply(pair.to))))
               }
             case PathType(ty, left, right) =>
               returns(PathLambda(AbsClosure(dim => {
@@ -776,8 +804,7 @@ object Value {
                   x, O(pair.to), Hcom(pair, b, VProj(x, base, Projection(e, 0)),
                     Seq(
                       Face(x0, AbsClosure(y => App(Projection(e, 0), O(y)))),
-                      // FIXME it seems redtt doesn't have this face, the face0 is used to satisfy the equality rule for VMake, so face1 seems not useful?
-                      // Face(DimensionPair(x, Dimension.True), AbsClosure(y => Hcom(DimensionPair(pair.from, y), b, base, rs))),
+                      Face(DimensionPair(x, Dimension.True), AbsClosure(y => Hcom(DimensionPair(pair.from, y), b, base, rs))),
                     ) ++ rs.map(n => Face(n.restriction, n.body.map(j => VProj(x.restrict(n.restriction), j, Projection(e.restrict(n.restriction), 0)))))))
               )
             case _ =>
@@ -872,6 +899,11 @@ object Value {
   }
 
   sealed trait Dimension extends {
+
+    def pairToFalse() = DimensionPair(this, Dimension.False)
+
+    def pairToTrue() = DimensionPair(this, Dimension.True)
+
     def fsubst(a: Long, b: Dimension): Dimension = if (matches(a)) b else this
 
     def matches(id: Long): Boolean = this match {
@@ -1177,6 +1209,11 @@ object Value {
           case (Universe(l1), Universe(l2)) => Universe(l1 max l2)
           case _ => logicError()
         }
+      case VType(_, a, b, _) =>
+        (infer(a), infer(b)) match {
+          case (Universe(l1), Universe(l2)) => Universe(l1 max l2)
+          case _ => logicError()
+        }
       case r: Record =>
         r.inductively.map(a => Universe(a.level)).getOrElse(Universe(ClosureGraph.inferLevel(r.nodes)))
       case s: Sum =>
@@ -1232,7 +1269,7 @@ object Value {
       }
     }
     if (rec(pattern, v)) {
-      Some(vs)
+      Some(vs.toSeq)
     } else {
       None
     }

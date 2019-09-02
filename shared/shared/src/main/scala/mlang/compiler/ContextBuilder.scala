@@ -1,9 +1,8 @@
-package mlang.core
+package mlang.compiler
 
-import mlang.concrete.{Pattern => Patt}
-import mlang.core
-import mlang.core.Value.ClosureGraph
-import mlang.name._
+import mlang.compiler
+import mlang.compiler.Value.ClosureGraph
+import mlang.utils.Name
 
 import scala.collection.mutable
 
@@ -159,9 +158,9 @@ trait ContextBuilder extends ContextWithMetaOps {
 
 
 
-  def newPatternLayer(pattern: Patt, typ: Value): (Self, Value, Pattern) = {
+  def newPatternLayer(pattern: Concrete.Pattern, typ: Value): (Self, Value, Pattern) = {
     val vvv = mutable.ArrayBuffer[ParameterBinder]()
-    def recs(maps: Seq[Patt], nodes: ClosureGraph): Seq[(Value, Pattern)] = {
+    def recs(maps: Seq[Concrete.Pattern], nodes: ClosureGraph): Seq[(Value, Pattern)] = {
       var vs =  Seq.empty[(Value, Pattern)]
       var graph = nodes
       for (i <- maps.indices) {
@@ -172,9 +171,9 @@ trait ContextBuilder extends ContextWithMetaOps {
       vs
     }
 
-    def rec(p: Patt, t: Value): (Value, Pattern) = {
+    def rec(p: Concrete.Pattern, t: Value): (Value, Pattern) = {
       p match {
-        case Patt.Atom(name) =>
+        case Concrete.Pattern.Atom(name) =>
           var ret: (Value, Pattern) = null
           var index = 0
           name.asRef match {
@@ -192,7 +191,7 @@ trait ContextBuilder extends ContextWithMetaOps {
             ret = (open.value, Pattern.Atom)
           }
           ret
-        case Patt.Group(maps) =>
+        case Concrete.Pattern.Group(maps) =>
           t.whnf match {
             case r: Value.Record =>
               if (maps.size == r.nodes.size) {
@@ -203,7 +202,7 @@ trait ContextBuilder extends ContextWithMetaOps {
               }
             case _ => throw PatternExtractException.MakeIsNotRecordType()
           }
-        case Patt.NamedGroup(name, maps) =>
+        case Concrete.Pattern.NamedGroup(name, maps) =>
           t.whnf match {
             case sum: Value.Sum =>
               val index = sum.constructors.indexWhere(_.name.by(name))
@@ -223,7 +222,7 @@ trait ContextBuilder extends ContextWithMetaOps {
       }
     }
     val (os, p) = rec(pattern, typ)
-    val ctx: Self = Layer.MultiParameters(vvv, createMetas()) +: layers
+    val ctx: Self = Layer.MultiParameters(vvv.toSeq, createMetas()) +: layers
     (ctx, os, p)
   }
 }

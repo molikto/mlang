@@ -3,14 +3,13 @@ package mlang.poorparser
 
 import java.io.File
 
-import mlang.name._
+import mlang.compiler.{Concrete, NameType}
+import mlang.compiler.Concrete._
 
 import scala.util.parsing.combinator.syntactical.StandardTokenParsers
 import scala.util.parsing.combinator.{ImplicitConversions, PackratParsers}
-import mlang.concrete._
-import mlang.utils._
-import mlang.concrete.Term._
-import mlang.name.Name
+import mlang.utils.{Name, _}
+import mlang.compiler.Concrete._
 
 import scala.util.parsing.combinator.lexical.StdLexical
 
@@ -57,9 +56,9 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
   }
 
 
-  lazy val universe: PackratParser[Term] = keyword("type") ^^ { _ => Term.Type }
+  lazy val universe: PackratParser[Concrete] = keyword("type") ^^ { _ => Concrete.Type }
 
-  lazy val up: PackratParser[Term] = rep1("^") ~ ( universe | reference ) ^^ { a => Up(a._2, a._1.size) }
+  lazy val up: PackratParser[Concrete] = rep1("^") ~ ( universe | reference ) ^^ { a => Up(a._2, a._1.size) }
 
   lazy val let: PackratParser[Let] = keyword("run") ~> delimited("{", rep(declaration) ~ term, "}") ^^ { a => Let(a._1, a._2)}
 
@@ -72,7 +71,7 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
   //          p | (keyword(n) ^^ {_ =>  Primitive(n) })
   //        } |
 
-  lazy val term: PackratParser[Term] =
+  lazy val term: PackratParser[Concrete] =
         let |
         pi |
         ascription |
@@ -91,37 +90,37 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
         absDimension | reference
 
   lazy val reference = ident ^^ {a => Reference(a)}
-  lazy val make: PackratParser[Term] = keyword("make") ^^ {_ => Make }
-  lazy val meta: PackratParser[Term] = keyword("_") ^^ {_ => Hole }
+  lazy val make: PackratParser[Concrete] = keyword("make") ^^ { _ => Make }
+  lazy val meta: PackratParser[Concrete] = keyword("_") ^^ { _ => Hole }
 
-  lazy val interval: PackratParser[Term] = keyword("I") ^^ { _ => I }
+  lazy val interval: PackratParser[Concrete] = keyword("I") ^^ { _ => I }
 
-  lazy val undefined: PackratParser[Term] = "???" ^^ { _ => Undefined }
+  lazy val undefined: PackratParser[Concrete] = "???" ^^ { _ => Undefined }
   // path type
   lazy val pathType: PackratParser[PathType] = term ~ ("≡" ~> opt(delimited("[", term ,"]")) ~ term) ^^ {a =>
     PathType(a._2._1, a._1, a._2._2)
   }
 
-  lazy val absDimension: PackratParser[Term] = numericLit  ^^ { i => if (i == "0") Term.False else if (i == "1") Term.True else throw new Exception("...") }
+  lazy val absDimension: PackratParser[Concrete] = numericLit  ^^ { i => if (i == "0") Concrete.False else if (i == "1") Concrete.True else throw new Exception("...") }
 
   // kan
-  lazy val coe: PackratParser[Term] = keyword("coe") ~> delimited("(", term ~ delimited(",", term, ",") ~ term ~ ("," ~> term), ")")  ^^ {a => {
+  lazy val coe: PackratParser[Concrete] = keyword("coe") ~> delimited("(", term ~ delimited(",", term, ",") ~ term ~ ("," ~> term), ")")  ^^ { a => {
     Coe(Pair(a._1._1._1, a._1._1._2), a._1._2, a._2)
   }}
 
-  lazy val vtype: PackratParser[Term]=(keyword("V_type") ~> delimited("(", term ~ delimited(",", term, ",") ~ term ~ ("," ~> term), ")")) ^^ {a => Term.VType(a._1._1._1, a._1._1._2, a._1._2, a._2)}
+  lazy val vtype: PackratParser[Concrete]=(keyword("V_type") ~> delimited("(", term ~ delimited(",", term, ",") ~ term ~ ("," ~> term), ")")) ^^ { a => Concrete.VType(a._1._1._1, a._1._1._2, a._1._2, a._2)}
 
-  lazy val vmake: PackratParser[Term]=  keyword("V_make") ~>  delimited("(", (term <~ ",") ~ term, ")") ^^ {a => Term.VMake(a._1, a._2) }
+  lazy val vmake: PackratParser[Concrete]=  keyword("V_make") ~>  delimited("(", (term <~ ",") ~ term, ")") ^^ { a => Concrete.VMake(a._1, a._2) }
 
-  lazy val vproj: PackratParser[Term]= keyword("V_proj") ~>  delimited("(", term, ")") ^^ {a => Term.VProj(a) }
+  lazy val vproj: PackratParser[Concrete]= keyword("V_proj") ~>  delimited("(", term, ")") ^^ { a => Concrete.VProj(a) }
 
-  lazy val face: PackratParser[Term.Face] = ("|" ~> term <~ "=") ~ (term <~ ":") ~ term ^^ {a => Face(Pair(a._1._1, a._1._2), a._2) }
+  lazy val face: PackratParser[Concrete.Face] = ("|" ~> term <~ "=") ~ (term <~ ":") ~ term ^^ { a => Face(Pair(a._1._1, a._1._2), a._2) }
 
-  lazy val hcom: PackratParser[Term] = keyword("hcom") ~> (("(" ~> term) ~ delimited(",", term, ",") ~ term) ~ (rep(face) <~ ")") ^^ { a =>
+  lazy val hcom: PackratParser[Concrete] = keyword("hcom") ~> (("(" ~> term) ~ delimited(",", term, ",") ~ term) ~ (rep(face) <~ ")") ^^ { a =>
     Hcom(Pair(a._1._1._1, a._1._1._2), a._1._2, a._2)
   }
 
-  lazy val com: PackratParser[Term] = keyword("com") ~> delimited("(", term ~ delimited(",", term , ",") ~ term,",") ~ term  ~  (rep(face) <~")") ^^ { a =>
+  lazy val com: PackratParser[Concrete] = keyword("com") ~> delimited("(", term ~ delimited(",", term , ",") ~ term,",") ~ term  ~  (rep(face) <~")") ^^ { a =>
     Com(Pair(a._1._1._1._1, a._1._1._1._2), a._1._1._2, a._1._2, a._2)
   }
 
@@ -169,7 +168,7 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
   lazy val patternCases: PackratParser[PatternLambda] = opt("#") ~ (patternCaseEmpty | patternCaseSingle | patternMultiple) ^^ {
     a => PatternLambda(a._1.isDefined, a._2)
   }
-  lazy val patternLambda : PackratParser[Term] =  "─" ~> patternContinue ^^ { a => Term.Lambda(Name.empty, false, a) } |  patternCases
+  lazy val patternLambda : PackratParser[Concrete] =  "─" ~> patternContinue ^^ { a => Concrete.Lambda(Name.empty, false, a) } |  patternCases
 
   lazy val app: PackratParser[App] = term ~ delimited("(", repsep(opt("@") ~ term, ","), ")") ^^ {a => App(a._1, a._2.map(k => (k._1.isDefined, k._2)))}
 
@@ -180,8 +179,8 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
 
   lazy val sum: PackratParser[Sum] =
     (keyword("sum") ~> delimited("{", rep(
-      (keyword("case") ~> atomicPattern ~ tele ^^ { a => Seq(Term.Constructor(a._1, a._2)) }) |
-      (keyword("case") ~> rep1(atomicPattern) ^^ { _.map(i => Term.Constructor(i, Seq.empty)) : Seq[Term.Constructor] })
+      (keyword("case") ~> atomicPattern ~ tele ^^ { a => Seq(Concrete.Constructor(a._1, a._2)) }) |
+      (keyword("case") ~> rep1(atomicPattern) ^^ { _.map(i => Concrete.Constructor(i, Seq.empty)) : Seq[Concrete.Constructor] })
     ),"}")) ^^ { a =>
       Sum(a.flatten)
     }

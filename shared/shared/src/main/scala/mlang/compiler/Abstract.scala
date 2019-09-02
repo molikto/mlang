@@ -1,6 +1,6 @@
-package mlang.core
+package mlang.compiler
 
-import mlang.name._
+import mlang.utils.Name
 
 case class Dependency(i: Int, meta: Boolean)
 

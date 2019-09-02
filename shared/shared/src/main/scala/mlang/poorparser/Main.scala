@@ -2,7 +2,7 @@ package mlang.poorparser
 
 import java.io.File
 
-import mlang.core.TypeChecker
+import mlang.compiler.TypeChecker
 import mlang.utils.{Benchmark, debug, info}
 
 object Main extends Parser {

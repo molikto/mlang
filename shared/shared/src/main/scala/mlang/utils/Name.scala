@@ -1,6 +1,4 @@
-package mlang.name
-
-import mlang.utils.Text
+package mlang.utils
 
 
 // you create names by giving a non empty text or by referring to `Name.empty`, you test them by using method defined
@@ -11,7 +9,7 @@ case class Name(main: Text) {
   def source: String = s"Name"
   def intersect(name: Name): Boolean = this.main.nonEmpty && name.main.nonEmpty && name.main == main
   def by(name: Text): Boolean = this.main.nonEmpty && name.nonEmpty && name == main
-  def refSelf: Ref = main
+  def refSelf: Text = main
   def nonEmptyOrElse(hint: Name): Name = if (isEmpty) hint else this
   def isEmpty: Boolean = main.isEmpty
 
@@ -19,7 +17,7 @@ case class Name(main: Text) {
 
   // what's the difference? sometimes, during parsing, a name can be the same thing as a ref, so this tests
   // if this name can actually representing a ref
-  def asRef: Option[Ref] = Some(main)
+  def asRef: Option[Text] = Some(main)
 
 
   override def toString: String = main.toString

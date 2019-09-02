@@ -1,8 +1,7 @@
-package mlang.core
+package mlang.compiler
 
-import mlang.core.Value.Dimension
-import mlang.name.Name
-import mlang.utils.{Benchmark, Text, debug}
+import mlang.compiler.Value.Dimension
+import mlang.utils.{Benchmark, Name, Text, debug}
 
 import scala.reflect.runtime.currentMirror
 import scala.tools.reflect.ToolBox
@@ -201,7 +200,7 @@ trait PlatformEvaluator extends BaseEvaluator {
 
   private def holderSrc(res: String): String = {
       s"""
-         |import mlang.name.Name
+         |import mlang.utils.Name
          |import mlang.core._
          |import mlang.core.Value._
          |import mlang.utils.Text

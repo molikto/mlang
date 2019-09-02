@@ -1,4 +1,4 @@
-package mlang.core
+package mlang.compiler
 
 // a evaluator using dbj index shifting
 trait DirectEvaluator extends BaseEvaluator {

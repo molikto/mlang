@@ -26,7 +26,7 @@ lazy val `client-web` = project.in(file("client-web")).settings(
 ).enablePlugins(ScalaJSPlugin).dependsOn(shared.js)
 
 val sharedSettings = Seq(
-  scalaVersion := "2.12.6",
+  scalaVersion := "2.13.0",
   resolvers ++= Seq(
     "Sonatype OSS Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots/",
     Resolver.jcenterRepo,
@@ -44,8 +44,6 @@ val sharedSettings = Seq(
     //"-Xlint", // Enable recommended additional warnings.
     //"-Ywarn-adapted-args", // Warn if an argument list is modified to match the receiver.
     "-Ywarn-dead-code", // Warn when dead code is identified.
-    "-Ywarn-inaccessible", // Warn about inaccessible types in method signatures.
-    "-Ywarn-nullary-override", // Warn when non-nullary overrides nullary, e.g. def foo() over def foo.
     "-Ywarn-numeric-widen", // Warn when numerics are widened.
     "-Xlint:-unused,_",
     "-P:acyclic:force",

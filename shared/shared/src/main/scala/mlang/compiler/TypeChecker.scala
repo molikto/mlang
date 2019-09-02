@@ -1,11 +1,10 @@
-package mlang.core
+package mlang.compiler
 
-import mlang.concrete.{Pattern => Patt, _}
+import mlang.compiler.Concrete._
 import Context._
-import mlang.concrete.Declaration.Modifier
-import mlang.core
-import mlang.core.Value.Dimension
-import mlang.name._
+import Declaration.Modifier
+import mlang.compiler
+import mlang.compiler.Value.Dimension
 import mlang.utils._
 
 import scala.collection.mutable
@@ -107,10 +106,10 @@ class TypeChecker private (protected override val layers: Layers)
   }
 
   def checkCompatibleCapAndFaces(
-      faces: Seq[Term.Face],
-      bt: Value.AbsClosure,
-      bv: Value,
-      dv: Value.DimensionPair
+                                  faces: Seq[Concrete.Face],
+                                  bt: Value.AbsClosure,
+                                  bv: Value,
+                                  dv: Value.DimensionPair
   ): Seq[Abstract.Face] = {
     // we use this context to evaluate body of faces, it is only used to keep the dimension binding to the same
     // one, but as restricts is already present in abstract terms, it is ok to use this instead of others
@@ -158,9 +157,9 @@ class TypeChecker private (protected override val layers: Layers)
   }
 
 
-  def checkLine(a: Term, dim: Value.Dimension.Generic, typ: Value.AbsClosure): Abstract.AbsClosure = {
+  def checkLine(a: Concrete, dim: Value.Dimension.Generic, typ: Value.AbsClosure): Abstract.AbsClosure = {
     a match {
-      case Term.Lambda(n, b, body) =>
+      case Concrete.Lambda(n, b, body) =>
         if (b) throw TypeCheckException.DimensionLambdaCannotBeImplicit()
         val ctx = newDimensionLayer(n, dim)
         val ta = ctx.check(body, typ(dim))
@@ -175,9 +174,9 @@ class TypeChecker private (protected override val layers: Layers)
         }
     }
   }
-  def checkTypeLine(a: Term): (Int, Abstract.AbsClosure) = {
+  def checkTypeLine(a: Concrete): (Int, Abstract.AbsClosure) = {
     a match {
-      case Term.Lambda(n, b, body) =>
+      case Concrete.Lambda(n, b, body) =>
         if (b) throw TypeCheckException.DimensionLambdaCannotBeImplicit()
         val ctx = newDimensionLayer(n)._1
         val (l, ta0) = ctx.inferLevel(body)
@@ -204,7 +203,7 @@ class TypeChecker private (protected override val layers: Layers)
     }
   }
 
-  private def infer(term: Term, noReduceMore: Boolean = false): (Value, Abstract) = {
+  private def infer(term: Concrete, noReduceMore: Boolean = false): (Value, Abstract) = {
     debug(s"infer $term")
     def reduceMore(v: Value, abs: Abstract): (Value, Abstract) = {
       if (noReduceMore) {
@@ -214,15 +213,15 @@ class TypeChecker private (protected override val layers: Layers)
       }
     }
     val res = term match {
-      case Term.Type =>
+      case Concrete.Type =>
         (Value.Universe.level1, Abstract.Universe(0))
-      case Term.Up(a, b) =>
+      case Concrete.Up(a, b) =>
         a match {
-          case Term.Up(c, d) =>
-            infer(Term.Up(c, b + d))
-          case Term.Type =>
+          case Concrete.Up(c, d) =>
+            infer(Concrete.Up(c, b + d))
+          case Concrete.Type =>
             (Value.Universe(b + 1), Abstract.Universe(b))
-          case Term.Reference(ref) =>
+          case Concrete.Reference(ref) =>
             val (binder, abs) = lookupTerm(ref)
             abs match {
               case Abstract.Reference(up, _) if up == layers.size - 1 =>
@@ -231,31 +230,31 @@ class TypeChecker private (protected override val layers: Layers)
             }
           case _ => throw TypeCheckException.UpCanOnlyBeUsedOnTopLevelDefinitionOrUniverse()
         }
-      case Term.Reference(name) =>
+      case Concrete.Reference(name) =>
         // should lookup always return a value? like a open reference?
         val (binder, abs) = lookupTerm(name)
         reduceMore(binder, abs)
-      case Term.Hole =>
+      case Concrete.Hole =>
         throw TypeCheckException.CannotInferMeta()
-      case Term.True =>
+      case Concrete.True =>
         throw ContextException.ConstantSortWrong()
-      case Term.False =>
+      case Concrete.False =>
         throw ContextException.ConstantSortWrong()
-      case Term.I =>
+      case Concrete.I =>
         throw TypeCheckException.TermICanOnlyAppearInDomainOfFunction()
-      case Term.Make =>
+      case Concrete.Make =>
         throw TypeCheckException.CannotInferMakeExpression()
-      case _: Term.VMake =>
+      case _: Concrete.VMake =>
         throw TypeCheckException.CannotInferVMakeExpression()
-      case Term.Cast(v, t) =>
+      case Concrete.Cast(v, t) =>
         val (_, ta) = inferLevel(t)
         val tv = eval(ta)
         (tv, check(v, tv))
-      case Term.Function(domain, codomain) =>
+      case Concrete.Function(domain, codomain) =>
         if (domain.isEmpty) throw TypeCheckException.EmptyTelescope()
         val (l, v) = inferTelescope(NameType.flatten(domain), codomain)
         (Value.Universe(l), v)
-      case r@Term.Record(fields) =>
+      case r@Concrete.Record(fields) =>
         for (f <- fields) {
           if (f.names.isEmpty) throw TypeCheckException.MustBeNamed()
         }
@@ -268,7 +267,7 @@ class TypeChecker private (protected override val layers: Layers)
         }
         val (fl, fs) = newLayerInferFlatLevel(fields)
         (Value.Universe(fl), Abstract.Record(None, fs.map(_._1), fs.map(_._2), fs.map(a => (a._3.term.termDependencies(0).toSeq.sorted, a._3))))
-      case Term.Sum(constructors) =>
+      case Concrete.Sum(constructors) =>
         for (i <- constructors.indices) {
           for (j <- (i + 1) until constructors.size) {
             if (constructors(i).name.intersect(constructors(j).name)) {
@@ -281,21 +280,21 @@ class TypeChecker private (protected override val layers: Layers)
         val fl = fs.map(_._1).max
         (Value.Universe(fl), Abstract.Sum(None, fs.map(_._2).zip(constructors).map(a =>
           Abstract.Constructor(a._2.name, a._1.map(k => k._2), a._1.zipWithIndex.map(kk => (0 until kk._2, kk._1._3))))))
-      case Term.Coe(direction, tp, base) =>
+      case Concrete.Coe(direction, tp, base) =>
         // LATER does these needs finish off implicits?
         val (dv, da) = checkDimensionPair(direction)
         val (_, ta) = checkTypeLine(tp)
         val cl = eval(ta)
         val la = check(base, cl(dv.from))
         (cl(dv.to), Abstract.Coe(da, ta, la))
-      case Term.Com(direction, tp, base, faces) =>
+      case Concrete.Com(direction, tp, base, faces) =>
         val (dv, da) = checkDimensionPair(direction)
         val (_, ta) = checkTypeLine(tp)
         val cl = eval(ta)
         val ba = check(base, cl(dv.from))
         val rs = checkCompatibleCapAndFaces(faces, cl, eval(ba), dv)
         (cl(dv.to), Abstract.Com(da, ta, ba, rs))
-      case Term.Hcom(direction, base, faces) =>
+      case Concrete.Hcom(direction, base, faces) =>
         val (dv, da)= checkDimensionPair(direction)
         val (bt, ba) = infer(base)
         val bv = eval(ba)
@@ -303,7 +302,7 @@ class TypeChecker private (protected override val layers: Layers)
         val btr = reify(bt)
         debug(s"infer hcom type $btr", 1)
         (bt, Abstract.Hcom(da, btr, ba, rs))
-      case Term.PathType(typ, left, right) =>
+      case Concrete.PathType(typ, left, right) =>
         typ match {
           case Some(tp) =>
             val (tl, ca) = checkTypeLine(tp)
@@ -329,18 +328,18 @@ class TypeChecker private (protected override val layers: Layers)
                 throw TypeCheckException.InferPathEndPointsTypeNotMatching()
             }
         }
-      case Term.VProj(m) =>
+      case Concrete.VProj(m) =>
         val (mt, ma) = infer(m)
          mt match {
           case Value.VType(x, _, b, e) =>
             (b, Abstract.VProj(rebindDimension(x), ma, Abstract.Projection(reify(e), 0)))
           case _ => throw TypeCheckException.VProjCannotInfer()
         }
-      case p: Term.PatternLambda =>
+      case p: Concrete.PatternLambda =>
         throw TypeCheckException.CannotInferReturningTypeWithPatterns()
-      case l: Term.Lambda =>
+      case l: Concrete.Lambda =>
         throw TypeCheckException.CannotInferLambda()
-      case Term.Projection(left, right) =>
+      case Concrete.Projection(left, right) =>
         val (lt, la) = infer(left)
         val lv = eval(la)
         lazy val ltr = lt.whnf.asInstanceOf[Value.Record]
@@ -348,7 +347,7 @@ class TypeChecker private (protected override val layers: Layers)
         var index = -1
         def calIndex(a: Text => Int) = {
           index = right match {
-            case Term.Reference(name) => a(name)
+            case Concrete.Reference(name) => a(name)
             case _ => -1
           }
           index >= 0
@@ -360,19 +359,19 @@ class TypeChecker private (protected override val layers: Layers)
             lv.whnf match {
               // TODO user defined projections for a type, i.e.
               // TODO [issue 7] implement const_projections syntax
-              case r: Value.Record if right == Term.Make =>
+              case r: Value.Record if right == Concrete.Make =>
                 reduceMore(r.makerType, Abstract.Maker(la, -1))
               case r: Value.Sum if calIndex(t => r.constructors.indexWhere(_.name.by(t))) =>
                 reduceMore(r.constructors(index).makerType, Abstract.Maker(la, index))
               case _ => error()
             }
         }
-      case Term.App(lambda, arguments) =>
+      case Concrete.App(lambda, arguments) =>
         if (arguments.isEmpty) throw TypeCheckException.EmptyArguments()
         val (lt, la) = infer(lambda, true)
         val (v1, v2) = inferApp(lt, la, arguments)
         reduceMore(v1, v2) // because inferApp stops when arguments is finished
-      case Term.VType(x, a, b, e) =>
+      case Concrete.VType(x, a, b, e) =>
         val (xv, xa) = checkDimension(x)
         xv match {
           case g: Dimension.Generic =>
@@ -387,7 +386,7 @@ class TypeChecker private (protected override val layers: Layers)
           case _ =>
             throw TypeCheckException.RemoveConstantVType()
         }
-      case Term.Let(declarations, in) =>
+      case Concrete.Let(declarations, in) =>
         val (ctx, ms, da) = newDefinesLayer().checkDeclarations(declarations, false)
         val (it, ia) = ctx.infer(in)
         val ms0 = ctx.freezeReify()
@@ -397,20 +396,20 @@ class TypeChecker private (protected override val layers: Layers)
     res
   }
 
-  private def checkDimensionPair(p: Term.Pair): (Value.DimensionPair, Abstract.DimensionPair) = {
+  private def checkDimensionPair(p: Concrete.Pair): (Value.DimensionPair, Abstract.DimensionPair) = {
     val (a, b) = checkDimension(p.from)
     val (c, d) = checkDimension(p.to)
     (Value.DimensionPair(a, c), Abstract.DimensionPair(b, d))
   }
 
-  private def checkDimension(r: Term): (Value.Dimension, Abstract.Dimension) = {
+  private def checkDimension(r: Concrete): (Value.Dimension, Abstract.Dimension) = {
     r match {
-      case Term.Reference(name) =>
+      case Concrete.Reference(name) =>
         val (v, a) = lookupDimension(name)
         (v, a)
-      case Term.True =>
+      case Concrete.True =>
         (Value.Dimension.True, Abstract.Dimension.True)
-      case Term.False =>
+      case Concrete.False =>
         (Value.Dimension.False, Abstract.Dimension.False)
       case _ => throw TypeCheckException.ExpectingDimension()
     }
@@ -436,11 +435,11 @@ class TypeChecker private (protected override val layers: Layers)
   }
 
 
-  private def inferTelescope(domain: NameType.FlatSeq, codomain: Option[Term], body: Term): (Abstract, Abstract) = {
+  private def inferTelescope(domain: NameType.FlatSeq, codomain: Option[Concrete], body: Concrete): (Abstract, Abstract) = {
     domain match {
       case head +: tail =>
         head._3 match {
-          case Term.I =>
+          case Concrete.I =>
             if (head._1) throw TypeCheckException.DimensionLambdaCannotBeImplicit()
             val ctx = newDimensionLayer(head._2)._1
             val (ta, va) = ctx.inferTelescope(tail, codomain, body)
@@ -471,11 +470,11 @@ class TypeChecker private (protected override val layers: Layers)
     }
   }
 
-  private def inferTelescope(domain: NameType.FlatSeq, codomain: Term): (Int, Abstract) = {
+  private def inferTelescope(domain: NameType.FlatSeq, codomain: Concrete): (Int, Abstract) = {
     domain match {
       case head +: tail =>
         head._3 match {
-          case Term.I =>
+          case Concrete.I =>
             throw TypeCheckException.CannotInferPathTypeWithoutBody()
           case _ =>
             val (dl, da) = inferLevel(head._3)
@@ -489,7 +488,7 @@ class TypeChecker private (protected override val layers: Layers)
     }
   }
 
-  private def inferApp(lt: Value, la: Abstract, arguments: Seq[(Boolean, Term)]): (Value, Abstract) = {
+  private def inferApp(lt: Value, la: Abstract, arguments: Seq[(Boolean, Concrete)]): (Value, Abstract) = {
     arguments match {
       case head +: tail =>
         lt.whnf match {
@@ -521,9 +520,9 @@ class TypeChecker private (protected override val layers: Layers)
   }
 
   private def check(
-      term: Term,
-      cp: Value,
-      lambdaNameHints: Seq[Name] = Seq.empty
+                     term: Concrete,
+                     cp: Value,
+                     lambdaNameHints: Seq[Name] = Seq.empty
   ): Abstract = {
     debug(s"check $term")
     val (hint, tail) = lambdaNameHints match {
@@ -532,7 +531,7 @@ class TypeChecker private (protected override val layers: Layers)
     }
     def fallback(): Abstract = {
       term match {
-        case Term.Hole =>
+        case Concrete.Hole =>
           newMeta(cp)._2
         case _ =>
           val (tt, ta) = infer(term)
@@ -547,11 +546,11 @@ class TypeChecker private (protected override val layers: Layers)
     cp.whnf match {
       case Value.Function(domain, fimp, codomain) =>
         term match {
-          case Term.Lambda(n, limp, body) if fimp == limp =>
+          case Concrete.Lambda(n, limp, body) if fimp == limp =>
             val (ctx, v) = newParameterLayer(n.nonEmptyOrElse(hint), domain)
             val ba = ctx.check(body, codomain(v), tail)
             Abstract.Lambda(Abstract.Closure(ctx.finishReify(), ba))
-          case Term.PatternLambda(limp, cases) if fimp == limp =>
+          case Concrete.PatternLambda(limp, cases) if fimp == limp =>
             val res = cases.map(c => {
               val (ctx, v, pat) = newPatternLayer(c.pattern, domain)
               val ba = ctx.check(c.body, codomain(v), tail)
@@ -569,7 +568,7 @@ class TypeChecker private (protected override val layers: Layers)
         }
       case Value.VType(x, a, b, e) =>
         term match {
-          case Term.VMake(tm, tn) =>
+          case Concrete.VMake(tm, tn) =>
             val dp = Value.DimensionPair(x, Value.Dimension.False)
             val ctxr = newRestrictionLayer(dp)
             val m0 = ctxr.check(tm, a)
@@ -584,7 +583,7 @@ class TypeChecker private (protected override val layers: Layers)
         }
       case Value.PathType(typ, left, right) =>
         term match {
-          case Term.Lambda(n, b, body) =>
+          case Concrete.Lambda(n, b, body) =>
             if (b) throw TypeCheckException.DimensionLambdaCannotBeImplicit()
             val (c1, dv) = newDimensionLayer(n.nonEmptyOrElse(hint))
             val t1 = typ(dv)
@@ -603,11 +602,11 @@ class TypeChecker private (protected override val layers: Layers)
         }
       case r: Value.Record =>
         val cpd = reify(cp)
-        debug("reified record make type $cpd", 1)
+        debug(s"reified record make type $cpd", 1)
         term match {
-          case Term.App(Term.Make, vs) =>
+          case Concrete.App(Concrete.Make, vs) =>
             inferApp(r.makerType, Abstract.Maker(cpd, -1), vs)._2
-          case Term.Let(declarations, Term.App(Term.Make, vs)) =>
+          case Concrete.Let(declarations, Concrete.App(Concrete.Make, vs)) =>
             val (ctx, ms, da) = newDefinesLayer().checkDeclarations(declarations, false)
             val ia= ctx.inferApp(r.makerType, Abstract.Maker(cpd, -1), vs)._2
             val ms0 = ctx.freezeReify()
@@ -626,7 +625,7 @@ class TypeChecker private (protected override val layers: Layers)
       s: Declaration,
       mis: mutable.ArrayBuffer[CodeInfo[Value.Meta]],
       vis: mutable.ArrayBuffer[DefinitionInfo], topLevel: Boolean): Self = {
-    def wrapBody(t: Term, imp: Seq[Boolean]): Term = if (imp.isEmpty) t else wrapBody(Term.Lambda(Name.empty, imp.last, t), imp.dropRight(1))
+    def wrapBody(t: Concrete, imp: Seq[Boolean]): Concrete = if (imp.isEmpty) t else wrapBody(Concrete.Lambda(Name.empty, imp.last, t), imp.dropRight(1))
     def appendMetas(ms: Seq[Value.Meta]): Unit = {
       for (m <- ms) {
         mis.append(CodeInfo(reify(m.solved), m))
@@ -705,7 +704,7 @@ class TypeChecker private (protected override val layers: Layers)
             info(s"checked $name")
             ctx
           case None => t0 match {
-            case Some(t) if !ps.exists(_.ty == Term.I) =>
+            case Some(t) if !ps.exists(_.ty == Concrete.I) =>
               // term with type
               info(s"define $name")
               val pps = NameType.flatten(ps)
@@ -716,7 +715,7 @@ class TypeChecker private (protected override val layers: Layers)
               fillTo(vis, index); assert(vis(index) == null)
               vis.update(index, DefinitionInfo(None, CodeInfo(ta, generic)))
               val lambdaNameHints = pps.map(_._2) ++ (t match {
-                case Term.Function(d, _) =>
+                case Concrete.Function(d, _) =>
                   NameType.flatten(d).map(_._2)
                 case _ => Seq.empty
               })
@@ -749,6 +748,7 @@ class TypeChecker private (protected override val layers: Layers)
               if (name == Name(Text("fiber_at"))) {
                 assert(Value.fiber_at == null)
                 Value.fiber_at = ref.value
+                Value.fiber_at_ty = tv
               } else if (name == Name(Text("equiv"))) {
                 assert(Value.equiv == null)
                 Value.equiv = ref.value
@@ -811,12 +811,12 @@ class TypeChecker private (protected override val layers: Layers)
     if (vs.exists(a => a.code.isEmpty)) {
       throw TypeCheckException.DeclarationWithoutDefinition()
     }
-    (ctx, ms.map(_.code), vs.map(_.code.get.code))
+    (ctx, ms.map(_.code).toSeq, vs.map(_.code.get.code).toSeq)
   }
 
 
 
-  private def inferLevel(term: Term): (Int, Abstract) = {
+  private def inferLevel(term: Concrete): (Int, Abstract) = {
     val (tt, ta) = infer(term)
     tt.whnf match {
       case Value.Universe(l) => (l, ta)

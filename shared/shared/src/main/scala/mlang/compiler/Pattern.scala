@@ -1,6 +1,5 @@
-package mlang.core
+package mlang.compiler
 
-import mlang.name._
 
 
 sealed trait Pattern {
@@ -9,7 +8,6 @@ sealed trait Pattern {
     case Pattern.Make(names) => names.map(_.atomCount).sum
     case Pattern.Construct(_, pattern) => pattern.map(_.atomCount).sum
   }
-
 }
 
 object Pattern {

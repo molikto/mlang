@@ -1,16 +1,16 @@
-package mlang.core
+package mlang.compiler
 
 
-import mlang.core.Value.{Dimension, Reference}
-import mlang.name._
+import mlang.compiler.Value.{Dimension, Reference}
+import mlang.utils.{Name, Text}
 
 import scala.collection.mutable
 
 sealed trait ContextException extends CoreException
 
 object ContextException {
-  case class NonExistingReference(name: Ref) extends Exception(s"Non existing reference $name") with ContextException
-  case class ReferenceSortWrong(name: Ref) extends ContextException
+  case class NonExistingReference(name: Text) extends Exception(s"Non existing reference $name") with ContextException
+  case class ReferenceSortWrong(name: Text) extends ContextException
   case class ConstantSortWrong() extends ContextException
 }
 
@@ -46,7 +46,7 @@ object Context {
     def freeze(): Seq[Value.Meta] = {
       val vs = metas.slice(frozen, metas.size)
       frozen = metas.size
-      vs
+      vs.toSeq
     }
 
     def apply(i: Int): Value.Meta = metas(i)
@@ -93,7 +93,7 @@ object Layer {
 
 
 import Context._
-trait Context extends ContextBaseForMeta {
+trait Context {
 
   protected val layers: Layers
 
@@ -244,7 +244,7 @@ trait Context extends ContextBaseForMeta {
     binder
   }
 
-  def lookupTerm(name: Ref): (Value, Abstract) = {
+  def lookupTerm(name: Text): (Value, Abstract) = {
     lookup0(name) match {
       case (t: Value, j: Abstract) =>
         (t, j)
@@ -253,7 +253,7 @@ trait Context extends ContextBaseForMeta {
     }
   }
 
-  def lookupDimension(name: Ref): (Value.Dimension, Abstract.Dimension) = {
+  def lookupDimension(name: Text): (Value.Dimension, Abstract.Dimension) = {
     lookup0(name) match {
       case (t: Value.Dimension, j: Abstract.Dimension) =>
         (t, j)
@@ -262,7 +262,7 @@ trait Context extends ContextBaseForMeta {
     }
   }
 
-  private def lookup0(name: Ref): (Object, Object) =  {
+  private def lookup0(name: Text): (Object, Object) =  {
     var up = 0
     var ls = layers
     var binder: (Object, Object) = null
@@ -312,7 +312,7 @@ trait Context extends ContextBaseForMeta {
         up += 1
       }
     }
-    val rs = faces.map(_.res)
+    val rs = faces.map(_.res).toSeq
     if (binder == null) {
       throw ContextException.NonExistingReference(name)
     } else {

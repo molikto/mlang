@@ -1,4 +1,4 @@
-package mlang.core
+package mlang.compiler
 
 
 trait CoreException extends Exception

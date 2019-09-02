@@ -1,4 +1,4 @@
-package mlang.core
+package mlang.compiler
 
 import mlang.utils.{Benchmark, debug}
 
@@ -22,7 +22,7 @@ trait BaseEvaluator extends Context {
   private val ps = mutable.ArrayBuffer[Pattern]()
 
   protected def extractFromHolder(h: Holder): Value = {
-    val res = h.value(this, vs.clone(), cs.clone(), ps.clone())
+    val res = h.value(this, vs.toSeq, cs.toSeq, ps.toSeq)
     if (debug.enabled) {
       for (v <- vs.indices) debug(s"v$v: ${vs(v)}")
       for (v <- ps.indices) debug(s"v$v: ${ps(v)}")

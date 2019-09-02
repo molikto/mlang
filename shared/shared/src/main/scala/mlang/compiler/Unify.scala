@@ -1,8 +1,7 @@
-package mlang.core
+package mlang.compiler
 
 import Value._
-import mlang.name.Name
-import mlang.utils.{Benchmark, debug, warn}
+import mlang.utils.{Benchmark, Name, debug, warn}
 
 import scala.collection.mutable
 import scala.util.{Failure, Success, Try}
@@ -461,6 +460,6 @@ trait Unify extends Reifier with BaseEvaluator with PlatformEvaluator {
       }
     }
     val t = rec(pattern, typ)
-    (vs, t)
+    (vs.toSeq, t)
   }
 }

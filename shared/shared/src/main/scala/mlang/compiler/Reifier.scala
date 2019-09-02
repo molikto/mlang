@@ -1,10 +1,9 @@
-package mlang.core
+package mlang.compiler
 
-import mlang.core.Abstract._
-import mlang.core.Context.Layers
-import mlang.core.Value.{ClosureGraph, Meta}
-import mlang.name.Name
-import mlang.utils.{Benchmark, debug}
+import mlang.compiler.Abstract._
+import mlang.compiler.Context.Layers
+import mlang.compiler.Value.{ClosureGraph, Meta}
+import mlang.utils.{Benchmark, Name, debug}
 
 import scala.collection.mutable
 
@@ -18,7 +17,7 @@ private trait ReifierContext extends ContextBuilder {
   val metas = mutable.ArrayBuffer.empty[Abstract]
 
 
-  protected def reifyMetas(): Seq[Abstract] = metas
+  protected def reifyMetas(): Seq[Abstract] = metas.toSeq
 
   def reifyReference(r: Value.Reference): Abstract.Reference = {
     rebindReference(r) match {
