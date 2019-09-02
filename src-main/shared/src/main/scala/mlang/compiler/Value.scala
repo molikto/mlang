@@ -111,6 +111,44 @@ sealed trait Value {
       logicError()
   }
 
+  /**
+    * this is fsubst, the `a` parameter can only be negative fresh variables, this is safe because we never reuse a
+    * negative id.
+    */
+  def fsubst(a: Long, b: Dimension): Value = this match {
+    case Up(term, level) => Up(term.fsubst(a, b), level)
+    case Restricted(t, faces) => Restricted(t.fsubst(a, b), faces.map(_.fsubst(a, b)))
+    case Maker(value, field) => Maker(value.fsubst(a, b), field)
+    case Universe(_) => this
+    case Function(domain, impict, codomain) => Function(domain.fsubst(a, b), impict, codomain.fsubst(a, b))
+    case Record(inductively, names, ims, nodes) => Record(inductively.map(_.fsubst(a, b)), names, ims, ClosureGraph.fsubst(nodes, a, b))
+    case Make(values) => Make(values.map(_.fsubst(a, b)))
+    case Construct(name, vs) => Construct(name, vs.map(_.fsubst(a, b)))
+    case Sum(inductively, constructors) => Sum(inductively.map(_.fsubst(a, b)), constructors.map(c => Constructor(c.name, c.ims, ClosureGraph.fsubst(c.nodes, a, b))))
+    case Lambda(closure) => Lambda(closure.fsubst(a, b))
+    case PatternLambda(id, domain, typ, cases) => PatternLambda(id, domain.fsubst(a, b), typ.fsubst(a, b), cases.map(c => Case(c.pattern, c.closure.fsubst(a, b))))
+    case PathType(typ, left, right) => PathType(typ.fsubst(a, b), left.fsubst(a, b), right.fsubst(a, b))
+    case PathLambda(body) => PathLambda(body.fsubst(a, b))
+    case App(lambda, argument) => App(lambda.fsubst(a, b), argument.fsubst(a, b))
+    case Coe(direction, tp, base) => Coe(direction.fsubst(a, b), tp.fsubst(a, b), base.fsubst(a, b))
+    case Com(direction, tp, base, faces) => Com(direction.fsubst(a, b), tp.fsubst(a, b), base.fsubst(a, b), Face.fsubst(faces, a, b))
+    case Hcom(direction, tp, base, faces) => Hcom(direction.fsubst(a, b), tp.fsubst(a, b), base.fsubst(a, b), Face.fsubst(faces, a, b))
+    case Projection(make, field) => Projection(make.fsubst(a, b), field)
+    case PatternStuck(lambda, stuck) => PatternStuck(lambda.fsubst(a, b).asInstanceOf[PatternLambda], stuck.fsubst(a, b))
+    case PathApp(left, dimension) => PathApp(left.fsubst(a, b), dimension.fsubst(a, b))
+    case VProj(x, m, f) => VProj(x.fsubst(a, b), m.fsubst(a, b), f.fsubst(a, b))
+    case VType(x, j, k, e) => VType(x.fsubst(a, b), j.fsubst(a, b), k.fsubst(a, b), e.fsubst(a, b))
+    case VMake(x, m, n) => VMake(x.fsubst(a, b), m.fsubst(a, b), n.fsubst(a, b))
+    case Let(items, body) => Let(items.map(_.fsubst(a, b).asInstanceOf[Reference]), body.fsubst(a, b))
+    case r: Reference => r.fsubstSaved(a, b)
+    case m@Meta(k) => k match {
+      case _: Meta.Closed => m.fsubstSaved(a, b)
+      case _: Meta.Open => this // open metas and open references are all in context
+    }
+    case _: Generic => this
+    case _: Internal => logicError()
+  }
+
   // FIXME how does it interact with recursive references?
   def restrict(lv: DimensionPair): Value = if (lv.isTrue) this else this match {
     case u: Universe => u
@@ -355,6 +393,16 @@ object Value {
   type ClosureGraph = Seq[ClosureGraph.Node]
   object ClosureGraph {
 
+    def fsubst(graph: ClosureGraph, j: Long, k: Dimension): ClosureGraph = {
+      graph.map {
+        case DependentWithMeta(ds, mc, c) =>
+          DependentWithMeta(ds, mc, (a, b) => { val t = c(a, b); (t._1.map(_.fsubst(j, k).asInstanceOf[Value.Meta]), t._2.fsubst(j, k)) })
+        case IndependentWithMeta(ds, ms, typ) => IndependentWithMeta(ds, ms.map(_.fsubst(j, k).asInstanceOf[Value.Meta]), typ.fsubst(j, k))
+        case _ => logicError()
+      }
+    }
+
+
     def up(graph: ClosureGraph, uu: Int): ClosureGraph = {
       graph.map {
         case DependentWithMeta(ds, mc, c) =>
@@ -551,80 +599,76 @@ object Value {
       val fresh = Dimension.Generic(lfresh)
       typ(fresh).whnf match {
         case Function(domain, _, codomain) =>
-          ???
-//          val dabs = AbsClosure(k => domain.fsubst(lfresh, k))
-//          returns(Lambda(Value.Closure(a => {
-//            val a_ = Coe(pair.reverse, dabs, a)
-//            val app_ = App(base, a_)
-//            Coe(pair,
-//              AbsClosure(k => codomain.fsubst(lfresh, k)(Coe(DimensionPair(pair.to, k), dabs, a))),
-//              app_)
-//          })))
+          val dabs = AbsClosure(k => domain.fsubst(lfresh, k))
+          returns(Lambda(Value.Closure(a => {
+            val a_ = Coe(pair.reverse, dabs, a)
+            val app_ = App(base, a_)
+            Coe(pair,
+              AbsClosure(k => codomain.fsubst(lfresh, k)(Coe(DimensionPair(pair.to, k), dabs, a))),
+              app_)
+          })))
         case r: Record =>
-          ???
-//          if (r.nodes.isEmpty) {
-//            returns(base)
-//          } else {
-//            def graph(a: Dimension) = ClosureGraph.fsubst(r.nodes, lfresh, a)
-//            val closures = mutable.ArrayBuffer[AbsClosure]()
-//            for (i <- r.nodes.indices) {
-//              closures.append(
-//                AbsClosure(dim => {
-//                  r.nodes(i) match {
-//                    case _: ClosureGraph.Independent =>
-//                      Coe(
-//                        DimensionPair(pair.from, dim),
-//                        AbsClosure(k => graph(k)(i).independent.typ),
-//                        Projection(base, i)
-//                      )
-//                    case _: ClosureGraph.Dependent =>
-//                      Coe(
-//                        DimensionPair(pair.from, dim),
-//                        AbsClosure(k => ClosureGraph.get(graph(k), i, j => closures(j)(k))),
-//                        Projection(base, i)
-//                      )
-//                  }
-//                })
-//              )
-//            }
-//            returns(Make(closures.toSeq.map(_.apply(pair.to))))
-//          }
+          if (r.nodes.isEmpty) {
+            returns(base)
+          } else {
+            def graph(a: Dimension) = ClosureGraph.fsubst(r.nodes, lfresh, a)
+            val closures = mutable.ArrayBuffer[AbsClosure]()
+            for (i <- r.nodes.indices) {
+              closures.append(
+                AbsClosure(dim => {
+                  r.nodes(i) match {
+                    case _: ClosureGraph.Independent =>
+                      Coe(
+                        DimensionPair(pair.from, dim),
+                        AbsClosure(k => graph(k)(i).independent.typ),
+                        Projection(base, i)
+                      )
+                    case _: ClosureGraph.Dependent =>
+                      Coe(
+                        DimensionPair(pair.from, dim),
+                        AbsClosure(k => ClosureGraph.get(graph(k), i, j => closures(j)(k))),
+                        Projection(base, i)
+                      )
+                  }
+                })
+              )
+            }
+            returns(Make(closures.toSeq.map(_.apply(pair.to))))
+          }
         case PathType(typ, left, right) =>
-          ???
-//          returns(PathLambda(AbsClosure(dim => {
-//            Com(
-//              pair,
-//              AbsClosure(k => typ.fsubst(lfresh, k)(dim)),
-//              PathApp(base, dim),
-//              Seq(
-//                { val dp = DimensionPair(dim, Dimension.False); Face(dp, AbsClosure(a => left.fsubst(lfresh, a).restrict(dp))) },
-//                { val dp = DimensionPair(dim, Dimension.True); Face(dp,AbsClosure(a => right.fsubst(lfresh, a).restrict(dp))) }
-//                  ))
-//          })))
+          returns(PathLambda(AbsClosure(dim => {
+            Com(
+              pair,
+              AbsClosure(k => typ.fsubst(lfresh, k)(dim)),
+              PathApp(base, dim),
+              Seq(
+                { val dp = DimensionPair(dim, Dimension.False); Face(dp, AbsClosure(a => left.fsubst(lfresh, a).restrict(dp))) },
+                { val dp = DimensionPair(dim, Dimension.True); Face(dp,AbsClosure(a => right.fsubst(lfresh, a).restrict(dp))) }
+                  ))
+          })))
         case _: Sum =>
           ???
         case VType(x, a, b, e) =>
-          ???
-//          val r = pair.from
-//          val r_ = pair.to
-//          val aabs = AbsClosure(s => a.fsubst(lfresh, s))
-//          val babs = AbsClosure(s => b.fsubst(lfresh, s))
-//          returns(if (x != fresh) {
-//            VMake(x,
-//              Coe(pair, aabs, base).restrict(DimensionPair(x, Dimension.False)),
-//              Com(pair,
-//                babs,
-//                VProj(x, base, e.fsubst(lfresh, r).fst),// this is ok because we know M is of this type!!
-//                Seq(
-//                  { val dp = x.pairToFalse();
-//                    Face(dp, AbsClosure(y => App(
-//                      e.fsubst(lfresh, y).fst,
-//                      Coe(DimensionPair(r, y), aabs, base)).restrict(dp))) },
-//                  { val dp = x.pairToTrue();
-//                    Face(dp, AbsClosure(y =>
-//                      Coe(DimensionPair(r, y), babs, base).restrict(dp))) },
-//                )))
-//          } else {
+          val r = pair.from
+          val r_ = pair.to
+          val aabs = AbsClosure(s => a.fsubst(lfresh, s))
+          val babs = AbsClosure(s => b.fsubst(lfresh, s))
+          returns(if (x != fresh) {
+            VMake(x,
+              Coe(pair, aabs, base).restrict(DimensionPair(x, Dimension.False)),
+              Com(pair,
+                babs,
+                VProj(x, base, e.fsubst(lfresh, r).fst),// this is ok because we know M is of this type!!
+                Seq(
+                  { val dp = x.pairToFalse();
+                    Face(dp, AbsClosure(y => App(
+                      e.fsubst(lfresh, y).fst,
+                      Coe(DimensionPair(r, y), aabs, base)).restrict(dp))) },
+                  { val dp = x.pairToTrue();
+                    Face(dp, AbsClosure(y =>
+                      Coe(DimensionPair(r, y), babs, base).restrict(dp))) },
+                )))
+          } else {
             /*
 define is_contractible(A: type): type = record {
   field center: A
@@ -641,44 +685,44 @@ define equiv(A B: type): type = record {
   field component: (b: B) ⇒ is_contractible(fiber_at(f, b))
 }
              */
-//            val a0 = a.fsubst(lfresh, Dimension.False)
-//            val b0 = b.fsubst(lfresh, Dimension.False)
-//            val e0 = e.fsubst(lfresh, Dimension.False)
-//            val N = Coe(pair, babs, VProj(r, base.restrict(r.pairToFalse()), e.fsubst(lfresh, r).fst))
-//            val C = app(e.fsubst(lfresh, r_).snd, N) // fiber of f at n is contractible
-//            val rp0 = r_.pairToFalse()
-//            // this value is under r_ = 0
-//            val F = fiber_at_ty.piapp(a0).piapp(b0).piapp(e0.fst).piapp(N.restrict(r_.pairToFalse()))
-//            val oneToZero = Dimension.True.pairToFalse()
-//            // also under r_ = 0
-//            val O = ???
-//            // FIXME not sure this is correct or not
-//            // based on redtt code, not the paper
-//            def basep(src: Dimension, dest: Dimension) =
-//              Coe(DimensionPair(src, dest), babs, VProj(src, base, e.fsubst(lfresh, src).fst))
-//            def basep0(dest: Dimension) = basep(Dimension.False, dest)
-//            def basep1(dest: Dimension) = basep(Dimension.True, dest)
-//            def fiber0(b: Value) = app(e0.snd, b).fst
-//            /* This gives a path from the fiber `fib` to `fiber0 b`
-//              * where `b` is calculated from `fib` as
-//              * `ext_apply (do_snd fib) [`Dim1]` directly. */
-//            def contr0(fib: Value) = app(app(e0.snd, papp(fib.snd, Dimension.True)).snd, fib)
-//            val face_dialog = Face(pair, AbsClosure(_ => basep(r, r_)))
-//            val face0 = Face(DimensionPair(r, Dimension.False), AbsClosure(_ => basep0(r_)))
-//            def fiber0_ty(b: Value) = app(app(app(app(fiber_at, a0), b0), e0), b)
-//            val fixer_fiber: Value = {
-//              def fiber_at_face0 = Make(Seq(base, PathLambda(AbsClosure(_ => basep0(Dimension.False)))))
-//              val bb = basep(r, Dimension.False)
-//              Hcom(DimensionPair(Dimension.True, Dimension.False), fiber0_ty(bb), fiber0(bb), Seq(
-//                Face(DimensionPair(r, Dimension.False), AbsClosure(f => papp(contr0(fiber_at_face0), f))),
-//                Face(DimensionPair(r, Dimension.True), AbsClosure(_ => fiber0(basep1(Dimension.False))))
-//              ))
-//            }
-//            val el0 = fixer_fiber.fst
-//            val face_front = Face(DimensionPair(r_, Dimension.False), AbsClosure(f => papp(fixer_fiber.snd, f)))
-//            val el1 = Hcom(DimensionPair(Dimension.True, r_), b.fsubst(lfresh, r_), basep(r, r_), Seq(face0, face_dialog, face_front))
-//            VMake(r_, el0.restrict(DimensionPair(r_, Dimension.False)), el1)
-//          })
+            val a0 = a.fsubst(lfresh, Dimension.False)
+            val b0 = b.fsubst(lfresh, Dimension.False)
+            val e0 = e.fsubst(lfresh, Dimension.False)
+            val N = Coe(pair, babs, VProj(r, base.restrict(r.pairToFalse()), e.fsubst(lfresh, r).fst))
+            val C = app(e.fsubst(lfresh, r_).snd, N) // fiber of f at n is contractible
+            val rp0 = r_.pairToFalse()
+            // this value is under r_ = 0
+            val F = fiber_at_ty.piapp(a0).piapp(b0).piapp(e0.fst).piapp(N.restrict(r_.pairToFalse()))
+            val oneToZero = Dimension.True.pairToFalse()
+            // also under r_ = 0
+            val O = ???
+            // FIXME not sure this is correct or not
+            // based on redtt code, not the paper
+            def basep(src: Dimension, dest: Dimension) =
+              Coe(DimensionPair(src, dest), babs, VProj(src, base, e.fsubst(lfresh, src).fst))
+            def basep0(dest: Dimension) = basep(Dimension.False, dest)
+            def basep1(dest: Dimension) = basep(Dimension.True, dest)
+            def fiber0(b: Value) = app(e0.snd, b).fst
+            /* This gives a path from the fiber `fib` to `fiber0 b`
+              * where `b` is calculated from `fib` as
+              * `ext_apply (do_snd fib) [`Dim1]` directly. */
+            def contr0(fib: Value) = app(app(e0.snd, papp(fib.snd, Dimension.True)).snd, fib)
+            val face_dialog = Face(pair, AbsClosure(_ => basep(r, r_)))
+            val face0 = Face(DimensionPair(r, Dimension.False), AbsClosure(_ => basep0(r_)))
+            def fiber0_ty(b: Value) = app(app(app(app(fiber_at, a0), b0), e0), b)
+            val fixer_fiber: Value = {
+              def fiber_at_face0 = Make(Seq(base, PathLambda(AbsClosure(_ => basep0(Dimension.False)))))
+              val bb = basep(r, Dimension.False)
+              Hcom(DimensionPair(Dimension.True, Dimension.False), fiber0_ty(bb), fiber0(bb), Seq(
+                Face(DimensionPair(r, Dimension.False), AbsClosure(f => papp(contr0(fiber_at_face0), f))),
+                Face(DimensionPair(r, Dimension.True), AbsClosure(_ => fiber0(basep1(Dimension.False))))
+              ))
+            }
+            val el0 = fixer_fiber.fst
+            val face_front = Face(DimensionPair(r_, Dimension.False), AbsClosure(f => papp(fixer_fiber.snd, f)))
+            val el1 = Hcom(DimensionPair(Dimension.True, r_), b.fsubst(lfresh, r_), basep(r, r_), Seq(face0, face_dialog, face_front))
+            VMake(r_, el0.restrict(DimensionPair(r_, Dimension.False)), el1)
+          })
         case _ =>
           Coe(pair, typ, base)
       }
@@ -776,6 +820,7 @@ define equiv(A B: type): type = record {
     def eq(b: MultiClosure): Boolean = func.eq(b.func)
     def apply() = func(Seq.empty)
     def apply(seq: Seq[Value]): Value = func(seq)
+    def fsubst(a: Long, b: Dimension): MultiClosure = MultiClosure(v => this(v).fsubst(a, b))
     def restrict(lv: DimensionPair): MultiClosure = MultiClosure(v => this(v.map(a => Derestricted(a, lv))).restrict(lv))
     def up(b: Int): MultiClosure = MultiClosure(v => this(v.map(_.up(-b))).up(b))
   }
@@ -784,6 +829,7 @@ define equiv(A B: type): type = record {
 
     def eq(b: Closure): Boolean = func.eq(b.func)
     def apply(seq: Value): Value = func(seq)
+    def fsubst(a: Long, b: Dimension): Closure = Closure(v => this(v).fsubst(a, b))
     def restrict(lv: DimensionPair): Closure = Closure(v => this(Derestricted(v, lv)).restrict(lv))
     def up(b: Int): Value.Closure = Closure(v => this(v.up(-b)).up(b))
   }
@@ -802,6 +848,7 @@ define equiv(A B: type): type = record {
     def apply(seq: Dimension): Value = func(seq)
     def mapd(a: (Value, Dimension) => Value): AbsClosure = AbsClosure(d => a(this(d), d))
     def map(a: Value => Value): AbsClosure = AbsClosure(d => a(this(d)))
+    def fsubst(a: Long, b: Dimension): AbsClosure = AbsClosure(v => this(v).fsubst(a, b))
     def restrict(lv: DimensionPair): AbsClosure = AbsClosure(v => this(Dimension.Derestricted(v, lv)).restrict(lv))
     def up(b: Int): AbsClosure = AbsClosure(v => this(v).up(b))
   }
@@ -836,6 +883,8 @@ define equiv(A B: type): type = record {
   }
 
   case class DimensionPair(from: Dimension, to: Dimension) {
+    def fsubst(a: Long, b: Dimension) = DimensionPair(from.fsubst(a, b), to.fsubst(a, b))
+
     def restrict(a: DimensionPair) = DimensionPair(from.restrict(a), to.restrict(a))
 
     def sameRestrict(p: DimensionPair): Boolean = this.sorted == p.sorted
@@ -854,6 +903,8 @@ define equiv(A B: type): type = record {
     def pairToFalse() = DimensionPair(this, Dimension.False)
 
     def pairToTrue() = DimensionPair(this, Dimension.True)
+
+    def fsubst(a: Long, b: Dimension): Dimension = if (matches(a)) b else this
 
     def matches(id: Long): Boolean = this match {
       case Dimension.Generic(iid) => iid == id
@@ -931,6 +982,16 @@ define equiv(A B: type): type = record {
     def isSolved: Boolean = state.isInstanceOf[Meta.Closed]
 
     _from = this
+
+    @cached_mutation private val _fsubsts = mutable.HashMap.empty[(Long, Dimension), Meta]
+    def fsubstSaved(a: Long, b: Dimension): Meta = {
+      if (!_fsubsts.contains((a, b))) {
+        val r = Meta(null)
+        _fsubsts.put((a, b), r)
+        r.state = Meta.Closed(state.asInstanceOf[Meta.Closed].v.fsubst(a, b))
+      }
+      _fsubsts((a, b))
+    }
   }
 
   case class Reference(@lateinit private var value000: Value) extends Syntaxial {
@@ -940,6 +1001,7 @@ define equiv(A B: type): type = record {
     def value: Value =  value000
     def value_=(v: Value): Unit = {
       _ups.clear()
+      _fsubsts.clear()
       value000 = v
     }
 
@@ -953,6 +1015,16 @@ define equiv(A B: type): type = record {
         _ups.update(b, v)
         v
       }
+    }
+
+    @cached_mutation private val _fsubsts = mutable.HashMap.empty[(Long, Dimension), Reference]
+    def fsubstSaved(a: Long, b: Dimension): Reference = {
+      if (!_fsubsts.contains((a, b))) {
+        val r = Reference(null)
+        _fsubsts.put((a, b), r)
+        r.value000 = this.fsubst(a, b)
+      }
+      _fsubsts((a, b))
     }
 
     override def toString: String = "Reference"
@@ -993,6 +1065,8 @@ define equiv(A B: type): type = record {
   case class App(lambda: StuckPos, argument: Value) extends Stuck
 
   case class Inductively(id: Long, level: Int) {
+    def fsubst(a: Long, b: Dimension): Inductively = this
+
     def up(b: Int): Inductively = copy(level = level + b)
     def restrict(lv: DimensionPair): Inductively = this
   }
@@ -1016,6 +1090,17 @@ define equiv(A B: type): type = record {
   }
 
   object Face {
+    def fsubst(faces: Seq[Face], a: Long, b: Dimension): Seq[Face] = {
+      faces.flatMap(n => {
+        val r = n.restriction.fsubst(a, b)
+        if (r.isFalse) {
+          None
+        } else {
+          Some(Face(r, n.body.fsubst(a, b)))
+        }
+      })
+    }
+
     def restrict(faces: Seq[Face], lv: DimensionPair): Seq[Face] = {
       faces.flatMap(n => {
         val r = n.restriction.restrict(lv)
