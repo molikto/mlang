@@ -4,6 +4,11 @@
 
 under major renovation.
 
+* change how up is implemented
+* don't use type directed conversion checking anymore, should lambda be headless?
+* how to restrict properly?
+    * add "support" to local references
+
 ---------------
 
 [![Join the chat at https://gitter.im/mlang-discuess/community](https://badges.gitter.im/mlang-discuess/community.svg)](https://gitter.im/mlang-discuess/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge) 
@@ -33,13 +38,6 @@ there are other kind of TODOs in the project, they are `LATER`, `TODO`, and `FIX
 
 the one marked `FIXME` in code is important problems needs expert to figure out.
 
-
-## fixme
-
-* change how up is implemented
-* don't use type directed conversion checking anymore, should lambda be headless?
-* how to restrict properly?
-    * add "support" to local references
 
 ## roadmap
 
