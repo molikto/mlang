@@ -50,7 +50,7 @@ trait PlatformEvaluator extends Evaluator {
           s"{ val m$d = m${d}_.toBuffer; " +
             s"for (k <- 0 until ${c._2.metas.size}) { assert(m$d(k + ${metasBefore}) == null); m$d(k + $metasBefore) = Meta(null)}; " +
             s"${c._2.metas.zipWithIndex.map(k => (k._1, k._2 + metasBefore)).map(a => s"m$d(${a._2}).state = Meta.Closed(${emit(a._1, d)}); ").mkString("")}" +
-            s"(m$d.slice($metasBefore, ${metasBefore + c._2.metas.size}), ${emit(c._2.term, d)})}"
+            s"(m$d.slice($metasBefore, ${metasBefore + c._2.metas.size}).toSeq, ${emit(c._2.term, d)})}"
         }
         s"(Seq[Int](${c._1.mkString(", ")}), ${c._2.metas.size}, (m${d}_, r$d) => $metaBody)"
       }).mkString(", ")
@@ -102,7 +102,7 @@ trait PlatformEvaluator extends Evaluator {
                 s"${definitions.zipWithIndex.map(a =>
                   s"r$d(${a._2}).value = ${emit(a._1, d)}; ").mkString("")}" +
                 s"val body = ${emit(in, d)}; " +
-                s"Let(r$d, body)" +
+                s"Let(r$d.toSeq, body)" +
                 s"}"
           }
         case Abstract.Function(domain, impict, codomain) =>
@@ -199,14 +199,13 @@ trait PlatformEvaluator extends Evaluator {
 
   private def holderSrc(res: String): String = {
       s"""
-         |import mlang.utils.Name
-         |import mlang.core._
-         |import mlang.core.Value._
-         |import mlang.utils.Text
+         |import mlang.utils._
+         |import mlang.compiler._
+         |import mlang.compiler.Value._
          |
          |
          |new Holder {
-         |  def value(ctx: ValueContext, vs: Seq[Value], cs: Seq[Closure], ps: Seq[Pattern]) = $res
+         |  def value(ctx: EvaluationContext, vs: Seq[Value], cs: Seq[Closure], ps: Seq[Pattern]) = $res
          |}
        """.stripMargin
   }
