@@ -29,7 +29,12 @@ there are other kind of TODOs in the project, they are `LATER`, `TODO`, and `FIX
 the one marked `FIXME` in code is important problems needs expert to figure out.
 
 
+## fixme
+
+* Cartisian cubical type theory lacks some definitional equality compared to DeMorgan ones. how to fix them?
+* how to implement conversion check properly?
 * how to restrict properly?
+
 ## roadmap
 
 * **DONE** totally unsafe MLTT basics
