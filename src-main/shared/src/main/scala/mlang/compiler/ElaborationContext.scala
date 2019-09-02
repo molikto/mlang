@@ -252,23 +252,15 @@ trait ElaborationContext extends EvaluationContext {
     if (binder == null) {
       throw ElaborationContextException.NonExistingReference(name)
     } else {
-     def recad(j: Abstract.Dimension, seq: Seq[Value.Dimension]): Abstract.Dimension = {
-        if (seq.isEmpty) j
-        else Abstract.Dimension.Restricted(j, rs.map(a => rebindDimension(a)))
-      }
-      def reca(j: Abstract, seq: Seq[Value.Dimension]): Abstract = {
-        if (seq.isEmpty) j
-        else Abstract.Restricted(j, rs.map(a => rebindDimension(a)))
-      }
       binder match {
         case (t: Value, j: Abstract) =>
           if (isGlobalDefinition) {
             (t, j)
           } else {
-            (t.restrict(rs), reca(j, rs))
+            (t.restrict(rs), j)
           }
         case (t: Value.Dimension, j: Abstract.Dimension) =>
-          (t.restrict(rs), recad(j, rs))
+          (t.restrict(rs), j)
         case _ => logicError()
       }
     }

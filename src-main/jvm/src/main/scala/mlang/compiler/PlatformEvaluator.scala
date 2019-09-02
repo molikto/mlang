@@ -158,8 +158,6 @@ trait PlatformEvaluator extends Evaluator {
           s"VMake(${emit(x, depth)}, ${emitInner(m, d)}, ${emit(n, depth)})"
         case Abstract.VProj(x, m, f) =>
           s"VProj(${emit(x, depth)}, ${emit(m, depth)}, ${emit(f, depth)})"
-        case Abstract.Restricted(t, dir) =>
-          s"${emit(t, depth)}.restrict(${emit(dir, depth)})"
       }
     }
 

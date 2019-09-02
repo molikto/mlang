@@ -7,9 +7,7 @@ import scala.collection.mutable
 import Value._
 
 sealed trait Value {
-
   def from: Value = if (_from == null) this else _from
-
   /**
     *
     * HOW DOES restrict interacts with Up

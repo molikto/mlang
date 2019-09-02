@@ -4,10 +4,15 @@
 
 under major renovation.
 
-* change how up is implemented
+* change how restricted context implemented
+* how to restrict properly? ─ especially closure
 * don't use type directed conversion checking anymore, should lambda be headless?
-* how to restrict properly?
+* new local reference class
     * add "support" to local references
+* new global reference class
+    * implement new up
+* re-implement new coe/hcom
+* re-implement new glue/unglue
 
 ---------------
 
