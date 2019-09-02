@@ -8,9 +8,9 @@ import scala.collection.mutable
 
 
 
-sealed trait ContextBuilderException extends CoreException
+sealed trait ElaborationContextBuilderException extends CompilerException
 
-object ContextBuilderException {
+object ElaborationContextBuilderException {
 
   
 }

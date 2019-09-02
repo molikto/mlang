@@ -4,28 +4,11 @@ import mlang.utils.{DisjointSet, Name, debug, warn}
 
 import scala.collection.mutable
 
-sealed trait PatternExtractException extends CoreException
-
-object PatternExtractException {
-  case class MakeWrongSize() extends PatternExtractException
-  case class MakeIsNotRecordType() extends PatternExtractException
-  case class ConstructUnknownName() extends PatternExtractException
-  case class ConstructWrongSize() extends PatternExtractException
-  case class ConstructNotSumType() extends PatternExtractException
-}
-
 import Value._
-
 
 sealed trait Value {
 
   def from: Value = if (_from == null) this else _from
-
-
-
-  // two helper
-  private def fst: Value = Projection(this, 0)
-  private def snd: Value = Projection(this, 1)
 
   /**
     *

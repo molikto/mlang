@@ -13,7 +13,7 @@ import scala.language.implicitConversions
 
 
 
-sealed trait ElaborateException extends CoreException
+sealed trait ElaborateException extends CompilerException
 
 object ElaborateException {
 
@@ -241,9 +241,9 @@ class Elaborator private(protected override val layers: Layers)
       case Concrete.Hole =>
         throw ElaborateException.CannotInferMeta()
       case Concrete.True =>
-        throw ContextException.ConstantSortWrong()
+        throw ElaborationContextException.ConstantSortWrong()
       case Concrete.False =>
-        throw ContextException.ConstantSortWrong()
+        throw ElaborationContextException.ConstantSortWrong()
       case Concrete.I =>
         throw ElaborateException.TermICanOnlyAppearInDomainOfFunction()
       case Concrete.Make =>

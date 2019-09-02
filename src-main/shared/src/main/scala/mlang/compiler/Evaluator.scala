@@ -5,7 +5,7 @@ import mlang.utils.{Benchmark, debug}
 import scala.collection.mutable
 
 case class PlatformEvaluatorException(src: String, cause: Throwable)
-    extends Exception(s"Src: $src", cause) with CoreException
+    extends Exception(s"Src: $src", cause) with CompilerException
 
 trait Holder {
   def value(c: EvaluationContext, vs: Seq[Value], cs: Seq[Value.Closure], ps: Seq[Pattern]): Value

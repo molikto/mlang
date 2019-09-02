@@ -6,12 +6,12 @@ import mlang.utils.{Name, Text}
 
 import scala.collection.mutable
 
-sealed trait ContextException extends CoreException
+sealed trait ElaborationContextException extends CompilerException
 
-object ContextException {
-  case class NonExistingReference(name: Text) extends Exception(s"Non existing reference $name") with ContextException
-  case class ReferenceSortWrong(name: Text) extends ContextException
-  case class ConstantSortWrong() extends ContextException
+object ElaborationContextException {
+  case class NonExistingReference(name: Text) extends Exception(s"Non existing reference $name") with ElaborationContextException
+  case class ReferenceSortWrong(name: Text) extends ElaborationContextException
+  case class ConstantSortWrong() extends ElaborationContextException
 }
 
 case class RebindNotFoundException() extends Exception
@@ -235,7 +235,7 @@ trait ElaborationContext extends EvaluationContext {
       case (t: Value, j: Abstract) =>
         (t, j)
       case _ =>
-        throw ContextException.ReferenceSortWrong(name)
+        throw ElaborationContextException.ReferenceSortWrong(name)
     }
   }
 
@@ -244,7 +244,7 @@ trait ElaborationContext extends EvaluationContext {
       case (t: Value.Dimension, j: Abstract.Dimension) =>
         (t, j)
       case _ =>
-        throw ContextException.ReferenceSortWrong(name)
+        throw ElaborationContextException.ReferenceSortWrong(name)
     }
   }
 
@@ -300,7 +300,7 @@ trait ElaborationContext extends EvaluationContext {
     }
     val rs = faces.map(_.res).toSeq
     if (binder == null) {
-      throw ContextException.NonExistingReference(name)
+      throw ElaborationContextException.NonExistingReference(name)
     } else {
      def recad(j: Abstract.Dimension, seq: Seq[Value.Dimension]): Abstract.Dimension = {
         if (seq.isEmpty) j

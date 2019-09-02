@@ -5,7 +5,7 @@ import mlang.compiler.ElaborationContext.Metas
 import scala.collection.mutable
 
 
-sealed trait ContextWithMetaOpsException extends CoreException
+sealed trait ContextWithMetaOpsException extends CompilerException
 
 object ContextWithMetaOpsException {
 

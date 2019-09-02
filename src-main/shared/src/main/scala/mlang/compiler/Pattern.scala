@@ -2,6 +2,17 @@ package mlang.compiler
 
 
 
+sealed trait PatternExtractException extends CompilerException
+
+object PatternExtractException {
+  case class MakeWrongSize() extends PatternExtractException
+  case class MakeIsNotRecordType() extends PatternExtractException
+  case class ConstructUnknownName() extends PatternExtractException
+  case class ConstructWrongSize() extends PatternExtractException
+  case class ConstructNotSumType() extends PatternExtractException
+}
+
+
 sealed trait Pattern {
   def atomCount: Int = this match {
     case Pattern.Atom => 1
