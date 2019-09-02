@@ -3,7 +3,7 @@ import sbtcrossproject.CrossPlugin.autoImport.{crossProject, CrossType}
 
 
 
-lazy val shared = crossProject(JSPlatform, JVMPlatform).in(file("shared")).settings(
+lazy val `main` = crossProject(JSPlatform, JVMPlatform).in(file("src-main")).settings(
   sharedSettings,
 
   libraryDependencies ++= Seq(
@@ -16,14 +16,14 @@ lazy val shared = crossProject(JSPlatform, JVMPlatform).in(file("shared")).setti
   )
 ))
 
-lazy val `client-web` = project.in(file("client-web")).settings(
+lazy val `editor-web` = project.in(file("src-editor-web")).settings(
   sharedSettings,
   scalaJSUseMainModuleInitializer := true,
   libraryDependencies ++= Seq(
     "org.scala-js" %%% "scalajs-dom" % "0.9.7",
     "com.lihaoyi" %%% "scalatags" % "0.7.0"
   )
-).enablePlugins(ScalaJSPlugin).dependsOn(shared.js)
+).enablePlugins(ScalaJSPlugin).dependsOn(`main`.js)
 
 val sharedSettings = Seq(
   scalaVersion := "2.13.0",

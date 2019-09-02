@@ -25,7 +25,7 @@ jobs:
         key: sbt-cache
     - run:
         name: Compile & Test
-        command: sbt sharedJVM/run
+        command: sbt mainJVM/run
     - save_cache:
         key: sbt-cache
         paths:

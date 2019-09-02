@@ -12,9 +12,9 @@ see `tests` and `library` folder for sample code
 
 the project is written in Scala and is a standard SBT project. it can be cross compiled to Scala.js and Scala JVM. currently we are only compiling on JVM.
 
-to compile use `sbt sharedJVM/compile`
+to compile use `sbt mainJVM/compile`
 
-the project can be imported into IntelliJ IDEA, and to run/debug, just setup a profile to run `mlang.poorparser.Main` with classpath of module `jvm-shared` (or something like this)
+the project can be imported into IntelliJ IDEA, and to run/debug, just setup a profile to run `mlang.poorparser.Main` with classpath of module `jvm-main` (or something like this)
 
 we currently have a `.poor` syntax (because we want a better syntax: a structural editor). it uses some wired unicode characters, so to write library code, import `settings.jar` to IntelliJ IDEA, it defines some "Live Templates", or key shortcuts to input certain characters
 
