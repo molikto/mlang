@@ -1,44 +1,17 @@
 package mlang.compiler
 
 
+import mlang.compiler.ElaborationContext.Metas
 import mlang.compiler.Value.{Dimension, Reference}
 import mlang.utils.{Name, Text}
 
 import scala.collection.mutable
 
-sealed trait ElaborationContextException extends CompilerException
-
-object ElaborationContextException {
-  case class NonExistingReference(name: Text) extends Exception(s"Non existing reference $name") with ElaborationContextException
-  case class ReferenceSortWrong(name: Text) extends ElaborationContextException
-  case class ConstantSortWrong() extends ElaborationContextException
-}
-
 case class RebindNotFoundException() extends Exception
 
 
-case class ParameterBinder(name: Name, value: Value.Generic) {
-  def id: Long = value.id
-  def typ: Value = value.typ
-}
-
-sealed trait Depends[T] {
-  def t: T
-}
-
-
-// a defined term acts like a parameter when it doesn't have a body
-case class DefineItem(typ0: ParameterBinder, ref0: Option[Value.Reference]) {
-  def typ: Value = typ0.value.typ
-  def id: Long = typ0.id
-  def name: Name = typ0.name
-  def isDefined = ref0.isDefined
-  def ref = ref0.getOrElse(typ0.value)
-}
-
 object ElaborationContext {
   type Layers = Seq[Layer]
-
 
   class Metas(val metas: mutable.ArrayBuffer[Value.Meta], var frozen: Int) {
     def debug_allFrozen: Boolean = metas.size == frozen
@@ -67,29 +40,6 @@ object ElaborationContext {
 
 import ElaborationContext._
 
-sealed trait Layer {
-  val metas: Metas
-}
-
-object Layer {
-
-  sealed trait Parameters extends Layer {
-    def binders: Seq[ParameterBinder]
-  }
-  case class Parameter(binder: ParameterBinder, metas: Metas) extends Layer // lambda expression
-
-  case class MultiParameters(binders: Seq[ParameterBinder], metas: Metas) extends Parameters
-
-  case class ParameterGraph(defined: Seq[ParameterBinder], metas: Metas) extends Parameters {
-    def binders: Seq[ParameterBinder] = defined
-  }
-
-  case class Defines(metas: Metas, terms: Seq[DefineItem]) extends Layer // notice the metas is FIRST!!
-  case class Dimension(value: Value.Dimension.Generic, name: Name, metas: Metas) extends Layer {
-    def id = value.id
-  }
-  case class Restriction(res: Value.Dimension, metas: Metas) extends Layer // no meta should be resolved here
-}
 
 
 import ElaborationContext._
@@ -324,3 +274,4 @@ trait ElaborationContext extends EvaluationContext {
     }
   }
 }
+

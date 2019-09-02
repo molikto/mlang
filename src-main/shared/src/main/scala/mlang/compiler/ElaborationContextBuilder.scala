@@ -222,7 +222,7 @@ trait ElaborationContextBuilder extends ElaborationContextWithMetaOps {
       }
     }
     val (os, p) = rec(pattern, typ)
-    val ctx: Self = Layer.MultiParameters(vvv.toSeq, createMetas()) +: layers
+    val ctx: Self = Layer.PatternParameters(vvv.toSeq, createMetas()) +: layers
     (ctx, os, p)
   }
 }
