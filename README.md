@@ -1,6 +1,11 @@
 
 # mlang
 
+
+under major renovation.
+
+---------------
+
 [![Join the chat at https://gitter.im/mlang-discuess/community](https://badges.gitter.im/mlang-discuess/community.svg)](https://gitter.im/mlang-discuess/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge) 
 [![CircleCI](https://circleci.com/gh/molikto/mlang.svg?style=svg)](https://circleci.com/gh/molikto/mlang) 
 
@@ -22,7 +27,7 @@ we currently have a `.poor` syntax (because we want a better syntax: a structura
 
 here are some issues that are easy to do, and they are a good way to familiarize yourself with the project, they are marked with `good first issue` in issues list, and in the code, search for `[issue 123]` where `123` is the issue number will lead you to where need to be modified.
 
-if you need more background on a issue, plz go to gitter and juhttp://127.0.0.1:9000/document/3265955e-1f0d-402b-a4b0-45f010b4607b?node=8734d39d-af29-493f-968a-d165e5e1e095st ask.
+if you need more background on a issue, plz go to gitter and ask.
     
 there are other kind of TODOs in the project, they are `LATER`, `TODO`, and `FIXME`, use IntelliJ IDEA to browse them.
 
@@ -31,9 +36,10 @@ the one marked `FIXME` in code is important problems needs expert to figure out.
 
 ## fixme
 
-* Cartisian cubical type theory lacks some definitional equality compared to DeMorgan ones. how to fix them?
-* how to implement conversion check properly?
+* change how up is implemented
+* don't use type directed conversion checking anymore, should lambda be headless?
 * how to restrict properly?
+    * add "support" to local references
 
 ## roadmap
 
@@ -119,6 +125,7 @@ the one marked `FIXME` in code is important problems needs expert to figure out.
 
 **some of bellow is out of date and wrong now, it mainly serves as a place to clear up my thoughts**
 
+![](NOTES/DIAGRAM.png)
 
 ### core term and values
 
