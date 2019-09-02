@@ -56,7 +56,7 @@ the one marked `FIXME` in code is important problems needs expert to figure out.
 * cubical features
     * **DONE** path type
     * **DONE** coe, com, hcom; checking, computation for basic types
-    * **DONE** V-type and univalence
+    * **WIP** V-type and univalence
     * fibrant universe
     * sum type's Kan ops; fcom, higher inductive types
 * ~~~~~~~~
