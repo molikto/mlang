@@ -84,8 +84,6 @@ private trait ReifierContext extends ElaborationContextBuilder {
     v match {
       case Value.Universe(level) =>
         Universe(level)
-      case Value.Up(t, i) =>
-        Up(reify(t), i)
       case Value.Function(domain, i, codomain) =>
         Function(reify(domain), i, reify(codomain))
       case Value.Record(id, names, is, nodes) =>

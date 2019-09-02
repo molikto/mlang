@@ -141,6 +141,8 @@ class Elaborator private(protected override val layers: Layers)
       case Concrete.Type =>
         (Value.Universe.level1, Abstract.Universe(0))
       case Concrete.Up(a, b) =>
+        a
+        /*
         a match {
           case Concrete.Up(c, d) =>
             infer(Concrete.Up(c, b + d))
@@ -155,6 +157,7 @@ class Elaborator private(protected override val layers: Layers)
             }
           case _ => throw ElaborateException.UpCanOnlyBeUsedOnTopLevelDefinitionOrUniverse()
         }
+        */
       case Concrete.Reference(name) =>
         // should lookup always return a value? like a open reference?
         val (binder, abs) = lookupTerm(name)

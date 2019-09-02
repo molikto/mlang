@@ -16,7 +16,6 @@ sealed trait Abstract {
 
   def diff(depth: Int, x: Int): Abstract = this match {
     case _: Universe => this
-    case Up(t, i) => Up(t.diff(depth, x), i)
     case Reference(up, index) =>
       if (up >= depth) {
         assert(up + x >= 0)
@@ -54,7 +53,6 @@ sealed trait Abstract {
 
   def dependencies(i: Int): Set[Dependency] = this match {
     case Universe(_) => Set.empty
-    case Up(t, i) => t.dependencies(i)
     //case Reference(up, index) => if (i == up) Set(index) else Set.empty
     //case MetaReference(up, index) => Set.empty
     case Reference(up, index) => if (i == up) Set(Dependency(index, false)) else Set.empty

@@ -34,63 +34,6 @@ sealed trait Value {
     case _ => logicError()
   }
 
-  def up(b: Int) : Value = this match {
-    case Universe(i) =>
-      Universe(i + b)
-    case Function(domain, im, codomain) =>
-      Function(domain.up(b), im, codomain.up(b))
-    case Record(inductively, ms, ns, nodes) =>
-      Record(inductively.map(_.up(b)), ms, ns, ClosureGraph.up(nodes, b))
-    case Make(values) =>
-      Make(values.map(_.up(b)))
-    case Construct(name, vs) =>
-      Construct(name, vs.map(_.up(b)))
-    case Sum(inductively, constructors) =>
-      Sum(inductively.map(_.up(b)), constructors.map(n => Constructor(n.name, n.ims, ClosureGraph.up(n.nodes, b))))
-    case Lambda(closure) =>
-      Lambda(closure.up(b))
-    case PatternLambda(id, dom, typ, cases) =>
-      PatternLambda(id, dom.up(b), typ.up(b), cases.map(a => Case(a.pattern, a.closure.up(b))))
-    case PathType(typ, left, right) =>
-      PathType(typ.up(b), left.up(b), right.up(b))
-    case PathLambda(body) =>
-      PathLambda(body.up(b))
-    case App(lambda, argument) =>
-      App(lambda.up(b), argument.up(b))
-    case Coe(direction, tp, base) =>
-      Coe(direction, tp.up(b), base.up(b))
-    case Hcom(direction, tp, base, faces) =>
-      Hcom(direction, tp.up(b), base.up(b), faces.map(_.up(b)))
-    case Com(direction, tp, base, faces) =>
-      Com(direction, tp.up(b), base.up(b), faces.map(_.up(b)))
-    case Maker(value, field) =>
-      Maker(value.up(b), field)
-    case Projection(make, field) =>
-      Projection(make.up(b), field)
-    case PatternStuck(lambda, stuck) =>
-      PatternStuck(lambda.up(b).asInstanceOf[PatternLambda], stuck.up(b))
-    case PathApp(left, stuck) =>
-      PathApp(left.up(b), stuck)
-    case VType(x, a, p, e) =>
-      VType(x, a.up(b), p.up(b), e.up(b))
-    case VMake(x, m, n) =>
-      VMake(x, m.up(b), n.up(b))
-    case VProj(x, m, f) =>
-      VProj(x, m.up(b), f.up(b))
-    case Let(items, body) =>
-      Let(items, body.up(b))
-    case Up(c, d) =>
-      if (b + d == 0) c
-      else Up(c, b + d)
-    case g: Generic =>
-      Up(g, b)
-    case o: Meta =>
-      Up(o, b)
-    case o: Reference =>
-      Up(o, b)
-    case _: Internal =>
-      logicError()
-  }
 
 
   // FIXME how does it interact with recursive references?
@@ -289,12 +232,6 @@ sealed trait Value {
             }
           }
            */
-        case Up(a, b) =>
-          // a can only be reference
-          a match {
-            case GenericOrOpenMeta(it) => Up(it, b) // stop case
-            case ReferenceTail(v, c) => c.map(_.derefUpSaved(b)).getOrElse(v.up(b)).whnf
-          }
         case _: Internal =>
           logicError()
       }
@@ -342,16 +279,6 @@ object Value {
   var fiber_at_ty: Value = null
   type ClosureGraph = Seq[ClosureGraph.Node]
   object ClosureGraph {
-
-    def up(graph: ClosureGraph, uu: Int): ClosureGraph = {
-      graph.map {
-        case DependentWithMeta(ds, mc, c) =>
-          DependentWithMeta(ds, mc, (a, b) => { val t = c(a, b.map(_.up(-uu))); (t._1, t._2.up(uu)) })
-        case IndependentWithMeta(ds, ms, typ) => IndependentWithMeta(ds, ms, typ.up(uu))
-        case _ => logicError()
-      }
-    }
-
     def restrict(graph: ClosureGraph, lv: Dimension): ClosureGraph = {
       graph.map {
         case DependentWithMeta(ds, mc, c) =>
@@ -362,8 +289,6 @@ object Value {
         case _ => logicError()
       }
     }
-
-
 
     sealed trait Node {
       def dependencies: Seq[Int]
@@ -545,14 +470,12 @@ object Value {
     def eq(b: MultiClosure): Boolean = func.eq(b.func)
     def apply() = func(Seq.empty)
     def apply(seq: Seq[Value]): Value = func(seq)
-    def up(b: Int): MultiClosure = MultiClosure(v => this(v.map(_.up(-b))).up(b))
   }
 
   implicit class Closure(private val func: Value => Value) extends AnyVal {
 
     def eq(b: Closure): Boolean = func.eq(b.func)
     def apply(seq: Value): Value = func(seq)
-    def up(b: Int): Value.Closure = Closure(v => this(v.up(-b)).up(b))
   }
 
   object Closure {
@@ -569,7 +492,6 @@ object Value {
     def apply(seq: Dimension): Value = func(seq)
     def mapd(a: (Value, Dimension) => Value): AbsClosure = AbsClosure(d => a(this(d), d))
     def map(a: Value => Value): AbsClosure = AbsClosure(d => a(this(d)))
-    def up(b: Int): AbsClosure = AbsClosure(v => this(v).up(b))
   }
 
   sealed trait Dimension extends {
@@ -640,29 +562,8 @@ object Value {
     _from = this
   }
 
-  case class Reference(@lateinit private var value000: Value) extends Syntaxial {
-
+  case class Reference(@lateinit var value: Value) extends Syntaxial {
     _from = this
-
-    def value: Value =  value000
-    def value_=(v: Value): Unit = {
-      _ups.clear()
-      value000 = v
-    }
-
-    @cached_mutation private val _ups = mutable.ArrayBuffer.empty[Value]
-    def derefUpSaved(b: Int): Value = {
-      if (b < _ups.size && _ups(b) != null) {
-        _ups(b)
-      } else {
-        val v = value.up(b)
-        while (b >= _ups.size) _ups.append(null)
-        _ups.update(b, v)
-        v
-      }
-    }
-
-
     override def toString: String = "Reference"
   }
 
@@ -690,12 +591,11 @@ object Value {
   case class Universe(level: Int) extends HeadCanonical
 
   object Universe {
-    def suc(i: Int) = Universe(i + 1)
+    def suc(i: Int) = Universe(i)
+    //def suc(i: Int) = Universe(i + 1)
     def level0 = Universe(1)
     def level1 = Universe(1)
   }
-
-  case class Up(term: Value, level: Int) extends Syntaxial
 
   case class Function(domain: Value, impict: Boolean, codomain: Closure) extends HeadCanonical
   case class App(lambda: StuckPos, argument: Value) extends Stuck
@@ -725,9 +625,7 @@ object Value {
 
   object Face {
   }
-  case class Face(restriction: Dimension, body: AbsClosure) {
-    def up(a: Int) = Face(restriction, body.up(a))
-  }
+  case class Face(restriction: Dimension, body: AbsClosure)
 
   case class Coe(direction: Dimension, tp: AbsClosure.StuckPos, base: Value) extends Stuck
 
@@ -811,7 +709,6 @@ object Value {
 //      case Restricted(a, fs) =>
 //        fs.foldLeft(infer(a)) { (t, r) => t.restrict(r) }
       case Universe(level) => Universe.suc(level)
-      case Up(a, b) => infer(a).up(b)
       case Function(domain, _, codomain) =>
         (infer(domain), infer(codomain(Generic(gen(), domain)))) match {
           case (Universe(l1), Universe(l2)) => Universe(l1 max l2)
