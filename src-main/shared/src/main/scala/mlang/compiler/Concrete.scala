@@ -29,6 +29,10 @@ object Concrete {
   case object I extends Concrete
   case object True extends Concrete
   case object False extends Concrete
+  case class And(left: Concrete, right: Concrete) extends Concrete
+  case class Or(left: Concrete, right: Concrete) extends Concrete
+  case class Neg(a: Concrete) extends Concrete
+
   case object Make extends Concrete // special identifier for maker of a record type
 
   case class Up(a: Concrete, i: Int) extends Concrete
