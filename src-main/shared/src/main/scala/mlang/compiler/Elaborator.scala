@@ -13,94 +13,94 @@ import scala.language.implicitConversions
 
 
 
-sealed trait TypeCheckException extends CoreException
+sealed trait ElaborateException extends CoreException
 
-object TypeCheckException {
+object ElaborateException {
 
 
   // syntax
-  case class FieldsDuplicated() extends TypeCheckException
-  case class TagsDuplicated() extends TypeCheckException
-  case class MustBeNamed() extends TypeCheckException
-  case class EmptyTelescope() extends TypeCheckException
-  case class EmptyArguments() extends TypeCheckException
+  case class FieldsDuplicated() extends ElaborateException
+  case class TagsDuplicated() extends ElaborateException
+  case class MustBeNamed() extends ElaborateException
+  case class EmptyTelescope() extends ElaborateException
+  case class EmptyArguments() extends ElaborateException
 
   // elimination mismatch
-  case class UnknownAsType() extends TypeCheckException
-  case class UnknownProjection() extends Exception(s"Unknown projection") with TypeCheckException
-  case class UnknownAsFunction() extends TypeCheckException
+  case class UnknownAsType() extends ElaborateException
+  case class UnknownProjection() extends Exception(s"Unknown projection") with ElaborateException
+  case class UnknownAsFunction() extends ElaborateException
 
 
-  case class CannotInferLambda() extends TypeCheckException
-  case class CannotInferReturningTypeWithPatterns() extends TypeCheckException
+  case class CannotInferLambda() extends ElaborateException
+  case class CannotInferReturningTypeWithPatterns() extends ElaborateException
 
-  case class CannotInferObjectNow()  extends TypeCheckException
-
-
-  case class TypeMismatch() extends TypeCheckException
-
-  case class ForbiddenModifier() extends TypeCheckException
-
-  case class DeclarationWithoutDefinition() extends TypeCheckException
-
-  case class ExpectingDimension() extends TypeCheckException
-
-  case class PathEndPointsNotMatching() extends TypeCheckException
-  case class InferPathEndPointsTypeNotMatching() extends TypeCheckException
-
-  case class ExpectingLambdaTerm() extends TypeCheckException
-
-  case class CapNotMatching() extends TypeCheckException
-  case class FacesNotMatching() extends TypeCheckException
-
-  case class RequiresValidRestriction() extends TypeCheckException
-  case class TermICanOnlyAppearInDomainOfFunction() extends TypeCheckException
+  case class CannotInferObjectNow()  extends ElaborateException
 
 
-  case class CannotInferMakeExpression() extends TypeCheckException
-  case class CannotInferVMakeExpression() extends TypeCheckException
+  case class TypeMismatch() extends ElaborateException
 
-  case class VProjCannotInfer() extends TypeCheckException
+  case class ForbiddenModifier() extends ElaborateException
 
-  case class CannotInferMeta() extends TypeCheckException
+  case class DeclarationWithoutDefinition() extends ElaborateException
 
-  case class NotDefinedReferenceForTypeExpressions() extends TypeCheckException
+  case class ExpectingDimension() extends ElaborateException
+
+  case class PathEndPointsNotMatching() extends ElaborateException
+  case class InferPathEndPointsTypeNotMatching() extends ElaborateException
+
+  case class ExpectingLambdaTerm() extends ElaborateException
+
+  case class CapNotMatching() extends ElaborateException
+  case class FacesNotMatching() extends ElaborateException
+
+  case class RequiresValidRestriction() extends ElaborateException
+  case class TermICanOnlyAppearInDomainOfFunction() extends ElaborateException
 
 
-  case class NotExpectingImplicitArgument() extends TypeCheckException
+  case class CannotInferMakeExpression() extends ElaborateException
+  case class CannotInferVMakeExpression() extends ElaborateException
 
-  case class RecursiveTypesMustBeDefinedAtTopLevel() extends TypeCheckException
+  case class VProjCannotInfer() extends ElaborateException
 
-  case class UpCanOnlyBeUsedOnTopLevelDefinitionOrUniverse()  extends TypeCheckException
+  case class CannotInferMeta() extends ElaborateException
 
-  case class AlreadyDeclared() extends TypeCheckException
-  case class AlreadyDefined() extends TypeCheckException
-  case class NotDeclared() extends TypeCheckException
-  case class SeparateDefinitionCannotHaveTypesNow() extends TypeCheckException
-  case class DimensionLambdaCannotBeImplicit() extends TypeCheckException
-  case class CannotInferPathTypeWithoutBody() extends TypeCheckException
+  case class NotDefinedReferenceForTypeExpressions() extends ElaborateException
+
+
+  case class NotExpectingImplicitArgument() extends ElaborateException
+
+  case class RecursiveTypesMustBeDefinedAtTopLevel() extends ElaborateException
+
+  case class UpCanOnlyBeUsedOnTopLevelDefinitionOrUniverse()  extends ElaborateException
+
+  case class AlreadyDeclared() extends ElaborateException
+  case class AlreadyDefined() extends ElaborateException
+  case class NotDeclared() extends ElaborateException
+  case class SeparateDefinitionCannotHaveTypesNow() extends ElaborateException
+  case class DimensionLambdaCannotBeImplicit() extends ElaborateException
+  case class CannotInferPathTypeWithoutBody() extends ElaborateException
 
   // TODO maybe we should just show a warning
-  case class RemoveFalseFace() extends TypeCheckException
-  case class RemoveConstantVType() extends TypeCheckException
-  case class VTypeDimensionInconsistent() extends TypeCheckException
+  case class RemoveFalseFace() extends ElaborateException
+  case class RemoveConstantVType() extends ElaborateException
+  case class VTypeDimensionInconsistent() extends ElaborateException
 
-  case class VMakeMismatch() extends TypeCheckException
+  case class VMakeMismatch() extends ElaborateException
 }
 
 
-object TypeChecker {
+object Elaborator {
   private val pgen = new LongGen.Positive()
   private val igen = new LongGen.Positive()
-  def topLevel(): TypeChecker = new TypeChecker(Seq.empty).newDefinesLayer()
+  def topLevel(): Elaborator = new Elaborator(Seq.empty).newDefinesLayer()
 }
 
-class TypeChecker private(protected override val layers: Layers)
+class Elaborator private(protected override val layers: Layers)
     extends ElaborationContextBuilder with Evaluator with PlatformEvaluator with Unify {
 
-  override type Self = TypeChecker
+  override type Self = Elaborator
 
-  override protected implicit def create(a: Layers): Self = new TypeChecker(a)
+  override protected implicit def create(a: Layers): Self = new Elaborator(a)
 
   def checkValidRestrictions(ds0: Seq[Value.Dimension]) = {
     ???
@@ -164,7 +164,7 @@ class TypeChecker private(protected override val layers: Layers)
   def checkLine(a: Concrete, dim: Value.Dimension.Generic, typ: Value.AbsClosure): Abstract.AbsClosure = {
     a match {
       case Concrete.Lambda(n, b, body) =>
-        if (b) throw TypeCheckException.DimensionLambdaCannotBeImplicit()
+        if (b) throw ElaborateException.DimensionLambdaCannotBeImplicit()
         val ctx = newDimensionLayer(n, dim)
         val ta = ctx.check(body, typ(dim))
         Abstract.AbsClosure(ctx.finishReify(), ta)
@@ -174,14 +174,14 @@ class TypeChecker private(protected override val layers: Layers)
         tv.whnf match {
           case j@Value.PathType(_, _, _) =>
             Abstract.AbsClosure(ctx.finishReify(), Abstract.PathApp(ta, Abstract.Dimension.Reference(0)))
-          case _ => throw TypeCheckException.ExpectingLambdaTerm()
+          case _ => throw ElaborateException.ExpectingLambdaTerm()
         }
     }
   }
   def checkTypeLine(a: Concrete): (Int, Abstract.AbsClosure) = {
     a match {
       case Concrete.Lambda(n, b, body) =>
-        if (b) throw TypeCheckException.DimensionLambdaCannotBeImplicit()
+        if (b) throw ElaborateException.DimensionLambdaCannotBeImplicit()
         val ctx = newDimensionLayer(n)._1
         val (l, ta0) = ctx.inferLevel(body)
         val ta = Abstract.AbsClosure(ctx.finishReify(), ta0)
@@ -193,7 +193,7 @@ class TypeChecker private(protected override val layers: Layers)
           case j@Value.PathType(_, _, _) =>
             val clo = Abstract.AbsClosure(ctx.finishReify(), Abstract.PathApp(ta, Abstract.Dimension.Reference(0)))
             (Value.inferLevel(j), clo)
-          case _ => throw TypeCheckException.ExpectingLambdaTerm()
+          case _ => throw ElaborateException.ExpectingLambdaTerm()
         }
     }
   }
@@ -230,42 +230,42 @@ class TypeChecker private(protected override val layers: Layers)
             abs match {
               case Abstract.Reference(up, _) if up == layers.size - 1 =>
                 reduceMore(binder.up(b), Abstract.Up(abs, b))
-              case _ => throw TypeCheckException.UpCanOnlyBeUsedOnTopLevelDefinitionOrUniverse()
+              case _ => throw ElaborateException.UpCanOnlyBeUsedOnTopLevelDefinitionOrUniverse()
             }
-          case _ => throw TypeCheckException.UpCanOnlyBeUsedOnTopLevelDefinitionOrUniverse()
+          case _ => throw ElaborateException.UpCanOnlyBeUsedOnTopLevelDefinitionOrUniverse()
         }
       case Concrete.Reference(name) =>
         // should lookup always return a value? like a open reference?
         val (binder, abs) = lookupTerm(name)
         reduceMore(binder, abs)
       case Concrete.Hole =>
-        throw TypeCheckException.CannotInferMeta()
+        throw ElaborateException.CannotInferMeta()
       case Concrete.True =>
         throw ContextException.ConstantSortWrong()
       case Concrete.False =>
         throw ContextException.ConstantSortWrong()
       case Concrete.I =>
-        throw TypeCheckException.TermICanOnlyAppearInDomainOfFunction()
+        throw ElaborateException.TermICanOnlyAppearInDomainOfFunction()
       case Concrete.Make =>
-        throw TypeCheckException.CannotInferMakeExpression()
+        throw ElaborateException.CannotInferMakeExpression()
       case _: Concrete.VMake =>
-        throw TypeCheckException.CannotInferVMakeExpression()
+        throw ElaborateException.CannotInferVMakeExpression()
       case Concrete.Cast(v, t) =>
         val (_, ta) = inferLevel(t)
         val tv = eval(ta)
         (tv, check(v, tv))
       case Concrete.Function(domain, codomain) =>
-        if (domain.isEmpty) throw TypeCheckException.EmptyTelescope()
+        if (domain.isEmpty) throw ElaborateException.EmptyTelescope()
         val (l, v) = inferTelescope(NameType.flatten(domain), codomain)
         (Value.Universe(l), v)
       case r@Concrete.Record(fields) =>
         for (f <- fields) {
-          if (f.names.isEmpty) throw TypeCheckException.MustBeNamed()
+          if (f.names.isEmpty) throw ElaborateException.MustBeNamed()
         }
         for (i <- r.names.indices) {
           for (j <- (i + 1) until r.names.size) {
             if (r.names(i)._2 intersect r.names(j)._2) {
-              throw TypeCheckException.FieldsDuplicated()
+              throw ElaborateException.FieldsDuplicated()
             }
           }
         }
@@ -275,7 +275,7 @@ class TypeChecker private(protected override val layers: Layers)
         for (i <- constructors.indices) {
           for (j <- (i + 1) until constructors.size) {
             if (constructors(i).name.intersect(constructors(j).name)) {
-              throw TypeCheckException.TagsDuplicated()
+              throw ElaborateException.TagsDuplicated()
             }
           }
         }
@@ -338,7 +338,7 @@ class TypeChecker private(protected override val layers: Layers)
                 debug(s"infer path type $ta", 1)
                 (Value.Universe(Value.inferLevel(t)), Abstract.PathType(Abstract.AbsClosure(Seq.empty, ta), la, ra))
               case None =>
-                throw TypeCheckException.InferPathEndPointsTypeNotMatching()
+                throw ElaborateException.InferPathEndPointsTypeNotMatching()
             }
         }
       case Concrete.VProj(m) =>
@@ -346,17 +346,17 @@ class TypeChecker private(protected override val layers: Layers)
          mt match {
           case Value.VType(x, _, b, e) =>
             (b, Abstract.VProj(rebindDimension(x), ma, Abstract.Projection(reify(e), 0)))
-          case _ => throw TypeCheckException.VProjCannotInfer()
+          case _ => throw ElaborateException.VProjCannotInfer()
         }
       case p: Concrete.PatternLambda =>
-        throw TypeCheckException.CannotInferReturningTypeWithPatterns()
+        throw ElaborateException.CannotInferReturningTypeWithPatterns()
       case l: Concrete.Lambda =>
-        throw TypeCheckException.CannotInferLambda()
+        throw ElaborateException.CannotInferLambda()
       case Concrete.Projection(left, right) =>
         val (lt, la) = infer(left)
         val lv = eval(la)
         lazy val ltr = lt.whnf.asInstanceOf[Value.Record]
-        def error() = throw TypeCheckException.UnknownProjection()
+        def error() = throw ElaborateException.UnknownProjection()
         var index = -1
         def calIndex(a: Text => Int) = {
           index = right match {
@@ -380,7 +380,7 @@ class TypeChecker private(protected override val layers: Layers)
             }
         }
       case Concrete.App(lambda, arguments) =>
-        if (arguments.isEmpty) throw TypeCheckException.EmptyArguments()
+        if (arguments.isEmpty) throw ElaborateException.EmptyArguments()
         val (lt, la) = infer(lambda, true)
         val (v1, v2) = inferApp(lt, la, arguments)
         reduceMore(v1, v2) // because inferApp stops when arguments is finished
@@ -419,7 +419,7 @@ class TypeChecker private(protected override val layers: Layers)
         (Value.Dimension.True, Abstract.Dimension.True)
       case Concrete.False =>
         (Value.Dimension.False, Abstract.Dimension.False)
-      case _ => throw TypeCheckException.ExpectingDimension()
+      case _ => throw ElaborateException.ExpectingDimension()
     }
   }
 
@@ -429,7 +429,7 @@ class TypeChecker private(protected override val layers: Layers)
     val fas = terms.flatMap(f => {
       val fs = NameType.flatten(Seq(f))
       if (fs.map(_._2).toSet.size != fs.size) {
-        throw TypeCheckException.AlreadyDeclared()
+        throw ElaborateException.AlreadyDeclared()
       }
       fs.map(n => {
         val (fl, fa) = ctx.inferLevel(f.ty)
@@ -448,7 +448,7 @@ class TypeChecker private(protected override val layers: Layers)
       case head +: tail =>
         head._3 match {
           case Concrete.I =>
-            if (head._1) throw TypeCheckException.DimensionLambdaCannotBeImplicit()
+            if (head._1) throw ElaborateException.DimensionLambdaCannotBeImplicit()
             val ctx = newDimensionLayer(head._2)._1
             val (ta, va) = ctx.inferTelescope(tail, codomain, body)
             val ms = ctx.finishReify()
@@ -483,7 +483,7 @@ class TypeChecker private(protected override val layers: Layers)
       case head +: tail =>
         head._3 match {
           case Concrete.I =>
-            throw TypeCheckException.CannotInferPathTypeWithoutBody()
+            throw ElaborateException.CannotInferPathTypeWithoutBody()
           case _ =>
             val (dl, da) = inferLevel(head._3)
             val ctx = newParameterLayer(head._2, eval(da))._1
@@ -511,16 +511,16 @@ class TypeChecker private(protected override val layers: Layers)
               val (lt1, la1) = finishOffImplicits(f, la)
               inferApp(lt1, la1, arguments)
             } else {
-              throw TypeCheckException.NotExpectingImplicitArgument()
+              throw ElaborateException.NotExpectingImplicitArgument()
             }
           case Value.PathType(typ, _, _) =>
-            if (head._1) throw TypeCheckException.DimensionLambdaCannotBeImplicit()
+            if (head._1) throw ElaborateException.DimensionLambdaCannotBeImplicit()
             val (dv, da) = checkDimension(head._2)
             val lt1 = typ(dv)
             val la1 = Abstract.PathApp(la, da)
             inferApp(lt1, la1, tail)
           // TODO user defined applications
-          case _ => throw TypeCheckException.UnknownAsFunction()
+          case _ => throw ElaborateException.UnknownAsFunction()
         }
       case Seq() =>
         (lt, la)
@@ -547,7 +547,7 @@ class TypeChecker private(protected override val layers: Layers)
           else {
             info(s"${reify(tt.whnf)}")
             info(s"${reify(cp.whnf)}")
-            throw TypeCheckException.TypeMismatch()
+            throw ElaborateException.TypeMismatch()
           }
       }
     }
@@ -564,7 +564,7 @@ class TypeChecker private(protected override val layers: Layers)
               val ba = ctx.check(c.body, codomain(v), tail)
               Abstract.Case(pat, Abstract.MultiClosure(ctx.finishReify(), ba))
             })
-            Abstract.PatternLambda(TypeChecker.pgen(), reify(domain), reify(codomain), res)
+            Abstract.PatternLambda(Elaborator.pgen(), reify(domain), reify(codomain), res)
           case _ =>
             if (fimp) {
               val (ctx, v) = newParameterLayer(Name.empty, domain)
@@ -593,7 +593,7 @@ class TypeChecker private(protected override val layers: Layers)
       case Value.PathType(typ, left, right) =>
         term match {
           case Concrete.Lambda(n, b, body) =>
-            if (b) throw TypeCheckException.DimensionLambdaCannotBeImplicit()
+            if (b) throw ElaborateException.DimensionLambdaCannotBeImplicit()
             val (c1, dv) = newDimensionLayer(n.nonEmptyOrElse(hint))
             val t1 = typ(dv)
             import Value.Dimension._
@@ -605,7 +605,7 @@ class TypeChecker private(protected override val layers: Layers)
             if (leftEq && rightEq) {
               Abstract.PathLambda(ps)
             } else {
-              throw TypeCheckException.PathEndPointsNotMatching()
+              throw ElaborateException.PathEndPointsNotMatching()
             }
           case _ => fallback()
         }
@@ -640,7 +640,7 @@ class TypeChecker private(protected override val layers: Layers)
         mis.append(CodeInfo(reify(m.solved), m))
       }
     }
-    def reevalStuff(ctx: TypeChecker, changed: Dependency): Unit = {
+    def reevalStuff(ctx: Elaborator, changed: Dependency): Unit = {
       val done = mutable.ArrayBuffer.empty[Dependency]
       // the reason it needs to rec, is that we have whnf remembered
       def rec(c: Dependency): Unit = {
@@ -691,18 +691,18 @@ class TypeChecker private(protected override val layers: Layers)
         var inductively: Option[Long] =
           if (ms.contains(Modifier.Inductively)) {
             if (topLevel) {
-              Some(TypeChecker.igen())
+              Some(Elaborator.igen())
             } else {
-              throw TypeCheckException.RecursiveTypesMustBeDefinedAtTopLevel()
+              throw ElaborateException.RecursiveTypesMustBeDefinedAtTopLevel()
             }
           } else None
         val ret = lookupDefined(name) match {
           case Some((index, typ, defined)) =>
             if (defined) {
-              throw TypeCheckException.AlreadyDefined()
+              throw ElaborateException.AlreadyDefined()
             }
             info(s"check defined $name")
-            if (ps.nonEmpty || t0.nonEmpty) throw TypeCheckException.SeparateDefinitionCannotHaveTypesNow()
+            if (ps.nonEmpty || t0.nonEmpty) throw ElaborateException.SeparateDefinitionCannotHaveTypesNow()
             val va = check(v, typ, Seq.empty)
             appendMetas(freeze())
             val ref = Value.Reference(null)
@@ -782,10 +782,10 @@ class TypeChecker private(protected override val layers: Layers)
       case Declaration.Declare(ms, name, ps, t) =>
         lookupDefined(name) match {
           case Some(_) =>
-            throw TypeCheckException.AlreadyDeclared()
+            throw ElaborateException.AlreadyDeclared()
           case None =>
             info(s"declare $name")
-            if (ms.exists(_ != Modifier.__Debug)) throw TypeCheckException.ForbiddenModifier()
+            if (ms.exists(_ != Modifier.__Debug)) throw ElaborateException.ForbiddenModifier()
             val (_, ta) = inferTelescope(NameType.flatten(ps), t)
             appendMetas(freeze())
             val tv = eval(ta)
@@ -818,7 +818,7 @@ class TypeChecker private(protected override val layers: Layers)
       ctx = ctx0
     }
     if (vs.exists(a => a.code.isEmpty)) {
-      throw TypeCheckException.DeclarationWithoutDefinition()
+      throw ElaborateException.DeclarationWithoutDefinition()
     }
     (ctx, ms.map(_.code).toSeq, vs.map(_.code.get.code).toSeq)
   }
@@ -830,12 +830,12 @@ class TypeChecker private(protected override val layers: Layers)
     tt.whnf match {
       case Value.Universe(l) => (l, ta)
       // TODO user defined type coercion
-      case _ => throw TypeCheckException.UnknownAsType()
+      case _ => throw ElaborateException.UnknownAsType()
     }
   }
 
 
-  def check(m: Module): TypeChecker = Benchmark.TypeChecking {
+  def check(m: Module): Elaborator = Benchmark.TypeChecking {
     checkDeclarations(m.declarations, true)._1
   }
 }

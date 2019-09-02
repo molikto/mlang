@@ -2,7 +2,7 @@ package mlang.poorparser
 
 import java.io.File
 
-import mlang.compiler.TypeChecker
+import mlang.compiler.Elaborator
 import mlang.utils.{Benchmark, debug, info}
 
 object Main extends Parser {
@@ -21,7 +21,7 @@ object Main extends Parser {
       }
       var cause: Exception = null
       try {
-        TypeChecker.topLevel().check(module)
+        Elaborator.topLevel().check(module)
       } catch {
         case e: Exception =>
           cause = e
@@ -43,7 +43,7 @@ object Main extends Parser {
   }
 
   def library(file: File): Unit = {
-    var checker = TypeChecker.topLevel()
+    var checker = Elaborator.topLevel()
     def rec(prefix: String, file: File): Unit = {
       file.listFiles().sortBy(_.getName).foreach(f => {
         val name = prefix + f.getName
