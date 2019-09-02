@@ -64,6 +64,11 @@ trait PlatformEvaluator extends Evaluator {
     }
   }
 
+  private def emit(pair: Seq[Abstract.Dimension], depth: Int): String = {
+    s"Seq(${pair.map(a => emit(a, depth)).mkString(", ")})"
+  }
+
+
     def emit(term: Abstract, depth: Int): String = {
       term match {
         case Abstract.Universe(l) =>
@@ -160,18 +165,12 @@ trait PlatformEvaluator extends Evaluator {
       }
     }
 
+
   private def emit(pair: Seq[Boolean]): String = {
     s"Seq(${pair.map(_.toString).mkString(", ")})"
   }
 
 
-  private def emit(pair: Seq[Abstract.DimensionPair], depth: Int): String = {
-    s"Seq(${pair.map(a => emit(a, depth)).mkString(", ")})"
-  }
-
-    private def emit(pair: Abstract.DimensionPair, depth: Int): String = {
-      s"DimensionPair(${emit(pair.from, depth)}, ${emit(pair.to, depth)})"
-    }
 
     private def emit(dim: Abstract.Dimension, depth: Int): String = {
       dim match {

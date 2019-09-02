@@ -88,7 +88,7 @@ object Layer {
   case class Dimension(value: Value.Dimension.Generic, name: Name, metas: Metas) extends Layer {
     def id = value.id
   }
-  case class Restriction(res: Value.DimensionPair, metas: Metas) extends Layer // no meta should be resolved here
+  case class Restriction(res: Value.Dimension, metas: Metas) extends Layer // no meta should be resolved here
 }
 
 
@@ -138,9 +138,6 @@ trait ElaborationContext extends EvaluationContext {
   }
 
 
-  def rebindDimensionPair(a: Value.DimensionPair): Abstract.DimensionPair = {
-    Abstract.DimensionPair(rebindDimension(a.from), rebindDimension(a.to))
-  }
   def rebindDimension(a: Value.Dimension): Abstract.Dimension = {
     a match {
       case Value.Dimension.Generic(stuck) =>
@@ -305,13 +302,13 @@ trait ElaborationContext extends EvaluationContext {
     if (binder == null) {
       throw ContextException.NonExistingReference(name)
     } else {
-     def recad(j: Abstract.Dimension, seq: Seq[Value.DimensionPair]): Abstract.Dimension = {
+     def recad(j: Abstract.Dimension, seq: Seq[Value.Dimension]): Abstract.Dimension = {
         if (seq.isEmpty) j
-        else Abstract.Dimension.Restricted(j, rs.map(a => rebindDimensionPair(a)))
+        else Abstract.Dimension.Restricted(j, rs.map(a => rebindDimension(a)))
       }
-      def reca(j: Abstract, seq: Seq[Value.DimensionPair]): Abstract = {
+      def reca(j: Abstract, seq: Seq[Value.Dimension]): Abstract = {
         if (seq.isEmpty) j
-        else Abstract.Restricted(j, rs.map(a => rebindDimensionPair(a)))
+        else Abstract.Restricted(j, rs.map(a => rebindDimension(a)))
       }
       binder match {
         case (t: Value, j: Abstract) =>

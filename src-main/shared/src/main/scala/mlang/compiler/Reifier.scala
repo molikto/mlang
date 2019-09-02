@@ -149,8 +149,6 @@ private trait ReifierContext extends ElaborationContextBuilder {
         Com(reify(dir), reify(tp), reify(base),
           faces.map(r => Face(reify(r.restriction), newRestrictionLayer(r.restriction).reify(r.body)))
         )
-      case Value.Restricted(a, pair) =>
-        Restricted(reify(a), pair.map(k => reify(k)))
       case Value.VType(x, a, b, e) =>
         VType(reify(x), reifyMetaEnclosed(a), reify(b), reifyMetaEnclosed(e))
       case Value.VMake(x, m, n) =>
@@ -160,10 +158,6 @@ private trait ReifierContext extends ElaborationContextBuilder {
       case _: Value.Internal =>
         logicError()
     }
-  }
-
-  def reify(a: Value.DimensionPair): Abstract.DimensionPair = {
-    Abstract.DimensionPair(reify(a.from), reify(a.to))
   }
 
   def reify(a: Value.Dimension): Abstract.Dimension = {

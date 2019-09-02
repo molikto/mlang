@@ -150,27 +150,22 @@ object Abstract {
   case class PathType(typ: AbsClosure, left: Abstract, right: Abstract) extends Abstract
   case class PathApp(let: Abstract, r: Dimension) extends Abstract
 
-  case class Coe(direction: DimensionPair, tp: AbsClosure, base: Abstract) extends Abstract
-  case class Hcom(direction: DimensionPair, tp: Abstract, base: Abstract, faces: Seq[Face]) extends Abstract
+  case class Coe(direction: Dimension, tp: AbsClosure, base: Abstract) extends Abstract
+  case class Hcom(direction: Dimension, tp: Abstract, base: Abstract, faces: Seq[Face]) extends Abstract
 
-  case class Com(direction: DimensionPair, tp: AbsClosure, base: Abstract, faces: Seq[Face]) extends Abstract
+  case class Com(direction: Dimension, tp: AbsClosure, base: Abstract, faces: Seq[Face]) extends Abstract
 
-  case class Restricted(term: Abstract, restriction: Seq[DimensionPair]) extends Abstract
+  case class Restricted(term: Abstract, restriction: Seq[Dimension]) extends Abstract
 
   case class VType(x: Dimension, a: MetaEnclosed, b: Abstract, e: MetaEnclosed) extends Abstract
   case class VMake(x: Dimension, m: MetaEnclosed, n: Abstract) extends Abstract
   case class VProj(x: Dimension, m: Abstract, f: Abstract) extends Abstract
 
   // restriction doesn't take binding, but they have a level non-the-less
-  case class Face(pair: DimensionPair, body: AbsClosure) {
+  case class Face(pair: Dimension, body: AbsClosure) {
     def diff(depth: Int, x: Int): Face = Face(pair.diff(depth, x), body.diff(depth, x))
 
     def dependencies(i: Int): Set[Dependency] = body.dependencies(i + 1)
-  }
-
-  case class DimensionPair(from: Dimension, to: Dimension) {
-    def diff(depth: Int, x: Int): DimensionPair = DimensionPair(from.diff(depth, x), to.diff(depth, x))
-
   }
 
   sealed trait Dimension {
@@ -194,7 +189,7 @@ object Abstract {
     case class Reference(up: Int) extends Dimension
     case object True extends Dimension
     case object False extends Dimension
-    case class Restricted(a: Dimension, restriction: Seq[DimensionPair]) extends Dimension
+    case class Restricted(a: Dimension, restriction: Seq[Dimension]) extends Dimension
   }
 
 

@@ -65,11 +65,10 @@ object Concrete {
   case object Undefined extends Concrete
 
   case class PathType(typ: Option[Concrete], left: Concrete, right: Concrete) extends Concrete
-  case class Pair(from: Concrete, to: Concrete)
-  case class Face(dimension: Pair, term: Concrete)
-  case class Coe(direction: Pair, typ: Concrete, base: Concrete) extends Concrete
-  case class Hcom(direction: Pair, base: Concrete, faces: Seq[Face]) extends Concrete
-  case class Com(direction: Pair, typ: Concrete, base: Concrete, faces: Seq[Face]) extends Concrete
+  case class Face(dimension: Concrete, term: Concrete)
+  case class Coe(direction: Concrete, typ: Concrete, base: Concrete) extends Concrete
+  case class Hcom(direction: Concrete, base: Concrete, faces: Seq[Face]) extends Concrete
+  case class Com(direction: Concrete, typ: Concrete, base: Concrete, faces: Seq[Face]) extends Concrete
   case class VType(x: Concrete, a: Concrete, b: Concrete, e: Concrete) extends Concrete
   case class VMake(m: Concrete, n: Concrete) extends Concrete
   case class VProj(m: Concrete) extends Concrete

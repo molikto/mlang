@@ -104,8 +104,8 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
   lazy val absDimension: PackratParser[Concrete] = numericLit  ^^ { i => if (i == "0") Concrete.False else if (i == "1") Concrete.True else throw new Exception("...") }
 
   // kan
-  lazy val coe: PackratParser[Concrete] = keyword("coe") ~> delimited("(", term ~ delimited(",", term, ",") ~ term ~ ("," ~> term), ")")  ^^ { a => {
-    Coe(Pair(a._1._1._1, a._1._1._2), a._1._2, a._2)
+  lazy val coe: PackratParser[Concrete] = keyword("coe") ~> delimited("(", (term <~ ",") ~ term ~ ("," ~> term), ")")  ^^ { a => {
+    Coe(a._1._1, a._1._2, a._2)
   }}
 
   lazy val vtype: PackratParser[Concrete]=(keyword("V_type") ~> delimited("(", term ~ delimited(",", term, ",") ~ term ~ ("," ~> term), ")")) ^^ { a => Concrete.VType(a._1._1._1, a._1._1._2, a._1._2, a._2)}
@@ -114,14 +114,14 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
 
   lazy val vproj: PackratParser[Concrete]= keyword("V_proj") ~>  delimited("(", term, ")") ^^ { a => Concrete.VProj(a) }
 
-  lazy val face: PackratParser[Concrete.Face] = ("|" ~> term <~ "=") ~ (term <~ ":") ~ term ^^ { a => Face(Pair(a._1._1, a._1._2), a._2) }
+  lazy val face: PackratParser[Concrete.Face] = (("|" ~> term <~ ":") ~ term) ^^ { a => Face(a._1, a._2) }
 
-  lazy val hcom: PackratParser[Concrete] = keyword("hcom") ~> (("(" ~> term) ~ delimited(",", term, ",") ~ term) ~ (rep(face) <~ ")") ^^ { a =>
-    Hcom(Pair(a._1._1._1, a._1._1._2), a._1._2, a._2)
+  lazy val hcom: PackratParser[Concrete] = keyword("hcom") ~> (("(" ~> term <~ ",") ~  term) ~ (rep(face) <~ ")") ^^ { a =>
+    Hcom(a._1._1, a._1._2, a._2)
   }
 
-  lazy val com: PackratParser[Concrete] = keyword("com") ~> delimited("(", term ~ delimited(",", term , ",") ~ term,",") ~ term  ~  (rep(face) <~")") ^^ { a =>
-    Com(Pair(a._1._1._1._1, a._1._1._1._2), a._1._1._2, a._1._2, a._2)
+  lazy val com: PackratParser[Concrete] = keyword("com") ~> delimited("(", (term <~ ",") ~ term,",") ~ term  ~  (rep(face) <~")") ^^ { a =>
+    Com(a._1._1._1, a._1._1._2, a._1._2, a._2)
   }
 
   // normal

@@ -95,30 +95,32 @@ object TypeChecker {
   def topLevel(): TypeChecker = new TypeChecker(Seq.empty).newDefinesLayer()
 }
 
-class TypeChecker private (protected override val layers: Layers)
+class TypeChecker private(protected override val layers: Layers)
     extends ElaborationContextBuilder with Evaluator with PlatformEvaluator with Unify {
 
   override type Self = TypeChecker
 
   override protected implicit def create(a: Layers): Self = new TypeChecker(a)
 
-  def checkValidRestrictions(ds0: Seq[Value.DimensionPair]) = {
+  def checkValidRestrictions(ds0: Seq[Value.Dimension]) = {
+    ???
   }
 
   def checkCompatibleCapAndFaces(
                                   faces: Seq[Concrete.Face],
                                   bt: Value.AbsClosure,
                                   bv: Value,
-                                  dv: Value.DimensionPair
+                                  dv: Value.Dimension
   ): Seq[Abstract.Face] = {
+    /*
     // we use this context to evaluate body of faces, it is only used to keep the dimension binding to the same
     // one, but as restricts is already present in abstract terms, it is ok to use this instead of others
     val (_, dim0) = newParametersLayer().newDimensionLayer(Name.empty)
     val btt = bt(dim0)
     val res = faces.map(a => {
-      val (dav, daa) = checkDimensionPair(a.dimension)
+      val (dav, daa) = checkDimension(a.dimension)
       if (dav.isFalse) {
-        throw TypeCheckException.RemoveFalseFace()
+        throw ElaboateException.RemoveFalseFace()
       } else {
         val ctx0 = newRestrictionLayer(dav)
         val btr = bt.restrict(dav)
@@ -128,7 +130,7 @@ class TypeChecker private (protected override val layers: Layers)
         val naa = ctx0.eval(na)
         val nv = naa(dv.from)
         if (!unifyTerm(btr(dim0), bv.restrict(dav), nv)) {
-          throw TypeCheckException.CapNotMatching()
+          throw ElaboateException.CapNotMatching()
         }
         (Abstract.Face(daa, na), naa(dim0), dav)
       }
@@ -145,15 +147,17 @@ class TypeChecker private (protected override val layers: Layers)
             btt.restrict(l._3).restrict(dfv),
             l._2.restrict(dfv),
             r._2.restrict(l._3.restrict(r._3)))) {
-            throw TypeCheckException.FacesNotMatching()
+            throw ElaboateException.FacesNotMatching()
           }
         }
       }
     }
     if (!Value.DimensionPair.checkValidRestrictions(res.map(_._3))) {
-      throw TypeCheckException.RequiresValidRestriction()
+      throw ElaboateException.RequiresValidRestriction()
     }
     res.map(_._1)
+    */
+    ???
   }
 
 
@@ -282,26 +286,35 @@ class TypeChecker private (protected override val layers: Layers)
           Abstract.Constructor(a._2.name, a._1.map(k => k._2), a._1.zipWithIndex.map(kk => (0 until kk._2, kk._1._3))))))
       case Concrete.Coe(direction, tp, base) =>
         // LATER does these needs finish off implicits?
-        val (dv, da) = checkDimensionPair(direction)
+        ???
+        /*
+        val (dv, da) = checkDimension(direction)
         val (_, ta) = checkTypeLine(tp)
         val cl = eval(ta)
-        val la = check(base, cl(dv.from))
-        (cl(dv.to), Abstract.Coe(da, ta, la))
+        val la = check(base, cl(Dimension.False))
+        (cl(Dimension.True), Abstract.Coe(da, ta, la))
+        */
       case Concrete.Com(direction, tp, base, faces) =>
-        val (dv, da) = checkDimensionPair(direction)
+        ???
+        /*
+        val (dv, da) = checkDimension(direction)
         val (_, ta) = checkTypeLine(tp)
         val cl = eval(ta)
-        val ba = check(base, cl(dv.from))
+        val ba = check(base, cl(Dimension.False))
         val rs = checkCompatibleCapAndFaces(faces, cl, eval(ba), dv)
         (cl(dv.to), Abstract.Com(da, ta, ba, rs))
+         */
       case Concrete.Hcom(direction, base, faces) =>
-        val (dv, da)= checkDimensionPair(direction)
+        ???
+        /*
+        val (dv, da)= checkDimension(direction)
         val (bt, ba) = infer(base)
         val bv = eval(ba)
         val rs = checkCompatibleCapAndFaces(faces, Value.AbsClosure(bt), bv, dv)
         val btr = reify(bt)
         debug(s"infer hcom type $btr", 1)
         (bt, Abstract.Hcom(da, btr, ba, rs))
+        */
       case Concrete.PathType(typ, left, right) =>
         typ match {
           case Some(tp) =>
@@ -372,20 +385,21 @@ class TypeChecker private (protected override val layers: Layers)
         val (v1, v2) = inferApp(lt, la, arguments)
         reduceMore(v1, v2) // because inferApp stops when arguments is finished
       case Concrete.VType(x, a, b, e) =>
-        val (xv, xa) = checkDimension(x)
-        xv match {
-          case g: Dimension.Generic =>
-            val dp = Value.DimensionPair(g, Value.Dimension.False)
-            val ctxr1 = newRestrictionLayer(dp)
-            val (al, aa0) = ctxr1.inferLevel(a)
-            val aa = Abstract.MetaEnclosed(ctxr1.finishReify(), aa0)
-            val (bl, ba) = inferLevel(b)
-            val ctxr2 = newRestrictionLayer(dp)
-            val ea = ctxr2.check(e, Value.App(Value.App(Value.equiv, ctxr1.eval(aa0)), eval(ba).restrict(dp)))
-            (Value.Universe(al max bl), Abstract.VType(xa, aa, ba, Abstract.MetaEnclosed(ctxr2.finishReify(), ea)))
-          case _ =>
-            throw TypeCheckException.RemoveConstantVType()
-        }
+        ???
+//        val (xv, xa) = checkDimension(x)
+//        xv match {
+//          case g: Dimension.Generic =>
+//            val dp = Value.DimensionPair(g, Value.Dimension.False)
+//            val ctxr1 = newRestrictionLayer(dp)
+//            val (al, aa0) = ctxr1.inferLevel(a)
+//            val aa = Abstract.MetaEnclosed(ctxr1.finishReify(), aa0)
+//            val (bl, ba) = inferLevel(b)
+//            val ctxr2 = newRestrictionLayer(dp)
+//            val ea = ctxr2.check(e, Value.App(Value.App(Value.equiv, ctxr1.eval(aa0)), eval(ba).restrict(dp)))
+//            (Value.Universe(al max bl), Abstract.VType(xa, aa, ba, Abstract.MetaEnclosed(ctxr2.finishReify(), ea)))
+//          case _ =>
+//            throw TypeCheckException.RemoveConstantVType()
+//        }
       case Concrete.Let(declarations, in) =>
         val (ctx, ms, da) = newDefinesLayer().checkDeclarations(declarations, false)
         val (it, ia) = ctx.infer(in)
@@ -394,12 +408,6 @@ class TypeChecker private (protected override val layers: Layers)
     }
     debug(s"infer result ${res._2}")
     res
-  }
-
-  private def checkDimensionPair(p: Concrete.Pair): (Value.DimensionPair, Abstract.DimensionPair) = {
-    val (a, b) = checkDimension(p.from)
-    val (c, d) = checkDimension(p.to)
-    (Value.DimensionPair(a, c), Abstract.DimensionPair(b, d))
   }
 
   private def checkDimension(r: Concrete): (Value.Dimension, Abstract.Dimension) = {
@@ -567,20 +575,21 @@ class TypeChecker private (protected override val layers: Layers)
             }
         }
       case Value.VType(x, a, b, e) =>
-        term match {
-          case Concrete.VMake(tm, tn) =>
-            val dp = Value.DimensionPair(x, Value.Dimension.False)
-            val ctxr = newRestrictionLayer(dp)
-            val m0 = ctxr.check(tm, a)
-            val m = Abstract.MetaEnclosed(ctxr.finishReify(), m0)
-            val n = check(tn, b)
-            if (ctxr.unifyTerm(b.restrict(dp), Value.App(Value.Projection(e, 0), ctxr.eval(m0)), eval(n).restrict(dp))) {
-              Abstract.VMake(rebindDimension(x), m, n)
-            } else {
-              throw TypeCheckException.VMakeMismatch()
-            }
-          case _ => fallback()
-        }
+//        term match {
+//          case Concrete.VMake(tm, tn) =>
+//            val dp = Value.DimensionPair(x, Value.Dimension.False)
+//            val ctxr = newRestrictionLayer(dp)
+//            val m0 = ctxr.check(tm, a)
+//            val m = Abstract.MetaEnclosed(ctxr.finishReify(), m0)
+//            val n = check(tn, b)
+//            if (ctxr.unifyTerm(b.restrict(dp), Value.App(Value.Projection(e, 0), ctxr.eval(m0)), eval(n).restrict(dp))) {
+//              Abstract.VMake(rebindDimension(x), m, n)
+//            } else {
+//              throw TypeCheckException.VMakeMismatch()
+//            }
+//          case _ => fallback()
+//        }
+        ???
       case Value.PathType(typ, left, right) =>
         term match {
           case Concrete.Lambda(n, b, body) =>

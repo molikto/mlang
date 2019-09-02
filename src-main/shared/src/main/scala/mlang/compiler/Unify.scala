@@ -153,8 +153,6 @@ trait Unify extends Reifier with Evaluator with PlatformEvaluator {
           recTypeAbsClosure(t1, t2, mode) &&
               recTerm(t1(Dimension.False), l1, l2) &&
               recTerm(t1(Dimension.True), r1, r2)
-        case (VType(x1, a1, b1, e1), VType(x2, a2, b2, e2)) =>
-          x1 == x2 && recType(a1, a2) && recType(b1, b2) && recTerm(app(app(Value.equiv, a1), b1.restrict(DimensionPair(x1, Dimension.False))), e1, e2)
         case (t1, t2) =>
           recNeutral(t1, t2).map(_.whnf match {
             case Universe(_) => true
@@ -250,14 +248,6 @@ trait Unify extends Reifier with Evaluator with PlatformEvaluator {
             None
           }
         })
-      case (Restricted(v1, r1), Restricted(v2, r2)) =>
-        recNeutral(v1, v2).flatMap(tp => {
-          if (DimensionPair.sameRestrict(r1, r2)) {
-            Some(tp.restrict(r1))
-          } else {
-            None
-          }
-        })
       case (App(l1, a1), App(l2, a2)) =>
         recNeutral(l1, l2).flatMap(_.whnf match {
           case Function(d, _, c) =>
@@ -289,38 +279,6 @@ trait Unify extends Reifier with Evaluator with PlatformEvaluator {
               typ(d1)
             case _ => logicError()
           })
-        } else {
-          None
-        }
-      case (VProj(x1, m1, f1), VProj(x2, m2, f2)) =>
-        if (x1 == x2) {
-          recNeutral(m1, m2).flatMap(_.whnf match {
-            case VType(x, a, b, e) =>
-              assert(x == x1)
-              def rf(f: Value) = recTerm(Value.Function(a, false, Closure(_ => b.restrict(DimensionPair(x, Dimension.False)))), f, Projection(e, 0))
-              if (rf(f1) && rf(f2)) {
-                Some(b)
-              } else {
-                None
-              }
-            case _ => logicError()
-          })
-        } else {
-          None
-        }
-      case (Hcom(d1, t1, b1, r1), Hcom(d2, t2, b2, r2)) =>
-        if (d1 == d2 && recType(t1, t2) && recTerm(t1, b1, b2)) {
-          if (r1.size == r2.size && r1.zip(r2).forall(p => p._1.restriction.sameRestrict(p._2.restriction) && recAbsClosure(t1.restrict(p._1.restriction), p._1.body, p._2.body))) {
-            Some(t1)
-          } else {
-            None
-          }
-        } else {
-          None
-        }
-      case (Coe(d1, t1, b1), Coe(d2, t2, b2)) =>
-        if (d1 == d2 && recTypeAbsClosure(t1, t2) && recTerm(t1(d1.from), b1, b2)) {
-          Some(t1(d1.to))
         } else {
           None
         }
@@ -377,26 +335,6 @@ trait Unify extends Reifier with Evaluator with PlatformEvaluator {
           recTerm(ty(c), papp(s1, c), papp(s2, c))
         case (r: Record, m1, m2) =>
           recTerms(r.nodes, i => project(m1, i), i => project(m2, i))
-        case (VType(x, _, _, e), k1, k2) =>
-          // FIXME this eta rule is a bit different with the ones above?
-          def baseCase(a: VMake, b: VMake) = (a, b) match {
-            case (VMake(x1, m1, n1), VMake(x2, m2, n2)) =>
-              assert(x == x2)
-              assert(x == x1)
-              recTerm(a, m1, m2) && recTerm(b, n1, n2)
-          }
-          def eta(a: Value): VMake =
-            VMake(x, a.restrict(DimensionPair(x, Dimension.False)), VProj(x, a, Projection(e, 0)))
-          (k1, k2) match {
-            case (a: VMake, b: VMake) =>
-              baseCase(a, b)
-            case (a: VMake, b) =>
-              baseCase(a, eta(b))
-            case (a, b: VMake) =>
-              baseCase(eta(a), b)
-            case _ =>
-              recNeutral(k1, k2)
-          }
         case (s: Sum, Construct(n1, v1), Construct(n2, v2)) =>
           n1 == n2 && { val c = s.constructors(n1) ;
             assert(c.nodes.size == v1.size && v2.size == v1.size)

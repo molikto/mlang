@@ -37,7 +37,7 @@ trait ElaborationContextBuilder extends ElaborationContextWithMetaOps {
     create(layers.drop(up))
   }
 
-  def newRestrictionLayer(pair: Value.DimensionPair): Self = {
+  def newRestrictionLayer(pair: Value.Dimension): Self = {
     Layer.Restriction(pair, createMetas()) +: layers
   }
 
