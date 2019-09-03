@@ -32,7 +32,7 @@ object ElaborateException {
 
   case class DeclarationWithoutDefinition() extends ElaborateException
 
-  case class ExpectingDimension() extends ElaborateException
+  case class ExpectingFormula() extends ElaborateException
 
   case class PathEndPointsNotMatching() extends ElaborateException
   case class InferPathEndPointsTypeNotMatching() extends ElaborateException

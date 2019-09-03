@@ -33,7 +33,7 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
   }
 
   lexical.reserved ++= List("define", "declare", "const_projections", "case", "__debug", "as", "coe", "hcom", "com","field", "ignored", "match", "record", "type", "sum", "inductively", "run", "with_constructors", "I", "_", "make", "V_type", "V_make", "V_proj")
-  lexical.delimiters ++= List("{", "}", "[", "]", ":", ",", "(", ")", "#", "≡", "─", "???", "┬", "┌", "⊏", "└", "├", "⇒", "→", "+", "-", ";", "=", "@", "\\", ".", "|", "^")
+  lexical.delimiters ++= List("{", "}", "[", "]", ":", ",", "(", ")", "#", "≡", "─", "???", "┬", "┌", "⊏", "└", "├", "⇒", "→", "+", "-", ";", "=", "@", "\\", ".", "|", "^", "∨", "∧", "~")
 
   def delimited[T](a: String, t: Parser[T], b: String): Parser[T] = a ~> t <~ b
 
@@ -79,6 +79,7 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
         patternLambda |
         app |
         pathType |
+        and | or | neg |
         record | interval | undefined |
         projection |
         meta |
@@ -94,6 +95,10 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
   lazy val meta: PackratParser[Concrete] = keyword("_") ^^ { _ => Hole }
 
   lazy val interval: PackratParser[Concrete] = keyword("I") ^^ { _ => I }
+
+  lazy val and: PackratParser[Concrete] = ((term <~ "∧") ~ term) ^^ {a => And(a._1, a._2)}
+  lazy val or: PackratParser[Concrete] = ((term <~ "∨") ~ term) ^^ {a => Or(a._1, a._2)}
+  lazy val neg: PackratParser[Concrete] = ("~" ~> term) ^^ { a => Neg(a) }
 
   lazy val undefined: PackratParser[Concrete] = "???" ^^ { _ => Undefined }
   // path type

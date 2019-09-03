@@ -1,6 +1,6 @@
 package mlang.compiler
 
-import mlang.compiler.Value.Dimension
+import mlang.compiler.Value.Formula
 import mlang.utils.{Benchmark, Name, Text, debug}
 
 import scala.reflect.runtime.currentMirror
@@ -20,8 +20,6 @@ trait PlatformEvaluator extends Evaluator {
       case e: Throwable => throw PlatformEvaluatorException(string, e)
     }
   }
-
-  private def source(a: Text): String = "Text(\"" + a.string + "\")"
 
   private def source(a: Name): String = "Name(\"" + a.main + "\")"
 
@@ -64,7 +62,7 @@ trait PlatformEvaluator extends Evaluator {
     }
   }
 
-  private def emit(pair: Seq[Abstract.Dimension], depth: Int): String = {
+  private def emit(pair: Seq[Abstract.Formula], depth: Int): String = {
     s"Seq(${pair.map(a => emit(a, depth)).mkString(", ")})"
   }
 
@@ -168,28 +166,24 @@ trait PlatformEvaluator extends Evaluator {
 
 
 
-    private def emit(dim: Abstract.Dimension, depth: Int): String = {
+    private def emit(dim: Abstract.Formula, depth: Int): String = {
       dim match {
-        case Abstract.Dimension.Reference(up) =>
+        case Abstract.Formula.Reference(up) =>
           if (up > depth) {
-            getDimension(up - depth - 1) match {
-              case Dimension.Generic(id) =>
-                s"Dimension.Generic($id)"
-              case Dimension.True =>
-                s"Dimension.True"
-              case Dimension.False =>
-                s"Dimension.False"
-              case _: Dimension.Internal => logicError()
-            }
+            tunnel(getDimension(up - depth - 1))
           } else {
             s"dm${depth - up}"
           }
-        case Abstract.Dimension.True =>
-          s"Dimension.True"
-        case Abstract.Dimension.False =>
-          s"Dimension.False"
-        case Abstract.Dimension.Restricted(d, pair) =>
-          s"${emit(d, depth)}.restrict(${emit(pair, depth)})"
+        case Abstract.Formula.True =>
+          s"Formula.True"
+        case Abstract.Formula.False =>
+          s"Formula.False"
+        case Abstract.Formula.And(l, r) =>
+          s"Formula.And(${emit(l, depth)}, ${emit(r, depth)})"
+        case Abstract.Formula.Or(l, r) =>
+          s"Formula.Or(${emit(l, depth)}, ${emit(r, depth)})"
+        case Abstract.Formula.Neg(l) =>
+          s"Formula.Neg(${emit(l, depth)})"
       }
   }
 
@@ -201,7 +195,7 @@ trait PlatformEvaluator extends Evaluator {
          |
          |
          |new Holder {
-         |  def value(ctx: EvaluationContext, vs: Seq[Value], cs: Seq[Closure], ps: Seq[Pattern]) = $res
+         |  def value(ctx: EvaluationContext, vs: Seq[Any]) = $res
          |}
        """.stripMargin
   }

@@ -1,7 +1,5 @@
 package mlang.compiler
 
-import mlang.compiler.ElaborationContext.Metas
-
 import scala.collection.mutable
 
 
@@ -23,7 +21,7 @@ trait ElaborationContextWithMetaOps extends ElaborationContext {
 
   def debug_metasSize = layers.head.metas.size
 
-  protected def createMetas(): Metas = new Metas(mutable.ArrayBuffer.empty, 0)
+  protected def createMetas(): MetasState = new MetasState(mutable.ArrayBuffer.empty, 0)
 
   protected def solvedMeta(meta: Value.Meta): Abstract.MetaReference = {
     assert(meta.isSolved)

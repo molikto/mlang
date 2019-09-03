@@ -1,7 +1,7 @@
 package mlang.compiler
 
 
-import mlang.compiler.Value.{Dimension, Reference}
+import mlang.compiler.Value.{Formula, Reference}
 import mlang.utils.{Name, Text}
 
 import scala.collection.mutable
@@ -26,5 +26,5 @@ trait EvaluationContext {
   // get value directly without resolving faces
   def getReference(depth: Int, index: Int): Value
 
-  def getDimension(depth: Int): Value.Dimension
+  def getDimension(depth: Int): Value.Formula.Generic
 }

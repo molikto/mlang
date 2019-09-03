@@ -158,8 +158,8 @@ private trait ReifierContext extends ElaborationContextBuilder {
     }
   }
 
-  def reify(a: Value.Dimension): Abstract.Dimension = {
-    rebindDimension(a)
+  def reify(a: Value.Formula): Abstract.Formula = {
+    rebindFormula(a)
   }
 }
 

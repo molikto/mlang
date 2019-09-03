@@ -6,269 +6,51 @@ import scala.collection.mutable
 
 import Value._
 
-sealed trait Value {
-  def from: Value = if (_from == null) this else _from
-  /**
-    *
-    * HOW DOES restrict interacts with Up
-    *
-    * these two are translated to calls, not Stuck in eval
-    *
-    * they act structurally on all syntax, and block on all references (closed, generic, meta)
-    *
-    * so they block on each other, and we will ensure that the canonical block order is Restrict(Up(XxxReference))
-    *
-    */
-  def restrict(a: Seq[Dimension]): Value = a.foldLeft(this) {(t, v) => t.restrict(v) }
-
-  def deref(): Value = this match {
-    case r: Reference => r.value.deref()
-    case Meta(c: Meta.Closed) => c.v.deref()
-    case _ => this
-  }
-
-  def piapp(a: Value) : Value = this match {
-    case Value.Function(_, _, b) => b(a)
-    case _ => logicError()
-  }
-
-
-
-  // FIXME how does it interact with recursive references?
-  def restrict(lv: Dimension): Value = ??? /* if (lv.isTrue) this else this match {
-    case u: Universe => u
-    case Function(domain, im, codomain) =>
-      Function(domain.restrict(lv), im, codomain.restrict(lv))
-    case Record(inductively, ms, ns, nodes) =>
-      Record(inductively.map(_.restrict(lv)), ms, ns, ClosureGraph.restrict(nodes, lv))
-    case Make(values) =>
-      Make(values.map(_.restrict(lv)))
-    case Construct(name, vs) =>
-      Construct(name, vs.map(_.restrict(lv)))
-    case Sum(inductively, constructors) =>
-      Sum(inductively.map(_.restrict(lv)), constructors.map(n => Constructor(n.name, n.ims, ClosureGraph.restrict(n.nodes, lv))))
-    case Lambda(closure) =>
-      Lambda(closure.restrict(lv))
-    case PatternLambda(id, dom, typ, cases) =>
-      PatternLambda(id, dom.restrict(lv), typ.restrict(lv), cases.map(a => Case(a.pattern, a.closure.restrict(lv))))
-    case PathType(typ, left, right) =>
-      PathType(typ.restrict(lv), left.restrict(lv), right.restrict(lv))
-    case PathLambda(body) =>
-      PathLambda(body.restrict(lv))
-    case App(lambda, argument) =>
-      App(lambda.restrict(lv), argument.restrict(lv))
-    case Coe(direction, tp, base) =>
-      Coe(direction.restrict(lv), tp.restrict(lv), base.restrict(lv))
-    case Hcom(direction, tp, base, faces) =>
-      Hcom(direction.restrict(lv), tp.restrict(lv), base.restrict(lv), Face.restrict(faces, lv))
-    case Com(direction, tp, base, faces) =>
-      Com(direction.restrict(lv), tp.restrict(lv), base.restrict(lv), Face.restrict(faces, lv))
-    case Maker(value, field) =>
-      Maker(value.restrict(lv), field)
-    case Projection(make, field) =>
-      Projection(make.restrict(lv), field)
-    case PatternStuck(lambda, stuck) =>
-      PatternStuck(lambda.restrict(lv).asInstanceOf[PatternLambda], stuck.restrict(lv))
-    case PathApp(left, stuck) =>
-      PathApp(left.restrict(lv), stuck.restrict(lv))
-    case VType(x, a, p, e) =>
-      VType(x.restrict(lv), a.restrict(lv), p.restrict(lv), e.restrict(lv))
-    case VMake(x, m, n) =>
-      VMake(x.restrict(lv), m.restrict(lv), n.restrict(lv))
-    case VProj(x, m, f) =>
-      VProj(x.restrict(lv), m.restrict(lv), f.restrict(lv))
-    case Let(items, body) =>
-      Let(items, body.restrict(lv))
-    case Derestricted(v, lv0) =>
-      assert(lv == lv0)
-      v
-    case Up(a, b) =>
-      Restricted(Up(a, b), Seq(lv))
-    case Restricted(a, faces) =>
-      Restricted(a, lv +: faces)
-    case g: Generic =>
-      Restricted(g, Seq(lv))
-    case o: Reference =>
-      Restricted(o, Seq(lv))
-    case o: Meta =>
-      Restricted(o, Seq(lv))
-  }
-  */
-
-  final override def equals(obj: Any): Boolean = {
-    throw new IllegalArgumentException("Values don't have equal. Either call eq or do conversion checking")
-  }
-
-  @cached_mutation private[Value] var _from: Value = _
-  @cached_mutation private[Value] var _whnf: Value = _
-
-
-
-
-  // it asserts that if one value cannot be reduced more, it will be eq the original
-  def whnf: Value = {
-    if (_whnf == null) {
-      // TODO can we sort by restriction first?
-      def eqFaces(f1: Seq[Face], f2: Seq[Face]): Boolean = ???
-      /*
-        f1.eq(f2) || (f1.size == f2.size && f1.zip(f2).forall(p => {
-        p._1.restriction.sameRestrict(p._2.restriction) && p._1.body.eq(p._2.body)
-      }))
-       */
-      val candidate = this match {
-        case a: HeadCanonical =>
-          a
-        case r: Reference =>
-          r.value.whnf
-        case o: Generic =>
-          o
-        case m: Meta =>
-          m.state match {
-            case Meta.Closed(v) => v.whnf
-            case _: Meta.Open => m
-          }
-        case Maker(r, i) =>
-          r.whnf match {
-            case s: Sum => s.constructors(i).maker
-            case r: Record =>
-              assert(i == -1)
-              r.maker
-            case _ => logicError() // because we don't accept anoymouns maker expression
-          }
-        case Let(_, body) =>
-          body.whnf
-        case App(lambda, argument) =>
-          // FIXME we really needs to cleanup these stuff
-          def app2(lambda: Value, argument: Value, returns: Value => Value = id): Value = {
-            lambda match {
-              case Lambda(closure) =>
-                returns(closure(argument))
-              case p : PatternLambda =>
-                split(p, argument.whnf, returns)
-              case _ =>
-                App(lambda, argument)
-            }
-          }
-          app2(lambda.whnf, argument.whnf, _.whnf) match {
-            case App(l2, a2) if lambda.eq(l2) && a2.eq(argument) => this
-            case a => a
-          }
-        case PatternStuck(lambda, stuck) =>
-          split(lambda, stuck.whnf, _.whnf) match {
-            case PatternStuck(l2, s2) if lambda.eq(l2) && stuck.eq(s2) => this
-            case a => a
-          }
-        case Projection(make, field) =>
-          project(make.whnf, field, _.whnf) match {
-            case Projection(m2, f2) if make.eq(m2) && field == f2 => this
-            case a => a
-          }
-        case PathApp(left, stuck) =>
-          // we MUST perform this, because this doesn't care
-          papp(left.whnf, stuck) match {
-            case PathApp(l2, s2) if left.eq(l2) && stuck == s2 => this
-            case a => a.whnf
-          }
-        case Coe(direction, tp, base) =>
-          // kan ops case analysis on tp, so they perform their own whnf
-          coe(direction, tp, base, _.whnf) match {
-            case Coe(d2, t2, b2) if d2 == direction && t2.eq(tp) && base.eq(b2) => this
-            case a => a
-          }
-        case Hcom(direction, tp, base, faces) =>
-          hcom(direction, tp, base, faces, _.whnf) match {
-            case Hcom(d2, t2, b2, f2) if direction == d2 && tp.eq(t2) && base.eq(b2) && eqFaces(faces, f2) => this
-            case a => a
-          }
-        case Com(direction, tp, base, faces) =>
-          com(direction, tp, base, faces, _.whnf) match {
-            case Com(d2, t2, b2, f2) if direction == d2 && tp.eq(t2) && base.eq(b2) && eqFaces(faces, f2) => this
-            case a => a
-          }
-        case VType(x, a, b, _) =>
-          x match {
-            case _: Dimension.Generic => this
-            case Dimension.False => a.whnf
-            case Dimension.True => b.whnf
-            case _: Dimension.Internal => logicError()
-          }
-        case VMake(x, m, n) =>
-          x match {
-            case g: Dimension.Generic => this
-            case Dimension.False => m
-            case Dimension.True => n
-            case _: Dimension.Internal => logicError()
-          }
-        case VProj(x, m, f) =>
-          x match {
-            case g: Dimension.Generic =>
-              val mw = m.whnf
-              @inline def fallback() = if (mw.eq(m)) this else VProj(x, mw, f)
-              mw match {
-                case VMake(x2, _, n) =>
-                  assert(x == x2)
-                  n.whnf
-                case _ => fallback()
-              }
-            case Dimension.False => app(f, m).whnf
-            case Dimension.True => m.whnf
-            case _: Dimension.Internal => logicError()
-          }
-          /*
-        case Restricted(a, restriction) =>
-          val normalized = DimensionPair.normalizeRestriction(restriction)
-          if (normalized.isEmpty) {
-            a.whnf
-          } else {
-            a match {
-              case GenericOrOpenMeta(it) => Restricted(it, normalized) // stop case
-              case Up(j, b) => j match {
-                case GenericOrOpenMeta(it) => Restricted(Up(it, b), normalized) // a up's whnf can only block on generics
-                case j => j.deref().restrict(restriction).whnf
-              }
-              case _ => a.deref().restrict(restriction).whnf
-            }
-          }
-           */
-        case _: Internal =>
-          logicError()
-      }
-      // because some values is shared, it means the solved ones is not created for this whnf, we don't say this
-      // is from us
-      if (!candidate.eq(candidate._from)) { // FIXME these are already defined ones
-        if (!candidate.eq(this)) {
-          candidate._from = this
-        } else {
-          assert(candidate._from == null)
-        }
-      }
-      candidate match {
-        case Value.OpenMetaHeadedWhnf(_) =>
-        case _ =>
-          // remember for stable values
-          _whnf = candidate
-          candidate._whnf = candidate
-      }
-      candidate
-    } else {
-      _whnf
-    }
-  }
-
-
-
-
-
-
-  def makerType(i: Int): Value = this.whnf match {
-    case s: Sum => s.constructors(i).makerType
-    case v: Record => v.makerType
-    case _ => logicError()
-  }
-}
-
 
 object Value {
+  sealed trait Formula extends {
+    def restrict(seq: Seq[Formula]): Formula = seq.foldLeft(this) { (t, v) => t.restrict(v) }
+    def restrict(pair: Formula): Formula = ???
+  }
+
+  object Formula {
+    sealed trait Internal extends Formula
+    case class Generic(id: Long) extends Formula
+    case class And(left: Formula, right: Formula) extends Formula
+    case class Or(left: Formula, right: Formula) extends Formula
+    case class Neg(unit: Formula) extends Formula
+
+    object True extends Formula
+    object False extends Formula
+  }
+
+  implicit class MultiClosure(private val func: Seq[Value] => Value) extends AnyVal {
+    def eq(b: MultiClosure): Boolean = func.eq(b.func)
+    def apply() = func(Seq.empty)
+    def apply(seq: Seq[Value]): Value = func(seq)
+  }
+
+  implicit class Closure(private val func: Value => Value) extends AnyVal {
+    def eq(b: Closure): Boolean = func.eq(b.func)
+    def apply(seq: Value): Value = func(seq)
+  }
+
+  object Closure {
+    def apply(a: Value): Closure = Closure(_ => a)
+  }
+
+  object AbsClosure {
+    def apply(a: Value): AbsClosure = AbsClosure(_ => a)
+    type StuckPos = AbsClosure
+  }
+
+  implicit class AbsClosure(private val func: Formula => Value) extends AnyVal {
+    def eq(b: AbsClosure): Boolean = func.eq(b.func)
+    def apply(seq: Formula): Value = func(seq)
+    def mapd(a: (Value, Formula) => Value): AbsClosure = AbsClosure(d => a(this(d), d))
+    def map(a: Value => Value): AbsClosure = AbsClosure(d => a(this(d)))
+  }
+
 
   def doApply(maker: Value, values: Seq[Value]) : Value = values.foldLeft(maker) { (m: Value, v: Value) => Value.App(m, v) }
 
@@ -277,11 +59,11 @@ object Value {
   var fiber_at_ty: Value = null
   type ClosureGraph = Seq[ClosureGraph.Node]
   object ClosureGraph {
-    def restrict(graph: ClosureGraph, lv: Dimension): ClosureGraph = {
+    def restrict(graph: ClosureGraph, lv: Formula): ClosureGraph = {
       graph.map {
         case DependentWithMeta(ds, mc, c) =>
           ???
-          //DependentWithMeta(ds, mc, (a, b) => { val t = c(a, b.map(k => Derestricted(k, lv))); (t._1, t._2.restrict(lv)) })
+        //DependentWithMeta(ds, mc, (a, b) => { val t = c(a, b.map(k => Derestricted(k, lv))); (t._1, t._2.restrict(lv)) })
         case IndependentWithMeta(ds, ms, typ) =>
           IndependentWithMeta(ds, ms, typ.restrict(lv))
         case _ => logicError()
@@ -386,7 +168,7 @@ object Value {
             Function(graph(index).independent.typ, ims(index), Closure(p => {
               val ng = reduce(graph, index, p)
               rtyp(index + 1, ng)
-          }))
+            }))
         }
       }
       val mv = rmake(Seq.empty)
@@ -429,7 +211,7 @@ object Value {
     }
   }
 
-  def papp(l: Value, d: Dimension, returns: Value => Value = id): Value = l match {
+  def papp(l: Value, d: Formula, returns: Value => Value = id): Value = l match {
     case PathLambda(c) =>
       returns(c(d))
     case a =>
@@ -442,100 +224,28 @@ object Value {
         }
       }
       d match {
-        case Dimension.True =>
+        case Formula.True =>
           constantCase(true)
-        case Dimension.False =>
+        case Formula.False =>
           constantCase(false)
-        case _: Dimension.Generic =>
+        case _: Formula.Generic =>
           PathApp(l, d)
-        case _: Dimension.Internal =>
+        case _: Formula.Internal =>
           logicError()
       }
   }
 
   def id(v: Value) = v
 
-  private def coe(pair: Dimension, typ: AbsClosure, base: Value, returns: Value => Value = id): Value = ???
+  private def coe(pair: Formula, typ: AbsClosure, base: Value, returns: Value => Value = id): Value = ???
 
 
-  private def com(pair: Dimension, typ: AbsClosure, base: Value, restriction0: Seq[Face], returns: Value => Value = id): Value = ???
+  private def com(pair: Formula, typ: AbsClosure, base: Value, restriction0: Seq[Face], returns: Value => Value = id): Value = ???
 
-  private def hcom(pair: Dimension, typ: Value, base: Value, restriction0: Seq[Face], returns: Value => Value = id): Value = ???
-
-
-
-  implicit class MultiClosure(private val func: Seq[Value] => Value) extends AnyVal {
-    def eq(b: MultiClosure): Boolean = func.eq(b.func)
-    def apply() = func(Seq.empty)
-    def apply(seq: Seq[Value]): Value = func(seq)
-  }
-
-  implicit class Closure(private val func: Value => Value) extends AnyVal {
-
-    def eq(b: Closure): Boolean = func.eq(b.func)
-    def apply(seq: Value): Value = func(seq)
-  }
-
-  object Closure {
-    def apply(a: Value): Closure = Closure(_ => a)
-  }
-
-  object AbsClosure {
-    def apply(a: Value): AbsClosure = AbsClosure(_ => a)
-    type StuckPos = AbsClosure
-  }
-
-  implicit class AbsClosure(private val func: Dimension => Value) extends AnyVal {
-    def eq(b: AbsClosure): Boolean = func.eq(b.func)
-    def apply(seq: Dimension): Value = func(seq)
-    def mapd(a: (Value, Dimension) => Value): AbsClosure = AbsClosure(d => a(this(d), d))
-    def map(a: Value => Value): AbsClosure = AbsClosure(d => a(this(d)))
-  }
-
-  sealed trait Dimension extends {
-
-    def matches(id: Long): Boolean = this match {
-      case Dimension.Generic(iid) => iid == id
-      case _ => false
-    }
-
-    def isConstant: Boolean = this match {
-      case Dimension.Generic(_) => false
-      case _ => true
-    }
-
-    def min(t: Dimension): Dimension = if ((this max t) == t) this else t
-
-    def max(t: Dimension): Dimension = (this, t) match {
-      case (Dimension.Generic(a), Dimension.Generic(b)) =>
-        Dimension.Generic(a max b)
-      case (c, _: Dimension.Generic) =>
-        c
-      case (_: Dimension.Generic, c) =>
-        c
-      case (Dimension.True, _) =>
-        Dimension.True
-      case (_, Dimension.True) =>
-        Dimension.True
-      case _ =>
-        Dimension.False
-    }
+  private def hcom(pair: Formula, typ: Value, base: Value, restriction0: Seq[Face], returns: Value => Value = id): Value = ???
 
 
 
-    def restrict(seq: Seq[Dimension]): Dimension = seq.foldLeft(this) { (t, v) => t.restrict(v) }
-
-
-    def restrict(pair: Dimension): Dimension = ???
-  }
-
-  object Dimension {
-    sealed trait Internal extends Dimension
-    case class Generic(id: Long) extends Dimension
-
-    object True extends Dimension
-    object False extends Dimension
-  }
 
   type StuckPos = Value
   // these serve the purpose of recovering syntax
@@ -549,7 +259,6 @@ object Value {
 
   object Meta {
     sealed trait State
-
     case class Closed(v: Value) extends State
     case class Open(id: Long, typ: Value) extends State
   }
@@ -591,7 +300,7 @@ object Value {
   object Universe {
     def suc(i: Int) = Universe(i)
     //def suc(i: Int) = Universe(i + 1)
-    def level0 = Universe(1)
+    def level0 = Universe(0)
     def level1 = Universe(1)
   }
 
@@ -600,7 +309,7 @@ object Value {
 
   case class Inductively(id: Long, level: Int) {
     def up(b: Int): Inductively = copy(level = level + b)
-    def restrict(lv: Dimension): Inductively = this
+    def restrict(lv: Formula): Inductively = this
   }
 
   case class Record(
@@ -623,13 +332,13 @@ object Value {
 
   object Face {
   }
-  case class Face(restriction: Dimension, body: AbsClosure)
+  case class Face(restriction: Formula, body: AbsClosure)
 
-  case class Coe(direction: Dimension, tp: AbsClosure.StuckPos, base: Value) extends Stuck
+  case class Coe(direction: Formula, tp: AbsClosure.StuckPos, base: Value) extends Stuck
 
-  case class Com(direction: Dimension, tp: AbsClosure.StuckPos, base: Value, faces: Seq[Face]) extends Stuck
+  case class Com(direction: Formula, tp: AbsClosure.StuckPos, base: Value, faces: Seq[Face]) extends Stuck
 
-  case class Hcom(direction: Dimension, tp: StuckPos, base: Value, faces: Seq[Face]) extends Stuck
+  case class Hcom(direction: Formula, tp: StuckPos, base: Value, faces: Seq[Face]) extends Stuck
 
   case class Make(values: Seq[Value]) extends HeadCanonical
 
@@ -683,11 +392,11 @@ object Value {
   case class PathLambda(body: AbsClosure) extends HeadCanonical
 
   // the left and right BOTH stuck
-  case class PathApp(left: StuckPos, dimension: Dimension) extends Stuck
+  case class PathApp(left: StuckPos, dimension: Formula) extends Stuck
 
-  case class VType(x: Value.Dimension, a: Value, b: Value, e: Value) extends CubicalUnstable
-  case class VMake(x: Value.Dimension, m: Value, n: Value) extends CubicalUnstable
-  case class VProj(x: Value.Dimension, m: StuckPos, f: Value) extends Stuck
+  case class VType(x: Value.Formula, a: Value, b: Value, e: Value) extends CubicalUnstable
+  case class VMake(x: Value.Formula, m: Value, n: Value) extends CubicalUnstable
+  case class VProj(x: Value.Formula, m: StuckPos, f: Value) extends Stuck
 
   // these values will not be visible to users! also I guess it is ok to be static, it will not overflow right?
   private val gen = LongGen.Negative.gen
@@ -723,7 +432,7 @@ object Value {
         s.inductively.map(a => Universe(a.level)).getOrElse(
           Universe(if (s.constructors.isEmpty) 0 else s.constructors.map(c => ClosureGraph.inferLevel(c.nodes)).max))
       case PathType(typ, _, _) =>
-        infer(typ.apply(Dimension.Generic(dgen())))
+        infer(typ.apply(Formula.Generic(dgen())))
       case App(l1, a1) =>
         infer(l1).whnf match {
           case Function(_, _, c) =>
@@ -793,7 +502,7 @@ object Value {
         case VProj(_, m, _) => unapply(m)
         case Coe(_, typ, _) =>
           // FIXME this rule is really wired...
-          unapply(typ(Dimension.Generic(dgen())).whnf)
+          unapply(typ(Formula.Generic(dgen())).whnf)
         case Hcom(_, tp, _, _) => unapply(tp)
         //case Restricted(a, _) => unapply(a)
         case _: Com => logicError()
@@ -801,6 +510,252 @@ object Value {
         case _: Internal => logicError()
       }
     }
+  }
+}
+
+
+sealed trait Value {
+  final override def equals(obj: Any): Boolean = throw new IllegalArgumentException("Values don't have equal. Either call eq or do conversion checking")
+  /**
+   *
+   * HOW DOES restrict interacts with Up
+   *
+   * these two are translated to calls, not Stuck in eval
+   *
+   * they act structurally on all syntax, and block on all references (closed, generic, meta)
+   *
+   * so they block on each other, and we will ensure that the canonical block order is Restrict(Up(XxxReference))
+   *
+   */
+  def restrict(a: Seq[Formula]): Value = a.foldLeft(this) {(t, v) => t.restrict(v) }
+
+
+  // FIXME how does it interact with recursive references?
+  def restrict(lv: Formula): Value = ??? /* if (lv.isTrue) this else this match {
+    case u: Universe => u
+    case Function(domain, im, codomain) =>
+      Function(domain.restrict(lv), im, codomain.restrict(lv))
+    case Record(inductively, ms, ns, nodes) =>
+      Record(inductively.map(_.restrict(lv)), ms, ns, ClosureGraph.restrict(nodes, lv))
+    case Make(values) =>
+      Make(values.map(_.restrict(lv)))
+    case Construct(name, vs) =>
+      Construct(name, vs.map(_.restrict(lv)))
+    case Sum(inductively, constructors) =>
+      Sum(inductively.map(_.restrict(lv)), constructors.map(n => Constructor(n.name, n.ims, ClosureGraph.restrict(n.nodes, lv))))
+    case Lambda(closure) =>
+      Lambda(closure.restrict(lv))
+    case PatternLambda(id, dom, typ, cases) =>
+      PatternLambda(id, dom.restrict(lv), typ.restrict(lv), cases.map(a => Case(a.pattern, a.closure.restrict(lv))))
+    case PathType(typ, left, right) =>
+      PathType(typ.restrict(lv), left.restrict(lv), right.restrict(lv))
+    case PathLambda(body) =>
+      PathLambda(body.restrict(lv))
+    case App(lambda, argument) =>
+      App(lambda.restrict(lv), argument.restrict(lv))
+    case Coe(direction, tp, base) =>
+      Coe(direction.restrict(lv), tp.restrict(lv), base.restrict(lv))
+    case Hcom(direction, tp, base, faces) =>
+      Hcom(direction.restrict(lv), tp.restrict(lv), base.restrict(lv), Face.restrict(faces, lv))
+    case Com(direction, tp, base, faces) =>
+      Com(direction.restrict(lv), tp.restrict(lv), base.restrict(lv), Face.restrict(faces, lv))
+    case Maker(value, field) =>
+      Maker(value.restrict(lv), field)
+    case Projection(make, field) =>
+      Projection(make.restrict(lv), field)
+    case PatternStuck(lambda, stuck) =>
+      PatternStuck(lambda.restrict(lv).asInstanceOf[PatternLambda], stuck.restrict(lv))
+    case PathApp(left, stuck) =>
+      PathApp(left.restrict(lv), stuck.restrict(lv))
+    case VType(x, a, p, e) =>
+      VType(x.restrict(lv), a.restrict(lv), p.restrict(lv), e.restrict(lv))
+    case VMake(x, m, n) =>
+      VMake(x.restrict(lv), m.restrict(lv), n.restrict(lv))
+    case VProj(x, m, f) =>
+      VProj(x.restrict(lv), m.restrict(lv), f.restrict(lv))
+    case Let(items, body) =>
+      Let(items, body.restrict(lv))
+    case Derestricted(v, lv0) =>
+      assert(lv == lv0)
+      v
+    case Up(a, b) =>
+      Restricted(Up(a, b), Seq(lv))
+    case Restricted(a, faces) =>
+      Restricted(a, lv +: faces)
+    case g: Generic =>
+      Restricted(g, Seq(lv))
+    case o: Reference =>
+      Restricted(o, Seq(lv))
+    case o: Meta =>
+      Restricted(o, Seq(lv))
+  }
+  */
+
+  def from: Value = if (_from == null) this else _from
+  @cached_mutation private[Value] var _from: Value = _
+  @cached_mutation private[Value] var _whnf: Value = _
+
+  // it asserts that if one value cannot be reduced more, it will be eq the original
+  def whnf: Value = {
+    if (_whnf == null) {
+      // TODO can we sort by restriction first?
+      def eqFaces(f1: Seq[Face], f2: Seq[Face]): Boolean = ???
+      /*
+        f1.eq(f2) || (f1.size == f2.size && f1.zip(f2).forall(p => {
+        p._1.restriction.sameRestrict(p._2.restriction) && p._1.body.eq(p._2.body)
+      }))
+       */
+      val candidate = this match {
+        case a: HeadCanonical =>
+          a
+        case r: Reference =>
+          r.value.whnf
+        case o: Generic =>
+          o
+        case m: Meta =>
+          m.state match {
+            case Meta.Closed(v) => v.whnf
+            case _: Meta.Open => m
+          }
+        case Maker(r, i) =>
+          r.whnf match {
+            case s: Sum => s.constructors(i).maker
+            case r: Record =>
+              assert(i == -1)
+              r.maker
+            case _ => logicError() // because we don't accept anoymouns maker expression
+          }
+        case Let(_, body) =>
+          body.whnf
+        case App(lambda, argument) =>
+          // FIXME we really needs to cleanup these stuff
+          def app2(lambda: Value, argument: Value, returns: Value => Value = id): Value = {
+            lambda match {
+              case Lambda(closure) =>
+                returns(closure(argument))
+              case p : PatternLambda =>
+                split(p, argument.whnf, returns)
+              case _ =>
+                App(lambda, argument)
+            }
+          }
+          app2(lambda.whnf, argument.whnf, _.whnf) match {
+            case App(l2, a2) if lambda.eq(l2) && a2.eq(argument) => this
+            case a => a
+          }
+        case PatternStuck(lambda, stuck) =>
+          split(lambda, stuck.whnf, _.whnf) match {
+            case PatternStuck(l2, s2) if lambda.eq(l2) && stuck.eq(s2) => this
+            case a => a
+          }
+        case Projection(make, field) =>
+          project(make.whnf, field, _.whnf) match {
+            case Projection(m2, f2) if make.eq(m2) && field == f2 => this
+            case a => a
+          }
+        case PathApp(left, stuck) =>
+          // we MUST perform this, because this doesn't care
+          papp(left.whnf, stuck) match {
+            case PathApp(l2, s2) if left.eq(l2) && stuck == s2 => this
+            case a => a.whnf
+          }
+        case Coe(direction, tp, base) =>
+          // kan ops case analysis on tp, so they perform their own whnf
+          coe(direction, tp, base, _.whnf) match {
+            case Coe(d2, t2, b2) if d2 == direction && t2.eq(tp) && base.eq(b2) => this
+            case a => a
+          }
+        case Hcom(direction, tp, base, faces) =>
+          hcom(direction, tp, base, faces, _.whnf) match {
+            case Hcom(d2, t2, b2, f2) if direction == d2 && tp.eq(t2) && base.eq(b2) && eqFaces(faces, f2) => this
+            case a => a
+          }
+        case Com(direction, tp, base, faces) =>
+          com(direction, tp, base, faces, _.whnf) match {
+            case Com(d2, t2, b2, f2) if direction == d2 && tp.eq(t2) && base.eq(b2) && eqFaces(faces, f2) => this
+            case a => a
+          }
+        case VType(x, a, b, _) =>
+          x match {
+            case _: Formula.Generic => this
+            case Formula.False => a.whnf
+            case Formula.True => b.whnf
+            case _: Formula.Internal => logicError()
+          }
+        case VMake(x, m, n) =>
+          x match {
+            case g: Formula.Generic => this
+            case Formula.False => m
+            case Formula.True => n
+            case _: Formula.Internal => logicError()
+          }
+        case VProj(x, m, f) =>
+          x match {
+            case g: Formula.Generic =>
+              val mw = m.whnf
+              @inline def fallback() = if (mw.eq(m)) this else VProj(x, mw, f)
+              mw match {
+                case VMake(x2, _, n) =>
+                  assert(x == x2)
+                  n.whnf
+                case _ => fallback()
+              }
+            case Formula.False => app(f, m).whnf
+            case Formula.True => m.whnf
+            case _: Formula.Internal => logicError()
+          }
+        /*
+      case Restricted(a, restriction) =>
+        val normalized = DimensionPair.normalizeRestriction(restriction)
+        if (normalized.isEmpty) {
+          a.whnf
+        } else {
+          a match {
+            case GenericOrOpenMeta(it) => Restricted(it, normalized) // stop case
+            case Up(j, b) => j match {
+              case GenericOrOpenMeta(it) => Restricted(Up(it, b), normalized) // a up's whnf can only block on generics
+              case j => j.deref().restrict(restriction).whnf
+            }
+            case _ => a.deref().restrict(restriction).whnf
+          }
+        }
+         */
+        case _: Internal =>
+          logicError()
+      }
+      // because some values is shared, it means the solved ones is not created for this whnf, we don't say this
+      // is from us
+      if (!candidate.eq(candidate._from)) { // FIXME these are already defined ones
+        if (!candidate.eq(this)) {
+          candidate._from = this
+        } else {
+          assert(candidate._from == null)
+        }
+      }
+      candidate match {
+        case Value.OpenMetaHeadedWhnf(_) =>
+        case _ =>
+          // remember for stable values
+          _whnf = candidate
+          candidate._whnf = candidate
+      }
+      candidate
+    } else {
+      _whnf
+    }
+  }
+
+
+  def deref(): Value = this match {
+    case r: Reference => r.value.deref()
+    case Meta(c: Meta.Closed) => c.v.deref()
+    case _ => this
+  }
+
+  def makerType(i: Int): Value = this.whnf match {
+    case s: Sum => s.constructors(i).makerType
+    case v: Record => v.makerType
+    case _ => logicError()
   }
 }
 

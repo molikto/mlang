@@ -23,7 +23,7 @@ class Elaborator private(protected override val layers: Layers)
 
   override protected implicit def create(a: Layers): Self = new Elaborator(a)
 
-  def checkValidRestrictions(ds0: Seq[Value.Dimension]) = {
+  def checkValidRestrictions(ds0: Seq[Value.Formula]) = {
     ???
   }
 
@@ -31,7 +31,7 @@ class Elaborator private(protected override val layers: Layers)
                                   faces: Seq[Concrete.Face],
                                   bt: Value.AbsClosure,
                                   bv: Value,
-                                  dv: Value.Dimension
+                                  dv: Value.Formula
   ): Seq[Abstract.Face] = {
     /*
     // we use this context to evaluate body of faces, it is only used to keep the dimension binding to the same
@@ -39,7 +39,7 @@ class Elaborator private(protected override val layers: Layers)
     val (_, dim0) = newParametersLayer().newDimensionLayer(Name.empty)
     val btt = bt(dim0)
     val res = faces.map(a => {
-      val (dav, daa) = checkDimension(a.dimension)
+      val (dav, daa) = checkFormula(a.dimension)
       if (dav.isFalse) {
         throw ElaboateException.RemoveFalseFace()
       } else {
@@ -82,7 +82,7 @@ class Elaborator private(protected override val layers: Layers)
   }
 
 
-  def checkLine(a: Concrete, dim: Value.Dimension.Generic, typ: Value.AbsClosure): Abstract.AbsClosure = {
+  def checkLine(a: Concrete, dim: Value.Formula.Generic, typ: Value.AbsClosure): Abstract.AbsClosure = {
     a match {
       case Concrete.Lambda(n, b, body) =>
         if (b) throw ElaborateException.DimensionLambdaCannotBeImplicit()
@@ -94,7 +94,7 @@ class Elaborator private(protected override val layers: Layers)
         val (tv, ta) = ctx.infer(a)
         tv.whnf match {
           case j@Value.PathType(_, _, _) =>
-            Abstract.AbsClosure(ctx.finishReify(), Abstract.PathApp(ta, Abstract.Dimension.Reference(0)))
+            Abstract.AbsClosure(ctx.finishReify(), Abstract.PathApp(ta, Abstract.Formula.Reference(0)))
           case _ => throw ElaborateException.ExpectingLambdaTerm()
         }
     }
@@ -112,7 +112,7 @@ class Elaborator private(protected override val layers: Layers)
         val (tv, ta) = ctx.infer(a)
         tv.whnf match {
           case j@Value.PathType(_, _, _) =>
-            val clo = Abstract.AbsClosure(ctx.finishReify(), Abstract.PathApp(ta, Abstract.Dimension.Reference(0)))
+            val clo = Abstract.AbsClosure(ctx.finishReify(), Abstract.PathApp(ta, Abstract.Formula.Reference(0)))
             (Value.inferLevel(j), clo)
           case _ => throw ElaborateException.ExpectingLambdaTerm()
         }
@@ -141,8 +141,6 @@ class Elaborator private(protected override val layers: Layers)
       case Concrete.Type =>
         (Value.Universe.level1, Abstract.Universe(0))
       case Concrete.Up(a, b) =>
-        a
-        /*
         a match {
           case Concrete.Up(c, d) =>
             infer(Concrete.Up(c, b + d))
@@ -152,12 +150,12 @@ class Elaborator private(protected override val layers: Layers)
             val (binder, abs) = lookupTerm(ref)
             abs match {
               case Abstract.Reference(up, _) if up == layers.size - 1 =>
-                reduceMore(binder.up(b), Abstract.Up(abs, b))
+              reduceMore(binder, abs)
+              //reduceMore(binder.up(b), Abstract.Up(abs, b))
               case _ => throw ElaborateException.UpCanOnlyBeUsedOnTopLevelDefinitionOrUniverse()
             }
           case _ => throw ElaborateException.UpCanOnlyBeUsedOnTopLevelDefinitionOrUniverse()
         }
-        */
       case Concrete.Reference(name) =>
         // should lookup always return a value? like a open reference?
         val (binder, abs) = lookupTerm(name)
@@ -167,6 +165,13 @@ class Elaborator private(protected override val layers: Layers)
       case Concrete.True =>
         throw ElaborationContextException.ConstantSortWrong()
       case Concrete.False =>
+        throw ElaborationContextException.ConstantSortWrong()
+        // LATER these three is not exactly constants, maybe this can be fixed after refactor better elaboration
+      case _: Concrete.And =>
+        throw ElaborationContextException.ConstantSortWrong()
+      case _: Concrete.Or =>
+        throw ElaborationContextException.ConstantSortWrong()
+      case _: Concrete.Neg =>
         throw ElaborationContextException.ConstantSortWrong()
       case Concrete.I =>
         throw ElaborateException.TermICanOnlyAppearInDomainOfFunction()
@@ -212,7 +217,7 @@ class Elaborator private(protected override val layers: Layers)
         // LATER does these needs finish off implicits?
         ???
         /*
-        val (dv, da) = checkDimension(direction)
+        val (dv, da) = checkFormula(direction)
         val (_, ta) = checkTypeLine(tp)
         val cl = eval(ta)
         val la = check(base, cl(Dimension.False))
@@ -221,7 +226,7 @@ class Elaborator private(protected override val layers: Layers)
       case Concrete.Com(direction, tp, base, faces) =>
         ???
         /*
-        val (dv, da) = checkDimension(direction)
+        val (dv, da) = checkFormula(direction)
         val (_, ta) = checkTypeLine(tp)
         val cl = eval(ta)
         val ba = check(base, cl(Dimension.False))
@@ -231,7 +236,7 @@ class Elaborator private(protected override val layers: Layers)
       case Concrete.Hcom(direction, base, faces) =>
         ???
         /*
-        val (dv, da)= checkDimension(direction)
+        val (dv, da)= checkFormula(direction)
         val (bt, ba) = infer(base)
         val bv = eval(ba)
         val rs = checkCompatibleCapAndFaces(faces, Value.AbsClosure(bt), bv, dv)
@@ -244,8 +249,8 @@ class Elaborator private(protected override val layers: Layers)
           case Some(tp) =>
             val (tl, ca) = checkTypeLine(tp)
             val tv = eval(ca)
-            val la = check(left, tv(Value.Dimension.False))
-            val ra = check(right, tv(Value.Dimension.True))
+            val la = check(left, tv(Value.Formula.False))
+            val ra = check(right, tv(Value.Formula.True))
             (Value.Universe(tl), Abstract.PathType(ca, la, ra))
           case None =>
             // FIXME instead of inferring two side, infer one side then check another; or if we have meta with levels... can we just write a max level? it seems not that easy... because you run into the same kind of problems
@@ -269,7 +274,7 @@ class Elaborator private(protected override val layers: Layers)
         val (mt, ma) = infer(m)
          mt match {
           case Value.VType(x, _, b, e) =>
-            (b, Abstract.VProj(rebindDimension(x), ma, Abstract.Projection(reify(e), 0)))
+            (b, Abstract.VProj(rebindFormula(x), ma, Abstract.Projection(reify(e), 0)))
           case _ => throw ElaborateException.VProjCannotInfer()
         }
       case p: Concrete.PatternLambda =>
@@ -310,7 +315,7 @@ class Elaborator private(protected override val layers: Layers)
         reduceMore(v1, v2) // because inferApp stops when arguments is finished
       case Concrete.VType(x, a, b, e) =>
         ???
-//        val (xv, xa) = checkDimension(x)
+//        val (xv, xa) = checkFormula(x)
 //        xv match {
 //          case g: Dimension.Generic =>
 //            val dp = Value.DimensionPair(g, Value.Dimension.False)
@@ -334,16 +339,27 @@ class Elaborator private(protected override val layers: Layers)
     res
   }
 
-  private def checkDimension(r: Concrete): (Value.Dimension, Abstract.Dimension) = {
+  private def checkFormula(r: Concrete): (Value.Formula, Abstract.Formula) = {
     r match {
       case Concrete.Reference(name) =>
         val (v, a) = lookupDimension(name)
         (v, a)
+      case Concrete.And(left, right) =>
+        val l = checkFormula(left)
+        val r = checkFormula(right)
+        (Value.Formula.And(l._1, r._1), Abstract.Formula.And(l._2, r._2))
+      case Concrete.Or(left, right) =>
+        val l = checkFormula(left)
+        val r = checkFormula(right)
+        (Value.Formula.Or(l._1, r._1), Abstract.Formula.Or(l._2, r._2))
+      case Concrete.Neg(a) =>
+        val r = checkFormula(a)
+        (Value.Formula.Neg(r._1), Abstract.Formula.Neg(r._2))
       case Concrete.True =>
-        (Value.Dimension.True, Abstract.Dimension.True)
+        (Value.Formula.True, Abstract.Formula.True)
       case Concrete.False =>
-        (Value.Dimension.False, Abstract.Dimension.False)
-      case _ => throw ElaborateException.ExpectingDimension()
+        (Value.Formula.False, Abstract.Formula.False)
+      case _ => throw ElaborateException.ExpectingFormula()
     }
   }
 
@@ -378,8 +394,8 @@ class Elaborator private(protected override val layers: Layers)
             val ms = ctx.finishReify()
             val cloa = Abstract.AbsClosure(ms, va)
             val clov = eval(cloa)
-            val left = clov(Value.Dimension.False)
-            val right = clov(Value.Dimension.True)
+            val left = clov(Value.Formula.False)
+            val right = clov(Value.Formula.True)
             (Abstract.PathType(Abstract.AbsClosure(ms, ta), reify(left), reify(right)), Abstract.PathLambda(cloa))
           case _ =>
             val (_, da) = inferLevel(head._3)
@@ -439,7 +455,7 @@ class Elaborator private(protected override val layers: Layers)
             }
           case Value.PathType(typ, _, _) =>
             if (head._1) throw ElaborateException.DimensionLambdaCannotBeImplicit()
-            val (dv, da) = checkDimension(head._2)
+            val (dv, da) = checkFormula(head._2)
             val lt1 = typ(dv)
             val la1 = Abstract.PathApp(la, da)
             inferApp(lt1, la1, tail)
@@ -520,7 +536,7 @@ class Elaborator private(protected override val layers: Layers)
             if (b) throw ElaborateException.DimensionLambdaCannotBeImplicit()
             val (c1, dv) = newDimensionLayer(n.nonEmptyOrElse(hint))
             val t1 = typ(dv)
-            import Value.Dimension._
+            import Value.Formula._
             val a1 = c1.check(body, t1, tail)
             val ps = Abstract.AbsClosure(c1.finishReify(), a1)
             val pv = eval(ps)

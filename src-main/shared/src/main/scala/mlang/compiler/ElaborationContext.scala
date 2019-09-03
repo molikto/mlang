@@ -1,9 +1,8 @@
 package mlang.compiler
 
 
-import mlang.compiler.ElaborationContext.Metas
-import mlang.compiler.Value.{Dimension, Reference}
-import mlang.utils.{Name, Text}
+import mlang.compiler.Value.{Reference}
+import mlang.utils.{Text}
 
 import scala.collection.mutable
 
@@ -13,34 +12,7 @@ case class RebindNotFoundException() extends Exception
 object ElaborationContext {
   type Layers = Seq[Layer]
 
-  class Metas(val metas: mutable.ArrayBuffer[Value.Meta], var frozen: Int) {
-    def debug_allFrozen: Boolean = metas.size == frozen
-
-    def freeze(): Seq[Value.Meta] = {
-      val vs = metas.slice(frozen, metas.size)
-      frozen = metas.size
-      vs.toSeq
-    }
-
-    def apply(i: Int): Value.Meta = metas(i)
-
-    var debug_final = false
-    def size: Int = metas.size
-
-    def isEmpty: Boolean = metas.isEmpty
-    def nonEmpty: Boolean = metas.nonEmpty
-    def head: Value.Meta = metas.head
-
-    def append(a: Value.Meta): Unit = {
-      if (debug_final) logicError()
-      metas.append(a)
-    }
-  }
 }
-
-import ElaborationContext._
-
-
 
 import ElaborationContext._
 trait ElaborationContext extends EvaluationContext {
@@ -57,7 +29,7 @@ trait ElaborationContext extends EvaluationContext {
     case _ => logicError()
   }
 
-  def getDimension(depth: Int): Value.Dimension = layers(depth).asInstanceOf[Layer.Dimension].value
+  def getDimension(depth: Int): Value.Formula.Generic = layers(depth).asInstanceOf[Layer.Dimension].value
 
   def rebindReference(v: Reference): Option[Abstract.Reference] = {
     var up = 0
@@ -88,25 +60,28 @@ trait ElaborationContext extends EvaluationContext {
   }
 
 
-  def rebindDimension(a: Value.Dimension): Abstract.Dimension = {
+  def rebindFormula(a: Value.Formula): Abstract.Formula = {
     a match {
-      case Value.Dimension.Generic(stuck) =>
-        rebindDimensionGeneric(stuck)
-      case Value.Dimension.True => Abstract.Dimension.True
-      case Value.Dimension.False => Abstract.Dimension.False
-      case _: Value.Dimension.Internal => logicError()
+      case Value.Formula.Generic(stuck) =>
+        rebindDimension(stuck)
+      case Value.Formula.True => Abstract.Formula.True
+      case Value.Formula.False => Abstract.Formula.False
+      case Value.Formula.And(a, b) => Abstract.Formula.And(rebindFormula(a), rebindFormula(b))
+      case Value.Formula.Or(a, b) => Abstract.Formula.Or(rebindFormula(a), rebindFormula(b))
+      case Value.Formula.Neg(a) => Abstract.Formula.Neg(rebindFormula(a))
+      case _: Value.Formula.Internal => logicError()
     }
   }
 
-  def rebindDimensionGeneric(id: Long): Abstract.Dimension.Reference = {
+  def rebindDimension(id: Long): Abstract.Formula.Reference = {
     var up = 0
     var ls = layers
-    var binder: Abstract.Dimension.Reference = null
+    var binder: Abstract.Formula.Reference = null
     while (ls.nonEmpty && binder == null) {
       ls.head match {
         case d: Layer.Dimension =>
           if (d.id == id) {
-            binder = Abstract.Dimension.Reference(up)
+            binder = Abstract.Formula.Reference(up)
           }
         case _ =>
       }
@@ -189,9 +164,9 @@ trait ElaborationContext extends EvaluationContext {
     }
   }
 
-  def lookupDimension(name: Text): (Value.Dimension, Abstract.Dimension) = {
+  def lookupDimension(name: Text): (Value.Formula.Generic, Abstract.Formula.Reference) = {
     lookup0(name) match {
-      case (t: Value.Dimension, j: Abstract.Dimension) =>
+      case (t: Value.Formula.Generic, j: Abstract.Formula.Reference) =>
         (t, j)
       case _ =>
         throw ElaborationContextException.ReferenceSortWrong(name)
@@ -238,7 +213,7 @@ trait ElaborationContext extends EvaluationContext {
           }
         case d: Layer.Dimension =>
           if (d.name.by(name)) {
-            binder = (d.value, Abstract.Dimension.Reference(up))
+            binder = (d.value, Abstract.Formula.Reference(up))
           }
         case l: Layer.Restriction =>
           faces.append(l)
@@ -259,7 +234,7 @@ trait ElaborationContext extends EvaluationContext {
           } else {
             (t.restrict(rs), j)
           }
-        case (t: Value.Dimension, j: Abstract.Dimension) =>
+        case (t: Value.Formula.Generic, j: Abstract.Formula.Reference) =>
           (t.restrict(rs), j)
         case _ => logicError()
       }

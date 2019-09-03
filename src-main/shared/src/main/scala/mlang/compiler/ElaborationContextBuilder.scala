@@ -37,21 +37,21 @@ trait ElaborationContextBuilder extends ElaborationContextWithMetaOps {
     create(layers.drop(up))
   }
 
-  def newRestrictionLayer(pair: Value.Dimension): Self = {
+  def newRestrictionLayer(pair: Value.Formula): Self = {
     Layer.Restriction(pair, createMetas()) +: layers
   }
 
 
 
-  def newDimensionLayer(n: Name, dimension: Value.Dimension.Generic): Self = {
+  def newDimensionLayer(n: Name, dimension: Value.Formula.Generic): Self = {
     val l = Layer.Dimension(dimension, n, createMetas())
     val ctx: Self = l +: layers
     ctx
   }
 
 
-  def newDimensionLayer(n: Name): (Self, Value.Dimension.Generic) = {
-    val v = Value.Dimension.Generic(dgen())
+  def newDimensionLayer(n: Name): (Self, Value.Formula.Generic) = {
+    val v = Value.Formula.Generic(dgen())
     val l = Layer.Dimension(v, n, createMetas())
     val ctx: Self = l +: layers
     (ctx, v)

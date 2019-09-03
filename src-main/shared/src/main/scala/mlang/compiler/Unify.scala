@@ -102,13 +102,13 @@ trait Unify extends Reifier with Evaluator with PlatformEvaluator {
   }
 
   private def recAbsClosure(typ: Value, t1: AbsClosure, t2: AbsClosure): Boolean = {
-    val c = Dimension.Generic(dgen())
+    val c = Formula.Generic(dgen())
     recTerm(typ, t1(c), t2(c))
   }
 
 
   private def recTypeAbsClosure(t1: AbsClosure, t2: AbsClosure, mode: Int = 0): Boolean = {
-    val c = Dimension.Generic(dgen())
+    val c = Formula.Generic(dgen())
     recType(t1(c), t2(c), mode)
   }
 
@@ -151,8 +151,8 @@ trait Unify extends Reifier with Evaluator with PlatformEvaluator {
           maybeNominal(id1, id2, c1.size == c2.size && c1.zip(c2).forall(p => recConstructor(p._1, p._2, mode)))
         case (PathType(t1, l1, r1), PathType(t2, l2, r2)) =>
           recTypeAbsClosure(t1, t2, mode) &&
-              recTerm(t1(Dimension.False), l1, l2) &&
-              recTerm(t1(Dimension.True), r1, r2)
+              recTerm(t1(Formula.False), l1, l2) &&
+              recTerm(t1(Formula.True), r1, r2)
         case (t1, t2) =>
           recNeutral(t1, t2).map(_.whnf match {
             case Universe(_) => true
@@ -240,14 +240,6 @@ trait Unify extends Reifier with Evaluator with PlatformEvaluator {
         } else {
           None
         }
-      case (Up(v1, b1), Up(v2, b2)) =>
-        recNeutral(v1, v2).flatMap(tp => {
-          if (b1 == b2) {
-            Some(tp.up(b1))
-          } else {
-            None
-          }
-        })
       case (App(l1, a1), App(l2, a2)) =>
         recNeutral(l1, l2).flatMap(_.whnf match {
           case Function(d, _, c) =>
@@ -331,7 +323,7 @@ trait Unify extends Reifier with Evaluator with PlatformEvaluator {
           val c = Generic(gen(), d)
           recTerm(cd(c), app(s1, c), app(s2, c))
         case (PathType(ty, _, _), s1, s2) =>
-          val c = Dimension.Generic(dgen())
+          val c = Formula.Generic(dgen())
           recTerm(ty(c), papp(s1, c), papp(s2, c))
         case (r: Record, m1, m2) =>
           recTerms(r.nodes, i => project(m1, i), i => project(m2, i))

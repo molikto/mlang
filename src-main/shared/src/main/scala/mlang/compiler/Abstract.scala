@@ -1,5 +1,6 @@
 package mlang.compiler
 
+import mlang.compiler.Value.Formula
 import mlang.utils.Name
 
 case class Dependency(i: Int, meta: Boolean)
@@ -114,8 +115,6 @@ object Abstract {
 
   case class Universe(i: Int) extends Abstract
 
-  case class Up(t: Abstract, i: Int) extends Abstract
-
   case class Reference(up: Int, index: Int) extends Abstract
 
   case class MetaReference(up: Int, index: Int) extends Abstract
@@ -144,30 +143,30 @@ object Abstract {
 
   case class PathLambda(body: AbsClosure) extends Abstract
   case class PathType(typ: AbsClosure, left: Abstract, right: Abstract) extends Abstract
-  case class PathApp(let: Abstract, r: Dimension) extends Abstract
+  case class PathApp(let: Abstract, r: Formula) extends Abstract
 
-  case class Coe(direction: Dimension, tp: AbsClosure, base: Abstract) extends Abstract
-  case class Hcom(direction: Dimension, tp: Abstract, base: Abstract, faces: Seq[Face]) extends Abstract
+  case class Coe(direction: Formula, tp: AbsClosure, base: Abstract) extends Abstract
+  case class Hcom(direction: Formula, tp: Abstract, base: Abstract, faces: Seq[Face]) extends Abstract
 
-  case class Com(direction: Dimension, tp: AbsClosure, base: Abstract, faces: Seq[Face]) extends Abstract
+  case class Com(direction: Formula, tp: AbsClosure, base: Abstract, faces: Seq[Face]) extends Abstract
 
-  case class VType(x: Dimension, a: MetaEnclosed, b: Abstract, e: MetaEnclosed) extends Abstract
-  case class VMake(x: Dimension, m: MetaEnclosed, n: Abstract) extends Abstract
-  case class VProj(x: Dimension, m: Abstract, f: Abstract) extends Abstract
+  case class VType(x: Formula, a: MetaEnclosed, b: Abstract, e: MetaEnclosed) extends Abstract
+  case class VMake(x: Formula, m: MetaEnclosed, n: Abstract) extends Abstract
+  case class VProj(x: Formula, m: Abstract, f: Abstract) extends Abstract
 
   // restriction doesn't take binding, but they have a level non-the-less
-  case class Face(pair: Dimension, body: AbsClosure) {
+  case class Face(pair: Formula, body: AbsClosure) {
     def diff(depth: Int, x: Int): Face = Face(pair.diff(depth, x), body.diff(depth, x))
 
     def dependencies(i: Int): Set[Dependency] = body.dependencies(i + 1)
   }
 
-  sealed trait Dimension {
-    def diff(depth: Int, x: Int): Abstract.Dimension = {
+  sealed trait Formula {
+    def diff(depth: Int, x: Int): Abstract.Formula = {
       this match {
-        case Dimension.Reference(up) =>
+        case Formula.Reference(up) =>
           if (up > depth) {
-            Dimension.Reference(up + x)
+            Formula.Reference(up + x)
           } else {
             this
           }
@@ -177,10 +176,13 @@ object Abstract {
 
   }
 
-  object Dimension {
-    case class Reference(up: Int) extends Dimension
-    case object True extends Dimension
-    case object False extends Dimension
+  object Formula {
+    case class Reference(up: Int) extends Formula
+    case object True extends Formula
+    case object False extends Formula
+    case class And(left: Formula, right: Formula) extends Formula
+    case class Or(left: Formula, right: Formula) extends Formula
+    case class Neg(unit: Formula) extends Formula
   }
 
 

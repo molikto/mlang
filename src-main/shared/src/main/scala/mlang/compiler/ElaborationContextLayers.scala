@@ -1,8 +1,33 @@
 package mlang.compiler
 
-import mlang.compiler.ElaborationContext.Metas
 import mlang.utils.Name
 
+import scala.collection.mutable
+
+
+class MetasState(val metas: mutable.ArrayBuffer[Value.Meta], var frozen: Int) {
+  def debug_allFrozen: Boolean = metas.size == frozen
+
+  def freeze(): Seq[Value.Meta] = {
+    val vs = metas.slice(frozen, metas.size)
+    frozen = metas.size
+    vs.toSeq
+  }
+
+  def apply(i: Int): Value.Meta = metas(i)
+
+  var debug_final = false
+  def size: Int = metas.size
+
+  def isEmpty: Boolean = metas.isEmpty
+  def nonEmpty: Boolean = metas.nonEmpty
+  def head: Value.Meta = metas.head
+
+  def append(a: Value.Meta): Unit = {
+    if (debug_final) logicError()
+    metas.append(a)
+  }
+}
 
 case class ParameterBinder(name: Name, value: Value.Generic) {
   def id: Long = value.id
@@ -19,7 +44,7 @@ case class DefineItem(typ0: ParameterBinder, ref0: Option[Value.Reference]) {
 }
 
 sealed trait Layer {
-  val metas: Metas
+  val metas: MetasState
 }
 
 object Layer {
@@ -27,17 +52,17 @@ object Layer {
   sealed trait Parameters extends Layer {
     def binders: Seq[ParameterBinder]
   }
-  case class Parameter(binder: ParameterBinder, metas: Metas) extends Layer // lambda expression
+  case class Parameter(binder: ParameterBinder, metas: MetasState) extends Layer // lambda expression
 
-  case class PatternParameters(binders: Seq[ParameterBinder], metas: Metas) extends Parameters
+  case class PatternParameters(binders: Seq[ParameterBinder], metas: MetasState) extends Parameters
 
-  case class ParameterGraph(defined: Seq[ParameterBinder], metas: Metas) extends Parameters {
+  case class ParameterGraph(defined: Seq[ParameterBinder], metas: MetasState) extends Parameters {
     def binders: Seq[ParameterBinder] = defined
   }
 
-  case class Defines(metas: Metas, terms: Seq[DefineItem]) extends Layer // notice the metas is FIRST!!
-  case class Dimension(value: Value.Dimension.Generic, name: Name, metas: Metas) extends Layer {
+  case class Defines(metas: MetasState, terms: Seq[DefineItem]) extends Layer // notice the metas is FIRST!!
+  case class Dimension(value: Value.Formula.Generic, name: Name, metas: MetasState) extends Layer {
     def id = value.id
   }
-  case class Restriction(res: Value.Dimension, metas: Metas) extends Layer // no meta should be resolved here
+  case class Restriction(res: Value.Formula, metas: MetasState) extends Layer // no meta should be resolved here
 }
