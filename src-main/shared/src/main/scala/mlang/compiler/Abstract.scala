@@ -73,34 +73,26 @@ object Abstract {
   case class Universe(i: Int) extends Abstract
 
   case class Reference(up: Int, index: Int) extends Abstract
-
   case class MetaReference(up: Int, index: Int) extends Abstract
+  case class Let(metas: Seq[Abstract], definitions: Seq[Abstract], in: Abstract) extends Abstract
 
   case class Function(domain: Abstract, impict: Boolean, codomain: Closure) extends Abstract
-
   case class Lambda(closure: Closure) extends Abstract
-
+  case class PatternLambda(id: Long, domain: Abstract, typ: Closure, cases: Seq[Case]) extends Abstract
   case class App(left: Abstract, right: Abstract) extends Abstract
 
   case class Inductively(id: Long, level: Int) {
     def dependencies(i: Int): Set[Dependency] = Set.empty
     def diff(depth: Int, x: Int): Inductively = this
   }
+  case class Maker(sum: Abstract, field: Int) extends Abstract
 
   case class Record(inductively: Option[Inductively], names: Seq[Name], implicits: Seq[Boolean], graph: ClosureGraph) extends Abstract
-
   case class Projection(left: Abstract, field: Int) extends Abstract
 
   case class Constructor(name: Name, implicits: Seq[Boolean], params: ClosureGraph)
-
   case class Sum(inductively: Option[Inductively], constructors: Seq[Constructor]) extends Abstract
-
-  case class Maker(sum: Abstract, field: Int) extends Abstract
-
-  case class Let(metas: Seq[Abstract], definitions: Seq[Abstract], in: Abstract) extends Abstract
-
   case class Case(pattern: Pattern, body: MultiClosure)
-  case class PatternLambda(id: Long, domain: Abstract, typ: Closure, cases: Seq[Case]) extends Abstract
 
   case class PathLambda(body: AbsClosure) extends Abstract
   case class PathType(typ: AbsClosure, left: Abstract, right: Abstract) extends Abstract

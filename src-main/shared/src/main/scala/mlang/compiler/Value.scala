@@ -13,28 +13,29 @@ private[compiler] class stuck_pos extends Annotation
 
 object Value {
   sealed trait Formula extends {
-    def normalForm: Formula.NormalForm  = {
-      def merge(a: Formula.NormalForm, b: Formula.NormalForm): Formula.NormalForm = {
+    import Formula.{NormalForm, And, Or, Neg, True, False}
+    def normalForm: NormalForm  = {
+      def merge(a: NormalForm, b: NormalForm): NormalForm = {
         def properSupersetOfAny[T](c: Set[T], g: Set[Set[T]]) = b.exists(c => c.subsetOf(c) && c != b)
         a.filter(c => !properSupersetOfAny(c, b)) ++ b.filter(c => !properSupersetOfAny(c, a))
       }
       this match {
-        case Formula.True => NormalForm.True
-        case Formula.False => NormalForm.False
+        case True => NormalForm.True
+        case False => NormalForm.False
         case Formula.Generic(id) => Set(Set((id, true)))
-        case Formula.And(left, right) =>
+        case And(left, right) =>
           val ln = left.normalForm.toSeq
           val rn = right.normalForm.toSeq
           ln.flatMap(i => rn.map(r => Set(i ++ r) : NormalForm)).foldLeft(NormalForm.False) { (a, b) => merge(a, b)}
-        case Formula.Or(left, right) => merge(left.normalForm, right.normalForm)
-        case Formula.Neg(unit) =>
+        case Or(left, right) => merge(left.normalForm, right.normalForm)
+        case Neg(unit) =>
           def negate(f: Formula): Formula = f match {
-            case g: Formula.Generic => Formula.Neg(g)
-            case Formula.And(left, right) => Formula.Or(negate(left), negate(right))
-            case Formula.Or(left, right) => Formula.And(negate(left), negate(right))
-            case Formula.Neg(u2) => u2
-            case Formula.True => Formula.False
-            case Formula.False => Formula.True
+            case g: Generic => Neg(g)
+            case And(left, right) => Or(negate(left), negate(right))
+            case Or(left, right) => And(negate(left), negate(right))
+            case Neg(u2) => u2
+            case True => False
+            case False => True
             case _ => logicError()
           }
           unit match {
