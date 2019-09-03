@@ -30,7 +30,7 @@ trait PlatformEvaluator extends Evaluator {
             s"val m$d = new scala.collection.mutable.ArrayBuffer[Meta](); " +
             s"for (_ <- 0 until ${term.metas.size}) m$d.append(Meta(null)); " + // because they might reference each other
             s"${term.metas.zipWithIndex.map(a =>
-              s"m$d(${a._2}).state = Meta.Closed(${emit(a._1, d)}); ").mkString("")}" +
+              s"m$d(${a._2}).state = MetaState.Closed(${emit(a._1, d)}); ").mkString("")}" +
             s"${emit(term.term, d)}; " +
             s"}"
       }
@@ -46,7 +46,7 @@ trait PlatformEvaluator extends Evaluator {
         } else {
           s"{ val m$d = m${d}_.toBuffer; " +
             s"for (k <- 0 until ${c._2.metas.size}) { assert(m$d(k + ${metasBefore}) == null); m$d(k + $metasBefore) = Meta(null)}; " +
-            s"${c._2.metas.zipWithIndex.map(k => (k._1, k._2 + metasBefore)).map(a => s"m$d(${a._2}).state = Meta.Closed(${emit(a._1, d)}); ").mkString("")}" +
+            s"${c._2.metas.zipWithIndex.map(k => (k._1, k._2 + metasBefore)).map(a => s"m$d(${a._2}).state = MetaState.Closed(${emit(a._1, d)}); ").mkString("")}" +
             s"(m$d.slice($metasBefore, ${metasBefore + c._2.metas.size}).toSeq, ${emit(c._2.term, d)})}"
         }
         s"(Seq[Int](${c._1.mkString(", ")}), ${c._2.metas.size}, (m${d}_, r$d) => $metaBody)"
@@ -93,7 +93,7 @@ trait PlatformEvaluator extends Evaluator {
                 s"val m$d = new scala.collection.mutable.ArrayBuffer[Meta](); " +
                 s"for (_ <- 0 until ${metas.size}) m$d.append(Meta(null)); " +
                 s"${metas.zipWithIndex.map(a =>
-                  s"m$d(${a._2}).state = Meta.Closed(${emit(a._1, d)}); ").mkString("")}" +
+                  s"m$d(${a._2}).state = MetaState.Closed(${emit(a._1, d)}); ").mkString("")}" +
                 s"${definitions.zipWithIndex.map(a =>
                   s"r$d(${a._2}).value = ${emit(a._1, d)}; ").mkString("")}" +
                 s"val body = ${emit(in, d)}; " +
