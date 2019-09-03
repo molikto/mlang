@@ -1,5 +1,6 @@
 package mlang.compiler
 
+import mlang.compiler.Abstract.Formula
 import mlang.utils.{Benchmark, debug}
 
 import scala.collection.mutable
@@ -26,34 +27,43 @@ trait Evaluator extends EvaluatorContext {
   }
 
 
-  protected def tunnel(v: Value.Formula): String = {
+  private def tunnel(v: Any, str: String): String = {
     val i = vs.size
     vs += v
-    s"vs($i).asInstanceOf[Value.Formula]"
+    s"vs($i).asInstanceOf[$str]"
+  }
+
+  protected def tunnel(v: Value.Formula): String = {
+    tunnel(v, "Formula")
   }
 
   protected def tunnel(v: Value): String = {
-    val i = vs.size
-    vs += v
-    s"vs($i).asInstanceOf[Value]"
+    tunnel(v, "Value")
   }
 
   protected def tunnel(v: Value.Closure): String = {
-    val i = vs.size
-    vs += v
-    s"vs($i).asInstanceOf[Value.Closure]"
+    tunnel(v, "Closure")
   }
 
   protected def tunnel(v: Pattern): String = {
-    val i = vs.size
-    vs += v
-    s"vs($i).asInstanceOf[Pattern]"
+    tunnel(v, "Pattern")
   }
 
   protected def platformEval(value: Abstract): Value
 
   protected def eval(a: Abstract.AbsClosure): Value.AbsClosure = {
     eval(Abstract.PathLambda(a)).asInstanceOf[Value.PathLambda].body
+  }
+
+  protected def eval(a: Abstract.Formula): Value.Formula = {
+    a match {
+      case Formula.Reference(up) => getDimension(up)
+      case Formula.True => Value.Formula.True
+      case Formula.False => Value.Formula.False
+      case Formula.And(left, right) => Value.Formula.And(eval(left), eval(right))
+      case Formula.Or(left, right) => Value.Formula.Or(eval(left), eval(right))
+      case Formula.Neg(unit) => Value.Formula.Neg(eval(unit))
+    }
   }
 
   def eval(term: Abstract): Value = {

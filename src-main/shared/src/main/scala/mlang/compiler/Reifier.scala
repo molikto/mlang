@@ -1,9 +1,9 @@
 package mlang.compiler
 
 import mlang.compiler.Abstract._
+import mlang.compiler.Layer.Layers
 import mlang.compiler.Value.{ClosureGraph, Meta, MetaState}
 import mlang.utils.{Benchmark, Name, debug}
-import ElaboratorContextBase.Layers
 
 import scala.collection.mutable
 
@@ -140,10 +140,10 @@ private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorCon
       case Value.Transp(dir, tp, base) =>
         Transp(reify(dir), reify(tp), reify(base))
       case Value.Hcom(dir, tp, base, faces) =>
-        Hcom(reify(dir), reify(tp), reify(base), faces.map(r => Face(reify(r.restriction), newRestrictionLayer(r.restriction).reify(r.body))))
+        Hcom(reify(dir), reify(tp), reify(base), faces.map(r => Face(reify(r.restriction), newReifierRestrictionLayer(r.restriction).reify(r.body))))
       case Value.Com(dir, tp, base, faces) =>
         Com(reify(dir), reify(tp), reify(base),
-          faces.map(r => Face(reify(r.restriction), newRestrictionLayer(r.restriction).reify(r.body)))
+          faces.map(r => Face(reify(r.restriction), newReifierRestrictionLayer(r.restriction).reify(r.body)))
         )
       case Value.VType(x, a, b, e) =>
         VType(reify(x), reifyMetaEnclosed(a), reify(b), reifyMetaEnclosed(e))

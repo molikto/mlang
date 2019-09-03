@@ -1,8 +1,8 @@
 package mlang.compiler
 
 import mlang.compiler.Concrete._
-import ElaboratorContextBase.Layers
 import Declaration.Modifier
+import mlang.compiler.Layer.Layers
 import mlang.utils._
 
 import scala.collection.mutable
@@ -20,15 +20,12 @@ class Elaborator private(protected override val layers: Layers)
     extends ElaboratorContextBuilder
         with ElaboratorContextLookup
         with ElaboratorContextRebind
+        with ElaboratorContextForEvaluator
         with Evaluator with PlatformEvaluator with Unifier {
 
   override type Self = Elaborator
 
   override protected implicit def create(a: Layers): Self = new Elaborator(a)
-
-  def checkValidRestrictions(ds0: Seq[Value.Formula]) = {
-    ???
-  }
 
   def checkCompatibleCapAndFaces(
                                   faces: Seq[Concrete.Face],
@@ -42,21 +39,29 @@ class Elaborator private(protected override val layers: Layers)
     val (_, dim0) = newParametersLayer().newDimensionLayer(Name.empty)
     val btt = bt(dim0)
     val res = faces.map(a => {
-      val (dav, daa) = checkFormula(a.dimension)
-      if (dav.normalForm == Formula.NormalForm.False) {
+      val (dav, daa) = checkAndEvalFormula(a.dimension)
+      val davn = dav.normalForm
+      if (davn == Formula.NormalForm.False) {
         throw ElaboratorException.RemoveFalseFace()
+      } else if (davn.size > 1) {
+        throw ElaboratorException.DisjunctionCurrentlyNotSupported()
       } else {
-        val ctx0 = newRestrictionLayer(dav)
-        val btr = bt.restrict(dav)
-        // FIXME no hurry to finalize this context? use information in cap to infer?
-        // currently if we want a refl face, it cannot do this!!
-        val na = ctx0.checkLine(a.term, dim0, btr)
-        val naa = ctx0.eval(na)
-        val nv = naa(Formula.False)
-        if (!unifyTerm(btr(dim0), bv.restrict(dav), nv)) {
-          throw ElaboratorException.CapNotMatching()
+        val asgn0 = davn.head
+        if (Value.Formula.satisfiable(asgn0)) {
+          val ctx0 = newSyntaxDirectedRestrictionLayer(asgn0)
+          val btr = bt.restrict(asgn0)
+          // FIXME no hurry to finalize this context? use information in cap to infer?
+          // currently if we want a refl face, it cannot do this!!
+          val na = ctx0.checkLine(a.term, dim0, btr)
+          val naa = ctx0.eval(na)
+          val nv = naa(Formula.False)
+          if (!unifyTerm(btr(dim0), bv.restrict(asgn0), nv)) {
+            throw ElaboratorException.CapNotMatching()
+          }
+          (Abstract.Face(daa, na), naa(dim0), asgn0)
+        } else {
+          throw ElaboratorException.FaceConstraintNotSatisfiable()
         }
-        (Abstract.Face(daa, na), naa(dim0), dav)
       }
     })
     for (i <- faces.indices) {
@@ -64,21 +69,19 @@ class Elaborator private(protected override val layers: Layers)
       for (j <- 0 until i) {
         val r = res(j)
         // this might evaluate the dimensions to new values
-        val dfv = r._3.restrict(l._3)
+        val dfv = (l._3: Set[Formula.Assignment]) ++ r._3
         // only used to test if this restriction is false face or not
-        if (!dfv.isFalse) {
+        if (Formula.satisfiable(dfv)) {
           if (!unifyTerm(
-            btt.restrict(l._3).restrict(dfv),
+            btt.restrict(dfv),
             l._2.restrict(dfv),
-            r._2.restrict(l._3.restrict(r._3)))) {
+            r._2.restrict(dfv))) {
             throw ElaboratorException.FacesNotMatching()
           }
         }
       }
     }
-    if (!Value.DimensionPair.checkValidRestrictions(res.map(_._3))) {
-      throw ElaboratorException.RequiresValidRestriction()
-    }
+    // FIXME check valid
     res.map(_._1)
   }
 
@@ -216,25 +219,27 @@ class Elaborator private(protected override val layers: Layers)
           Abstract.Constructor(a._2.name, a._1.map(k => k._2), a._1.zipWithIndex.map(kk => (0 until kk._2, kk._1._3))))))
       case Concrete.Transp(direction, tp, base) =>
         // LATER does these needs finish off implicits?
-        val (dv, da) = checkFormula(direction)
+        val (dv, da) = checkAndEvalFormula(direction)
         val (tv, ta) = checkTypeLine(tp)
         val cl = eval(ta)
         val (ctx, dim) = newDimensionLayer(Name.empty)
-        if (ctx.newRestrictionLayer(dv).unifyTerm(Value.Universe(tv), cl(dim), cl(Value.Formula.False))) {
-          val ba = check(base, cl(Value.Formula.False))
-          (cl(Value.Formula.True), Abstract.Transp(da, ta, ba))
-        } else {
+        val constant = dv.normalForm.filter(a => Value.Formula.satisfiable(a)).forall(asg => {
+          ctx.newSyntaxDirectedRestrictionLayer(asg).unifyTerm(Value.Universe(tv), cl(dim), cl(Value.Formula.False))
+        })
+        if (!constant) {
           throw ElaboratorException.TranspShouldBeConstantOn()
         }
+        val ba = check(base, cl(Value.Formula.False))
+        (cl(Value.Formula.True), Abstract.Transp(da, ta, ba))
       case Concrete.Com(direction, tp, base, faces) =>
-        val (dv, da) = checkFormula(direction)
+        val (dv, da) = checkAndEvalFormula(direction)
         val (_, ta) = checkTypeLine(tp)
         val cl = eval(ta)
         val ba = check(base, cl(Value.Formula.False))
         val rs = checkCompatibleCapAndFaces(faces, cl, eval(ba), dv)
         (cl(Value.Formula.True), Abstract.Com(da, ta, ba, rs))
       case Concrete.Hcom(direction, base, faces) =>
-        val (dv, da)= checkFormula(direction)
+        val (dv, da)= checkAndEvalFormula(direction)
         val (bt, ba) = infer(base)
         val bv = eval(ba)
         val rs = checkCompatibleCapAndFaces(faces, Value.AbsClosure(bt), bv, dv)
@@ -336,26 +341,30 @@ class Elaborator private(protected override val layers: Layers)
     res
   }
 
-  private def checkFormula(r: Concrete): (Value.Formula, Abstract.Formula) = {
+  private def checkAndEvalFormula(r: Concrete): (Value.Formula, Abstract.Formula) = {
+    val a = checkFormula(r)
+    (eval(a), a)
+  }
+  // it always returns formulas with assignments inlined
+  private def checkFormula(r: Concrete): Abstract.Formula = {
     r match {
       case Concrete.Reference(name) =>
-        val (v, a) = lookupDimension(name)
-        (v, a)
+         lookupDimension(name)
       case Concrete.And(left, right) =>
         val l = checkFormula(left)
         val r = checkFormula(right)
-        (Value.Formula.And(l._1, r._1), Abstract.Formula.And(l._2, r._2))
+        Abstract.Formula.And(l, r)
       case Concrete.Or(left, right) =>
         val l = checkFormula(left)
         val r = checkFormula(right)
-        (Value.Formula.Or(l._1, r._1), Abstract.Formula.Or(l._2, r._2))
+        Abstract.Formula.Or(l, r)
       case Concrete.Neg(a) =>
         val r = checkFormula(a)
-        (Value.Formula.Neg(r._1), Abstract.Formula.Neg(r._2))
+        Abstract.Formula.Neg(r)
       case Concrete.True =>
-        (Value.Formula.True, Abstract.Formula.True)
+        Abstract.Formula.True
       case Concrete.False =>
-        (Value.Formula.False, Abstract.Formula.False)
+        Abstract.Formula.False
       case _ => throw ElaboratorException.ExpectingFormula()
     }
   }
@@ -452,8 +461,8 @@ class Elaborator private(protected override val layers: Layers)
             }
           case Value.PathType(typ, _, _) =>
             if (head._1) throw ElaboratorException.DimensionLambdaCannotBeImplicit()
-            val (dv, da) = checkFormula(head._2)
-            val lt1 = typ(dv)
+            val da = checkFormula(head._2)
+            val lt1 = typ(eval(da))
             val la1 = Abstract.PathApp(la, da)
             inferApp(lt1, la1, tail)
           // TODO user defined applications

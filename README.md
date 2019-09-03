@@ -4,7 +4,6 @@
 
 under major renovation.
 
-* support dimension ops
 * re-implement new coe/hcom
     * how to restrict on values? ─ especially closure
     * add "support" to local references

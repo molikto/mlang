@@ -1,7 +1,7 @@
 package mlang.compiler
 
+import mlang.compiler.Layer.Layers
 import mlang.utils.Name
-import ElaboratorContextBase.Layers
 
 import scala.collection.mutable
 
@@ -29,16 +29,15 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
 
   protected implicit def create(a: Layers): Self
 
+  def drop(up: Int): Self = create(layers.drop(up))
 
-  def drop(up: Int): Self = {
-    create(layers.drop(up))
+  def newSyntaxDirectedRestrictionLayer(pair: Value.Formula.Assignments): Self = {
+    Layer.Restriction(Left(pair), createMetas()) +: layers
   }
 
-  def newRestrictionLayer(pair: Value.Formula): Self = {
-    Layer.Restriction(pair, createMetas()) +: layers
+  def newReifierRestrictionLayer(pair: Value.Formula): Self = {
+    Layer.Restriction(Right(pair), createMetas()) +: layers
   }
-
-
 
   def newDimensionLayer(n: Name, dimension: Value.Formula.Generic): Self = {
     val l = Layer.Dimension(dimension, n, createMetas())
@@ -46,15 +45,12 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
     ctx
   }
 
-
   def newDimensionLayer(n: Name): (Self, Value.Formula.Generic) = {
     val v = Value.Formula.Generic(dgen())
     val l = Layer.Dimension(v, n, createMetas())
     val ctx: Self = l +: layers
     (ctx, v)
   }
-
-
 
   def lookupDefined(a: Name): Option[(Int, Value, Boolean)] = layers.head match {
     case Layer.Defines(_, defines) =>
@@ -82,7 +78,6 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
       case _ => logicError()
     }
   }
-
 
   def newDefinitionChecked(index: Int, name: Name, v: Value.Reference) : Self = {
     layers.head match {
@@ -129,8 +124,6 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
   def newParameterLayerProvided(name: Name, g: Value.Generic): Self = {
     Layer.Parameter(ParameterBinder(name, g), createMetas()) +: layers
   }
-
-
 
 
 

@@ -23,20 +23,21 @@ trait ElaboratorContextLookup extends ElaboratorContextBase with ElaboratorConte
     }
   }
 
-  def lookupDimension(name: Text): (Value.Formula.Generic, Abstract.Formula.Reference) = {
+
+  def lookupDimension(name: Text): Abstract.Formula.Reference = {
     lookup0(name) match {
-      case (t: Value.Formula.Generic, j: Abstract.Formula.Reference) =>
-        (t, j)
+      case (_: String, j: Abstract.Formula.Reference) =>
+        j
       case _ =>
         throw ElaboratorContextLookupException.ReferenceSortWrong(name)
     }
   }
 
-  private def lookup0(name: Text): (Object, Object) =  {
+  private def lookup0(name: Text): (Object, Object) = {
     var up = 0
     var ls = layers
     var binder: (Object, Object) = null
-    val faces = mutable.ArrayBuffer[Layer.Restriction]()
+    val faces = mutable.ArrayBuffer[Value.Formula.Assignment]()
     var isGlobalDefinition = false
     while (ls.nonEmpty && binder == null) {
       var i = 0
@@ -72,17 +73,23 @@ trait ElaboratorContextLookup extends ElaboratorContextBase with ElaboratorConte
           }
         case d: Layer.Dimension =>
           if (d.name.by(name)) {
-            binder = (d.value, Abstract.Formula.Reference(up))
+            binder = ("", Abstract.Formula.Reference(up))
           }
         case l: Layer.Restriction =>
-          faces.append(l)
+          l.res match {
+            case Left(value) =>
+              faces.appendAll(value)
+            case _ =>
+              logicError()
+          }
       }
       if (binder == null) {
         ls = ls.tail
         up += 1
       }
     }
-    val rs = faces.map(_.res).toSeq
+    val rs = faces.toSet
+    if (debug.enabled) assert(Value.Formula.satisfiable(rs))
     if (binder == null) {
       throw ElaboratorContextLookupException.NonExistingReference(name)
     } else {
@@ -93,8 +100,8 @@ trait ElaboratorContextLookup extends ElaboratorContextBase with ElaboratorConte
           } else {
             (t.restrict(rs), j)
           }
-        case (t: Value.Formula.Generic, j: Abstract.Formula.Reference) =>
-          (t.restrict(rs), j)
+        case (a: String, j: Abstract.Formula.Reference) =>
+          (a, j)
         case _ => logicError()
       }
     }

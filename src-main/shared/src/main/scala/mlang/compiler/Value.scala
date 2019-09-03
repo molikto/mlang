@@ -13,10 +13,10 @@ private[compiler] class stuck_pos extends Annotation
 
 object Value {
   sealed trait Formula extends {
-    import Formula.{NormalForm, And, Or, Neg, True, False}
+    import Formula.{NormalForm, And, Or, Neg, True, False, Assignments, Assignment}
     def normalForm: NormalForm  = {
       def merge(a: NormalForm, b: NormalForm): NormalForm = {
-        def properSupersetOfAny[T](c: Set[T], g: Set[Set[T]]) = b.exists(c => c.subsetOf(c) && c != b)
+        def properSupersetOfAny(c: Assignments, g: NormalForm) = b.exists(g => g.subsetOf(c) && g != c)
         a.filter(c => !properSupersetOfAny(c, b)) ++ b.filter(c => !properSupersetOfAny(c, a))
       }
       this match {
@@ -45,11 +45,12 @@ object Value {
         case _ => logicError()
       }
     }
-    def restrict(seq: Seq[Formula]): Formula = seq.foldLeft(this) { (t, v) => t.restrict(v) }
-    def restrict(pair: Formula): Formula = ???
+    def restrict(lv: Value.Formula.Assignments): Formula = ???
   }
 
   object Formula {
+    def satisfiable(rs: Assignments): Boolean = rs.map(_._1).toSet.size == rs.size
+
     type Assignment = (Long, Boolean)
     type Assignments = Set[Assignment]
     type NormalForm = Set[Assignments]
@@ -71,13 +72,13 @@ object Value {
     def eq(b: MultiClosure): Boolean = func.eq(b.func)
     def apply() = func(Seq.empty)
     def apply(seq: Seq[Value]): Value = func(seq)
-    def restrict(dav: Formula): MultiClosure = ???
+    def restrict(dav: Formula.Assignments): MultiClosure = ???
   }
 
   implicit class Closure(private val func: Value => Value) extends AnyVal {
     def eq(b: Closure): Boolean = func.eq(b.func)
     def apply(seq: Value): Value = func(seq)
-    def restrict(dav: Formula): Closure = ???
+    def restrict(dav: Formula.Assignments): Closure = ???
   }
 
   object Closure {
@@ -94,12 +95,12 @@ object Value {
     def apply(seq: Formula): Value = func(seq)
     def mapd(a: (Value, Formula) => Value): AbsClosure = AbsClosure(d => a(this(d), d))
     def map(a: Value => Value): AbsClosure = AbsClosure(d => a(this(d)))
-    def restrict(dav: Formula): AbsClosure = ???
+    def restrict(dav: Formula.Assignments): AbsClosure = ???
   }
 
   type ClosureGraph = Seq[ClosureGraph.Node]
   object ClosureGraph {
-    def restrict(graph: ClosureGraph, lv: Formula): ClosureGraph = ??? /* {
+    def restrict(graph: ClosureGraph, lv: Formula.Assignments): ClosureGraph = ??? /* {
       graph.map {
         case DependentWithMeta(ds, mc, c) =>
         DependentWithMeta(ds, mc, (a, b) => { val t = c(a, b.map(k => Derestricted(k, lv))); (t._1, t._2.restrict(lv)) })
@@ -346,7 +347,7 @@ object Value {
 
   case class Inductively(id: Long, level: Int) {
     def up(b: Int): Inductively = copy(level = level + b)
-    def restrict(lv: Formula): Inductively = this
+    def restrict(lv: Formula.Assignments): Inductively = this
   }
 
   case class Record(
@@ -565,10 +566,8 @@ sealed trait Value {
     }
   }
 
-  def restrict(a: Seq[Formula]): Value = a.foldLeft(this) {(t, v) => t.restrict(v) }
-
   // FIXME how does it interact with recursive references?
-  def restrict(lv: Formula): Value = ??? /* if (lv.isTrue) this else this match {
+  def restrict(lv: Value.Formula.Assignments): Value = if (lv.isEmpty) this else ??? /*this match {
     case u: Universe => u
     case Function(domain, im, codomain) =>
       Function(domain.restrict(lv), im, codomain.restrict(lv))

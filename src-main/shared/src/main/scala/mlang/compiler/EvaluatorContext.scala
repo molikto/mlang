@@ -20,5 +20,5 @@ trait EvaluatorContext {
   // get value directly without resolving faces
   def getReference(depth: Int, index: Int): Value
 
-  def getDimension(depth: Int): Value.Formula.Generic
+  def getDimension(depth: Int): Value.Formula
 }

@@ -1,30 +1,10 @@
 package mlang.compiler
 
+import mlang.compiler.Layer.Layers
 import mlang.utils.Name
 
 import scala.collection.mutable
 
-object ElaboratorContextBase {
-  type Layers = Seq[Layer]
-}
-
-import ElaboratorContextBase._
-
-trait ElaboratorContextBase extends EvaluatorContext  {
-  protected def layers: Layers
-
-  def getMetaReference(depth: Int, index: Int): Value.Meta = layers(depth).metas(index)
-
-  // get value directly without resolving faces
-  def getReference(depth: Int, index: Int): Value = layers(depth) match {
-    case Layer.Parameter(binder, _) if index == -1 => binder.value
-    case ps: Layer.Parameters  => ps.binders(index).value
-    case Layer.Defines(_, terms) => terms(index).ref
-    case _ => logicError()
-  }
-
-  def getDimension(depth: Int): Value.Formula.Generic = layers(depth).asInstanceOf[Layer.Dimension].value
-}
 
 class MetasState(val metas: mutable.ArrayBuffer[Value.Meta], var frozen: Int) {
   def debug_allFrozen: Boolean = metas.size == frozen
@@ -69,6 +49,7 @@ sealed trait Layer {
 }
 
 object Layer {
+  type Layers = Seq[Layer]
 
   sealed trait Parameters extends Layer {
     def binders: Seq[ParameterBinder]
@@ -85,5 +66,12 @@ object Layer {
   case class Dimension(value: Value.Formula.Generic, name: Name, metas: MetasState) extends Layer {
     def id = value.id
   }
-  case class Restriction(res: Seq[Value.Formula.Assignment], metas: MetasState) extends Layer // no meta should be resolved here
+
+  // no meta should be resolved here
+  case class Restriction(res: Either[Value.Formula.Assignments, Value.Formula], metas: MetasState) extends Layer
+}
+
+
+trait ElaboratorContextBase {
+  protected def layers: Layers
 }
