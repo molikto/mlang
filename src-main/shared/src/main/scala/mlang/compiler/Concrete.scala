@@ -76,7 +76,7 @@ object Concrete {
   // TODO make expression, type is inferred as non-dependent
   case class PathType(typ: Option[Concrete], left: Concrete, right: Concrete) extends Concrete
   case class Face(dimension: Concrete, term: Concrete)
-  case class Coe(direction: Concrete, typ: Concrete, base: Concrete) extends Concrete
+  case class Transp(direction: Concrete, typ: Concrete, base: Concrete) extends Concrete
   case class Hcom(direction: Concrete, base: Concrete, faces: Seq[Face]) extends Concrete
   case class Com(direction: Concrete, typ: Concrete, base: Concrete, faces: Seq[Face]) extends Concrete
   case class VType(x: Concrete, a: Concrete, b: Concrete, e: Concrete) extends Concrete

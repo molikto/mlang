@@ -67,6 +67,8 @@ object ElaboratorException {
   case class DimensionLambdaCannotBeImplicit() extends ElaboratorException
   case class CannotInferPathTypeWithoutBody() extends ElaboratorException
 
+  case class TranspShouldBeConstantOn() extends ElaboratorException
+
   // TODO maybe we should just show a warning
   case class RemoveFalseFace() extends ElaboratorException
   case class RemoveConstantVType() extends ElaboratorException

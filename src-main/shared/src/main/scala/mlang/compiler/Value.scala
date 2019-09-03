@@ -50,7 +50,9 @@ object Value {
   }
 
   object Formula {
-    type NormalForm = Set[Set[(Long, Boolean)]]
+    type Assignment = (Long, Boolean)
+    type Assignments = Set[Assignment]
+    type NormalForm = Set[Assignments]
     object NormalForm {
       val True: NormalForm = Set(Set.empty)
       val False: NormalForm = Set.empty
@@ -69,11 +71,13 @@ object Value {
     def eq(b: MultiClosure): Boolean = func.eq(b.func)
     def apply() = func(Seq.empty)
     def apply(seq: Seq[Value]): Value = func(seq)
+    def restrict(dav: Formula): MultiClosure = ???
   }
 
   implicit class Closure(private val func: Value => Value) extends AnyVal {
     def eq(b: Closure): Boolean = func.eq(b.func)
     def apply(seq: Value): Value = func(seq)
+    def restrict(dav: Formula): Closure = ???
   }
 
   object Closure {
@@ -90,6 +94,7 @@ object Value {
     def apply(seq: Formula): Value = func(seq)
     def mapd(a: (Value, Formula) => Value): AbsClosure = AbsClosure(d => a(this(d), d))
     def map(a: Value => Value): AbsClosure = AbsClosure(d => a(this(d)))
+    def restrict(dav: Formula): AbsClosure = ???
   }
 
   type ClosureGraph = Seq[ClosureGraph.Node]
@@ -259,7 +264,7 @@ object Value {
         case PatternStuck(_, stuck) => unapply(stuck)
         case PathApp(left, _) => unapply(left)
         case VProj(_, m, _) => unapply(m)
-        case Coe(_, typ, _) =>
+        case Transp(_, typ, _) =>
           // FIXME this rule is really wired...
           unapply(typ(Formula.Generic(dgen())).whnf)
         case Hcom(_, tp, _, _) => unapply(tp)
@@ -384,27 +389,18 @@ object Value {
     }
   }
 
-
   case class PathType(typ: AbsClosure, left: Value, right: Value) extends HeadCanonical
   case class PathLambda(body: AbsClosure) extends HeadCanonical
   case class PathApp(@stuck_pos left: Value, @stuck_pos dimension: Formula) extends Stuck
 
   case class Face(restriction: Formula, body: AbsClosure)
-
-  case class Coe(direction: Formula, @stuck_pos tp: AbsClosure.StuckPos, base: Value) extends Stuck
-
+  case class Transp(direction: Formula, @stuck_pos tp: AbsClosure.StuckPos, base: Value) extends Stuck
   case class Com(direction: Formula, @stuck_pos tp: AbsClosure.StuckPos, base: Value, faces: Seq[Face]) extends Stuck
-
   case class Hcom(direction: Formula, @stuck_pos tp: Value, base: Value, faces: Seq[Face]) extends Stuck
-
 
   case class VType(x: Value.Formula, a: Value, b: Value, e: Value) extends CubicalUnstable
   case class VMake(x: Value.Formula, m: Value, n: Value) extends CubicalUnstable
   case class VProj(x: Value.Formula, @stuck_pos m: Value, f: Value) extends Stuck
-
-
-
-
 }
 
 
@@ -480,10 +476,10 @@ sealed trait Value {
             case PathApp(l2, s2) if left.eq(l2) && stuck == s2 => this
             case a => a.whnf
           }
-        case Coe(direction, tp, base) =>
+        case Transp(direction, tp, base) =>
           // kan ops case analysis on tp, so they perform their own whnf
-          coe(direction, tp, base, _.whnf) match {
-            case Coe(d2, t2, b2) if d2 == direction && t2.eq(tp) && base.eq(b2) => this
+          transp(direction, tp, base, _.whnf) match {
+            case Transp(d2, t2, b2) if d2 == direction && t2.eq(tp) && base.eq(b2) => this
             case a => a
           }
         case Hcom(direction, tp, base, faces) =>
@@ -497,34 +493,37 @@ sealed trait Value {
             case a => a
           }
         case VType(x, a, b, _) =>
-          x match {
-            case _: Formula.Generic => this
-            case Formula.False => a.whnf
-            case Formula.True => b.whnf
-            case _: Formula.Internal => logicError()
-          }
+//          x match {
+//            case _: Formula.Generic => this
+//            case Formula.False => a.whnf
+//            case Formula.True => b.whnf
+//            case _: Formula.Internal => logicError()
+//          }
+          ???
         case VMake(x, m, n) =>
-          x match {
-            case g: Formula.Generic => this
-            case Formula.False => m
-            case Formula.True => n
-            case _: Formula.Internal => logicError()
-          }
+//          x match {
+//            case g: Formula.Generic => this
+//            case Formula.False => m
+//            case Formula.True => n
+//            case _: Formula.Internal => logicError()
+//          }
+          ???
         case VProj(x, m, f) =>
-          x match {
-            case g: Formula.Generic =>
-              val mw = m.whnf
-              @inline def fallback() = if (mw.eq(m)) this else VProj(x, mw, f)
-              mw match {
-                case VMake(x2, _, n) =>
-                  assert(x == x2)
-                  n.whnf
-                case _ => fallback()
-              }
-            case Formula.False => app(f, m).whnf
-            case Formula.True => m.whnf
-            case _: Formula.Internal => logicError()
-          }
+//          x match {
+//            case g: Formula.Generic =>
+//              val mw = m.whnf
+//              @inline def fallback() = if (mw.eq(m)) this else VProj(x, mw, f)
+//              mw match {
+//                case VMake(x2, _, n) =>
+//                  assert(x == x2)
+//                  n.whnf
+//                case _ => fallback()
+//              }
+//            case Formula.False => app(f, m).whnf
+//            case Formula.True => m.whnf
+//            case _: Formula.Internal => logicError()
+//          }
+          ???
         /*
       case Restricted(a, restriction) =>
         val normalized = DimensionPair.normalizeRestriction(restriction)
@@ -591,8 +590,8 @@ sealed trait Value {
       PathLambda(body.restrict(lv))
     case App(lambda, argument) =>
       App(lambda.restrict(lv), argument.restrict(lv))
-    case Coe(direction, tp, base) =>
-      Coe(direction.restrict(lv), tp.restrict(lv), base.restrict(lv))
+    case Transp(direction, tp, base) =>
+      Transp(direction.restrict(lv), tp.restrict(lv), base.restrict(lv))
     case Hcom(direction, tp, base, faces) =>
       Hcom(direction.restrict(lv), tp.restrict(lv), base.restrict(lv), Face.restrict(faces, lv))
     case Com(direction, tp, base, faces) =>
@@ -759,7 +758,7 @@ object ValueOps {
 
   def id(v: Value) = v
 
-  def coe(pair: Formula, typ: AbsClosure, base: Value, returns: Value => Value = id): Value = ???
+  def transp(pair: Formula, typ: AbsClosure, base: Value, returns: Value => Value = id): Value = ???
 
 
   def com(pair: Formula, typ: AbsClosure, base: Value, restriction0: Seq[Face], returns: Value => Value = id): Value = ???

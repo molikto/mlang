@@ -85,5 +85,5 @@ object Layer {
   case class Dimension(value: Value.Formula.Generic, name: Name, metas: MetasState) extends Layer {
     def id = value.id
   }
-  case class Restriction(res: Value.Formula, metas: MetasState) extends Layer // no meta should be resolved here
+  case class Restriction(res: Seq[Value.Formula.Assignment], metas: MetasState) extends Layer // no meta should be resolved here
 }

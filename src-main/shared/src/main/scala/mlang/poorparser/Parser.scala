@@ -32,7 +32,7 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
     override def whitespaceChar: Parser[Char] = elem("", _ == '│') | super.whitespaceChar
   }
 
-  lexical.reserved ++= List("define", "declare", "const_projections", "case", "__debug", "as", "coe", "hcom", "com","field", "ignored", "match", "record", "type", "sum", "inductively", "run", "with_constructors", "I", "_", "make", "V_type", "V_make", "V_proj")
+  lexical.reserved ++= List("define", "declare", "const_projections", "case", "__debug", "as", "transp", "hcom", "com","field", "ignored", "match", "record", "type", "sum", "inductively", "run", "with_constructors", "I", "_", "make", "V_type", "V_make", "V_proj")
   lexical.delimiters ++= List("{", "}", "[", "]", ":", ",", "(", ")", "#", "≡", "─", "???", "┬", "┌", "⊏", "└", "├", "⇒", "→", "+", "-", ";", "=", "@", "\\", ".", "|", "^", "∨", "∧", "~")
 
   def delimited[T](a: String, t: Parser[T], b: String): Parser[T] = a ~> t <~ b
@@ -85,7 +85,7 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
         meta |
         sum |
         up |
-        coe | com | hcom | vtype | vmake | vproj |
+        transp | com | hcom | vtype | vmake | vproj |
         universe | make |
         delimited("(", term, ")") |
         absDimension | reference
@@ -109,8 +109,8 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
   lazy val absDimension: PackratParser[Concrete] = numericLit  ^^ { i => if (i == "0") Concrete.False else if (i == "1") Concrete.True else throw new Exception("...") }
 
   // kan
-  lazy val coe: PackratParser[Concrete] = keyword("coe") ~> delimited("(", (term <~ ",") ~ term ~ ("," ~> term), ")")  ^^ { a => {
-    Coe(a._1._1, a._1._2, a._2)
+  lazy val transp: PackratParser[Concrete] = keyword("transp") ~> delimited("(", (term <~ ",") ~ term ~ ("," ~> term), ")")  ^^ { a => {
+    Transp(a._1._1, a._1._2, a._2)
   }}
 
   lazy val vtype: PackratParser[Concrete]=(keyword("V_type") ~> delimited("(", term ~ delimited(",", term, ",") ~ term ~ ("," ~> term), ")")) ^^ { a => Concrete.VType(a._1._1._1, a._1._1._2, a._1._2, a._2)}

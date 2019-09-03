@@ -36,15 +36,15 @@ class Elaborator private(protected override val layers: Layers)
                                   bv: Value,
                                   dv: Value.Formula
   ): Seq[Abstract.Face] = {
-    /*
     // we use this context to evaluate body of faces, it is only used to keep the dimension binding to the same
     // one, but as restricts is already present in abstract terms, it is ok to use this instead of others
+    import Value.Formula
     val (_, dim0) = newParametersLayer().newDimensionLayer(Name.empty)
     val btt = bt(dim0)
     val res = faces.map(a => {
       val (dav, daa) = checkFormula(a.dimension)
-      if (dav.isFalse) {
-        throw ElaboateException.RemoveFalseFace()
+      if (dav.normalForm == Formula.NormalForm.False) {
+        throw ElaboratorException.RemoveFalseFace()
       } else {
         val ctx0 = newRestrictionLayer(dav)
         val btr = bt.restrict(dav)
@@ -52,9 +52,9 @@ class Elaborator private(protected override val layers: Layers)
         // currently if we want a refl face, it cannot do this!!
         val na = ctx0.checkLine(a.term, dim0, btr)
         val naa = ctx0.eval(na)
-        val nv = naa(dv.from)
+        val nv = naa(Formula.False)
         if (!unifyTerm(btr(dim0), bv.restrict(dav), nv)) {
-          throw ElaboateException.CapNotMatching()
+          throw ElaboratorException.CapNotMatching()
         }
         (Abstract.Face(daa, na), naa(dim0), dav)
       }
@@ -71,17 +71,15 @@ class Elaborator private(protected override val layers: Layers)
             btt.restrict(l._3).restrict(dfv),
             l._2.restrict(dfv),
             r._2.restrict(l._3.restrict(r._3)))) {
-            throw ElaboateException.FacesNotMatching()
+            throw ElaboratorException.FacesNotMatching()
           }
         }
       }
     }
     if (!Value.DimensionPair.checkValidRestrictions(res.map(_._3))) {
-      throw ElaboateException.RequiresValidRestriction()
+      throw ElaboratorException.RequiresValidRestriction()
     }
     res.map(_._1)
-    */
-    ???
   }
 
 
@@ -216,29 +214,26 @@ class Elaborator private(protected override val layers: Layers)
         val fl = fs.map(_._1).max
         (Value.Universe(fl), Abstract.Sum(None, fs.map(_._2).zip(constructors).map(a =>
           Abstract.Constructor(a._2.name, a._1.map(k => k._2), a._1.zipWithIndex.map(kk => (0 until kk._2, kk._1._3))))))
-      case Concrete.Coe(direction, tp, base) =>
+      case Concrete.Transp(direction, tp, base) =>
         // LATER does these needs finish off implicits?
-        ???
-        /*
         val (dv, da) = checkFormula(direction)
-        val (_, ta) = checkTypeLine(tp)
+        val (tv, ta) = checkTypeLine(tp)
         val cl = eval(ta)
-        val la = check(base, cl(Dimension.False))
-        (cl(Dimension.True), Abstract.Coe(da, ta, la))
-        */
+        val (ctx, dim) = newDimensionLayer(Name.empty)
+        if (ctx.newRestrictionLayer(dv).unifyTerm(Value.Universe(tv), cl(dim), cl(Value.Formula.False))) {
+          val ba = check(base, cl(Value.Formula.False))
+          (cl(Value.Formula.True), Abstract.Transp(da, ta, ba))
+        } else {
+          throw ElaboratorException.TranspShouldBeConstantOn()
+        }
       case Concrete.Com(direction, tp, base, faces) =>
-        ???
-        /*
         val (dv, da) = checkFormula(direction)
         val (_, ta) = checkTypeLine(tp)
         val cl = eval(ta)
-        val ba = check(base, cl(Dimension.False))
+        val ba = check(base, cl(Value.Formula.False))
         val rs = checkCompatibleCapAndFaces(faces, cl, eval(ba), dv)
-        (cl(dv.to), Abstract.Com(da, ta, ba, rs))
-         */
+        (cl(Value.Formula.True), Abstract.Com(da, ta, ba, rs))
       case Concrete.Hcom(direction, base, faces) =>
-        ???
-        /*
         val (dv, da)= checkFormula(direction)
         val (bt, ba) = infer(base)
         val bv = eval(ba)
@@ -246,7 +241,6 @@ class Elaborator private(protected override val layers: Layers)
         val btr = reify(bt)
         debug(s"infer hcom type $btr", 1)
         (bt, Abstract.Hcom(da, btr, ba, rs))
-        */
       case Concrete.PathType(typ, left, right) =>
         typ match {
           case Some(tp) =>

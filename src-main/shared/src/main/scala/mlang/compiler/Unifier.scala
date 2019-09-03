@@ -14,11 +14,11 @@ private case class Assumption(left: Long, right: Long, domain: Value, codomain: 
 case class UnificationFailedException(msg: String) extends Exception
 
 object SolvableMetaForm {
-  def unapply(a: Value): Option[(Value.Meta, Seq[Value])] = {
-    def rec(a: Value): Option[(Value.Meta, Seq[Value])] = {
+  def unapply(a: Value): Option[(Value.Meta, Value.MetaState.Open, Seq[Value])] = {
+    def rec(a: Value): Option[(Value.Meta, Value.MetaState.Open, Seq[Value])] = {
       a match {
-        case App(l, as) => rec(l).map(pair => (pair._1, pair._2 :+ as))
-        case m: Meta if !m.isSolved => Some((m, Seq.empty))
+        case App(l, as) => rec(l).map(pair => (pair._1, pair._2, pair._3 :+ as))
+        case m@Meta(o: MetaState.Open) => Some((m, o, Seq.empty))
         case _ => None
       }
     }
@@ -179,12 +179,7 @@ trait Unifier extends Reifier with ElaboratorContextRebind with Evaluator with P
   }
 
   private def solve(m: Meta, vs: Seq[Value], t20: Value): Value = Benchmark.Solve {
-    var MetaState.Open(_, typ) = m.state match {
-      case _: MetaState.Closed =>
-        logicError()
-      case o: MetaState.Open =>
-        o
-    }
+    var MetaState.Open(_, typ) = m.state.asInstanceOf[MetaState.Open]
     val ref = rebindMeta(m)
     var ctx = drop(ref.up)
     val index = ref.index
@@ -273,9 +268,17 @@ trait Unifier extends Reifier with ElaboratorContextRebind with Evaluator with P
         } else {
           None
         }
-      case (SolvableMetaForm(m, gs), t2) =>
+        // FIXME solve meta headed?
+//      case (SolvableMetaForm(m1, o1, gs1), SolvableMetaForm(m2, o2, gs2)) if o1.id == o2.id =>
+//        if (gs1.size == gs2.size) {
+//          gs1.zip(gs2).foldLeft(Some(o1.typ)) {
+//          }
+//        } else {
+//          None
+//        }
+      case (SolvableMetaForm(m, _, gs), t2) =>
         trySolve(m, gs, t2)
-      case (t1, SolvableMetaForm(m, gs)) =>
+      case (t1, SolvableMetaForm(m, _, gs)) =>
         trySolve(m, gs, t1)
       case _ => None
     }
