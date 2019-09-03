@@ -93,7 +93,9 @@ trait ElaboratorContextLookup extends ElaboratorContextBase with ElaboratorConte
           if (isGlobalDefinition) {
             (t, j)
           } else {
-            (faces.foldLeft(t) { (t, r) => t.restrict(r)}, j)
+            // FIXME
+            (t, j)
+            // (faces.foldLeft(t) { (t, r) => t.restrict(r)}, j)
           }
         case (a: String, j: Abstract.Formula.Reference) =>
           (a, j)

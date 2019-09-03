@@ -33,6 +33,8 @@ class Elaborator private(protected override val layers: Layers)
                                   bv: Value,
                                   dv: Value.Formula
   ): Seq[Abstract.Face] = {
+    ???
+    /*
     // we use this context to evaluate body of faces, it is only used to keep the dimension binding to the same
     // one, but as restricts is already present in abstract terms, it is ok to use this instead of others
     import Value.Formula
@@ -83,6 +85,8 @@ class Elaborator private(protected override val layers: Layers)
     }
     // FIXME check valid
     res.map(_._1)
+
+     */
   }
 
 

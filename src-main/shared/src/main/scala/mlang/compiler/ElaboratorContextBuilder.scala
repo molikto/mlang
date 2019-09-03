@@ -32,11 +32,11 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
   def drop(up: Int): Self = create(layers.drop(up))
 
   def newSyntaxDirectedRestrictionLayer(pair: Value.Formula.Assignments): Self = {
-    Layer.Restriction(Left(pair), createMetas()) +: layers
+    Layer.Restriction(pair, createMetas()) +: layers
   }
 
   def newReifierRestrictionLayer(pair: Value.Formula): Self = {
-    Layer.Restriction(Right(pair), createMetas()) +: layers
+    Layer.ReifierRestriction(createMetas()) +: layers
   }
 
   def newDimensionLayer(n: Name, dimension: Value.Formula.Generic): Self = {
