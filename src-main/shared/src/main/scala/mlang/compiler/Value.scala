@@ -3,18 +3,57 @@ package mlang.compiler
 import mlang.utils.{DisjointSet, Name, debug, warn}
 
 import scala.collection.mutable
-
-import LongGen.Negative.{gen, dgen}
-
+import LongGen.Negative.{dgen, gen}
 import Value._
+import mlang.compiler.Value.Formula.NormalForm
+
+import scala.annotation.Annotation
+
+private[compiler] class stuck_pos extends Annotation
 
 object Value {
   sealed trait Formula extends {
+    def normalForm: Formula.NormalForm  = {
+      def merge(a: Formula.NormalForm, b: Formula.NormalForm): Formula.NormalForm = {
+        def properSupersetOfAny[T](c: Set[T], g: Set[Set[T]]) = b.exists(c => c.subsetOf(c) && c != b)
+        a.filter(c => !properSupersetOfAny(c, b)) ++ b.filter(c => !properSupersetOfAny(c, a))
+      }
+      this match {
+        case Formula.True => NormalForm.True
+        case Formula.False => NormalForm.False
+        case Formula.Generic(id) => Set(Set((id, true)))
+        case Formula.And(left, right) =>
+          val ln = left.normalForm.toSeq
+          val rn = right.normalForm.toSeq
+          ln.flatMap(i => rn.map(r => Set(i ++ r) : NormalForm)).foldLeft(NormalForm.False) { (a, b) => merge(a, b)}
+        case Formula.Or(left, right) => merge(left.normalForm, right.normalForm)
+        case Formula.Neg(unit) =>
+          def negate(f: Formula): Formula = f match {
+            case g: Formula.Generic => Formula.Neg(g)
+            case Formula.And(left, right) => Formula.Or(negate(left), negate(right))
+            case Formula.Or(left, right) => Formula.And(negate(left), negate(right))
+            case Formula.Neg(u2) => u2
+            case Formula.True => Formula.False
+            case Formula.False => Formula.True
+            case _ => logicError()
+          }
+          unit match {
+            case Formula.Generic(id) => Set(Set((id, false)))
+            case r => negate(r).normalForm
+          }
+        case _ => logicError()
+      }
+    }
     def restrict(seq: Seq[Formula]): Formula = seq.foldLeft(this) { (t, v) => t.restrict(v) }
     def restrict(pair: Formula): Formula = ???
   }
 
   object Formula {
+    type NormalForm = Set[Set[(Long, Boolean)]]
+    object NormalForm {
+      val True: NormalForm = Set(Set.empty)
+      val False: NormalForm = Set.empty
+    }
     sealed trait Internal extends Formula
     case class Generic(id: Long) extends Formula
     case class And(left: Formula, right: Formula) extends Formula
@@ -54,16 +93,16 @@ object Value {
 
   type ClosureGraph = Seq[ClosureGraph.Node]
   object ClosureGraph {
-    def restrict(graph: ClosureGraph, lv: Formula): ClosureGraph = {
+    def restrict(graph: ClosureGraph, lv: Formula): ClosureGraph = ??? /* {
       graph.map {
         case DependentWithMeta(ds, mc, c) =>
-          ???
-        //DependentWithMeta(ds, mc, (a, b) => { val t = c(a, b.map(k => Derestricted(k, lv))); (t._1, t._2.restrict(lv)) })
+        DependentWithMeta(ds, mc, (a, b) => { val t = c(a, b.map(k => Derestricted(k, lv))); (t._1, t._2.restrict(lv)) })
         case IndependentWithMeta(ds, ms, typ) =>
           IndependentWithMeta(ds, ms, typ.restrict(lv))
         case _ => logicError()
       }
     }
+    */
 
     sealed trait Node {
       def dependencies: Seq[Int]
@@ -174,7 +213,6 @@ object Value {
 
 
 
-  type StuckPos = Value
   // these serve the purpose of recovering syntax
   sealed trait Syntaxial extends Value
   sealed trait Internal extends Value
@@ -259,11 +297,46 @@ object Value {
     def level1 = Universe(if (TypeInType) 0 else 1)
   }
 
-
-
   case class Function(domain: Value, impict: Boolean, codomain: Closure) extends HeadCanonical
-  case class App(lambda: StuckPos, argument: Value) extends Stuck
+  case class App(@stuck_pos lambda: Value, argument: Value) extends Stuck
   def Apps(maker: Value, values: Seq[Value]) : Value = values.foldLeft(maker) { (m: Value, v: Value) => Value.App(m, v) }
+  case class Lambda(closure: Closure) extends HeadCanonical
+  // FIXME seems we must have domain here?
+  case class Case(pattern: Pattern, closure: MultiClosure) {
+    private def extract(pattern: Pattern, v: Value): Option[Seq[Value]] = {
+      val vs = mutable.ArrayBuffer[Value]()
+      def rec(pattern: Pattern, v: Value): Boolean = {
+        pattern match {
+          case Pattern.Atom =>
+            vs.append(v)
+            true
+          case Pattern.Make(names) =>
+            v.whnf match {
+              case Make(values) =>
+                names.zip(values).forall(pair => rec(pair._1, pair._2))
+              case _ =>
+                false
+            }
+          case Pattern.Construct(name, pt) =>
+            v.whnf match {
+              case Construct(n, values) if name == n =>
+                pt.zip(values).forall(pair => rec(pair._1, pair._2))
+              case _ =>
+                false
+            }
+        }
+      }
+      if (rec(pattern, v)) {
+        Some(vs.toSeq)
+      } else {
+        None
+      }
+    }
+    def tryApp(v: Value): Option[Value] = extract(pattern, v).map(a => closure(a))
+  }
+  case class PatternLambda(id: Long, domain: Value, typ: Closure, cases: Seq[Case]) extends HeadCanonical
+  case class PatternStuck(lambda: PatternLambda, @stuck_pos stuck: Value) extends Stuck
+
 
   case class Inductively(id: Long, level: Int) {
     def up(b: Int): Inductively = copy(level = level + b)
@@ -287,13 +360,9 @@ object Value {
       ClosureGraph.get(nodes, name, i => Projection(values, i))
     }
   }
-
   case class Make(values: Seq[Value]) extends HeadCanonical
-
-  // it cannot actually stuck. it is a syntaxal value
   case class Maker(value: Value, field: Int) extends Syntaxial
-
-  case class Projection(make: StuckPos, field: Int) extends Stuck
+  case class Projection(@stuck_pos make: Value, field: Int) extends Stuck
 
   case class Construct(name: Int, vs: Seq[Value]) extends HeadCanonical
   case class Constructor(name: Name, ims: Seq[Boolean], nodes: ClosureGraph) {
@@ -306,8 +375,6 @@ object Value {
     lazy val maker: Value = makerAndType._1
     lazy val makerType: Value = makerAndType._2
   }
-
-
   case class Sum(
       inductively: Option[Inductively],
       constructors: Seq[Constructor]) extends HeadCanonical {
@@ -316,76 +383,26 @@ object Value {
     }
   }
 
-  case class Case(pattern: Pattern, closure: MultiClosure) {
-    def tryApp(v: Value): Option[Value] = {
-      extract(pattern, v).map(a => closure(a))
-    }
-  }
-
-  /**
-    * this lambda is returnsparent on the arguments
-    */
-  case class Lambda(closure: Closure) extends HeadCanonical
-
-  // FIXME seems we must have domain here?
-  case class PatternLambda(id: Long, domain: Value, typ: Closure, cases: Seq[Case]) extends HeadCanonical
-
-  case class PatternStuck(lambda: PatternLambda, stuck: StuckPos) extends Stuck
-
-
 
   case class PathType(typ: AbsClosure, left: Value, right: Value) extends HeadCanonical
-
   case class PathLambda(body: AbsClosure) extends HeadCanonical
-
-  // the left and right BOTH stuck
-  case class PathApp(left: StuckPos, dimension: Formula) extends Stuck
-
+  case class PathApp(@stuck_pos left: Value, @stuck_pos dimension: Formula) extends Stuck
 
   case class Face(restriction: Formula, body: AbsClosure)
 
-  case class Coe(direction: Formula, tp: AbsClosure.StuckPos, base: Value) extends Stuck
+  case class Coe(direction: Formula, @stuck_pos tp: AbsClosure.StuckPos, base: Value) extends Stuck
 
-  case class Com(direction: Formula, tp: AbsClosure.StuckPos, base: Value, faces: Seq[Face]) extends Stuck
+  case class Com(direction: Formula, @stuck_pos tp: AbsClosure.StuckPos, base: Value, faces: Seq[Face]) extends Stuck
 
-  case class Hcom(direction: Formula, tp: StuckPos, base: Value, faces: Seq[Face]) extends Stuck
+  case class Hcom(direction: Formula, @stuck_pos tp: Value, base: Value, faces: Seq[Face]) extends Stuck
 
 
   case class VType(x: Value.Formula, a: Value, b: Value, e: Value) extends CubicalUnstable
   case class VMake(x: Value.Formula, m: Value, n: Value) extends CubicalUnstable
-  case class VProj(x: Value.Formula, m: StuckPos, f: Value) extends Stuck
+  case class VProj(x: Value.Formula, @stuck_pos m: Value, f: Value) extends Stuck
 
 
 
-  def extract(pattern: Pattern, v: Value): Option[Seq[Value]] = {
-    val vs = mutable.ArrayBuffer[Value]()
-    def rec(pattern: Pattern, v: Value): Boolean = {
-      pattern match {
-        case Pattern.Atom =>
-          vs.append(v)
-          true
-        case Pattern.Make(names) =>
-          v.whnf match {
-            case Make(values) =>
-              names.zip(values).forall(pair => rec(pair._1, pair._2))
-            case _ =>
-              false
-          }
-        case Pattern.Construct(name, pt) =>
-          v.whnf match {
-            case Construct(n, values) if name == n =>
-              pt.zip(values).forall(pair => rec(pair._1, pair._2))
-            case _ =>
-              false
-          }
-      }
-    }
-    if (rec(pattern, v)) {
-      Some(vs.toSeq)
-    } else {
-      None
-    }
-  }
 
 }
 
@@ -729,15 +746,13 @@ object ValueOps {
           case _ => logicError()
         }
       }
-      d match {
-        case Formula.True =>
+      d.normalForm match {
+        case NormalForm.True =>
           constantCase(true)
-        case Formula.False =>
+        case NormalForm.False =>
           constantCase(false)
-        case _: Formula.Generic =>
+        case _ =>
           PathApp(l, d)
-        case _: Formula.Internal =>
-          logicError()
       }
   }
 

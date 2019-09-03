@@ -43,7 +43,7 @@ trait ElaboratorContextRebind extends ElaboratorContextBase {
       case Value.Formula.And(a, b) => Abstract.Formula.And(rebindFormula(a), rebindFormula(b))
       case Value.Formula.Or(a, b) => Abstract.Formula.Or(rebindFormula(a), rebindFormula(b))
       case Value.Formula.Neg(a) => Abstract.Formula.Neg(rebindFormula(a))
-      case _: Value.Formula.Internal => logicError()
+      case _ => logicError()
     }
   }
 
