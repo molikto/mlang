@@ -37,7 +37,7 @@ trait ElaboratorContextLookup extends ElaboratorContextBase with ElaboratorConte
     var up = 0
     var ls = layers
     var binder: (Object, Object) = null
-    val faces = mutable.ArrayBuffer[Value.Formula.Assignment]()
+    var faces = Seq.empty[Value.Formula.Assignments]
     var isGlobalDefinition = false
     while (ls.nonEmpty && binder == null) {
       var i = 0
@@ -76,12 +76,7 @@ trait ElaboratorContextLookup extends ElaboratorContextBase with ElaboratorConte
             binder = ("", Abstract.Formula.Reference(up))
           }
         case l: Layer.Restriction =>
-          l.res match {
-            case Left(value) =>
-              faces.appendAll(value)
-            case _ =>
-              logicError()
-          }
+          faces = l.res +: faces
       }
       if (binder == null) {
         ls = ls.tail
@@ -89,7 +84,7 @@ trait ElaboratorContextLookup extends ElaboratorContextBase with ElaboratorConte
       }
     }
     val rs = faces.toSet
-    if (debug.enabled) assert(Value.Formula.satisfiable(rs))
+    if (debug.enabled) assert(rs.forall(r => Value.Formula.satisfiable(r)))
     if (binder == null) {
       throw ElaboratorContextLookupException.NonExistingReference(name)
     } else {
@@ -98,7 +93,7 @@ trait ElaboratorContextLookup extends ElaboratorContextBase with ElaboratorConte
           if (isGlobalDefinition) {
             (t, j)
           } else {
-            (t.restrict(rs), j)
+            (faces.foldLeft(t) { (t, r) => t.restrict(r)}, j)
           }
         case (a: String, j: Abstract.Formula.Reference) =>
           (a, j)

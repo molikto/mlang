@@ -241,6 +241,9 @@ object Value {
     _from = this
   }
 
+  case class Restricted(a: Value, asgn: Formula.Assignments) extends Syntaxial
+  case class Derestricted(a: Value, asgn: Formula.Assignments) extends Internal
+
   case class Reference(@lateinit var value: Value) extends Syntaxial {
     _from = this
     override def toString: String = "Reference"
@@ -346,7 +349,6 @@ object Value {
 
 
   case class Inductively(id: Long, level: Int) {
-    def up(b: Int): Inductively = copy(level = level + b)
     def restrict(lv: Formula.Assignments): Inductively = this
   }
 
@@ -394,6 +396,19 @@ object Value {
   case class PathLambda(body: AbsClosure) extends HeadCanonical
   case class PathApp(@stuck_pos left: Value, @stuck_pos dimension: Formula) extends Stuck
 
+  object Face {
+    def restrict(faces: Seq[Face], lv: Formula.Assignments) = {
+      faces.flatMap(n => {
+        val r = n.restriction.restrict(lv)
+        val nf = r.normalForm
+        if (nf == Formula.NormalForm.False) {
+          None
+        } else {
+          Some(Face(r, n.body.restrict(lv)))
+        }
+      })
+    }
+  }
   case class Face(restriction: Formula, body: AbsClosure)
   case class Transp(direction: Formula, @stuck_pos tp: AbsClosure.StuckPos, base: Value) extends Stuck
   case class Com(direction: Formula, @stuck_pos tp: AbsClosure.StuckPos, base: Value, faces: Seq[Face]) extends Stuck
@@ -525,22 +540,16 @@ sealed trait Value {
 //            case _: Formula.Internal => logicError()
 //          }
           ???
-        /*
       case Restricted(a, restriction) =>
-        val normalized = DimensionPair.normalizeRestriction(restriction)
-        if (normalized.isEmpty) {
+        if (debug.enabled) assert(Formula.satisfiable(restriction))
+        if (restriction.isEmpty) {
           a.whnf
         } else {
           a match {
-            case GenericOrOpenMeta(it) => Restricted(it, normalized) // stop case
-            case Up(j, b) => j match {
-              case GenericOrOpenMeta(it) => Restricted(Up(it, b), normalized) // a up's whnf can only block on generics
-              case j => j.deref().restrict(restriction).whnf
-            }
+            case GenericOrOpenMeta(it) => Restricted(it, restriction) // stop case
             case _ => a.deref().restrict(restriction).whnf
           }
         }
-         */
         case _: Internal =>
           logicError()
       }
@@ -567,7 +576,7 @@ sealed trait Value {
   }
 
   // FIXME how does it interact with recursive references?
-  def restrict(lv: Value.Formula.Assignments): Value = if (lv.isEmpty) this else ??? /*this match {
+  def restrict(lv: Value.Formula.Assignments): Value = if (lv.isEmpty) this else this match {
     case u: Universe => u
     case Function(domain, im, codomain) =>
       Function(domain.restrict(lv), im, codomain.restrict(lv))
@@ -610,22 +619,19 @@ sealed trait Value {
     case VProj(x, m, f) =>
       VProj(x.restrict(lv), m.restrict(lv), f.restrict(lv))
     case Let(items, body) =>
-      Let(items, body.restrict(lv))
+      Let(items.map(_.restrict(lv).asInstanceOf[Reference]), body.restrict(lv))
     case Derestricted(v, lv0) =>
-      assert(lv == lv0)
+      assert(lv.eq(lv0))
       v
-    case Up(a, b) =>
-      Restricted(Up(a, b), Seq(lv))
-    case Restricted(a, faces) =>
-      Restricted(a, lv +: faces)
+    case r: Restricted =>
+      Restricted(r, lv)
     case g: Generic =>
-      Restricted(g, Seq(lv))
+      Restricted(g, lv)
     case o: Reference =>
-      Restricted(o, Seq(lv))
+      Restricted(o, lv)
     case o: Meta =>
-      Restricted(o, Seq(lv))
+      Restricted(o, lv)
   }
-  */
 
 
   def inferLevel: Int = infer match {
