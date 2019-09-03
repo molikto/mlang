@@ -5,11 +5,11 @@ import mlang.utils._
 
 import scala.collection.mutable
 
-sealed trait ElaborationContextLookupException extends CompilerException
+sealed trait ElaboratorContextLookupException extends CompilerException
 
-object ElaborationContextLookupException {
-  case class NonExistingReference(name: Text) extends Exception(s"Non existing reference $name") with ElaborationContextLookupException
-  case class ReferenceSortWrong(name: Text) extends ElaborationContextLookupException
+object ElaboratorContextLookupException {
+  case class NonExistingReference(name: Text) extends Exception(s"Non existing reference $name") with ElaboratorContextLookupException
+  case class ReferenceSortWrong(name: Text) extends ElaboratorContextLookupException
 }
 
 trait ElaboratorContextLookup extends ElaboratorContextBase with ElaboratorContextRebind {
@@ -19,7 +19,7 @@ trait ElaboratorContextLookup extends ElaboratorContextBase with ElaboratorConte
       case (t: Value, j: Abstract) =>
         (t, j)
       case _ =>
-        throw ElaborationContextLookupException.ReferenceSortWrong(name)
+        throw ElaboratorContextLookupException.ReferenceSortWrong(name)
     }
   }
 
@@ -28,7 +28,7 @@ trait ElaboratorContextLookup extends ElaboratorContextBase with ElaboratorConte
       case (t: Value.Formula.Generic, j: Abstract.Formula.Reference) =>
         (t, j)
       case _ =>
-        throw ElaborationContextLookupException.ReferenceSortWrong(name)
+        throw ElaboratorContextLookupException.ReferenceSortWrong(name)
     }
   }
 
@@ -84,7 +84,7 @@ trait ElaboratorContextLookup extends ElaboratorContextBase with ElaboratorConte
     }
     val rs = faces.map(_.res).toSeq
     if (binder == null) {
-      throw ElaborationContextLookupException.NonExistingReference(name)
+      throw ElaboratorContextLookupException.NonExistingReference(name)
     } else {
       binder match {
         case (t: Value, j: Abstract) =>

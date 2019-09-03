@@ -115,7 +115,7 @@ object Value {
       var g = nodes
       while (i < g.size) {
         val t = g(i).independent.typ
-        level = t.inferLevel max level
+        level = Value.inferLevel(t) max level
         val ge = Generic(gen(), t)
         g = ClosureGraph.reduce(g, i, ge)
         i += 1
@@ -354,6 +354,61 @@ object Value {
   case class VType(x: Value.Formula, a: Value, b: Value, e: Value) extends CubicalUnstable
   case class VMake(x: Value.Formula, m: Value, n: Value) extends CubicalUnstable
   case class VProj(x: Value.Formula, m: StuckPos, f: Value) extends Stuck
+
+
+
+  def inferLevel(t1: Value): Int = infer(t1) match {
+    case Universe(l) => l
+    case _ => logicError()
+  }
+
+  // it is like in type directed conversion checking, this works because we always call infer on whnf, so neutural values
+  // can infer it's type
+  def infer(t1: Value): Value = {
+    t1.whnf match {
+      case g: Generic =>
+        g.typ
+      //      case Restricted(a, fs) =>
+      //        fs.foldLeft(infer(a)) { (t, r) => t.restrict(r) }
+      case Universe(level) => Universe.suc(level)
+      case Function(domain, _, codomain) =>
+        (infer(domain), infer(codomain(Generic(gen(), domain)))) match {
+          case (Universe(l1), Universe(l2)) => Universe(l1 max l2)
+          case _ => logicError()
+        }
+      case VType(_, a, b, _) =>
+        (infer(a), infer(b)) match {
+          case (Universe(l1), Universe(l2)) => Universe(l1 max l2)
+          case _ => logicError()
+        }
+      case r: Record =>
+        r.inductively.map(a => Universe(a.level)).getOrElse(Universe(ClosureGraph.inferLevel(r.nodes)))
+      case s: Sum =>
+        s.inductively.map(a => Universe(a.level)).getOrElse(
+          Universe(if (s.constructors.isEmpty) 0 else s.constructors.map(c => ClosureGraph.inferLevel(c.nodes)).max))
+      case PathType(typ, _, _) =>
+        infer(typ.apply(Formula.Generic(dgen())))
+      case App(l1, a1) =>
+        infer(l1).whnf match {
+          case Function(_, _, c) =>
+            c(a1)
+          case _ => logicError()
+        }
+      case Projection(m1, f1) =>
+        infer(m1).whnf match {
+          case rr: Record  => rr.projectedType(m1, f1)
+          case _ => logicError()
+        }
+      case PatternStuck(l1, s1) =>
+        l1.typ(s1)
+      case PathApp(l1, d1) =>
+        infer(l1).whnf match {
+          case PathType(typ, _, _) => typ(d1)
+          case _ => logicError()
+        }
+      case _ => logicError()
+    }
+  }
 
 
 
@@ -611,61 +666,6 @@ sealed trait Value {
   }
   */
 
-
-  def inferLevel: Int = infer match {
-    case Universe(l) => l
-    case _ => logicError()
-  }
-
-  // it is like in type directed conversion checking, this works because we always call infer on whnf, so neutural values
-  // can infer it's type
-  def infer: Value = {
-    whnf match {
-      case g: Generic =>
-        g.typ
-      //      case Restricted(a, fs) =>
-      //        fs.foldLeft(infer(a)) { (t, r) => t.restrict(r) }
-      case Universe(level) => Universe.suc(level)
-      case Function(domain, _, codomain) =>
-        (domain.infer, codomain(Generic(gen(), domain)).infer) match {
-          case (Universe(l1), Universe(l2)) => Universe(l1 max l2)
-          case _ => logicError()
-        }
-      case VType(_, a, b, _) =>
-        (a.infer, b.infer) match {
-          case (Universe(l1), Universe(l2)) => Universe(l1 max l2)
-          case _ => logicError()
-        }
-      case r: Record =>
-        r.inductively.map(a => Universe(a.level)).getOrElse(Universe(ClosureGraph.inferLevel(r.nodes)))
-      case s: Sum =>
-        s.inductively.map(a => Universe(a.level)).getOrElse(
-          Universe(if (s.constructors.isEmpty) 0 else s.constructors.map(c => ClosureGraph.inferLevel(c.nodes)).max))
-      case PathType(typ, _, _) =>
-        typ.apply(Formula.Generic(dgen())).infer
-      case App(l1, a1) =>
-        l1.infer.whnf match {
-          case Function(_, _, c) =>
-            c(a1)
-          case _ => logicError()
-        }
-      case Projection(m1, f1) =>
-        m1.infer.whnf match {
-          case rr: Record  => rr.projectedType(m1, f1)
-          case _ => logicError()
-        }
-      case PatternStuck(l1, s1) =>
-        l1.typ(s1)
-      case PathApp(l1, d1) =>
-        l1.infer.whnf match {
-          case PathType(typ, _, _) => typ(d1)
-          case _ => logicError()
-        }
-      case _ => logicError()
-    }
-  }
-
-
   def deref(): Value = this match {
     case r: Reference => r.value.deref()
     case Meta(c: MetaState.Closed) => c.v.deref()
@@ -723,7 +723,7 @@ object ValueOps {
     case a =>
       // I think both yacctt use open variables with types, and an `inferType` thing
       def constantCase(isOne: Boolean) = {
-        a.infer.whnf match {
+        Value.infer(a).whnf match {
           case PathType(_, left, right) =>
             returns(if (isOne) right else left)
           case _ => logicError()
