@@ -4,6 +4,27 @@ import mlang.utils.Name
 
 import scala.collection.mutable
 
+object ElaborationContextBase {
+  type Layers = Seq[Layer]
+}
+
+import ElaborationContextBase._
+
+trait ElaborationContextBase extends EvaluationContext  {
+  protected def layers: Layers
+
+  def getMetaReference(depth: Int, index: Int): Value.Meta = layers(depth).metas(index)
+
+  // get value directly without resolving faces
+  def getReference(depth: Int, index: Int): Value = layers(depth) match {
+    case Layer.Parameter(binder, _) if index == -1 => binder.value
+    case ps: Layer.Parameters  => ps.binders(index).value
+    case Layer.Defines(_, terms) => terms(index).ref
+    case _ => logicError()
+  }
+
+  def getDimension(depth: Int): Value.Formula.Generic = layers(depth).asInstanceOf[Layer.Dimension].value
+}
 
 class MetasState(val metas: mutable.ArrayBuffer[Value.Meta], var frozen: Int) {
   def debug_allFrozen: Boolean = metas.size == frozen

@@ -1,5 +1,5 @@
 package mlang.compiler
 
 
-trait PrettyPrint extends ElaborationContext {
+trait PrettyPrint extends ElaborationContextLookup {
 }

@@ -1,13 +1,129 @@
 package mlang.compiler
 
-import mlang.compiler.Value.Formula
 import mlang.utils.Name
 
 case class Dependency(i: Int, meta: Boolean)
 
+object Abstract {
+
+  /**
+   * FORMULA
+   */
+  object Formula {
+    case class Reference(up: Int) extends Formula
+    case object True extends Formula
+    case object False extends Formula
+    case class And(left: Formula, right: Formula) extends Formula
+    case class Or(left: Formula, right: Formula) extends Formula
+    case class Neg(unit: Formula) extends Formula
+  }
+
+  sealed trait Formula {
+    import Formula.{And, Or, Neg}
+
+    def diff(depth: Int, x: Int): Formula = {
+      this match {
+        case Formula.Reference(up) =>
+          if (up > depth) {
+            Formula.Reference(up + x)
+          } else {
+            this
+          }
+        case And(l, r) => And(l.diff(depth, x), r.diff(depth, x))
+        case Or(l, r) => Or(l.diff(depth, x), r.diff(depth, x))
+        case Neg(l) => Neg(l.diff(depth, x))
+        case _ => this
+      }
+    }
+
+  }
+
+  /**
+   * CLOSURES
+   */
+  sealed trait MetaEnclosedT {
+    val term: Abstract
+    val metas: Seq[Abstract]
+    def dependencies(i: Int): Set[Dependency] = term.dependencies(i + 1)
+
+  }
+  sealed trait ClosureT extends MetaEnclosedT {
+  }
+
+  case class Closure(metas: Seq[Abstract], term: Abstract) extends ClosureT {
+    def diff(depth: Int, x: Int): Closure = Closure(metas.map(_.diff(depth + 1, x)), term.diff(depth + 1, x))
+  }
+
+  case class AbsClosure(metas: Seq[Abstract], term: Abstract) extends ClosureT {
+    def diff(depth: Int, x: Int): AbsClosure = AbsClosure(metas.map(_.diff(depth + 1, x)), term.diff(depth + 1, x))
+  }
+  case class MultiClosure(metas: Seq[Abstract], term: Abstract) extends ClosureT {
+    def diff(depth: Int, x: Int): MultiClosure = MultiClosure(metas.map(_.diff(depth + 1, x)), term.diff(depth + 1, x))
+  }
+  case class MetaEnclosed(metas: Seq[Abstract], term: Abstract) extends MetaEnclosedT {
+    def diff(depth: Int, x: Int): MetaEnclosed = MetaEnclosed(metas.map(_.diff(depth + 1, x)), term.diff(depth + 1, x))
+  }
+
+  type ClosureGraph = Seq[(Seq[Int], MetaEnclosed)]
+
+  /**
+   * ABSTRACT
+   */
+
+  case class Universe(i: Int) extends Abstract
+
+  case class Reference(up: Int, index: Int) extends Abstract
+
+  case class MetaReference(up: Int, index: Int) extends Abstract
+
+  case class Function(domain: Abstract, impict: Boolean, codomain: Closure) extends Abstract
+
+  case class Lambda(closure: Closure) extends Abstract
+
+  case class App(left: Abstract, right: Abstract) extends Abstract
+
+  case class Inductively(id: Long, level: Int) {
+    def dependencies(i: Int): Set[Dependency] = Set.empty
+    def diff(depth: Int, x: Int): Inductively = this
+  }
+
+  case class Record(inductively: Option[Inductively], names: Seq[Name], implicits: Seq[Boolean], graph: ClosureGraph) extends Abstract
+
+  case class Projection(left: Abstract, field: Int) extends Abstract
+
+  case class Constructor(name: Name, implicits: Seq[Boolean], params: ClosureGraph)
+
+  case class Sum(inductively: Option[Inductively], constructors: Seq[Constructor]) extends Abstract
+
+  case class Maker(sum: Abstract, field: Int) extends Abstract
+
+  case class Let(metas: Seq[Abstract], definitions: Seq[Abstract], in: Abstract) extends Abstract
+
+  case class Case(pattern: Pattern, body: MultiClosure)
+  case class PatternLambda(id: Long, domain: Abstract, typ: Closure, cases: Seq[Case]) extends Abstract
+
+  case class PathLambda(body: AbsClosure) extends Abstract
+  case class PathType(typ: AbsClosure, left: Abstract, right: Abstract) extends Abstract
+  case class PathApp(let: Abstract, r: Formula) extends Abstract
+
+  // restriction doesn't take binding, but they have a level non-the-less
+  case class Face(pair: Formula, body: AbsClosure) {
+    def diff(depth: Int, x: Int): Face = Face(pair.diff(depth, x), body.diff(depth, x))
+
+    def dependencies(i: Int): Set[Dependency] = body.dependencies(i + 1)
+  }
+  case class Coe(direction: Formula, tp: AbsClosure, base: Abstract) extends Abstract
+  case class Hcom(direction: Formula, tp: Abstract, base: Abstract, faces: Seq[Face]) extends Abstract
+
+  case class Com(direction: Formula, tp: AbsClosure, base: Abstract, faces: Seq[Face]) extends Abstract
+
+  case class VType(x: Formula, a: MetaEnclosed, b: Abstract, e: MetaEnclosed) extends Abstract
+  case class VMake(x: Formula, m: MetaEnclosed, n: Abstract) extends Abstract
+  case class VProj(x: Formula, m: Abstract, f: Abstract) extends Abstract
+}
+
+
 sealed trait Abstract {
-
-
   import Abstract._
 
   def termDependencies(i: Int): Set[Int] = dependencies(i).flatMap {
@@ -55,8 +171,8 @@ sealed trait Abstract {
     case Universe(_) => Set.empty
     //case Reference(up, index) => if (i == up) Set(index) else Set.empty
     //case MetaReference(up, index) => Set.empty
-    case Reference(up, index) => if (i == up) Set(Dependency(index, false)) else Set.empty
-    case MetaReference(up, index) => if (i == up) Set(Dependency(index, true)) else Set.empty
+    case Reference(up, index) => if (i == up) Set(Dependency(index, meta = false)) else Set.empty
+    case MetaReference(up, index) => if (i == up) Set(Dependency(index, meta = true)) else Set.empty
     case Function(domain, _, codomain) => domain.dependencies(i) ++ codomain.dependencies(i)
     case Lambda(closure) => closure.dependencies(i)
     case App(left, right) => left.dependencies(i) ++ right.dependencies(i)
@@ -79,111 +195,3 @@ sealed trait Abstract {
   }
 }
 
-// abstract terms will have restricted terms annotated
-object Abstract {
-
-  sealed trait MetaEnclosedT {
-    val term: Abstract
-    val metas: Seq[Abstract]
-    def dependencies(i: Int): Set[Dependency] = term.dependencies(i + 1)
-
-  }
-  sealed trait ClosureT extends MetaEnclosedT {
-  }
-
-  case class Closure(metas: Seq[Abstract], term: Abstract) extends ClosureT {
-    def diff(depth: Int, x: Int): Closure = Closure(metas.map(_.diff(depth + 1, x)), term.diff(depth + 1, x))
-  }
-
-  case class AbsClosure(metas: Seq[Abstract], term: Abstract) extends ClosureT {
-    def diff(depth: Int, x: Int): AbsClosure = AbsClosure(metas.map(_.diff(depth + 1, x)), term.diff(depth + 1, x))
-  }
-  case class MultiClosure(metas: Seq[Abstract], term: Abstract) extends ClosureT {
-    def diff(depth: Int, x: Int): MultiClosure = MultiClosure(metas.map(_.diff(depth + 1, x)), term.diff(depth + 1, x))
-  }
-  case class MetaEnclosed(metas: Seq[Abstract], term: Abstract) extends MetaEnclosedT {
-    def diff(depth: Int, x: Int): MetaEnclosed = MetaEnclosed(metas.map(_.diff(depth + 1, x)), term.diff(depth + 1, x))
-  }
-
-
-  case class Inductively(id: Long, level: Int) {
-    def dependencies(i: Int): Set[Dependency] = Set.empty
-    def diff(depth: Int, x: Int): Inductively = this
-  }
-
-  type ClosureGraph = Seq[(Seq[Int], MetaEnclosed)]
-
-  case class Universe(i: Int) extends Abstract
-
-  case class Reference(up: Int, index: Int) extends Abstract
-
-  case class MetaReference(up: Int, index: Int) extends Abstract
-
-  case class Function(domain: Abstract, impict: Boolean, codomain: Closure) extends Abstract
-
-  case class Lambda(closure: Closure) extends Abstract
-
-  case class App(left: Abstract, right: Abstract) extends Abstract
-
-  case class Record(inductively: Option[Inductively], names: Seq[Name], implicits: Seq[Boolean], graph: ClosureGraph) extends Abstract
-
-  case class Projection(left: Abstract, field: Int) extends Abstract
-
-  case class Constructor(name: Name, implicits: Seq[Boolean], params: ClosureGraph)
-
-  case class Sum(inductively: Option[Inductively], constructors: Seq[Constructor]) extends Abstract
-
-
-  case class Maker(sum: Abstract, field: Int) extends Abstract
-
-  case class Let(metas: Seq[Abstract], definitions: Seq[Abstract], in: Abstract) extends Abstract
-
-  case class Case(pattern: Pattern, body: MultiClosure)
-  case class PatternLambda(id: Long, domain: Abstract, typ: Closure, cases: Seq[Case]) extends Abstract
-
-  case class PathLambda(body: AbsClosure) extends Abstract
-  case class PathType(typ: AbsClosure, left: Abstract, right: Abstract) extends Abstract
-  case class PathApp(let: Abstract, r: Formula) extends Abstract
-
-  case class Coe(direction: Formula, tp: AbsClosure, base: Abstract) extends Abstract
-  case class Hcom(direction: Formula, tp: Abstract, base: Abstract, faces: Seq[Face]) extends Abstract
-
-  case class Com(direction: Formula, tp: AbsClosure, base: Abstract, faces: Seq[Face]) extends Abstract
-
-  case class VType(x: Formula, a: MetaEnclosed, b: Abstract, e: MetaEnclosed) extends Abstract
-  case class VMake(x: Formula, m: MetaEnclosed, n: Abstract) extends Abstract
-  case class VProj(x: Formula, m: Abstract, f: Abstract) extends Abstract
-
-  // restriction doesn't take binding, but they have a level non-the-less
-  case class Face(pair: Formula, body: AbsClosure) {
-    def diff(depth: Int, x: Int): Face = Face(pair.diff(depth, x), body.diff(depth, x))
-
-    def dependencies(i: Int): Set[Dependency] = body.dependencies(i + 1)
-  }
-
-  sealed trait Formula {
-    def diff(depth: Int, x: Int): Abstract.Formula = {
-      this match {
-        case Formula.Reference(up) =>
-          if (up > depth) {
-            Formula.Reference(up + x)
-          } else {
-            this
-          }
-        case _ => this
-      }
-    }
-
-  }
-
-  object Formula {
-    case class Reference(up: Int) extends Formula
-    case object True extends Formula
-    case object False extends Formula
-    case class And(left: Formula, right: Formula) extends Formula
-    case class Or(left: Formula, right: Formula) extends Formula
-    case class Neg(unit: Formula) extends Formula
-  }
-
-
-}

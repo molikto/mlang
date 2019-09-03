@@ -1,8 +1,7 @@
 package mlang.compiler
 
-import mlang.compiler
-import mlang.compiler.Value.ClosureGraph
 import mlang.utils.Name
+import ElaborationContextBase.Layers
 
 import scala.collection.mutable
 
@@ -15,8 +14,6 @@ object ElaborationContextBuilderException {
   
 }
 
-
-import ElaborationContext._
 
 
 object ElaborationContextBuilder {
@@ -160,12 +157,12 @@ trait ElaborationContextBuilder extends ElaborationContextWithMetaOps {
 
   def newPatternLayer(pattern: Concrete.Pattern, typ: Value): (Self, Value, Pattern) = {
     val vvv = mutable.ArrayBuffer[ParameterBinder]()
-    def recs(maps: Seq[Concrete.Pattern], nodes: ClosureGraph): Seq[(Value, Pattern)] = {
+    def recs(maps: Seq[Concrete.Pattern], nodes: Value.ClosureGraph): Seq[(Value, Pattern)] = {
       var vs =  Seq.empty[(Value, Pattern)]
       var graph = nodes
       for (i <- maps.indices) {
         val tv = rec(maps(i), graph(i).independent.typ)
-        graph = ClosureGraph.reduce(graph, vs.size, tv._1)
+        graph = Value.ClosureGraph.reduce(graph, vs.size, tv._1)
         vs = vs :+ tv
       }
       vs

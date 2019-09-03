@@ -3,7 +3,7 @@ package mlang.poorparser
 
 import java.io.File
 
-import mlang.compiler.{Concrete, NameType}
+import mlang.compiler.Concrete
 import mlang.compiler.Concrete._
 
 import scala.util.parsing.combinator.syntactical.StandardTokenParsers

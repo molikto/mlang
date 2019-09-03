@@ -1,7 +1,7 @@
 package mlang.compiler
 
 import mlang.compiler.Concrete._
-import ElaborationContext._
+import ElaborationContextBase.Layers
 import Declaration.Modifier
 import mlang.utils._
 
@@ -17,7 +17,10 @@ object Elaborator {
 }
 
 class Elaborator private(protected override val layers: Layers)
-    extends ElaborationContextBuilder with Evaluator with PlatformEvaluator with Unify {
+    extends ElaborationContextBuilder
+        with ElaborationContextLookup
+        with ElaborationContextRebind
+        with Evaluator with PlatformEvaluator with Unifier {
 
   override type Self = Elaborator
 
@@ -85,7 +88,7 @@ class Elaborator private(protected override val layers: Layers)
   def checkLine(a: Concrete, dim: Value.Formula.Generic, typ: Value.AbsClosure): Abstract.AbsClosure = {
     a match {
       case Concrete.Lambda(n, b, body) =>
-        if (b) throw ElaborateException.DimensionLambdaCannotBeImplicit()
+        if (b) throw ElaboratorException.DimensionLambdaCannotBeImplicit()
         val ctx = newDimensionLayer(n, dim)
         val ta = ctx.check(body, typ(dim))
         Abstract.AbsClosure(ctx.finishReify(), ta)
@@ -95,14 +98,14 @@ class Elaborator private(protected override val layers: Layers)
         tv.whnf match {
           case j@Value.PathType(_, _, _) =>
             Abstract.AbsClosure(ctx.finishReify(), Abstract.PathApp(ta, Abstract.Formula.Reference(0)))
-          case _ => throw ElaborateException.ExpectingLambdaTerm()
+          case _ => throw ElaboratorException.ExpectingLambdaTerm()
         }
     }
   }
   def checkTypeLine(a: Concrete): (Int, Abstract.AbsClosure) = {
     a match {
       case Concrete.Lambda(n, b, body) =>
-        if (b) throw ElaborateException.DimensionLambdaCannotBeImplicit()
+        if (b) throw ElaboratorException.DimensionLambdaCannotBeImplicit()
         val ctx = newDimensionLayer(n)._1
         val (l, ta0) = ctx.inferLevel(body)
         val ta = Abstract.AbsClosure(ctx.finishReify(), ta0)
@@ -114,7 +117,7 @@ class Elaborator private(protected override val layers: Layers)
           case j@Value.PathType(_, _, _) =>
             val clo = Abstract.AbsClosure(ctx.finishReify(), Abstract.PathApp(ta, Abstract.Formula.Reference(0)))
             (Value.inferLevel(j), clo)
-          case _ => throw ElaborateException.ExpectingLambdaTerm()
+          case _ => throw ElaboratorException.ExpectingLambdaTerm()
         }
     }
   }
@@ -145,56 +148,56 @@ class Elaborator private(protected override val layers: Layers)
           case Concrete.Up(c, d) =>
             infer(Concrete.Up(c, b + d))
           case Concrete.Type =>
-            (Value.Universe(b + 1), Abstract.Universe(b))
+            (Value.Universe.suc(b + 1), Abstract.Universe(if (Value.Universe.TypeInType) 0 else b))
           case Concrete.Reference(ref) =>
             val (binder, abs) = lookupTerm(ref)
             abs match {
               case Abstract.Reference(up, _) if up == layers.size - 1 =>
               reduceMore(binder, abs)
               //reduceMore(binder.up(b), Abstract.Up(abs, b))
-              case _ => throw ElaborateException.UpCanOnlyBeUsedOnTopLevelDefinitionOrUniverse()
+              case _ => throw ElaboratorException.UpCanOnlyBeUsedOnTopLevelDefinitionOrUniverse()
             }
-          case _ => throw ElaborateException.UpCanOnlyBeUsedOnTopLevelDefinitionOrUniverse()
+          case _ => throw ElaboratorException.UpCanOnlyBeUsedOnTopLevelDefinitionOrUniverse()
         }
       case Concrete.Reference(name) =>
         // should lookup always return a value? like a open reference?
         val (binder, abs) = lookupTerm(name)
         reduceMore(binder, abs)
       case Concrete.Hole =>
-        throw ElaborateException.CannotInferMeta()
+        throw ElaboratorException.CannotInferMeta()
       case Concrete.True =>
-        throw ElaborationContextException.ConstantSortWrong()
+        throw ElaboratorException.ConstantSortWrong()
       case Concrete.False =>
-        throw ElaborationContextException.ConstantSortWrong()
+        throw ElaboratorException.ConstantSortWrong()
         // LATER these three is not exactly constants, maybe this can be fixed after refactor better elaboration
       case _: Concrete.And =>
-        throw ElaborationContextException.ConstantSortWrong()
+        throw ElaboratorException.ConstantSortWrong()
       case _: Concrete.Or =>
-        throw ElaborationContextException.ConstantSortWrong()
+        throw ElaboratorException.ConstantSortWrong()
       case _: Concrete.Neg =>
-        throw ElaborationContextException.ConstantSortWrong()
+        throw ElaboratorException.ConstantSortWrong()
       case Concrete.I =>
-        throw ElaborateException.TermICanOnlyAppearInDomainOfFunction()
+        throw ElaboratorException.TermICanOnlyAppearInDomainOfFunction()
       case Concrete.Make =>
-        throw ElaborateException.CannotInferMakeExpression()
+        throw ElaboratorException.CannotInferMakeExpression()
       case _: Concrete.VMake =>
-        throw ElaborateException.CannotInferVMakeExpression()
+        throw ElaboratorException.CannotInferVMakeExpression()
       case Concrete.Cast(v, t) =>
         val (_, ta) = inferLevel(t)
         val tv = eval(ta)
         (tv, check(v, tv))
       case Concrete.Function(domain, codomain) =>
-        if (domain.isEmpty) throw ElaborateException.EmptyTelescope()
+        if (domain.isEmpty) throw ElaboratorException.EmptyTelescope()
         val (l, v) = inferTelescope(NameType.flatten(domain), codomain)
         (Value.Universe(l), v)
       case r@Concrete.Record(fields) =>
         for (f <- fields) {
-          if (f.names.isEmpty) throw ElaborateException.MustBeNamed()
+          if (f.names.isEmpty) throw ElaboratorException.MustBeNamed()
         }
         for (i <- r.names.indices) {
           for (j <- (i + 1) until r.names.size) {
             if (r.names(i)._2 intersect r.names(j)._2) {
-              throw ElaborateException.FieldsDuplicated()
+              throw ElaboratorException.FieldsDuplicated()
             }
           }
         }
@@ -204,7 +207,7 @@ class Elaborator private(protected override val layers: Layers)
         for (i <- constructors.indices) {
           for (j <- (i + 1) until constructors.size) {
             if (constructors(i).name.intersect(constructors(j).name)) {
-              throw ElaborateException.TagsDuplicated()
+              throw ElaboratorException.TagsDuplicated()
             }
           }
         }
@@ -267,7 +270,7 @@ class Elaborator private(protected override val layers: Layers)
                 debug(s"infer path type $ta", 1)
                 (Value.Universe(Value.inferLevel(t)), Abstract.PathType(Abstract.AbsClosure(Seq.empty, ta), la, ra))
               case None =>
-                throw ElaborateException.InferPathEndPointsTypeNotMatching()
+                throw ElaboratorException.InferPathEndPointsTypeNotMatching()
             }
         }
       case Concrete.VProj(m) =>
@@ -275,17 +278,17 @@ class Elaborator private(protected override val layers: Layers)
          mt match {
           case Value.VType(x, _, b, e) =>
             (b, Abstract.VProj(rebindFormula(x), ma, Abstract.Projection(reify(e), 0)))
-          case _ => throw ElaborateException.VProjCannotInfer()
+          case _ => throw ElaboratorException.VProjCannotInfer()
         }
       case p: Concrete.PatternLambda =>
-        throw ElaborateException.CannotInferReturningTypeWithPatterns()
+        throw ElaboratorException.CannotInferReturningTypeWithPatterns()
       case l: Concrete.Lambda =>
-        throw ElaborateException.CannotInferLambda()
+        throw ElaboratorException.CannotInferLambda()
       case Concrete.Projection(left, right) =>
         val (lt, la) = infer(left)
         val lv = eval(la)
         lazy val ltr = lt.whnf.asInstanceOf[Value.Record]
-        def error() = throw ElaborateException.UnknownProjection()
+        def error() = throw ElaboratorException.UnknownProjection()
         var index = -1
         def calIndex(a: Text => Int) = {
           index = right match {
@@ -309,7 +312,7 @@ class Elaborator private(protected override val layers: Layers)
             }
         }
       case Concrete.App(lambda, arguments) =>
-        if (arguments.isEmpty) throw ElaborateException.EmptyArguments()
+        if (arguments.isEmpty) throw ElaboratorException.EmptyArguments()
         val (lt, la) = infer(lambda, true)
         val (v1, v2) = inferApp(lt, la, arguments)
         reduceMore(v1, v2) // because inferApp stops when arguments is finished
@@ -359,7 +362,7 @@ class Elaborator private(protected override val layers: Layers)
         (Value.Formula.True, Abstract.Formula.True)
       case Concrete.False =>
         (Value.Formula.False, Abstract.Formula.False)
-      case _ => throw ElaborateException.ExpectingFormula()
+      case _ => throw ElaboratorException.ExpectingFormula()
     }
   }
 
@@ -369,7 +372,7 @@ class Elaborator private(protected override val layers: Layers)
     val fas = terms.flatMap(f => {
       val fs = NameType.flatten(Seq(f))
       if (fs.map(_._2).toSet.size != fs.size) {
-        throw ElaborateException.AlreadyDeclared()
+        throw ElaboratorException.AlreadyDeclared()
       }
       fs.map(n => {
         val (fl, fa) = ctx.inferLevel(f.ty)
@@ -388,7 +391,7 @@ class Elaborator private(protected override val layers: Layers)
       case head +: tail =>
         head._3 match {
           case Concrete.I =>
-            if (head._1) throw ElaborateException.DimensionLambdaCannotBeImplicit()
+            if (head._1) throw ElaboratorException.DimensionLambdaCannotBeImplicit()
             val ctx = newDimensionLayer(head._2)._1
             val (ta, va) = ctx.inferTelescope(tail, codomain, body)
             val ms = ctx.finishReify()
@@ -423,7 +426,7 @@ class Elaborator private(protected override val layers: Layers)
       case head +: tail =>
         head._3 match {
           case Concrete.I =>
-            throw ElaborateException.CannotInferPathTypeWithoutBody()
+            throw ElaboratorException.CannotInferPathTypeWithoutBody()
           case _ =>
             val (dl, da) = inferLevel(head._3)
             val ctx = newParameterLayer(head._2, eval(da))._1
@@ -451,16 +454,16 @@ class Elaborator private(protected override val layers: Layers)
               val (lt1, la1) = finishOffImplicits(f, la)
               inferApp(lt1, la1, arguments)
             } else {
-              throw ElaborateException.NotExpectingImplicitArgument()
+              throw ElaboratorException.NotExpectingImplicitArgument()
             }
           case Value.PathType(typ, _, _) =>
-            if (head._1) throw ElaborateException.DimensionLambdaCannotBeImplicit()
+            if (head._1) throw ElaboratorException.DimensionLambdaCannotBeImplicit()
             val (dv, da) = checkFormula(head._2)
             val lt1 = typ(dv)
             val la1 = Abstract.PathApp(la, da)
             inferApp(lt1, la1, tail)
           // TODO user defined applications
-          case _ => throw ElaborateException.UnknownAsFunction()
+          case _ => throw ElaboratorException.UnknownAsFunction()
         }
       case Seq() =>
         (lt, la)
@@ -487,7 +490,7 @@ class Elaborator private(protected override val layers: Layers)
           else {
             info(s"${reify(tt.whnf)}")
             info(s"${reify(cp.whnf)}")
-            throw ElaborateException.TypeMismatch()
+            throw ElaboratorException.TypeMismatch()
           }
       }
     }
@@ -533,7 +536,7 @@ class Elaborator private(protected override val layers: Layers)
       case Value.PathType(typ, left, right) =>
         term match {
           case Concrete.Lambda(n, b, body) =>
-            if (b) throw ElaborateException.DimensionLambdaCannotBeImplicit()
+            if (b) throw ElaboratorException.DimensionLambdaCannotBeImplicit()
             val (c1, dv) = newDimensionLayer(n.nonEmptyOrElse(hint))
             val t1 = typ(dv)
             import Value.Formula._
@@ -545,7 +548,7 @@ class Elaborator private(protected override val layers: Layers)
             if (leftEq && rightEq) {
               Abstract.PathLambda(ps)
             } else {
-              throw ElaborateException.PathEndPointsNotMatching()
+              throw ElaboratorException.PathEndPointsNotMatching()
             }
           case _ => fallback()
         }
@@ -633,16 +636,16 @@ class Elaborator private(protected override val layers: Layers)
             if (topLevel) {
               Some(Elaborator.igen())
             } else {
-              throw ElaborateException.RecursiveTypesMustBeDefinedAtTopLevel()
+              throw ElaboratorException.RecursiveTypesMustBeDefinedAtTopLevel()
             }
           } else None
         val ret = lookupDefined(name) match {
           case Some((index, typ, defined)) =>
             if (defined) {
-              throw ElaborateException.AlreadyDefined()
+              throw ElaboratorException.AlreadyDefined()
             }
             info(s"check defined $name")
-            if (ps.nonEmpty || t0.nonEmpty) throw ElaborateException.SeparateDefinitionCannotHaveTypesNow()
+            if (ps.nonEmpty || t0.nonEmpty) throw ElaboratorException.SeparateDefinitionCannotHaveTypesNow()
             val va = check(v, typ, Seq.empty)
             appendMetas(freeze())
             val ref = Value.Reference(null)
@@ -722,10 +725,10 @@ class Elaborator private(protected override val layers: Layers)
       case Declaration.Declare(ms, name, ps, t) =>
         lookupDefined(name) match {
           case Some(_) =>
-            throw ElaborateException.AlreadyDeclared()
+            throw ElaboratorException.AlreadyDeclared()
           case None =>
             info(s"declare $name")
-            if (ms.exists(_ != Modifier.__Debug)) throw ElaborateException.ForbiddenModifier()
+            if (ms.exists(_ != Modifier.__Debug)) throw ElaboratorException.ForbiddenModifier()
             val (_, ta) = inferTelescope(NameType.flatten(ps), t)
             appendMetas(freeze())
             val tv = eval(ta)
@@ -758,7 +761,7 @@ class Elaborator private(protected override val layers: Layers)
       ctx = ctx0
     }
     if (vs.exists(a => a.code.isEmpty)) {
-      throw ElaborateException.DeclarationWithoutDefinition()
+      throw ElaboratorException.DeclarationWithoutDefinition()
     }
     (ctx, ms.map(_.code).toSeq, vs.map(_.code.get.code).toSeq)
   }
@@ -770,7 +773,7 @@ class Elaborator private(protected override val layers: Layers)
     tt.whnf match {
       case Value.Universe(l) => (l, ta)
       // TODO user defined type coercion
-      case _ => throw ElaborateException.UnknownAsType()
+      case _ => throw ElaboratorException.UnknownAsType()
     }
   }
 

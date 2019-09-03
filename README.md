@@ -4,11 +4,12 @@
 
 under major renovation.
 
-* how to restrict properly? ─ especially closure
-    * add "support" to local references
-* change how restricted context implemented
-* don't use type directed conversion checking anymore, should lambda be headless?
+* support dimension ops
 * re-implement new coe/hcom
+    * how to restrict on values? ─ especially closure
+    * add "support" to local references
+    * change how restricted context implemented, no "pre-inlining"
+* don't use type directed conversion checking anymore, should lambda be headless?
 * re-implement new glue/unglue
 * new global reference class
     * implement new up

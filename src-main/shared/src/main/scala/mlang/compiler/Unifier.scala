@@ -25,9 +25,9 @@ object SolvableMetaForm {
 }
 
 
-trait Unify extends Reifier with Evaluator with PlatformEvaluator {
+trait Unifier extends Reifier with ElaborationContextRebind with Evaluator with PlatformEvaluator {
 
-  type Self  <: Unify
+  type Self  <: Unifier
 
   protected def unifyTerm(typ: Value, t1: Value, t2: Value): Boolean = {
     Benchmark.Unify {

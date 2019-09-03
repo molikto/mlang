@@ -298,10 +298,10 @@ object Value {
   case class Universe(level: Int) extends HeadCanonical
 
   object Universe {
-    def suc(i: Int) = Universe(i)
-    //def suc(i: Int) = Universe(i + 1)
+    val TypeInType = true
+    def suc(i: Int) = Universe(if (TypeInType) 0 else i)
     def level0 = Universe(0)
-    def level1 = Universe(1)
+    def level1 = Universe(if (TypeInType) 0 else 1)
   }
 
   case class Function(domain: Value, impict: Boolean, codomain: Closure) extends HeadCanonical

@@ -1,21 +1,19 @@
 package mlang.compiler
 
 import mlang.compiler.Abstract._
-import mlang.compiler.ElaborationContext.Layers
 import mlang.compiler.Value.{ClosureGraph, Meta}
 import mlang.utils.{Benchmark, Name, debug}
+import ElaborationContextBase.Layers
 
 import scala.collection.mutable
 
 
-private trait ReifierContext extends ElaborationContextBuilder {
-  def base: ReifierContextBase
+private trait ReifierContext extends ElaborationContextBuilder with ElaborationContextRebind {
+  def base: ReifierContextBottom
 
   override type Self <: ReifierContext
 
-
   val metas = mutable.ArrayBuffer.empty[Abstract]
-
 
   protected def reifyMetas(): Seq[Abstract] = metas.toSeq
 
@@ -65,7 +63,7 @@ private trait ReifierContext extends ElaborationContextBuilder {
   }
 
   def reify(size: Int, v: Value.MultiClosure): Abstract.MultiClosure = {
-    val (ctx, ns) = (0 until size).foldLeft((newParametersLayer().asInstanceOf[ReifierContext], Seq.empty[Value])) { (ctx, _) =>
+    val (ctx, ns) = (0 until size).foldLeft((newParametersLayer() : ReifierContext, Seq.empty[Value])) { (ctx, _) =>
       val (c, ns) = ctx._1.newParameter(Name.empty, null)
       (c, ctx._2 :+ ns)
     }
@@ -131,7 +129,7 @@ private trait ReifierContext extends ElaborationContextBuilder {
       case Value.Maker(s, i) =>
         Maker(reify(s), i)
       case Value.Let(items, body) =>
-        val ctx = items.foldLeft(newDefinesLayer().asInstanceOf[ReifierContext]) { (ctx, item) =>
+        val ctx = items.foldLeft(newDefinesLayer() : ReifierContext) { (ctx, item) =>
           ctx.newDefinition(Name.empty, null, item)._1
         }
         val abs = items.map(p => ctx.reify(p))
@@ -163,7 +161,7 @@ private trait ReifierContext extends ElaborationContextBuilder {
   }
 }
 
-private class ReifierContextCont(override val base: ReifierContextBase, override val layers: ElaborationContext.Layers) extends ReifierContext {
+private class ReifierContextCont(override val base: ReifierContextBottom, override val layers: Layers) extends ReifierContext {
   def gen: LongGen.Negative = base.gen
 
   override type Self = ReifierContextCont
@@ -171,7 +169,7 @@ private class ReifierContextCont(override val base: ReifierContextBase, override
 }
 
 // this is the context of the let expression where out-of-scope reference is collected
-private class ReifierContextBase(layersBefore: ElaborationContext.Layers) extends ReifierContext {
+private class ReifierContextBottom(layersBefore: Layers) extends ReifierContext {
 
   private val terms = new mutable.ArrayBuffer[DefineItem]()
   private var data = Seq.empty[(Int, Option[Abstract])]
@@ -212,15 +210,14 @@ private class ReifierContextBase(layersBefore: ElaborationContext.Layers) extend
     }
   }
 
-  override def base: ReifierContextBase = this
+  override def base: ReifierContextBottom = this
   val gen = LongGen.Negative.gen
   override type Self = ReifierContextCont
   override protected implicit def create(a: Layers): ReifierContextCont = new ReifierContextCont(this, a)
-
 }
 
 object Reifier {
-  private def reify(v: Value, layers: Seq[Layer]): Abstract = Benchmark.Reify { new ReifierContextBase(layers).reifyValue(v)  }
+  private def reify(v: Value, layers: Seq[Layer]): Abstract = Benchmark.Reify { new ReifierContextBottom(layers).reifyValue(v)  }
 }
 trait Reifier extends ElaborationContextBuilder {
 

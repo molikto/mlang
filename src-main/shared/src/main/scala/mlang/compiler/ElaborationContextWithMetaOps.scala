@@ -6,7 +6,6 @@ import scala.collection.mutable
 sealed trait ContextWithMetaOpsException extends CompilerException
 
 object ContextWithMetaOpsException {
-
   case class MetaNotSolved() extends ContextWithMetaOpsException
 }
 
@@ -17,7 +16,7 @@ object ElaborationContextWithMetaOps {
 import ElaborationContextWithMetaOps._
 
 
-trait ElaborationContextWithMetaOps extends ElaborationContext {
+trait ElaborationContextWithMetaOps extends ElaborationContextBase {
 
   def debug_metasSize = layers.head.metas.size
 

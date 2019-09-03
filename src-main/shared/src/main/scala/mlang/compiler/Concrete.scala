@@ -2,28 +2,38 @@ package mlang.compiler
 
 import mlang.utils.{Name, Text}
 
-
-sealed trait Concrete {
-}
-
-case class NameType(names: Seq[(Boolean, Name)], ty: Concrete)
-
-object NameType {
-  type Flat = (Boolean, Name, Concrete)
-  type FlatSeq = Seq[Flat]
-
-  def flatten(names: Seq[NameType]): NameType.FlatSeq = names.flatMap(n => {
-    if (n.names.isEmpty) {
-      Seq((false, Name.empty, n.ty))
-    } else {
-      n.names.map(m => (m._1, m._2, n.ty))
-    }
-  })
-}
-
-sealed trait Block
+sealed trait Concrete
 
 object Concrete {
+
+  case class NameType(names: Seq[(Boolean, Name)], ty: Concrete)
+
+  object NameType {
+    type Flat = (Boolean, Name, Concrete)
+    type FlatSeq = Seq[Flat]
+
+    def flatten(names: Seq[NameType]): NameType.FlatSeq = names.flatMap(n => {
+      if (n.names.isEmpty) {
+        Seq((false, Name.empty, n.ty))
+      } else {
+        n.names.map(m => (m._1, m._2, n.ty))
+      }
+    })
+  }
+
+
+
+
+  sealed trait Pattern
+
+  object Pattern {
+    case class Atom(id: Name) extends Pattern
+    case class Group(names: Seq[Pattern]) extends Pattern
+    // TODO user defined named patterns
+    case class NamedGroup(name: Text, pattern: Seq[Pattern]) extends Pattern
+  }
+
+
 
   case object Type extends Concrete
   case object I extends Concrete
@@ -49,7 +59,7 @@ object Concrete {
 
   case class Constructor(name: Name, term: Seq[NameType])
 
-  case class Sum(constructors: Seq[Constructor]) extends Concrete with Block
+  case class Sum(constructors: Seq[Constructor]) extends Concrete
 
   case class App(left: Concrete, right: Seq[(Boolean, Concrete)]) extends Concrete
 
@@ -62,12 +72,8 @@ object Concrete {
   case class Lambda(name: Name, imps: Boolean, body: Concrete) extends Concrete
 
   // TODO can you define a macro in a abstracted context?
-  case class Let(declarations: Seq[Declaration], in: Concrete) extends Concrete with Block
-
+  case class Let(declarations: Seq[Declaration], in: Concrete) extends Concrete
   // TODO make expression, type is inferred as non-dependent
-
-  case object Undefined extends Concrete
-
   case class PathType(typ: Option[Concrete], left: Concrete, right: Concrete) extends Concrete
   case class Face(dimension: Concrete, term: Concrete)
   case class Coe(direction: Concrete, typ: Concrete, base: Concrete) extends Concrete
@@ -77,16 +83,9 @@ object Concrete {
   case class VMake(m: Concrete, n: Concrete) extends Concrete
   case class VProj(m: Concrete) extends Concrete
 
+  case object Undefined extends Concrete
   case object Hole extends Concrete
 
-  sealed trait Pattern
-
-  object Pattern {
-    case class Atom(id: Name) extends Pattern
-    case class Group(names: Seq[Pattern]) extends Pattern
-    // TODO user defined named patterns
-    case class NamedGroup(name: Text, pattern: Seq[Pattern]) extends Pattern
-  }
 
   case class Module(declarations: Seq[Declaration])
 
@@ -96,7 +95,6 @@ object Concrete {
   sealed trait Declaration {
     def modifiers: Seq[Declaration.Modifier]
   }
-
 
   object Declaration {
     sealed trait Modifier
