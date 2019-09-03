@@ -1,14 +1,14 @@
 package mlang.compiler
 
 import mlang.compiler.Abstract._
-import mlang.compiler.Value.{ClosureGraph, Meta}
+import mlang.compiler.Value.{ClosureGraph, Meta, MetaState}
 import mlang.utils.{Benchmark, Name, debug}
-import ElaborationContextBase.Layers
+import ElaboratorContextBase.Layers
 
 import scala.collection.mutable
 
 
-private trait ReifierContext extends ElaborationContextBuilder with ElaborationContextRebind {
+private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorContextRebind {
   def base: ReifierContextBottom
 
   override type Self <: ReifierContext
@@ -104,7 +104,7 @@ private trait ReifierContext extends ElaborationContextBuilder with ElaborationC
         PathLambda(reify(body))
       case m: Value.Meta =>
         m.state match {
-          case Meta.Closed(c) =>
+          case MetaState.Closed(c) =>
             rebindMetaOpt(m) match {
               case Some(k) => k
               case None =>
@@ -113,7 +113,7 @@ private trait ReifierContext extends ElaborationContextBuilder with ElaborationC
                 metas.append(reify(c))
                 solvedMeta(m)
             }
-          case _: Meta.Open =>
+          case _: MetaState.Open =>
             rebindOrAddMeta(m)
         }
       case Value.Generic(id, _) =>
@@ -162,8 +162,6 @@ private trait ReifierContext extends ElaborationContextBuilder with ElaborationC
 }
 
 private class ReifierContextCont(override val base: ReifierContextBottom, override val layers: Layers) extends ReifierContext {
-  def gen: LongGen.Negative = base.gen
-
   override type Self = ReifierContextCont
   override protected implicit def create(a: Layers): ReifierContextCont = new ReifierContextCont(base, a)
 }
@@ -211,7 +209,6 @@ private class ReifierContextBottom(layersBefore: Layers) extends ReifierContext 
   }
 
   override def base: ReifierContextBottom = this
-  val gen = LongGen.Negative.gen
   override type Self = ReifierContextCont
   override protected implicit def create(a: Layers): ReifierContextCont = new ReifierContextCont(this, a)
 }
@@ -219,7 +216,7 @@ private class ReifierContextBottom(layersBefore: Layers) extends ReifierContext 
 object Reifier {
   private def reify(v: Value, layers: Seq[Layer]): Abstract = Benchmark.Reify { new ReifierContextBottom(layers).reifyValue(v)  }
 }
-trait Reifier extends ElaborationContextBuilder {
+trait Reifier extends ElaboratorContextBuilder {
 
   protected def reify(v: Value): Abstract = Reifier.reify(v, layers)
 

@@ -8,10 +8,10 @@ case class PlatformEvaluatorException(src: String, cause: Throwable)
     extends Exception(s"Src: $src", cause) with CompilerException
 
 trait Holder {
-  def value(c: EvaluationContext, vs: Seq[Any]): Value
+  def value(c: EvaluatorContext, vs: Seq[Any]): Value
 }
 
-trait Evaluator extends EvaluationContext {
+trait Evaluator extends EvaluatorContext {
 
 
   private val vs = mutable.ArrayBuffer[Any]()

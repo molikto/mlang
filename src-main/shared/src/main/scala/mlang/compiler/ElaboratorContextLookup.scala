@@ -12,7 +12,7 @@ object ElaborationContextLookupException {
   case class ReferenceSortWrong(name: Text) extends ElaborationContextLookupException
 }
 
-trait ElaborationContextLookup extends ElaborationContextBase with ElaborationContextRebind {
+trait ElaboratorContextLookup extends ElaboratorContextBase with ElaboratorContextRebind {
 
   def lookupTerm(name: Text): (Value, Abstract) = {
     lookup0(name) match {

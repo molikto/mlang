@@ -4,13 +4,13 @@ import mlang.utils.Name
 
 import scala.collection.mutable
 
-object ElaborationContextBase {
+object ElaboratorContextBase {
   type Layers = Seq[Layer]
 }
 
-import ElaborationContextBase._
+import ElaboratorContextBase._
 
-trait ElaborationContextBase extends EvaluationContext  {
+trait ElaboratorContextBase extends EvaluatorContext  {
   protected def layers: Layers
 
   def getMetaReference(depth: Int, index: Int): Value.Meta = layers(depth).metas(index)

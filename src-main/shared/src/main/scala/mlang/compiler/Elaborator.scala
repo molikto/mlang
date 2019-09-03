@@ -1,7 +1,7 @@
 package mlang.compiler
 
 import mlang.compiler.Concrete._
-import ElaborationContextBase.Layers
+import ElaboratorContextBase.Layers
 import Declaration.Modifier
 import mlang.utils._
 
@@ -17,9 +17,9 @@ object Elaborator {
 }
 
 class Elaborator private(protected override val layers: Layers)
-    extends ElaborationContextBuilder
-        with ElaborationContextLookup
-        with ElaborationContextRebind
+    extends ElaboratorContextBuilder
+        with ElaboratorContextLookup
+        with ElaboratorContextRebind
         with Evaluator with PlatformEvaluator with Unifier {
 
   override type Self = Elaborator
@@ -116,7 +116,7 @@ class Elaborator private(protected override val layers: Layers)
         tv.whnf match {
           case j@Value.PathType(_, _, _) =>
             val clo = Abstract.AbsClosure(ctx.finishReify(), Abstract.PathApp(ta, Abstract.Formula.Reference(0)))
-            (Value.inferLevel(j), clo)
+            (j.inferLevel, clo)
           case _ => throw ElaboratorException.ExpectingLambdaTerm()
         }
     }
@@ -268,7 +268,7 @@ class Elaborator private(protected override val layers: Layers)
               case Some(t) =>
                 val ta = newDimensionLayer(Name.empty)._1.reify(t)
                 debug(s"infer path type $ta", 1)
-                (Value.Universe(Value.inferLevel(t)), Abstract.PathType(Abstract.AbsClosure(Seq.empty, ta), la, ra))
+                (Value.Universe(t.inferLevel), Abstract.PathType(Abstract.AbsClosure(Seq.empty, ta), la, ra))
               case None =>
                 throw ElaboratorException.InferPathEndPointsTypeNotMatching()
             }
@@ -592,7 +592,7 @@ class Elaborator private(protected override val layers: Layers)
           val m = mis(i)
           val handle = Dependency(i, true)
           if (!done.contains(handle) && m.dependencies.contains(changed)) {
-            m.t.state = Value.Meta.Closed(ctx.eval(m.code))
+            m.t.state = Value.MetaState.Closed(ctx.eval(m.code))
             rec(handle)
           }
         }
@@ -698,12 +698,12 @@ class Elaborator private(protected override val layers: Layers)
               // these definition should not have re-eval behaviour.
               // TODO add a primitive modifier so that no error happens with this
               if (name == Name(Text("fiber_at"))) {
-                assert(Value.fiber_at == null)
-                Value.fiber_at = ref.value
-                Value.fiber_at_ty = tv
+                assert(BuildIn.fiber_at == null)
+                BuildIn.fiber_at = ref.value
+                BuildIn.fiber_at_ty = tv
               } else if (name == Name(Text("equiv"))) {
-                assert(Value.equiv == null)
-                Value.equiv = ref.value
+                assert(BuildIn.equiv == null)
+                BuildIn.equiv = ref.value
               }
               info(s"defined $name")
               ctx2

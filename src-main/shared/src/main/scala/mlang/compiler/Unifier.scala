@@ -1,10 +1,12 @@
 package mlang.compiler
 
 import Value._
+import ValueOps._
 import mlang.utils.{Benchmark, Name, debug, warn}
 
 import scala.collection.mutable
 import scala.util.{Failure, Success, Try}
+import LongGen.Negative.{gen, dgen}
 
 private case class Assumption(left: Long, right: Long, domain: Value, codomain: Closure)
 
@@ -25,7 +27,7 @@ object SolvableMetaForm {
 }
 
 
-trait Unifier extends Reifier with ElaborationContextRebind with Evaluator with PlatformEvaluator {
+trait Unifier extends Reifier with ElaboratorContextRebind with Evaluator with PlatformEvaluator {
 
   type Self  <: Unifier
 
@@ -56,9 +58,6 @@ trait Unifier extends Reifier with ElaborationContextRebind with Evaluator with 
       }
     }
   }
-
-  private val gen: LongGen = LongGen.Negative.gen
-  private val dgen: LongGen = LongGen.Negative.dgen
 
   private implicit def optToBool[T](opt: Option[T]): Boolean = opt.isDefined
 
@@ -180,10 +179,10 @@ trait Unifier extends Reifier with ElaborationContextRebind with Evaluator with 
   }
 
   private def solve(m: Meta, vs: Seq[Value], t20: Value): Value = Benchmark.Solve {
-    var Meta.Open(_, typ) = m.state match {
-      case _: Meta.Closed =>
+    var MetaState.Open(_, typ) = m.state match {
+      case _: MetaState.Closed =>
         logicError()
-      case o: Meta.Open =>
+      case o: MetaState.Open =>
         o
     }
     val ref = rebindMeta(m)
@@ -227,7 +226,7 @@ trait Unifier extends Reifier with ElaborationContextRebind with Evaluator with 
     // FIXME type checking??
     debug(s"meta solved with $abs, checked bodies ${checked.size}", 1)
     val v = ctx.eval(abs)
-    m.state = Value.Meta.Closed(v)
+    m.state = Value.MetaState.Closed(v)
     typ
   }
 
@@ -370,7 +369,7 @@ trait Unifier extends Reifier with ElaborationContextRebind with Evaluator with 
           t.whnf match {
             case r: Record  =>
               if (maps.size == r.nodes.size) {
-                doApply(Maker(t, -1), recs(maps, r.nodes))
+                Apps(Maker(t, -1), recs(maps, r.nodes))
               } else {
                 logicError()
               }
@@ -381,7 +380,7 @@ trait Unifier extends Reifier with ElaborationContextRebind with Evaluator with 
             case sum: Sum =>
               val c = sum.constructors(name)
               if (c.nodes.size == maps.size) {
-                doApply(Maker(t, name), recs(maps, c.nodes))
+                Apps(Maker(t, name), recs(maps, c.nodes))
               } else {
                 logicError()
               }

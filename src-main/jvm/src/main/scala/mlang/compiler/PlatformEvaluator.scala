@@ -1,7 +1,6 @@
 package mlang.compiler
 
-import mlang.compiler.Value.Formula
-import mlang.utils.{Benchmark, Name, Text, debug}
+import mlang.utils._
 
 import scala.reflect.runtime.currentMirror
 import scala.tools.reflect.ToolBox
@@ -195,7 +194,7 @@ trait PlatformEvaluator extends Evaluator {
          |
          |
          |new Holder {
-         |  def value(ctx: EvaluationContext, vs: Seq[Any]) = $res
+         |  def value(ctx: EvaluatorContext, vs: Seq[Any]) = $res
          |}
        """.stripMargin
   }

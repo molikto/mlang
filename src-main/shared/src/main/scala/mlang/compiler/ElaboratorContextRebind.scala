@@ -3,7 +3,7 @@ package mlang.compiler
 
 case class RebindNotFoundException() extends Exception
 
-trait ElaborationContextRebind extends ElaborationContextBase {
+trait ElaboratorContextRebind extends ElaboratorContextBase {
 
   def rebindReference(v: Value.Reference): Option[Abstract.Reference] = {
     var up = 0

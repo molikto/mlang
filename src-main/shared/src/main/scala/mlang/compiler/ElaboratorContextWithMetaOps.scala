@@ -9,14 +9,14 @@ object ContextWithMetaOpsException {
   case class MetaNotSolved() extends ContextWithMetaOpsException
 }
 
-object ElaborationContextWithMetaOps {
+object ElaboratorContextWithMetaOps {
 
   private val mgen = new LongGen.Positive()
 }
-import ElaborationContextWithMetaOps._
+import ElaboratorContextWithMetaOps._
 
 
-trait ElaborationContextWithMetaOps extends ElaborationContextBase {
+trait ElaboratorContextWithMetaOps extends ElaboratorContextBase {
 
   def debug_metasSize = layers.head.metas.size
 
@@ -33,7 +33,7 @@ trait ElaborationContextWithMetaOps extends ElaborationContextBase {
 
   protected def newMeta(typ: Value): (Value.Meta, Abstract.MetaReference) = {
     val id = mgen()
-    val v = Value.Meta(Value.Meta.Open(id, typ))
+    val v = Value.Meta(Value.MetaState.Open(id, typ))
     val ms = layers.head.metas
     if (ms.debug_final) logicError()
     val index = ms.size

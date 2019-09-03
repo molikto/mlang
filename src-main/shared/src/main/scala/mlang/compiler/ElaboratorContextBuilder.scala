@@ -1,7 +1,7 @@
 package mlang.compiler
 
 import mlang.utils.Name
-import ElaborationContextBase.Layers
+import ElaboratorContextBase.Layers
 
 import scala.collection.mutable
 
@@ -16,16 +16,16 @@ object ElaborationContextBuilderException {
 
 
 
-object ElaborationContextBuilder {
-  private val gen =new LongGen.Positive()
+object ElaboratorContextBuilder {
+  private val gen = new LongGen.Positive()
   private val dgen = new LongGen.Positive()
 }
 
-import ElaborationContextBuilder._
+import ElaboratorContextBuilder._
 
-trait ElaborationContextBuilder extends ElaborationContextWithMetaOps {
+trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
 
-  type Self <: ElaborationContextBuilder
+  type Self <: ElaboratorContextBuilder
 
   protected implicit def create(a: Layers): Self
 
@@ -193,7 +193,7 @@ trait ElaborationContextBuilder extends ElaborationContextWithMetaOps {
             case r: Value.Record =>
               if (maps.size == r.nodes.size) {
                 val vs = recs(maps, r.nodes)
-                (Value.doApply(Value.Maker(t, -1), vs.map(_._1)), Pattern.Make(vs.map(_._2)))
+                (Value.Apps(Value.Maker(t, -1), vs.map(_._1)), Pattern.Make(vs.map(_._2)))
               } else {
                 throw PatternExtractException.MakeWrongSize()
               }
@@ -207,7 +207,7 @@ trait ElaborationContextBuilder extends ElaborationContextWithMetaOps {
                 val c = sum.constructors(index)
                 if (c.nodes.size == maps.size) {
                   val vs = recs(maps, c.nodes)
-                  (Value.doApply(Value.Maker(t, index), vs.map(_._1)), Pattern.Construct(index, vs.map(_._2)))
+                  (Value.Apps(Value.Maker(t, index), vs.map(_._1)), Pattern.Construct(index, vs.map(_._2)))
                 } else {
                   throw PatternExtractException.ConstructWrongSize()
                 }
