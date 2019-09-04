@@ -58,7 +58,10 @@ object Value {
       val False: NormalForm = Set.empty
     }
     case class Generic(id: Long) extends Formula {
-      def simplify(asgs: Assignments): _root_.mlang.compiler.Value.Formula = ???
+      def simplify(asgs: Assignments): Formula = asgs.find(_._1 == id) match {
+        case Some(a) => if (a._2) True else False
+        case None => this
+      }
     }
 
     case class And(left: Formula, right: Formula) extends Formula
@@ -599,6 +602,7 @@ sealed trait Value {
 object ValueOps {
 
   def app(lambda: Value, argument: Value, returns: Value => Value = id): Value = {
+    // FIXME cubicaltt will also work if lambda is a trans lambda or a comp lambda
     lambda match {
       case Lambda(closure) =>
         returns(closure(argument))
@@ -609,6 +613,8 @@ object ValueOps {
     }
   }
 
+
+  // FIXME cubical tt will also work if argument is a hcomp
   def split(l: PatternLambda, argument: Value, returns: Value => Value = id): Value = {
     // using first match is even ok for overlapping ones
     var res: Value = null
