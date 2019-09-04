@@ -68,8 +68,7 @@ object Layer {
   }
 
   // no meta should be resolved here
-  case class Restriction(res: Value.Formula.Assignments, metas: MetasState) extends Layer
-
+  case class Restriction(id: Long, res: Value.Formula.Assignments, metas: MetasState) extends Layer
   case class ReifierRestriction(metas: MetasState) extends Layer
 }
 

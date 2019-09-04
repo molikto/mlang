@@ -151,6 +151,8 @@ private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorCon
         VMake(reify(x), reifyMetaEnclosed(m), reify(n))
       case Value.VProj(x, m, f) =>
         VProj(reify(x), reify(m), reify(f))
+      case _: Value.Internal =>
+        logicError()
     }
   }
 

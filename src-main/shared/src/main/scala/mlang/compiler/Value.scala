@@ -5,7 +5,7 @@ import mlang.utils.{DisjointSet, Name, debug, warn}
 import scala.collection.mutable
 import LongGen.Negative.{dgen, gen}
 import Value._
-import mlang.compiler.Value.Formula.{Assignments, NormalForm}
+import mlang.compiler.Value.Formula.NormalForm
 
 import scala.annotation.Annotation
 
@@ -45,10 +45,11 @@ object Value {
         case _ => logicError()
       }
     }
+    def restrict(lv: Value.Formula.Assignments): Formula = ???
   }
 
   object Formula {
-    def satisfiable(rs: Assignments): Boolean = rs.map(_._1).toSet.size == rs.size
+    def satisfiable(rs: Assignments): Boolean = rs.map(_._1).size == rs.size
 
     type Assignment = (Long, Boolean)
     type Assignments = Set[Assignment]
@@ -63,24 +64,25 @@ object Value {
         case None => this
       }
     }
-
+    object True extends Formula
+    object False extends Formula
     case class And(left: Formula, right: Formula) extends Formula
     case class Or(left: Formula, right: Formula) extends Formula
     case class Neg(unit: Formula) extends Formula
-
-    object True extends Formula
-    object False extends Formula
+    sealed trait Internal extends Formula
   }
 
   implicit class MultiClosure(private val func: Seq[Value] => Value) extends AnyVal {
     def eq(b: MultiClosure): Boolean = func.eq(b.func)
     def apply() = func(Seq.empty)
     def apply(seq: Seq[Value]): Value = func(seq)
+    def restrict(dav: Formula.Assignments): MultiClosure = ???
   }
 
   implicit class Closure(private val func: Value => Value) extends AnyVal {
     def eq(b: Closure): Boolean = func.eq(b.func)
     def apply(seq: Value): Value = func(seq)
+    def restrict(dav: Formula.Assignments): Closure = ???
   }
 
   object Closure {
@@ -97,10 +99,21 @@ object Value {
     def apply(seq: Formula): Value = func(seq)
     def mapd(a: (Value, Formula) => Value): AbsClosure = AbsClosure(d => a(this(d), d))
     def map(a: Value => Value): AbsClosure = AbsClosure(d => a(this(d)))
+    def restrict(dav: Formula.Assignments): AbsClosure = ???
   }
 
   type ClosureGraph = Seq[ClosureGraph.Node]
   object ClosureGraph {
+    def restrict(graph: ClosureGraph, lv: Formula.Assignments): ClosureGraph = ??? /* {
+      graph.map {
+        case DependentWithMeta(ds, mc, c) =>
+        DependentWithMeta(ds, mc, (a, b) => { val t = c(a, b.map(k => Derestricted(k, lv))); (t._1, t._2.restrict(lv)) })
+        case IndependentWithMeta(ds, ms, typ) =>
+          IndependentWithMeta(ds, ms, typ.restrict(lv))
+        case _ => logicError()
+      }
+    }
+    */
 
     sealed trait Node {
       def dependencies: Seq[Int]
@@ -213,6 +226,7 @@ object Value {
 
   // these serve the purpose of recovering syntax
   sealed trait Syntaxial extends Value
+  sealed trait Internal extends Value
   sealed trait Whnf extends Value
   sealed trait HeadCanonical extends Whnf
   sealed trait Stuck extends Whnf
@@ -230,6 +244,9 @@ object Value {
 
     _from = this
   }
+
+  case class Restricted(a: Value, asgn: Formula.Assignments) extends Syntaxial
+  case class Derestricted(a: Value, asgn: Formula.Assignments) extends Internal
 
   case class Reference(@lateinit var value: Value) extends Syntaxial {
     _from = this
@@ -259,8 +276,10 @@ object Value {
           // FIXME this rule is really wired...
           unapply(typ(Formula.Generic(dgen())).whnf)
         case Hcom(_, tp, _, _) => unapply(tp)
+        //case Restricted(a, _) => unapply(a)
         case _: Com => logicError()
         case _: Syntaxial => logicError()
+        case _: Internal => logicError()
       }
     }
   }
@@ -333,7 +352,9 @@ object Value {
   case class PatternStuck(lambda: PatternLambda, @stuck_pos stuck: Value) extends Stuck
 
 
-  case class Inductively(id: Long, level: Int)
+  case class Inductively(id: Long, level: Int) {
+    def restrict(lv: Formula.Assignments): Inductively = this
+  }
 
   case class Record(
       inductively: Option[Inductively],
@@ -379,6 +400,19 @@ object Value {
   case class PathLambda(body: AbsClosure) extends HeadCanonical
   case class PathApp(@stuck_pos left: Value, @stuck_pos dimension: Formula) extends Stuck
 
+  object Face {
+    def restrict(faces: Seq[Face], lv: Formula.Assignments) = {
+      faces.flatMap(n => {
+        val r = n.restriction.restrict(lv)
+        val nf = r.normalForm
+        if (nf == Formula.NormalForm.False) {
+          None
+        } else {
+          Some(Face(r, n.body.restrict(lv)))
+        }
+      })
+    }
+  }
   case class Face(restriction: Formula, body: AbsClosure)
   case class Transp(direction: Formula, @stuck_pos tp: AbsClosure.StuckPos, base: Value) extends Stuck
   case class Com(direction: Formula, @stuck_pos tp: AbsClosure.StuckPos, base: Value, faces: Seq[Face]) extends Stuck
@@ -391,7 +425,6 @@ object Value {
 
 
 sealed trait Value {
-
   final override def equals(obj: Any): Boolean = throw new IllegalArgumentException("Values don't have equal. Either call eq or do conversion checking")
 
   @cached_mutation private[Value] var _from: Value = _
@@ -484,6 +517,7 @@ sealed trait Value {
 //            case _: Formula.Generic => this
 //            case Formula.False => a.whnf
 //            case Formula.True => b.whnf
+//            case _: Formula.Internal => logicError()
 //          }
           ???
         case VMake(x, m, n) =>
@@ -491,6 +525,7 @@ sealed trait Value {
 //            case g: Formula.Generic => this
 //            case Formula.False => m
 //            case Formula.True => n
+//            case _: Formula.Internal => logicError()
 //          }
           ???
         case VProj(x, m, f) =>
@@ -506,8 +541,21 @@ sealed trait Value {
 //              }
 //            case Formula.False => app(f, m).whnf
 //            case Formula.True => m.whnf
+//            case _: Formula.Internal => logicError()
 //          }
           ???
+      case Restricted(a, restriction) =>
+        if (debug.enabled) assert(Formula.satisfiable(restriction))
+        if (restriction.isEmpty) {
+          a.whnf
+        } else {
+          a match {
+            case GenericOrOpenMeta(it) => Restricted(it, restriction) // stop case
+            case _ => a.deref().restrict(restriction).whnf
+          }
+        }
+        case _: Internal =>
+          logicError()
       }
       // because some values is shared, it means the solved ones is not created for this whnf, we don't say this
       // is from us
@@ -531,6 +579,63 @@ sealed trait Value {
     }
   }
 
+  // FIXME how does it interact with recursive references?
+  def restrict(lv: Value.Formula.Assignments): Value = if (lv.isEmpty) this else this match {
+    case u: Universe => u
+    case Function(domain, im, codomain) =>
+      Function(domain.restrict(lv), im, codomain.restrict(lv))
+    case Record(inductively, ms, ns, nodes) =>
+      Record(inductively.map(_.restrict(lv)), ms, ns, ClosureGraph.restrict(nodes, lv))
+    case Make(values) =>
+      Make(values.map(_.restrict(lv)))
+    case Construct(name, vs) =>
+      Construct(name, vs.map(_.restrict(lv)))
+    case Sum(inductively, constructors) =>
+      Sum(inductively.map(_.restrict(lv)), constructors.map(n => Constructor(n.name, n.ims, ClosureGraph.restrict(n.nodes, lv))))
+    case Lambda(closure) =>
+      Lambda(closure.restrict(lv))
+    case PatternLambda(id, dom, typ, cases) =>
+      PatternLambda(id, dom.restrict(lv), typ.restrict(lv), cases.map(a => Case(a.pattern, a.closure.restrict(lv))))
+    case PathType(typ, left, right) =>
+      PathType(typ.restrict(lv), left.restrict(lv), right.restrict(lv))
+    case PathLambda(body) =>
+      PathLambda(body.restrict(lv))
+    case App(lambda, argument) =>
+      App(lambda.restrict(lv), argument.restrict(lv))
+    case Transp(direction, tp, base) =>
+      Transp(direction.restrict(lv), tp.restrict(lv), base.restrict(lv))
+    case Hcom(direction, tp, base, faces) =>
+      Hcom(direction.restrict(lv), tp.restrict(lv), base.restrict(lv), Face.restrict(faces, lv))
+    case Com(direction, tp, base, faces) =>
+      Com(direction.restrict(lv), tp.restrict(lv), base.restrict(lv), Face.restrict(faces, lv))
+    case Maker(value, field) =>
+      Maker(value.restrict(lv), field)
+    case Projection(make, field) =>
+      Projection(make.restrict(lv), field)
+    case PatternStuck(lambda, stuck) =>
+      PatternStuck(lambda.restrict(lv).asInstanceOf[PatternLambda], stuck.restrict(lv))
+    case PathApp(left, stuck) =>
+      PathApp(left.restrict(lv), stuck.restrict(lv))
+    case VType(x, a, p, e) =>
+      VType(x.restrict(lv), a.restrict(lv), p.restrict(lv), e.restrict(lv))
+    case VMake(x, m, n) =>
+      VMake(x.restrict(lv), m.restrict(lv), n.restrict(lv))
+    case VProj(x, m, f) =>
+      VProj(x.restrict(lv), m.restrict(lv), f.restrict(lv))
+    case Let(items, body) =>
+      Let(items.map(_.restrict(lv).asInstanceOf[Reference]), body.restrict(lv))
+    case Derestricted(v, lv0) =>
+      assert(lv.eq(lv0))
+      v
+    case r: Restricted =>
+      Restricted(r, lv)
+    case g: Generic =>
+      Restricted(g, lv)
+    case o: Reference =>
+      Restricted(o, lv)
+    case o: Meta =>
+      Restricted(o, lv)
+  }
 
 
   def inferLevel: Int = infer match {
@@ -544,6 +649,8 @@ sealed trait Value {
     whnf match {
       case g: Generic =>
         g.typ
+      //      case Restricted(a, fs) =>
+      //        fs.foldLeft(infer(a)) { (t, r) => t.restrict(r) }
       case Universe(level) => Universe.suc(level)
       case Function(domain, _, codomain) =>
         (domain.infer, codomain(Generic(gen(), domain)).infer) match {
@@ -588,6 +695,7 @@ sealed trait Value {
   def deref(): Value = this match {
     case r: Reference => r.value.deref()
     case Meta(c: MetaState.Closed) => c.v.deref()
+    case _: Internal => logicError()
     case _ => this
   }
 

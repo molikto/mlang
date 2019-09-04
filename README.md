@@ -4,10 +4,9 @@
 
 under major renovation.
 
-* re-implement new coe/hcom
-    * how to restrict on values? ─ especially closure
+* proper context restriction
     * add "support" to local references
-    * change how restricted context implemented, no "pre-inlining"
+* proper value restriction
 * don't use type directed conversion checking anymore, should lambda be headless?
 * re-implement new glue/unglue
 * new global reference class
@@ -128,6 +127,10 @@ the one marked `FIXME` in code is important problems needs expert to figure out.
 **some of bellow is out of date and wrong now, it mainly serves as a place to clear up my thoughts**
 
 ![](NOTES/DIAGRAM.png)
+
+### relation to `cubicaltt` implementation
+
+there is a `Nominal` typeclass in `cubicaltt`, it is what we have implemented `restrict` which is the `act` method in `cubicaltt`
 
 ### core term and values
 
