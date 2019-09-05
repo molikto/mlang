@@ -417,7 +417,6 @@ object Value {
   case class App(@stuck_pos lambda: Value, argument: Value) extends Redux
   def Apps(maker: Value, values: Seq[Value]) : Value = values.foldLeft(maker) { (m: Value, v: Value) => Value.App(m, v) }
   case class Lambda(closure: Closure) extends HeadCanonical
-  // FIXME seems we must have domain here?
   case class Case(pattern: Pattern, closure: MultiClosure) {
     private def extract(pattern: Pattern, v: Value): Option[Seq[Value]] = {
       val vs = mutable.ArrayBuffer[Value]()
@@ -450,6 +449,7 @@ object Value {
     }
     def tryApp(v: Value): Option[Value] = extract(pattern, v).map(a => closure(a))
   }
+  // FIXME seems we must have domain here? --- or when we don't have lambda head?
   case class PatternLambda(id: Long, domain: Value, typ: Closure, cases: Seq[Case]) extends HeadCanonical
   case class PatternRedux(lambda: PatternLambda, @stuck_pos stuck: Value) extends Redux
 

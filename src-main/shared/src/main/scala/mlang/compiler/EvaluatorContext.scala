@@ -2,7 +2,7 @@ package mlang.compiler
 
 // ideally the key/value of the value context should be defined at here, but now it is not
 trait EvaluatorContext {
-  // FIXME this is wrong?
+  // FIXME rethink meta with restriction
   def getDependency(d: Dependency): Option[Value] = if (d.meta) {
     getMetaReference(0, d.i) match {
       case Value.Meta(c: Value.MetaState.Closed) => Some(c.v)

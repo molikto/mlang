@@ -38,7 +38,7 @@ object ElaboratorException {
   case class ExpectingLambdaTerm() extends ElaboratorException
 
   case class CapNotMatching() extends ElaboratorException
-  case class FaceConstraintNotSatisfiable() extends ElaboratorException
+  case class StaticFaceConstraintNotSatisfiable() extends ElaboratorException
   case class FacesNotMatching() extends ElaboratorException
 
   case class RequiresValidRestriction() extends ElaboratorException
@@ -72,7 +72,7 @@ object ElaboratorException {
 
   // TODO maybe we should just show a warning
   case class RemoveFalseFace() extends ElaboratorException
-  case class DisjunctionCurrentlyNotSupported() extends ElaboratorException
+  case class StaticDisjunctionCurrentlyNotSupported() extends ElaboratorException
   case class RemoveConstantVType() extends ElaboratorException
   case class VTypeDimensionInconsistent() extends ElaboratorException
 

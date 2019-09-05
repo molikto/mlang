@@ -42,7 +42,7 @@ class Elaborator private(protected override val layers: Layers)
       if (davn == Formula.NormalForm.False) {
         throw ElaboratorException.RemoveFalseFace()
       } else if (davn.size > 1) {
-        throw ElaboratorException.DisjunctionCurrentlyNotSupported()
+        throw ElaboratorException.StaticDisjunctionCurrentlyNotSupported()
       } else {
         val asgn0 = davn.head
         if (Value.Formula.satisfiable(asgn0)) {
@@ -75,7 +75,7 @@ class Elaborator private(protected override val layers: Layers)
           }
           Abstract.Face(daa, na)
         } else {
-          throw ElaboratorException.FaceConstraintNotSatisfiable()
+          throw ElaboratorException.StaticFaceConstraintNotSatisfiable()
         }
       }
     }
@@ -569,8 +569,6 @@ class Elaborator private(protected override val layers: Layers)
 
   private def newReference(v: Value = null): Value.Reference = if (layers.size == 1) Value.GlobalReference(v) else Value.LocalReference(v)
 
-  // FIXME consider use a different setup for global identifiers, so we can implement up only in abstract layer
-  // FIXME also maybe each reference should have a "support" so do less restrictions
   private def checkDeclaration(
       s: Declaration,
       mis: mutable.ArrayBuffer[CodeInfo[Value.Meta]],

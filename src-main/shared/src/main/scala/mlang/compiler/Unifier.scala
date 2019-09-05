@@ -366,7 +366,7 @@ trait Unifier extends Reifier with ElaboratorContextRebind with Evaluator with P
         case (Universe(_), tt1, tt2) =>
           recType(tt1, tt2) // it will call unify neutral at then end
         case (WhnfOpenMetaHeaded(_), _, _) =>
-          warn("meta directed not handled")
+          warn("meta directed???")
           false
         case (_, tt1, tt2) => recNeutral(tt1, tt2)
       }

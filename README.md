@@ -4,13 +4,10 @@
 
 under major renovation.
 
-* proper context restriction
-    * add "support" to local references
-* proper value restriction
-* don't use type directed conversion checking anymore, should lambda be headless?
+* re-implement hcoms
 * re-implement new glue/unglue
-* new global reference class
-    * implement new up
+* implement new up
+* don't use type directed conversion checking anymore, should lambda be headless?
 
 ---------------
 
