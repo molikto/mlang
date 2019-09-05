@@ -1,7 +1,7 @@
 package mlang.compiler
 
 import mlang.compiler.Layer.Layers
-import mlang.utils.Name
+import mlang.utils.{Name, debug}
 
 import scala.collection.mutable
 
@@ -32,6 +32,7 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
   def drop(up: Int): Self = create(layers.drop(up))
 
   def newSyntaxDirectedRestrictionLayer(pair: Value.Formula.Assignments): Self = {
+    debug(s"new syntax directed layer $pair")
     Layer.Restriction(0, pair, createMetas()) +: layers
   }
 

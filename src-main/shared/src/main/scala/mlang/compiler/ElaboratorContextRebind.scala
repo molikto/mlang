@@ -16,9 +16,11 @@ trait ElaboratorContextRebind extends ElaboratorContextBase {
         case d: Layer.Defines =>
           var ll = d.terms
           while (ll.nonEmpty && binder == null) {
-            if (ll.head.isDefined && ll.head.ref0.get.value.eq(v.value)) {
-              index = i
-              binder = Abstract.Reference(up, index)
+            ll.head.ref0.flatMap(_.lookupChildren(v)) match {
+              case Some(asgs) if restrictionsMatchWith(up, asgs) =>
+                index = i
+                binder = Abstract.Reference(up, index)
+              case _ =>
             }
             i += 1
             ll = ll.tail
@@ -43,7 +45,7 @@ trait ElaboratorContextRebind extends ElaboratorContextBase {
       case Value.Formula.And(a, b) => Abstract.Formula.And(rebindFormula(a), rebindFormula(b))
       case Value.Formula.Or(a, b) => Abstract.Formula.Or(rebindFormula(a), rebindFormula(b))
       case Value.Formula.Neg(a) => Abstract.Formula.Neg(rebindFormula(a))
-      case _ => logicError()
+      case _: Value.Formula.Internal => logicError()
     }
   }
 
@@ -71,12 +73,12 @@ trait ElaboratorContextRebind extends ElaboratorContextBase {
     }
   }
 
-  def containsGeneric(id: Long): Boolean = {
-    rebindGeneric0(id) != null
+  def containsGeneric(o: Value.Generic): Boolean = {
+    rebindGeneric0(o) != null
   }
 
-  def rebindGeneric(id: Long): Abstract.Reference = {
-    val binder = rebindGeneric0(id)
+  def rebindGeneric(g: Value.Generic): Abstract.Reference = {
+    val binder = rebindGeneric0(g)
     if (binder == null) {
       throw RebindNotFoundException()
     } else {
@@ -84,41 +86,45 @@ trait ElaboratorContextRebind extends ElaboratorContextBase {
     }
   }
 
-  private def rebindGeneric0(id: Long): Abstract.Reference = {
+  private def rebindGeneric0(g: Value.Generic): Abstract.Reference = {
     var up = 0
     var index = -1
     var ls = layers
     var binder: Abstract.Reference = null
+    def tryBind(a: Value.Generic, up: Int, i: Int): Unit = {
+      if (g.id == a.id) {
+        a.lookupChildren(g) match {
+          case Some(asgs) if restrictionsMatchWith(up, asgs) =>
+            index = i
+            binder = Abstract.Reference(up, index)
+          case _ =>
+            logicError() // you should always bind a generic if id is equal
+        }
+      }
+    }
     while (ls.nonEmpty && binder == null) {
       var i = 0
       ls.head match {
         case t: Layer.Parameters =>
           var ll = t.binders
           while (ll.nonEmpty && binder == null) {
-            if (ll.head.id == id) {
-              index = i
-              binder = Abstract.Reference(up, index)
-            }
+            tryBind(ll.head.value, up, i)
             i += 1
             ll = ll.tail
           }
         case t: Layer.Defines =>
           var ll = t.terms
           while (ll.nonEmpty && binder == null) {
-            if (!ll.head.isDefined) {
-              if (ll.head.id == id) {
-                index = i
-                binder = Abstract.Reference(up, index)
-              }
+            if (ll.head.isDefined) {
+              if (ll.head.id == g.id) logicError()
+            } else {
+              tryBind(ll.head.typ0.value, up, i)
             }
             i += 1
             ll = ll.tail
           }
         case p:Layer.Parameter =>
-          if (p.binder.id == id) {
-            index = i
-            binder = Abstract.Reference(up, -1)
-          }
+          tryBind(p.binder.value, up, -1)
         case _ =>
       }
       if (binder == null) {

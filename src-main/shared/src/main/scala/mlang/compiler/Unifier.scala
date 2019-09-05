@@ -190,8 +190,7 @@ trait Unifier extends Reifier with ElaboratorContextRebind with Evaluator with P
     val gs = os.map(_.id)
     for (i <- gs.indices) {
       val o = os(i)
-      val g = o.id
-      if (gs.drop(i + 1).contains(g) || ctx.containsGeneric(g)) {
+      if (gs.drop(i + 1).contains(o.id) || ctx.containsGeneric(o)) {
         error("Spine is not linear")
       }
       ctx = ctx.newParameterLayerProvided(Name.empty, o).asInstanceOf[Self]
@@ -201,7 +200,7 @@ trait Unifier extends Reifier with ElaboratorContextRebind with Evaluator with P
     var abs = ctx.reify(t2)
     for (g <- os) {
       abs = Abstract.Lambda(Abstract.Closure(Seq.empty, abs))
-      typ = typ match {
+      typ = typ.whnf match {
         case f: Value.Function => f.codomain(g)
         case _ => logicError()
       }
@@ -229,8 +228,11 @@ trait Unifier extends Reifier with ElaboratorContextRebind with Evaluator with P
     (tmm1.whnf, tmm2.whnf) match {
       case (Generic(i1, v1), Generic(i2, v2)) =>
         if (i1 == i2) {
-          assert(v1.eq(v2))
-          Some(v1)
+          if (v1.eq(v2)) {
+            Some(v1)
+          } else {
+            logicError()
+          }
         } else {
           None
         }
@@ -249,7 +251,7 @@ trait Unifier extends Reifier with ElaboratorContextRebind with Evaluator with P
           case r: Record if f1 == f2 => Some(r.projectedType(m1, f2))
           case _ => logicError()
         })
-      case (PatternStuck(l1, s1), PatternStuck(l2, s2)) =>
+      case (PatternRedux(l1, s1), PatternRedux(l2, s2)) =>
         if (recType(l1.domain, l2.domain)) {
           val n = l1.domain
           if (recTerm(l1.domain, s1, s2)) {
@@ -268,7 +270,34 @@ trait Unifier extends Reifier with ElaboratorContextRebind with Evaluator with P
         } else {
           None
         }
-        // FIXME solve meta headed?
+      case (Hcom(t1, b1, r1), Hcom(t2, b2, r2)) =>
+        if (recType(t1, t2) && recTerm(t1, b1, b2)) {
+          if (r1.size == r2.size && r1.zip(r2).forall(p => {
+            val n1 = p._1.restriction.normalForm
+            val eqForm = n1 == p._2.restriction.normalForm
+            if (eqForm) {
+              n1.filter(Value.Formula.satisfiable).forall(f => {
+                newSyntaxDirectedRestrictionLayer(f).recAbsClosure(t1.restrict(f), p._1.body.restrict(f), p._2.body.restrict(f))
+              })
+            } else {
+              false
+            }
+          })) {
+            Some(t1)
+          } else {
+            None
+          }
+        } else {
+          None
+        }
+      case (Transp(d1, t1, b1), Transp(d2, t2, b2)) =>
+        if (d1 == d2 && recTypeAbsClosure(t1, t2) && recTerm(t1(Value.Formula.False), b1, b2)) {
+          Some(t1(Value.Formula.True))
+        } else {
+          None
+        }
+
+      // FIXME solve meta headed?
 //      case (SolvableMetaForm(m1, o1, gs1), SolvableMetaForm(m2, o2, gs2)) if o1.id == o2.id =>
 //        if (gs1.size == gs2.size) {
 //          gs1.zip(gs2).foldLeft(Some(o1.typ)) {
@@ -336,7 +365,7 @@ trait Unifier extends Reifier with ElaboratorContextRebind with Evaluator with P
           }
         case (Universe(_), tt1, tt2) =>
           recType(tt1, tt2) // it will call unify neutral at then end
-        case (OpenMetaHeadedWhnf(_), _, _) =>
+        case (WhnfOpenMetaHeaded(_), _, _) =>
           warn("meta directed not handled")
           false
         case (_, tt1, tt2) => recNeutral(tt1, tt2)

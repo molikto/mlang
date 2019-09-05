@@ -12,7 +12,7 @@ object ElaboratorContextLookupException {
   case class ReferenceSortWrong(name: Text) extends ElaboratorContextLookupException
 }
 
-trait ElaboratorContextLookup extends ElaboratorContextBase with ElaboratorContextRebind {
+trait ElaboratorContextLookup extends ElaboratorContextBase {
 
   def lookupTerm(name: Text): (Value, Abstract) = {
     lookup0(name) match {
@@ -37,8 +37,6 @@ trait ElaboratorContextLookup extends ElaboratorContextBase with ElaboratorConte
     var up = 0
     var ls = layers
     var binder: (Object, Object) = null
-    var faces = Seq.empty[Value.Formula.Assignments]
-    var isGlobalDefinition = false
     while (ls.nonEmpty && binder == null) {
       var i = 0
       ls.head match {
@@ -62,7 +60,6 @@ trait ElaboratorContextLookup extends ElaboratorContextBase with ElaboratorConte
               index = i
               binder = (ll.head.typ,
                   Abstract.Reference(up, index))
-              isGlobalDefinition = ls.size == 1 // FIXME maybe this should be better
             }
             i += 1
             ll = ll.tail
@@ -75,26 +72,19 @@ trait ElaboratorContextLookup extends ElaboratorContextBase with ElaboratorConte
           if (d.name.by(name)) {
             binder = ("", Abstract.Formula.Reference(up))
           }
-        case l: Layer.Restriction =>
-          faces = l.res +: faces
+        case _ =>
       }
       if (binder == null) {
         ls = ls.tail
         up += 1
       }
     }
-    val rs = faces.toSet
-    if (debug.enabled) assert(rs.forall(r => Value.Formula.satisfiable(r)))
     if (binder == null) {
       throw ElaboratorContextLookupException.NonExistingReference(name)
     } else {
       binder match {
-        case (t: Value, j: Abstract) =>
-          if (isGlobalDefinition) {
-            (t, j)
-          } else {
-            (faces.foldLeft(t) { (t, r) => t.restrict(r)}, j)
-          }
+        case (t: Value, j: Abstract.Reference) =>
+          (t.restrict(getAllRestrictions(j.up)), j)
         case (a: String, j: Abstract.Formula.Reference) =>
           (a, j)
         case _ => logicError()

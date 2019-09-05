@@ -88,8 +88,8 @@ trait PlatformEvaluator extends Evaluator {
           } else {
             val d = depth + 1
             s"{ " +
-                s"val r$d = new scala.collection.mutable.ArrayBuffer[Reference](); " +
-                s"for (_ <- 0 until ${definitions.size}) r$d.append(Reference(null)); " +
+                s"val r$d = new scala.collection.mutable.ArrayBuffer[LocalReference](); " +
+                s"for (_ <- 0 until ${definitions.size}) r$d.append(LocalReference(null)); " +
                 s"val m$d = new scala.collection.mutable.ArrayBuffer[Meta](); " +
                 s"for (_ <- 0 until ${metas.size}) m$d.append(Meta(null)); " +
                 s"${metas.zipWithIndex.map(a =>
@@ -133,16 +133,16 @@ trait PlatformEvaluator extends Evaluator {
         case Abstract.Transp(dir, tp, base) =>
           val d = depth + 1
           s"Transp(${emit(dir, depth)}, AbsClosure(dm$d => ${emitInner(tp, d)}), ${emit(base, depth)})"
-        case Abstract.Hcom(dir, tp, base, faces) =>
+        case Abstract.Hcom(tp, base, faces) =>
           val d = depth + 2
-          s"Hcom(${emit(dir, depth)}, " +
+          s"Hcom(" +
               s"${emit(tp, depth)}, " +
               s"${emit(base, depth)}, " +
               s"Seq(${faces.map(a => s"Face(${emit(a.pair, depth)}, AbsClosure(dm$d => ${emitInner(a.body, d)}))").mkString(", ")})" +
               s")"
-        case Abstract.Com(dir, tp, base, faces) =>
+        case Abstract.Com(tp, base, faces) =>
           val d = depth + 2
-          s"Com(${emit(dir, depth)}, " +
+          s"Com(" +
               s"AbsClosure(dm${depth + 1} => ${emitInner(tp, depth + 1)}), " +
               s"${emit(base, depth)}, " +
               s"Seq(${faces.map(a => s"Face(${emit(a.pair, depth)}, AbsClosure(dm$d => ${emitInner(a.body, d)}))").mkString(", ")})" +

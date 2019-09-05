@@ -116,33 +116,26 @@ private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorCon
           case _: MetaState.Open =>
             rebindOrAddMeta(m)
         }
-      case Value.Generic(id, _) =>
-        rebindGeneric(id)
+      case g: Value.Generic =>
+        rebindGeneric(g)
       case c: Value.Reference =>
         reifyReference(c)
       case Value.App(lambda, argument) =>
         App(reify(lambda), reify(argument))
       case Value.Projection(make, field) =>
         Projection(reify(make), field)
-      case Value.PatternStuck(lambda, stuck) =>
+      case Value.PatternRedux(lambda, stuck) =>
         App(reify(lambda), reify(stuck))
       case Value.Maker(s, i) =>
         Maker(reify(s), i)
-      case Value.Let(items, body) =>
-        val ctx = items.foldLeft(newDefinesLayer() : ReifierContext) { (ctx, item) =>
-          ctx.newDefinition(Name.empty, null, item)._1
-        }
-        val abs = items.map(p => ctx.reify(p))
-        val bd = ctx.reify(body)
-        Let(ctx.reifyMetas(), abs, bd)
       case Value.PathApp(left, stuck) =>
         PathApp(reify(left), reify(stuck))
       case Value.Transp(dir, tp, base) =>
         Transp(reify(dir), reify(tp), reify(base))
-      case Value.Hcom(dir, tp, base, faces) =>
-        Hcom(reify(dir), reify(tp), reify(base), faces.map(r => Face(reify(r.restriction), newReifierRestrictionLayer(r.restriction).reify(r.body))))
-      case Value.Com(dir, tp, base, faces) =>
-        Com(reify(dir), reify(tp), reify(base),
+      case Value.Hcom(tp, base, faces) =>
+        Hcom(reify(tp), reify(base), faces.map(r => Face(reify(r.restriction), newReifierRestrictionLayer(r.restriction).reify(r.body))))
+      case Value.Com(tp, base, faces) =>
+        Com(reify(tp), reify(base),
           faces.map(r => Face(reify(r.restriction), newReifierRestrictionLayer(r.restriction).reify(r.body)))
         )
       case Value.VType(x, a, b, e) =>

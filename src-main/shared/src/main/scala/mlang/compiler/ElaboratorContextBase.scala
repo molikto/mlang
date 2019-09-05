@@ -1,7 +1,8 @@
 package mlang.compiler
 
 import mlang.compiler.Layer.Layers
-import mlang.utils.Name
+import mlang.compiler.Value.Referential
+import mlang.utils.{Name, debug}
 
 import scala.collection.mutable
 
@@ -75,4 +76,37 @@ object Layer {
 
 trait ElaboratorContextBase {
   protected def layers: Layers
+
+
+
+  protected def restrictionsMatchWith(up: Int, asgns: Value.Formula.Assignments) = {
+    getAllRestrictions(up) == asgns
+  }
+
+  protected def lookupMatched(ref: Referential, a: Referential, up: Int) = {
+    ref.lookupChildren(a) match {
+      case a@Some(asgs) if restrictionsMatchWith(up, asgs) =>
+        a
+      case _ =>
+        None
+    }
+  }
+
+  protected def getAllRestrictions(level: Int): Value.Formula.Assignments = {
+    val ids = layers.drop(level).flatMap {
+      case d: Layer.Dimension => Seq(d.value.id)
+      case _ => Seq.empty
+    }
+    if (ids.isEmpty) {
+      Set.empty
+    } else {
+      val rs = layers.take(level).flatMap {
+        case r: Layer.Restriction =>
+          r.res.filter(a => ids.contains(a._1))
+        case _ => Set.empty[Value.Formula.Assignment]
+      }.toSet
+      debug(s"geting restrictions returns $rs")
+      rs
+    }
+  }
 }

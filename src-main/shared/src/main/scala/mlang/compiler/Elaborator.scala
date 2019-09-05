@@ -30,15 +30,13 @@ class Elaborator private(protected override val layers: Layers)
   def checkCompatibleCapAndFaces(
                                   faces: Seq[Concrete.Face],
                                   bt: Value.AbsClosure,
-                                  bv: Value,
-                                  dv: Value.Formula
+                                  bv: Value
   ): Seq[Abstract.Face] = {
-    // we use this context to evaluate body of faces, it is only used to keep the dimension binding to the same
-    // one, but as restricts is already present in abstract terms, it is ok to use this instead of others
     import Value.Formula
-    val (_, dim0) = newParametersLayer().newDimensionLayer(Name.empty)
-    val btt = bt(dim0)
-    val res = faces.map(a => {
+    val nfs = mutable.ArrayBuffer.empty[Value.Formula.Assignments]
+    val tms = mutable.ArrayBuffer.empty[Value]
+    faces.indices.map { i =>
+      val a = faces(i)
       val (dav, daa) = checkAndEvalFormula(a.dimension)
       val davn = dav.normalForm
       if (davn == Formula.NormalForm.False) {
@@ -48,57 +46,55 @@ class Elaborator private(protected override val layers: Layers)
       } else {
         val asgn0 = davn.head
         if (Value.Formula.satisfiable(asgn0)) {
+          nfs.append(asgn0)
           val ctx0 = newSyntaxDirectedRestrictionLayer(asgn0)
           val btr = bt.restrict(asgn0)
           // FIXME no hurry to finalize this context? use information in cap to infer?
-          // currently if we want a refl face, it cannot do this!!
-          val na = ctx0.checkLine(a.term, dim0, btr)
+          val (dim, na) = ctx0.checkLine(a.term, btr)
           val naa = ctx0.eval(na)
           val nv = naa(Formula.False)
-          if (!unifyTerm(btr(dim0), bv.restrict(asgn0), nv)) {
+          tms.append(nv)
+          if (!ctx0.unifyTerm(btr(dim), bv.restrict(asgn0), nv.restrict(asgn0))) {
             throw ElaboratorException.CapNotMatching()
           }
-          (Abstract.Face(daa, na), naa(dim0), asgn0)
+          for (j <- 0 until i) {
+            val asgn1 = nfs(j)
+            // this might evaluate the dimensions to new values
+            val dfv = asgn1 ++ asgn0
+            // only used to test if this restriction is false face or not
+            if (Formula.satisfiable(dfv)) {
+              val ctx0 = newSyntaxDirectedRestrictionLayer(dfv)
+              val (ctx1, dim) = ctx0.newDimensionLayer(Name.empty)
+              if (!ctx1.unifyTerm(
+                btr(dim).restrict(dfv),
+                nv.restrict(dfv),
+                tms(j).restrict(dfv))) {
+                throw ElaboratorException.FacesNotMatching()
+              }
+            }
+          }
+          Abstract.Face(daa, na)
         } else {
           throw ElaboratorException.FaceConstraintNotSatisfiable()
         }
       }
-    })
-    for (i <- faces.indices) {
-      val l = res(i)
-      for (j <- 0 until i) {
-        val r = res(j)
-        // this might evaluate the dimensions to new values
-        val dfv = (l._3: Set[Formula.Assignment]) ++ r._3
-        // only used to test if this restriction is false face or not
-        if (Formula.satisfiable(dfv)) {
-          if (!unifyTerm(
-            btt.restrict(dfv),
-            l._2.restrict(dfv),
-            r._2.restrict(dfv))) {
-            throw ElaboratorException.FacesNotMatching()
-          }
-        }
-      }
     }
-    // FIXME check valid
-    res.map(_._1)
   }
 
 
-  def checkLine(a: Concrete, dim: Value.Formula.Generic, typ: Value.AbsClosure): Abstract.AbsClosure = {
+  def checkLine(a: Concrete, typ: Value.AbsClosure): (Value.Formula.Generic, Abstract.AbsClosure) = {
     a match {
       case Concrete.Lambda(n, b, body) =>
         if (b) throw ElaboratorException.DimensionLambdaCannotBeImplicit()
-        val ctx = newDimensionLayer(n, dim)
+        val (ctx, dim) = newDimensionLayer(n)
         val ta = ctx.check(body, typ(dim))
-        Abstract.AbsClosure(ctx.finishReify(), ta)
+        (dim, Abstract.AbsClosure(ctx.finishReify(), ta))
       case _ =>
-        val ctx = newDimensionLayer(Name.empty)._1 // it is ok to infer in this context, as the name is empty so it doesn't affect much
+        val (ctx, dim) = newDimensionLayer(Name.empty) // it is ok to infer in this context, as the name is empty so it doesn't affect much
         val (tv, ta) = ctx.infer(a)
         tv.whnf match {
           case j@Value.PathType(_, _, _) =>
-            Abstract.AbsClosure(ctx.finishReify(), Abstract.PathApp(ta, Abstract.Formula.Reference(0)))
+            (dim, Abstract.AbsClosure(ctx.finishReify(), Abstract.PathApp(ta, Abstract.Formula.Reference(0))))
           case _ => throw ElaboratorException.ExpectingLambdaTerm()
         }
     }
@@ -224,28 +220,26 @@ class Elaborator private(protected override val layers: Layers)
         val cl = eval(ta)
         val (ctx, dim) = newDimensionLayer(Name.empty)
         val constant = dv.normalForm.filter(a => Value.Formula.satisfiable(a)).forall(asg => {
-          ctx.newSyntaxDirectedRestrictionLayer(asg).unifyTerm(Value.Universe(tv), cl(dim), cl(Value.Formula.False))
+          ctx.newSyntaxDirectedRestrictionLayer(asg).unifyTerm(Value.Universe(tv), cl(dim).restrict(asg), cl(Value.Formula.False).restrict(asg))
         })
         if (!constant) {
           throw ElaboratorException.TranspShouldBeConstantOn()
         }
         val ba = check(base, cl(Value.Formula.False))
         (cl(Value.Formula.True), Abstract.Transp(da, ta, ba))
-      case Concrete.Com(direction, tp, base, faces) =>
-        val (dv, da) = checkAndEvalFormula(direction)
+      case Concrete.Com(tp, base, faces) =>
         val (_, ta) = checkTypeLine(tp)
         val cl = eval(ta)
         val ba = check(base, cl(Value.Formula.False))
-        val rs = checkCompatibleCapAndFaces(faces, cl, eval(ba), dv)
-        (cl(Value.Formula.True), Abstract.Com(da, ta, ba, rs))
-      case Concrete.Hcom(direction, base, faces) =>
-        val (dv, da)= checkAndEvalFormula(direction)
+        val rs = checkCompatibleCapAndFaces(faces, cl, eval(ba))
+        (cl(Value.Formula.True), Abstract.Com(ta, ba, rs))
+      case Concrete.Hcom(base, faces) =>
         val (bt, ba) = infer(base)
         val bv = eval(ba)
-        val rs = checkCompatibleCapAndFaces(faces, Value.AbsClosure(bt), bv, dv)
+        val rs = checkCompatibleCapAndFaces(faces, Value.AbsClosure(bt), bv)
         val btr = reify(bt)
         debug(s"infer hcom type $btr", 1)
-        (bt, Abstract.Hcom(da, btr, ba, rs))
+        (bt, Abstract.Hcom(btr, ba, rs))
       case Concrete.PathType(typ, left, right) =>
         typ match {
           case Some(tp) =>
@@ -274,7 +268,7 @@ class Elaborator private(protected override val layers: Layers)
         }
       case Concrete.VProj(m) =>
         val (mt, ma) = infer(m)
-         mt match {
+         mt.whnf match {
           case Value.VType(x, _, b, e) =>
             (b, Abstract.VProj(rebindFormula(x), ma, Abstract.Projection(reify(e), 0)))
           case _ => throw ElaboratorException.VProjCannotInfer()
@@ -573,9 +567,10 @@ class Elaborator private(protected override val layers: Layers)
     }
   }
 
+  private def newReference(v: Value = null): Value.Reference = if (layers.size == 1) Value.GlobalReference(v) else Value.LocalReference(v)
+
   // FIXME consider use a different setup for global identifiers, so we can implement up only in abstract layer
   // FIXME also maybe each reference should have a "support" so do less restrictions
-  // FIXME can you recur inside a up or restriction? a way to disallow this is to make sure all recursive reference doesn't happens under a restriction/lift
   private def checkDeclaration(
       s: Declaration,
       mis: mutable.ArrayBuffer[CodeInfo[Value.Meta]],
@@ -651,7 +646,7 @@ class Elaborator private(protected override val layers: Layers)
             if (ps.nonEmpty || t0.nonEmpty) throw ElaboratorException.SeparateDefinitionCannotHaveTypesNow()
             val va = check(v, typ, Seq.empty)
             appendMetas(freeze())
-            val ref = Value.Reference(null)
+            val ref = newReference()
             val ctx = newDefinitionChecked(index, name, ref)
             ref.value = ctx.eval(va)
             vis(index).code = Some(CodeInfo(va, ref))
@@ -691,7 +686,7 @@ class Elaborator private(protected override val layers: Layers)
                 va0
               }
               appendMetas(ctx.freeze())
-              val ref = Value.Reference(null) // the reason we
+              val ref = newReference()
               val ctx2 = ctx.newDefinitionChecked(index, name, ref)
               ref.value = ctx2.eval(va) // we want to eval it under the context with reference to itself
               vis(index).code = Some(CodeInfo(va, ref))
@@ -715,7 +710,7 @@ class Elaborator private(protected override val layers: Layers)
               info(s"infer $name")
               val (ta, va) = inferTelescope(NameType.flatten(ps), t0, v)
               appendMetas(freeze())
-              val ref = Value.Reference(eval(va))
+              val ref = newReference(eval(va))
               val (ctx, index, generic) = newDefinition(name, eval(ta), ref)
               fillTo(vis, index); assert(vis(index) == null)
               vis.update(index, DefinitionInfo(Some(CodeInfo(va, ref)), CodeInfo(ta, generic)))
@@ -786,6 +781,7 @@ class Elaborator private(protected override val layers: Layers)
   }
 }
 
+
 private case class CodeInfo[T](
     code: Abstract,
     t: T) {
@@ -794,8 +790,5 @@ private case class CodeInfo[T](
 private case class DefinitionInfo(
     var code: Option[CodeInfo[Value.Reference]],
     typ: CodeInfo[Value.Generic])
-
-
-
 
 

@@ -69,9 +69,11 @@ trait ElaboratorContextWithMetaOps extends ElaboratorContextBase {
       var i = 0
       var ll = ls.head.metas.metas
       while (ll.nonEmpty && binder == null) {
-        if (ll.head.eq(meta)) {
-          index = i
-          binder = Abstract.MetaReference(up, index)
+        ll.head.lookupChildren(meta) match {
+          case Some(asgn) if restrictionsMatchWith(up, asgn) =>
+            index = i
+            binder = Abstract.MetaReference(up, index)
+          case None =>
         }
         i += 1
         ll = ll.tail

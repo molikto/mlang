@@ -121,12 +121,12 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
 
   lazy val face: PackratParser[Concrete.Face] = (("|" ~> term <~ ":") ~ term) ^^ { a => Face(a._1, a._2) }
 
-  lazy val hcom: PackratParser[Concrete] = keyword("hcom") ~> (("(" ~> term <~ ",") ~  term) ~ (rep(face) <~ ")") ^^ { a =>
-    Hcom(a._1._1, a._1._2, a._2)
+  lazy val hcom: PackratParser[Concrete] = keyword("hcom") ~> ("(" ~> term) ~ (rep(face) <~ ")") ^^ { a =>
+    Hcom(a._1, a._2)
   }
 
-  lazy val com: PackratParser[Concrete] = keyword("com") ~> delimited("(", (term <~ ",") ~ term,",") ~ term  ~  (rep(face) <~")") ^^ { a =>
-    Com(a._1._1._1, a._1._1._2, a._1._2, a._2)
+  lazy val com: PackratParser[Concrete] = keyword("com") ~> delimited("(", term,",") ~ term  ~  (rep(face) <~")") ^^ { a =>
+    Com(a._1._1, a._1._2, a._2)
   }
 
   // normal

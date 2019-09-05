@@ -2,6 +2,7 @@ package mlang.compiler
 
 // ideally the key/value of the value context should be defined at here, but now it is not
 trait EvaluatorContext {
+  // FIXME this is wrong?
   def getDependency(d: Dependency): Option[Value] = if (d.meta) {
     getMetaReference(0, d.i) match {
       case Value.Meta(c: Value.MetaState.Closed) => Some(c.v)
@@ -9,13 +10,13 @@ trait EvaluatorContext {
     }
   } else {
     getReference(0, d.i) match {
-      case Value.Reference(v) => Some(v)
+      case r: Value.Reference => Some(r.value)
       case _: Value.Generic => None
       case _ => logicError()
     }
   }
 
-  def getMetaReference(depth: Int, index: Int): Value.Meta
+  def getMetaReference(depth: Int, index: Int): Value
 
   // get value directly without resolving faces
   def getReference(depth: Int, index: Int): Value

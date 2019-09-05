@@ -148,6 +148,10 @@ we also consider reference, let expression as redux, but they are redux that don
 
 values is considered "context free", all operation done on a value don't need to be pass in a context object
 
+#### recursive elaboration
+
+recursive code is done by everytime a new item in a let expression (or global) is added to the context, we re-evaluate all stuff that depends on it recursively and rewire the pointers, these ones refers to a open variable before
+
 #### structural types
 
 unlike almost all implementations, we try to treat type definitions structural. validity of recursive definitions can mostly done by syntax restrictions, just like how people makes "nested inductive definitions" works (I suppose). so there is no "schema" of parameterized inductive type definitions, just recursive sum types under a telescope, the "schema" then is a semantics level predicate, not syntax level construction
@@ -228,17 +232,7 @@ we use the most simple meta solving algorithm, no constraint etc.
 
 ### universe levels
 
-if we allow only toplevel definitions who's closure is all defined to be lifted, then the "up" is entirely transparent, the restriction to top level is because in a parameterized context, you don't know how to up a open variable, but I think one should not count on this?
-
-the problem is for recursive references, you need to deal with lifted open variables, we so don't allow up an recursive reference
-
-so restriction and up is all defined structurally on values, the difference is: for a closure, a `up` will "de-up" it's parameters, but restriction will also restrict it's parameters
-
-in value world, we only allow `Up` values on references, open/closed normal/meta references, this is apparent on how the constructor `Up` is called
-
-this means restriction and up only can has the order `Restriction(Up(...))`
-
-notice that for Let expression, you don't lift the definitions, this is the same with context restrictions (see bellow), so syntaxal values are something needs special attention
+!!!
 
 ### kan types
 

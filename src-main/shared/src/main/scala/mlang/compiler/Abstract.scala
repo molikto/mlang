@@ -105,9 +105,9 @@ object Abstract {
     def dependencies(i: Int): Set[Dependency] = body.dependencies(i + 1)
   }
   case class Transp(direction: Formula, tp: AbsClosure, base: Abstract) extends Abstract
-  case class Hcom(direction: Formula, tp: Abstract, base: Abstract, faces: Seq[Face]) extends Abstract
+  case class Hcom(tp: Abstract, base: Abstract, faces: Seq[Face]) extends Abstract
 
-  case class Com(direction: Formula, tp: AbsClosure, base: Abstract, faces: Seq[Face]) extends Abstract
+  case class Com(tp: AbsClosure, base: Abstract, faces: Seq[Face]) extends Abstract
 
   case class VType(x: Formula, a: MetaEnclosed, b: Abstract, e: MetaEnclosed) extends Abstract
   case class VMake(x: Formula, m: MetaEnclosed, n: Abstract) extends Abstract
@@ -152,8 +152,8 @@ sealed trait Abstract {
     case PathType(typ, left, right) => PathType(typ.diff(depth, x), left.diff(depth, x), right.diff(depth, x))
     case PathApp(let, r) => PathApp(let.diff(depth, x), r.diff(depth, x))
     case Transp(direction, tp, base) => Transp(direction.diff(depth, x), tp.diff(depth, x), base.diff(depth, x))
-    case Hcom(direction, tp, base, faces) => Hcom(direction.diff(depth, x), tp.diff(depth, x), base.diff(depth, x), faces.map(_.diff(depth, x)))
-    case Com(direction, tp, base, faces) => Com(direction.diff(depth, x), tp.diff(depth, x), base.diff(depth, x), faces.map(_.diff(depth, x)))
+    case Hcom(tp, base, faces) => Hcom(tp.diff(depth, x), base.diff(depth, x), faces.map(_.diff(depth, x)))
+    case Com(tp, base, faces) => Com(tp.diff(depth, x), base.diff(depth, x), faces.map(_.diff(depth, x)))
     case VType(y, a, b, e) => VType(y.diff(depth, x), a.diff(depth, x), b.diff(depth, x), e.diff(depth, x))
     case VMake(y, m, n) => VMake(y.diff(depth, x), m.diff(depth, x), n.diff(depth, x))
     case VProj(y, m, f) => VProj(y.diff(depth, x), m.diff(depth, x), f.diff(depth, x))
@@ -179,8 +179,8 @@ sealed trait Abstract {
     case PathType(typ, left, right) => typ.dependencies(i) ++ left.dependencies(i) ++ right.dependencies(i)
     case PathApp(lef, _) => lef.dependencies(i)
     case Transp(_, tp, base) => tp.dependencies(i) ++ base.dependencies(i)
-    case Hcom(_, tp, base, faces) => tp.dependencies(i) ++ base.dependencies(i) ++ faces.flatMap(_.dependencies(i)).toSet
-    case Com(_, tp, base, faces) => tp.dependencies(i + 1) ++ base.dependencies(i) ++ faces.flatMap(_.dependencies(i)).toSet
+    case Hcom(tp, base, faces) => tp.dependencies(i) ++ base.dependencies(i) ++ faces.flatMap(_.dependencies(i)).toSet
+    case Com(tp, base, faces) => tp.dependencies(i + 1) ++ base.dependencies(i) ++ faces.flatMap(_.dependencies(i)).toSet
     case VType(_, a, b, e) => a.dependencies(i) ++ b.dependencies(i) ++ e.dependencies(i)
     case VMake(_, m, n) => m.dependencies(i) ++ n.dependencies(i)
     case VProj(_, m, f) => m.dependencies(i) ++ f.dependencies(i)
