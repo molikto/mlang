@@ -12,7 +12,7 @@
     * categorical logic: is to give some axiom, usually some category with more properties that validates type theory
     * specific models: to give a specific set-theoric construction to validate the model
     * one specific model we can have is a term model, then we can determine that it is initial of a type of axiomatic model, such we know that a type theory is equivalent to a categorical logic
-        * see [here](https://ncatlab.org/nlab/show/relation+between+type+theory+and+category+theory), especially the initiality of intensional theories is not proofed yet
+        * see [here](https://ncatlab.org/nlab/show/relation+between+type+theory+and+category+theory), especially the initiality of intensional theories is not proved yet
 
 * categorical logic for dependent types has many different formulations
     * category with families
@@ -36,7 +36,7 @@
     * eta-rule
 
 * polarity in type theory
-    * it is always that only specifying only one rule all other rule is drived, so if specifiying elimination rule, it is called nagetive, if introduction rule, positive
+    * it is always that only specifying only one rule all other rule is derived, so if specifiying elimination rule, it is called negative, if introduction rule, positive
 
 * duality in type theory
     * some construction/types has dual concepts in categorical semantics, but the way they are dual is not the same... [here](https://www.reddit.com/r/dependent_types/comments/b241if/dual_of_universe_and_identity_types/) are some examples
@@ -51,7 +51,7 @@
     * **definitional equality of lambdas with recursive unfolding, [here](https://cstheory.stackexchange.com/questions/42371/definitional-equality-of-recursive-function-definition-by-infinite-unfolding)?**
     * **what are categorical semantics for fix points?**
     
-* traditionally data types is added as iterated extensions to theory
+* tranditional data type is added as iterated extensions to theory
 
 * non-recursive record type is generalized sigma type, where the iterative explicit dependency is changed to implicit dependency. can be seen both as positive type or nagetive type, and each has a eta-rule, positive type [with eta (which is subtle)](https://ncatlab.org/nlab/show/product+type#as_a_positive_type) will validate the nagetive type [with eta](https://ncatlab.org/nlab/show/product+type#as_a_negative_type) propositionally and vice versa
     * one says it is a inductive type with one constructor in the positive case, this is just because a inductive type has a coproduct-sigma factoring
