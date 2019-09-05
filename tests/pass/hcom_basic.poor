@@ -1,0 +1,26 @@
+
+
+define x_refl(#A: type, a: A): a ≡ a = i → a
+
+define refl(#A: type, #a: A): a ≡ a = i → a
+
+define path_compose_filler(#A: type, #x #y #z: A, xy: x ≡ y, yz: y ≡ z, j i: I): A =
+  hfill(xy(i) |~i: x_refl(x) |i: yz)(j)
+
+
+
+define path_compose(#A: type, #x #y #z: A, xy: x ≡ y, yz: y ≡ z): x ≡ z =
+  i → hcom(xy(i) |~i: x_refl(x) |i: yz)
+
+define path_compose2(#A: type, #x #y #z: A, xy: x ≡ y, yz: y ≡ z): x ≡ z =
+  i → path_compose_filler(xy, yz, 1, i)
+
+/* FIXME this is not working because we path app on a meta! how to fix this? when meta is solved exactly?
+define path_compose_eq(#A: type, #x #y #z: A, xy: x ≡ y, yz: y ≡ z)
+: path_compose(xy, yz) ≡ path_compose2(xy, yz) = // type: a [─ → x ≡ z] b
+  refl // meta1 ≡[─ → x ≡ z] meta1
+*/
+
+define transport(#A #B: type, AB: A ≡ B, a: A): B =
+  transp(0, AB, a)
+

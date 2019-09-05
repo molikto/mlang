@@ -84,7 +84,7 @@ class Elaborator private(protected override val layers: Layers)
 
   def checkLine(a: Concrete, typ: Value.AbsClosure): (Value.Formula.Generic, Abstract.AbsClosure) = {
     a match {
-      case Concrete.Lambda(n, b, body) =>
+      case Concrete.Lambda(n, b, _, body) =>
         if (b) throw ElaboratorException.DimensionLambdaCannotBeImplicit()
         val (ctx, dim) = newDimensionLayer(n)
         val ta = ctx.check(body, typ(dim))
@@ -101,7 +101,7 @@ class Elaborator private(protected override val layers: Layers)
   }
   def checkTypeLine(a: Concrete): (Int, Abstract.AbsClosure) = {
     a match {
-      case Concrete.Lambda(n, b, body) =>
+      case Concrete.Lambda(n, b, _, body) =>
         if (b) throw ElaboratorException.DimensionLambdaCannotBeImplicit()
         val ctx = newDimensionLayer(n)._1
         val (l, ta0) = ctx.inferLevel(body)
@@ -276,7 +276,13 @@ class Elaborator private(protected override val layers: Layers)
       case p: Concrete.PatternLambda =>
         throw ElaboratorException.CannotInferReturningTypeWithPatterns()
       case l: Concrete.Lambda =>
-        throw ElaboratorException.CannotInferLambda()
+        if (l.ensuredPath) {
+          assert(!l.imps)
+          val (ta, va) = inferTelescope(Seq((false, l.name, Concrete.I)), None, l.body)
+          (eval(ta), va)
+        } else {
+          throw ElaboratorException.CannotInferLambda()
+        }
       case Concrete.Projection(left, right) =>
         val (lt, la) = infer(left)
         val lv = eval(la)
@@ -460,7 +466,8 @@ class Elaborator private(protected override val layers: Layers)
             val la1 = Abstract.PathApp(la, da)
             inferApp(lt1, la1, tail)
           // TODO user defined applications
-          case _ => throw ElaboratorException.UnknownAsFunction()
+          case _ =>
+            throw ElaboratorException.UnknownAsFunction()
         }
       case Seq() =>
         (lt, la)
@@ -487,6 +494,9 @@ class Elaborator private(protected override val layers: Layers)
           else {
             info(s"${reify(tt.whnf)}")
             info(s"${reify(cp.whnf)}")
+            if (debug.enabled) {
+              val ignore = subTypeOf(tt, cp)
+            }
             throw ElaboratorException.TypeMismatch()
           }
       }
@@ -494,7 +504,8 @@ class Elaborator private(protected override val layers: Layers)
     cp.whnf match {
       case Value.Function(domain, fimp, codomain) =>
         term match {
-          case Concrete.Lambda(n, limp, body) if fimp == limp =>
+          case Concrete.Lambda(n, limp, ensuredPath, body) if fimp == limp =>
+            assert(!ensuredPath)
             val (ctx, v) = newParameterLayer(n.nonEmptyOrElse(hint), domain)
             val ba = ctx.check(body, codomain(v), tail)
             Abstract.Lambda(Abstract.Closure(ctx.finishReify(), ba))
@@ -532,7 +543,7 @@ class Elaborator private(protected override val layers: Layers)
         ???
       case Value.PathType(typ, left, right) =>
         term match {
-          case Concrete.Lambda(n, b, body) =>
+          case Concrete.Lambda(n, b, _, body) =>
             if (b) throw ElaboratorException.DimensionLambdaCannotBeImplicit()
             val (c1, dv) = newDimensionLayer(n.nonEmptyOrElse(hint))
             val t1 = typ(dv)
@@ -573,7 +584,7 @@ class Elaborator private(protected override val layers: Layers)
       s: Declaration,
       mis: mutable.ArrayBuffer[CodeInfo[Value.Meta]],
       vis: mutable.ArrayBuffer[DefinitionInfo], topLevel: Boolean): Self = {
-    def wrapBody(t: Concrete, imp: Seq[Boolean]): Concrete = if (imp.isEmpty) t else wrapBody(Concrete.Lambda(Name.empty, imp.last, t), imp.dropRight(1))
+    def wrapBody(t: Concrete, imp: Seq[Boolean]): Concrete = if (imp.isEmpty) t else wrapBody(Concrete.Lambda(Name.empty, imp.last, false, t), imp.dropRight(1))
     def appendMetas(ms: Seq[Value.Meta]): Unit = {
       for (m <- ms) {
         mis.append(CodeInfo(reify(m.solved), m))

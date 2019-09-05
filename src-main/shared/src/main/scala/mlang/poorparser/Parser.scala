@@ -2,6 +2,7 @@ package mlang.poorparser
 
 
 import java.io.File
+import java.util.concurrent.atomic.AtomicLong
 
 import mlang.compiler.Concrete
 import mlang.compiler.Concrete._
@@ -32,7 +33,7 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
     override def whitespaceChar: Parser[Char] = elem("", _ == '│') | super.whitespaceChar
   }
 
-  lexical.reserved ++= List("define", "declare", "const_projections", "case", "__debug", "as", "transp", "hcom", "com","field", "ignored", "match", "record", "type", "sum", "inductively", "run", "with_constructors", "I", "_", "make", "V_type", "V_make", "V_proj")
+  lexical.reserved ++= List("define", "declare", "const_projections", "case", "__debug", "as", "transp", "hcom", "com", "hfill", "field", "ignored", "match", "record", "type", "sum", "inductively", "run", "with_constructors", "I", "_", "make", "V_type", "V_make", "V_proj")
   lexical.delimiters ++= List("{", "}", "[", "]", ":", ",", "(", ")", "#", "≡", "─", "???", "┬", "┌", "⊏", "└", "├", "⇒", "→", "+", "-", ";", "=", "@", "\\", ".", "|", "^", "∨", "∧", "~")
 
   def delimited[T](a: String, t: Parser[T], b: String): Parser[T] = a ~> t <~ b
@@ -85,7 +86,7 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
         meta |
         sum |
         up |
-        transp | com | hcom | vtype | vmake | vproj |
+        transp | com | hcom | hfill | vtype | vmake | vproj |
         universe | make |
         delimited("(", term, ")") |
         absDimension | reference
@@ -125,9 +126,28 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
     Hcom(a._1, a._2)
   }
 
+  val nameGen = new AtomicLong()
+  def genName = Text("$" + nameGen.getAndIncrement())
+
+  lazy val hfill: PackratParser[Concrete] = keyword("hfill") ~> ("(" ~> term) ~ (rep(face) <~ ")") ^^ { a =>
+    val ni = genName
+    val nj = genName
+    val face1 = Face(Neg(Reference(ni)), Lambda(Name.empty, false, false, a._1))
+    val faces = a._2.map(a => {
+      val body = a.term match {
+        case l: Lambda => l.copy(ensuredPath = true)
+        case a => a
+      }
+      Face(a.dimension, Lambda(Name(nj), false, false, App(body, And(Reference(nj), Reference(ni)))))
+    })
+    Lambda(Name(ni), false, true, Hcom(a._1, face1 +: faces))
+  }
+
   lazy val com: PackratParser[Concrete] = keyword("com") ~> delimited("(", term,",") ~ term  ~  (rep(face) <~")") ^^ { a =>
     Com(a._1._1, a._1._2, a._2)
   }
+
+
 
   // normal
   lazy val ascription: PackratParser[Cast] = delimited("(", (term <~ keyword("as")) ~ term, ")") ^^ {a => Cast(a._1, a._2)}
@@ -147,7 +167,7 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
 
 
   lazy val lambda: PackratParser[Lambda] =
-    implicitPattern ~ ("→" ~> term) ^^ {a => Lambda(a._1._2, a._1._1, a._2) }
+    implicitPattern ~ ("→" ~> term) ^^ {a => Lambda(a._1._2, a._1._1, false, a._2) }
 
   lazy val groupPattern: PackratParser[Pattern] =  delimited("(", rep1sep(pattern, ","),")") ^^ { a => Pattern.Group(a) }
 
@@ -173,7 +193,7 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
   lazy val patternCases: PackratParser[PatternLambda] = opt("#") ~ (patternCaseEmpty | patternCaseSingle | patternMultiple) ^^ {
     a => PatternLambda(a._1.isDefined, a._2)
   }
-  lazy val patternLambda : PackratParser[Concrete] =  "─" ~> patternContinue ^^ { a => Concrete.Lambda(Name.empty, false, a) } |  patternCases
+  lazy val patternLambda : PackratParser[Concrete] =  "─" ~> patternContinue ^^ { a => Concrete.Lambda(Name.empty, false, false, a) } |  patternCases
 
   lazy val app: PackratParser[App] = term ~ delimited("(", repsep(opt("@") ~ term, ","), ")") ^^ {a => App(a._1, a._2.map(k => (k._1.isDefined, k._2)))}
 

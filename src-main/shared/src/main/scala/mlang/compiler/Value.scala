@@ -261,6 +261,7 @@ object Value {
     def getRestricted(asgs: Formula.Assignments): Self
     def lookupChildren(v: Referential): Option[Formula.Assignments]
   }
+
   sealed trait Reference extends Referential {
     override def toString: String = "Reference"
     var value: Value
@@ -383,8 +384,7 @@ object Value {
           unapply(typ(Formula.Generic(dgen())).whnf)
         case Hcom(tp, _, _) => unapply(tp)
         case _: Com => logicError()
-        case _: Referential =>
-          logicError()
+        case _: Reference => logicError()
         case _: Maker => logicError()
         case _: Internal => logicError()
       }
@@ -591,13 +591,14 @@ object Value {
       ???
     }
   }
+
   case class Hcom(@stuck_pos tp: Value, base: Value, faces: Seq[Face]) extends Redux {
     override def reduce(): Option[Value] = {
       faces.find(_.restriction.normalForm == NormalForm.True) match {
         case Some(t) => Some(t.body(Formula.True))
         case None =>
           // IMPL
-          ???
+          None
       }
     }
   }
@@ -624,6 +625,11 @@ sealed trait Value {
       p._1.restriction == p._2.restriction && p._1.body.eq(p._2.body)
     }))
     if (_whnf == null) {
+      val current = this
+      var changed = true
+      while (changed) {
+
+      }
       val candidate = this match {
         case a: HeadCanonical =>
           a
@@ -732,10 +738,9 @@ sealed trait Value {
       if (!candidate.eq(candidate._from)) { // FIXME these are already defined ones
         if (!candidate.eq(this)) {
           candidate._from = this
-        } else {
-          assert(candidate._from == null)
         }
       }
+
       candidate match {
         case Value.WhnfOpenMetaHeaded(_) =>
         case _ =>
@@ -834,6 +839,7 @@ sealed trait Value {
       case PathType(typ, _, _) =>
         typ.apply(Formula.Generic(dgen())).infer
       case App(l1, a1) =>
+        // l1 cannot be a actual lambda, the real blocker of whnf is only open reference/meta
         l1.infer.whnf match {
           case Function(_, _, c) =>
             c(a1)

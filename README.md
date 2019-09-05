@@ -4,11 +4,13 @@
 
 under major renovation.
 
+* should we design a new value with type annotations?
+    * don't use type directed conversion checking anymore, should lambda be headless?
+    * proper reify without null hacks?
 * finally fix how restriction is implemented ─ I think I know now, except for meta ─ figure it out
 * re-implement hcoms
 * re-implement new glue/unglue
 * implement new up
-* don't use type directed conversion checking anymore, should lambda be headless?
 
 ---------------
 
@@ -130,27 +132,43 @@ the one marked `FIXME` in code is important problems needs expert to figure out.
 
 there is a `Nominal` typeclass in `cubicaltt`, it is what we have implemented `restrict` which is the `act` method in `cubicaltt`
 
-### core term and values
 
-our "core term" is class `Abstract` and core value is `Value`
 
-#### hoas core term `Value`
+### dbi core syntax `Abstract`
 
-our value is untyped, higher order abstract syntax
+this class is just core syntax in de bruijn index. we don't do any manipulation on it, it is just used to eval to values. the conversion from `Abstract` to `Value` is called `eval`, we have currently a compiler by using the Scala compiler directly
+
+abstract and values is "type free", let expressions don't have types, etc. the context will have the types when needed. this is natural in a type directed way
+
+I think one thing can be done on Abstract is common expression reduction.
+
+references in a abstract term points to context or other part of the term, very standard. recursive definitions is done by mutual references
+
+this is **very straight forward** to understand compared to "value" class
+
+### hoas core term `Value`
+
+our value higher order abstract syntax, it use closure of the host language as closure, and mutable cell of host language as reference
 
 we represent recursive references directly by recursive data structure, with a trick of mutation and nulls
 
-unlike normalization by evaluation, redux (application, projection, cubical hcom etc.) etc is translated to stuck values. this is because elaborator needs to fill holes by reify from value, and directly normalizing all redux (out side of a closure) will make the term very big
+there are actually syntaxtial changes in values, like restriction, reify, they all maintain the mutual reference.
 
-we also consider reference, let expression as redux, but they are redux that don't need any arguments, they are considered "syntaxal redux" which means even for a open value, they will not have these as heads
+
+
+unlike normalization by evaluation, redux (application, projection, cubical hcom etc.) etc is translated to stuck values. this is because elaborator needs to fill holes by reify from value, and directly normalizing all redux (out side of a closure) will make the term very big
 
 values is considered "context free", all operation done on a value don't need to be pass in a context object
 
-#### recursive elaboration
+#### reductions
+
+we have weak head normal form defined on hoas, `wnhf`, the `app` closure application is call-by-need because we implemented whnf caching
+
+### recursive elaboration
 
 recursive code is done by everytime a new item in a let expression (or global) is added to the context, we re-evaluate all stuff that depends on it recursively and rewire the pointers, these ones refers to a open variable before
 
-#### structural types
+### structural types
 
 unlike almost all implementations, we try to treat type definitions structural. validity of recursive definitions can mostly done by syntax restrictions, just like how people makes "nested inductive definitions" works (I suppose). so there is no "schema" of parameterized inductive type definitions, just recursive sum types under a telescope, the "schema" then is a semantics level predicate, not syntax level construction
 
@@ -158,20 +176,6 @@ unlike almost all implementations, we try to treat type definitions structural. 
 but for recursive types, they cannot have structural equality, so currently we restrict them to be defined on toplevel, also make them has nominal equality (id'ed `Sum` and `Record` type, just like id'ed pattern expressions)
 
 we don't allow parameterized ones yet. but this is a easy fix
-
-#### dbi core term `Abstract`
-
-this class is just dbi core term, it exists is because hoas is not composable, you cannot "rebind" a open reference
-
-the conversion from `Abstract` to `Value` is called `eval`, we have currently a compiler by using the Scala compiler directly
-
-abstract and values is "type free", let expressions don't have types, etc. the context will have the types when needed. this is natural in a type directed way
-
-I think one thing can be done on Abstract is common expression reduction.
-
-#### reductions
-
-we have weak head normal form defined on hoas, `wnhf`, the `app` closure application is call-by-need because we implemented whnf caching
 
 
 ### conversion checking
@@ -212,7 +216,7 @@ we make sure all meta is solved when a context is closed, this way the solved me
 
 we are not using an contextual monad, but directly using mutation and using JVM referential equality.
 
-we represent not solved metas directly by a holder value with no value solved, we maintain so that all references is the same *JVM object*, so setting a value for it set for all references. because closing a context will ensure all metas is solved, we never need to read back a open meta body, this helps to maintain reference equality.
+we represent not solved metas directly by a holder value with no value solved, we maintain so that all references is the same *JVM object*, so setting a value for it set for all references. closing a context will ensure all metas is solved
 
 also adding a new meta is direct mutate the context. 
 

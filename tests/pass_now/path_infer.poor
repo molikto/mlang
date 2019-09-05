@@ -1,0 +1,11 @@
+
+define refl(#A: type, #a: A): a ≡ a = i → a
+
+
+define id(#A: type, a: A): A = a
+
+define test1(a: type): type = a
+
+define test2(A: type, a b: A, p: a ≡ b): a ≡ b = id(p)
+
+define test3(A: type, a b: A, p: a ≡ b): id(p)(0) ≡ a = refl

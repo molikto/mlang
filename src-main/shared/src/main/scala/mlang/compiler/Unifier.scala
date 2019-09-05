@@ -1,6 +1,6 @@
 package mlang.compiler
 
-import Value._
+import Value.{Reference => _, _}
 import mlang.utils.{Benchmark, Name, debug, warn}
 
 import scala.collection.mutable
@@ -165,6 +165,9 @@ trait Unifier extends Reifier with ElaboratorContextRebind with Evaluator with P
   private def trySolve(m: Meta, vs: Seq[Value], t20: Value): Option[Value] = {
     Try(solve(m, vs, t20)) match {
       case Failure(exception) =>
+        if (debug.enabled) {
+          exception.printStackTrace()
+        }
         exception match {
           case _: UnificationFailedException =>
             None

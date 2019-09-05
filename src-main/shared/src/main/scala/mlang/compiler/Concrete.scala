@@ -62,6 +62,9 @@ object Concrete {
   case class Sum(constructors: Seq[Constructor]) extends Concrete
 
   case class App(left: Concrete, right: Seq[(Boolean, Concrete)]) extends Concrete
+  object App {
+    def apply(left: Concrete, right: Concrete): Concrete = App(left, Seq((false, right)))
+  }
 
   case class Projection(left: Concrete, right: Concrete) extends Concrete
 
@@ -69,7 +72,7 @@ object Concrete {
 
   case class PatternLambda(implt: Boolean, branches: Seq[Case]) extends Concrete
 
-  case class Lambda(name: Name, imps: Boolean, body: Concrete) extends Concrete
+  case class Lambda(name: Name, imps: Boolean, ensuredPath: Boolean, body: Concrete) extends Concrete
 
   // TODO can you define a macro in a abstracted context?
   case class Let(declarations: Seq[Declaration], in: Concrete) extends Concrete

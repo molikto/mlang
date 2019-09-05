@@ -70,6 +70,7 @@ object Main extends Parser {
     }
     if (runTests) {
       val tests = new File("tests")
+      test(new File(tests, "pass_now"), false)
       test(new File(tests, "pass"), false)
       test(new File(tests, "exception"), true)
       Benchmark.reportAndReset()
