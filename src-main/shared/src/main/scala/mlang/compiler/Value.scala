@@ -243,17 +243,26 @@ object Value {
   sealed trait Internal extends Value
   sealed trait Whnf extends Value
   sealed trait HeadCanonical extends Whnf
-  sealed trait Redux extends Whnf
+  sealed trait Redux extends Whnf {
+    def reduce(): Option[Value]
+
+    def reduceThenWhnfOrSelf() = reduce() match {
+      case Some(r) => r.whnf
+      case _ => this
+    }
+  }
   sealed trait CubicalUnstable extends Whnf // this value can reduce more, but only when restricted
 
   case class Derestricted(a: Value, asgn: Formula.Assignments) extends Internal
 
   sealed trait Referential extends Value {
+    _from = this
     type Self <: Referential
     def getRestricted(asgs: Formula.Assignments): Self
     def lookupChildren(v: Referential): Option[Formula.Assignments]
   }
   sealed trait Reference extends Referential {
+    override def toString: String = "Reference"
     var value: Value
   }
 
@@ -293,7 +302,8 @@ object Value {
         Some(Set.empty)
       } else {
         assert(self == null || self.isEmpty)
-        state.find(_._2.eq(v)).map(_._1)
+        if (state != null) state.find(_._2.eq(v)).map(_._1)
+        else None
       }
     }
   }
@@ -306,8 +316,6 @@ object Value {
   case class Meta(@polarized_mutation private var _state: MetaState) extends LocalReferential {
     def solved: Value = state.asInstanceOf[MetaState.Closed].v
     def isSolved: Boolean = state.isInstanceOf[MetaState.Closed]
-    _from = this
-
     def state_=(a: MetaState) = {
       clearSavedAfterValueChange()
       _state = a
@@ -331,9 +339,6 @@ object Value {
 
   case class LocalReference(@lateinit private var _value: Value) extends LocalReferential with Reference {
 
-    _from = this
-    override def toString: String = "Reference"
-
     override def value_=(a: Value) = {
       clearSavedAfterValueChange()
       _value = a
@@ -347,7 +352,6 @@ object Value {
   }
 
   case class Generic(id: Long, @lateinit private var _typ: Value) extends LocalReferential {
-    _from = this
 
     def typ_=(a: Value) = {
       clearSavedAfterValueChange()
@@ -379,7 +383,8 @@ object Value {
           unapply(typ(Formula.Generic(dgen())).whnf)
         case Hcom(tp, _, _) => unapply(tp)
         case _: Com => logicError()
-        case _: Referential => logicError()
+        case _: Referential =>
+          logicError()
         case _: Maker => logicError()
         case _: Internal => logicError()
       }
@@ -414,7 +419,19 @@ object Value {
   }
 
   case class Function(domain: Value, impict: Boolean, codomain: Closure) extends HeadCanonical
-  case class App(@stuck_pos lambda: Value, argument: Value) extends Redux
+  case class App(@stuck_pos lambda: Value, argument: Value) extends Redux {
+    def reduce(): Option[Value] = {
+      // FIXME cubicaltt will also work if lambda is a trans lambda or a comp lambda
+      lambda match {
+        case Lambda(closure) =>
+          Some(closure(argument))
+        case p : PatternLambda =>
+          Some(PatternRedux(p, argument))
+        case _ =>
+          None
+      }
+    }
+  }
   def Apps(maker: Value, values: Seq[Value]) : Value = values.foldLeft(maker) { (m: Value, v: Value) => Value.App(m, v) }
   case class Lambda(closure: Closure) extends HeadCanonical
   case class Case(pattern: Pattern, closure: MultiClosure) {
@@ -451,7 +468,19 @@ object Value {
   }
   // FIXME seems we must have domain here? --- or when we don't have lambda head?
   case class PatternLambda(id: Long, domain: Value, typ: Closure, cases: Seq[Case]) extends HeadCanonical
-  case class PatternRedux(lambda: PatternLambda, @stuck_pos stuck: Value) extends Redux
+  case class PatternRedux(lambda: PatternLambda, @stuck_pos stuck: Value) extends Redux {
+    // FIXME cubical tt will also work if argument is a hcomp
+    def reduce(): Option[Value] = {
+      // using first match is even ok for overlapping ones
+      var res: Value = null
+      var cs = lambda.cases
+      while (cs.nonEmpty && res == null) {
+        res = cs.head.tryApp(stuck).orNull
+        cs = cs.tail
+      }
+      Option(res)
+    }
+  }
 
 
   case class Inductively(id: Long, level: Int) {
@@ -476,8 +505,16 @@ object Value {
     }
   }
   case class Make(values: Seq[Value]) extends HeadCanonical
+  // FIXME do away with this
   case class Maker(value: Value, field: Int) extends Value
-  case class Projection(@stuck_pos make: Value, field: Int) extends Redux
+  case class Projection(@stuck_pos make: Value, field: Int) extends Redux {
+    def reduce(): Option[Value] = {
+      make match {
+        case Make(vs) => Some(vs(field))
+        case _ => None
+      }
+    }
+  }
 
   case class Construct(name: Int, vs: Seq[Value]) extends HeadCanonical
   case class Constructor(name: Name, ims: Seq[Boolean], nodes: ClosureGraph) {
@@ -500,7 +537,29 @@ object Value {
 
   case class PathType(typ: AbsClosure, left: Value, right: Value) extends HeadCanonical
   case class PathLambda(body: AbsClosure) extends HeadCanonical
-  case class PathApp(@stuck_pos left: Value, @stuck_pos dimension: Formula) extends Redux
+  case class PathApp(@stuck_pos left: Value, @stuck_pos dimension: Formula) extends Redux {
+    def reduce(): Option[Value] = left match {
+      case PathLambda(c) =>
+        Some(c(dimension))
+      case a =>
+        // I think both yacctt use open variables with types, and an `inferType` thing
+        def constantCase(isOne: Boolean) = {
+          a.infer.whnf match {
+            case PathType(_, left, right) =>
+              Some(if (isOne) right else left)
+            case _ => logicError()
+          }
+        }
+        dimension.normalForm match {
+          case NormalForm.True =>
+            constantCase(true)
+          case NormalForm.False =>
+            constantCase(false)
+          case _ =>
+            None
+        }
+    }
+  }
 
   object Face {
     def restrict(faces: Seq[Face], lv: Formula.Assignments) = {
@@ -516,13 +575,38 @@ object Value {
     }
   }
   case class Face(restriction: Formula, body: AbsClosure)
-  case class Transp(direction: Formula, @stuck_pos tp: AbsClosure.StuckPos, base: Value) extends Redux
-  case class Com(@stuck_pos tp: AbsClosure.StuckPos, base: Value, faces: Seq[Face]) extends Redux
-  case class Hcom(@stuck_pos tp: Value, base: Value, faces: Seq[Face]) extends Redux
+  case class Transp(direction: Formula, @stuck_pos tp: AbsClosure.StuckPos, base: Value) extends Redux {
+    override def reduce(): Option[Value] = {
+      if (direction.normalForm == Formula.NormalForm.True) {
+        Some(base)
+      } else {
+        // IMPL
+        ???
+      }
+    }
+  }
+  case class Com(@stuck_pos tp: AbsClosure.StuckPos, base: Value, faces: Seq[Face]) extends Redux {
+    override def reduce(): Option[Value] = {
+      // IMPL
+      ???
+    }
+  }
+  case class Hcom(@stuck_pos tp: Value, base: Value, faces: Seq[Face]) extends Redux {
+    override def reduce(): Option[Value] = {
+      faces.find(_.restriction.normalForm == NormalForm.True) match {
+        case Some(t) => Some(t.body(Formula.True))
+        case None =>
+          // IMPL
+          ???
+      }
+    }
+  }
 
   case class VType(x: Value.Formula, a: Value, b: Value, e: Value) extends CubicalUnstable
   case class VMake(x: Value.Formula, m: Value, n: Value) extends CubicalUnstable
-  case class VProj(x: Value.Formula, @stuck_pos m: Value, f: Value) extends Redux
+  case class VProj(x: Value.Formula, @stuck_pos m: Value, f: Value) extends Redux {
+    override def reduce(): Option[Value] = ???
+  }
 }
 
 
@@ -534,13 +618,12 @@ sealed trait Value {
 
   def from: Value = if (_from == null) this else _from
 
+  // it is ensured that if the value is not reducable, it will return the same reference
   def whnf: Value = {
-    import ValueOps._
+    def eqFaces(f1: Seq[Face], f2: Seq[Face]): Boolean = f1.eq(f2) || (f1.size == f2.size && f1.zip(f2).forall(p => {
+      p._1.restriction == p._2.restriction && p._1.body.eq(p._2.body)
+    }))
     if (_whnf == null) {
-      // FIXME don't do this equals shanican
-      def eqFaces(f1: Seq[Face], f2: Seq[Face]): Boolean = f1.eq(f2) || (f1.size == f2.size && f1.zip(f2).forall(p => {
-        p._1.restriction.normalForm == p._2.restriction.normalForm && p._1.body.eq(p._2.body)
-      }))
       val candidate = this match {
         case a: HeadCanonical =>
           a
@@ -561,52 +644,52 @@ sealed trait Value {
               r.maker
             case _ => logicError() // because we don't accept anoymouns maker expression
           }
-        case App(lambda, argument) =>
-          // FIXME we really needs to cleanup these stuff
-          def app2(lambda: Value, argument: Value, returns: Value => Value = id): Value = {
+        case app@App(lambda, argument) =>
+          // FIXME don't do this equals stuff!!!
+          def app2(lambda: Value, argument: Value): Value = {
             lambda match {
               case Lambda(closure) =>
-                returns(closure(argument))
+                closure(argument).whnf
               case p : PatternLambda =>
-                split(p, argument.whnf, returns)
+                PatternRedux(p, argument.whnf).reduceThenWhnfOrSelf()
               case _ =>
                 App(lambda, argument)
             }
           }
-          app2(lambda.whnf, argument.whnf, _.whnf) match {
+          app2(lambda.whnf, argument) match {
             case App(l2, a2) if lambda.eq(l2) && a2.eq(argument) => this
             case a => a
           }
-        case PatternRedux(lambda, stuck) =>
-          split(lambda, stuck.whnf, _.whnf) match {
+        case pat@PatternRedux(lambda, stuck) =>
+          PatternRedux(lambda, stuck.whnf).reduceThenWhnfOrSelf() match {
             case PatternRedux(l2, s2) if lambda.eq(l2) && stuck.eq(s2) => this
             case a => a
           }
-        case Projection(make, field) =>
-          project(make.whnf, field, _.whnf) match {
+        case pro@Projection(make, field) =>
+          Projection(make.whnf, field).reduceThenWhnfOrSelf() match {
             case Projection(m2, f2) if make.eq(m2) && field == f2 => this
             case a => a
           }
-        case PathApp(left, stuck) =>
+        case PathApp(left, dimension) =>
           // we MUST perform this, because this doesn't care
-          papp(left.whnf, stuck) match {
-            case PathApp(l2, s2) if left.eq(l2) && stuck == s2 => this
+          PathApp(left.whnf, dimension).reduceThenWhnfOrSelf() match {
+            case PathApp(l2, s2) if left.eq(l2) && dimension == s2 => this
             case a => a.whnf
           }
-        case Transp(direction, tp, base) =>
+        case transp@Transp(direction, tp, base) =>
           // kan ops case analysis on tp, so they perform their own whnf
-          transp(direction, tp, base, _.whnf) match {
+          transp.reduceThenWhnfOrSelf() match {
             case Transp(d2, t2, b2) if d2 == direction && t2.eq(tp) && base.eq(b2) => this
             case a => a
           }
-        case Hcom(tp, base, faces) =>
-          hcom(tp, base, faces, _.whnf) match {
-            case Hcom(t2, b2, f2) if tp.eq(t2) && base.eq(b2) && eqFaces(faces, f2) => this
+        case com@Com(tp, base, faces) =>
+          com.reduceThenWhnfOrSelf() match {
+            case Com(t2, b2, f2) if tp.eq(t2) && base.eq(b2) && eqFaces(faces, f2) => this
             case a => a
           }
-        case Com(tp, base, faces) =>
-          com(tp, base, faces, _.whnf) match {
-            case Com(t2, b2, f2) if tp.eq(t2) && base.eq(b2) && eqFaces(faces, f2) => this
+        case hcom@Hcom(tp, base, faces) =>
+          hcom.reduceThenWhnfOrSelf() match {
+            case Hcom(t2, b2, f2) if tp.eq(t2) && base.eq(b2) && eqFaces(faces, f2) => this
             case a => a
           }
         case VType(x, a, b, _) =>
@@ -788,78 +871,6 @@ sealed trait Value {
     case v: Record => v.makerType
     case _ => logicError()
   }
-}
-
-
-object ValueOps {
-
-  def app(lambda: Value, argument: Value, returns: Value => Value = id): Value = {
-    // FIXME cubicaltt will also work if lambda is a trans lambda or a comp lambda
-    lambda match {
-      case Lambda(closure) =>
-        returns(closure(argument))
-      case p : PatternLambda =>
-        split(p, argument, returns)
-      case _ =>
-        App(lambda, argument)
-    }
-  }
-
-
-  // FIXME cubical tt will also work if argument is a hcomp
-  def split(l: PatternLambda, argument: Value, returns: Value => Value = id): Value = {
-    // using first match is even ok for overlapping ones
-    var res: Value = null
-    var cs = l.cases
-    while (cs.nonEmpty && res == null) {
-      res = cs.head.tryApp(argument).orNull
-      cs = cs.tail
-    }
-    if (res != null) {
-      returns(res)
-    } else {
-      PatternRedux(l, argument)
-    }
-  }
-
-
-  def project(v: Value, name: Int, returns: Value => Value = id): Value = {
-    v match {
-      case Make(vs) => returns(vs(name))
-      case _ => Projection(v, name)
-    }
-  }
-
-  def papp(l: Value, d: Formula, returns: Value => Value = id): Value = l match {
-    case PathLambda(c) =>
-      returns(c(d))
-    case a =>
-      // I think both yacctt use open variables with types, and an `inferType` thing
-      def constantCase(isOne: Boolean) = {
-        a.infer.whnf match {
-          case PathType(_, left, right) =>
-            returns(if (isOne) right else left)
-          case _ => logicError()
-        }
-      }
-      d.normalForm match {
-        case NormalForm.True =>
-          constantCase(true)
-        case NormalForm.False =>
-          constantCase(false)
-        case _ =>
-          PathApp(l, d)
-      }
-  }
-
-  def id(v: Value) = v
-
-  def transp(pair: Formula, typ: AbsClosure, base: Value, returns: Value => Value = id): Value = ???
-
-
-  def com(typ: AbsClosure, base: Value, restriction0: Seq[Face], returns: Value => Value = id): Value = ???
-
-  def hcom(typ: Value, base: Value, restriction0: Seq[Face], returns: Value => Value = id): Value = ???
 }
 
 object BuildIn {

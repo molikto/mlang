@@ -1,7 +1,6 @@
 package mlang.compiler
 
 import Value._
-import ValueOps._
 import mlang.utils.{Benchmark, Name, debug, warn}
 
 import scala.collection.mutable
@@ -352,12 +351,12 @@ trait Unifier extends Reifier with ElaboratorContextRebind with Evaluator with P
       (typ.whnf, t1.whnf, t2.whnf) match {
         case (Function(d, _, cd), s1, s2) =>
           val c = Generic(gen(), d)
-          recTerm(cd(c), app(s1, c), app(s2, c))
+          recTerm(cd(c), App(s1, c), App(s2, c))
         case (PathType(ty, _, _), s1, s2) =>
           val c = Formula.Generic(dgen())
-          recTerm(ty(c), papp(s1, c), papp(s2, c))
+          recTerm(ty(c), PathApp(s1, c), PathApp(s2, c))
         case (r: Record, m1, m2) =>
-          recTerms(r.nodes, i => project(m1, i), i => project(m2, i))
+          recTerms(r.nodes, i => Projection(m1, i), i => Projection(m2, i))
         case (s: Sum, Construct(n1, v1), Construct(n2, v2)) =>
           n1 == n2 && { val c = s.constructors(n1) ;
             assert(c.nodes.size == v1.size && v2.size == v1.size)

@@ -96,8 +96,7 @@ trait PlatformEvaluator extends Evaluator {
                   s"m$d(${a._2}).state = MetaState.Closed(${emit(a._1, d)}); ").mkString("")}" +
                 s"${definitions.zipWithIndex.map(a =>
                   s"r$d(${a._2}).value = ${emit(a._1, d)}; ").mkString("")}" +
-                s"val body = ${emit(in, d)}; " +
-                s"Let(r$d.toSeq, body)" +
+                s"${emit(in, d)}" +
                 s"}"
           }
         case Abstract.Function(domain, impict, codomain) =>
