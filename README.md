@@ -4,6 +4,7 @@
 
 under major renovation.
 
+* finally fix how restriction is implemented ─ I think I know now, except for meta ─ figure it out
 * re-implement hcoms
 * re-implement new glue/unglue
 * implement new up
