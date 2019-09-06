@@ -2,7 +2,7 @@ package mlang.compiler
 
 import mlang.compiler.LongGen.Negative.{dgen, gen}
 import mlang.compiler.Value.Formula.{Assignments, NormalForm}
-import mlang.compiler.Value._
+import mlang.compiler.Value.{AbsClosure, _}
 import mlang.utils.{Name, debug}
 
 import scala.annotation.Annotation
@@ -126,7 +126,6 @@ object Value {
 
   object AbsClosure {
     def apply(a: Value): AbsClosure = AbsClosure(_ => a)
-    type StuckPos = AbsClosure
   }
 
   implicit class AbsClosure(private val func: Formula => Value) extends AnyVal {
@@ -677,22 +676,113 @@ object Value {
       })
     }
   }
+
+  // create a path from base  => transp, tp is constant on phi
+  def transpFill(i: Formula, phi: Formula, tp: AbsClosure, base: Value) =
+    Transp(Formula.Or(Formula.Neg(i), phi), AbsClosure(j => tp(Formula.And(i, j))), base)
+
+  // from base => hcomp
+  def hfill(tp: Value, base: Value, faces: Seq[Face]) = {
+    AbsClosure(i =>
+      Hcom(tp, base, faces.map(f => Face(f.restriction, AbsClosure(j => f.body(Formula.And(i, j))))) :+
+          Face(Formula.Neg(i), AbsClosure(_ => base)))
+    )
+  }
+
+  // from base => com
+  def fill(tp: AbsClosure, base: Value, faces: Seq[Face]) = {
+    AbsClosure(i =>
+      Com(AbsClosure(j => tp(Formula.And(i, j))),
+        base,
+        faces.map(f => Face(f.restriction, AbsClosure(j => f.body(Formula.And(i, j))))) :+
+          Face(Formula.Neg(i), AbsClosure(_ => base)))
+    )
+  }
+
+  // here base is of type tp(1), the result is of type tp(0)
+  def transp_inv(phi: Formula, tp: AbsClosure, base: Value) =
+    Transp(phi, AbsClosure(j => tp(Formula.Neg(j))), base)
+
+  // here base is of type tp(1), the result is transp_inv(...) => base
+  def transpFill_inv(i: Formula, phi: Formula, tp: AbsClosure, base: Value) =
+    Transp(Formula.Or(i, phi), AbsClosure(j => tp(Formula.And(Formula.Neg(i), Formula.Neg(j)))), base)
+
+  // where i|- A, u: A(i/r), it's type is A(i/1)
+  def forward(A: AbsClosure, r: Formula, u: Value) =
+    Transp(r, AbsClosure(i => A(Formula.Or(i, r))), u)
+
   case class Face(restriction: Formula, body: AbsClosure)
-  case class Transp(direction: Formula, @stuck_pos tp: AbsClosure.StuckPos, base: Value) extends Redux {
+  case class Transp(phi: Formula, @stuck_pos tp: AbsClosure, base: Value) extends Redux {
+
+
     override def reduce(): Option[Value] = {
-      if (direction.normalForm == Formula.NormalForm.True) {
+      if (phi.normalForm == Formula.NormalForm.True) {
         Some(base)
       } else {
-        // IMPL
-        ???
+        tp.apply(Value.Formula.Generic(dgen())).whnf match {
+          case _: Function =>
+            def tpr(i: Value.Formula) = tp(i).whnf.asInstanceOf[Function]
+            Some(Lambda(Closure(v => {
+              def w(i: Formula) = transpFill_inv(i, phi, AbsClosure(a => tpr(a).domain), v)
+              val w0 = transp_inv(phi, AbsClosure(a => tpr(a).domain), base)
+              Transp(phi, AbsClosure(i => tpr(i).codomain(w(i))), App(base, w0))
+            })))
+          case _: PathType =>
+            def tpr(i: Value.Formula) = tp(i).whnf.asInstanceOf[PathType]
+            Some(PathLambda(AbsClosure(dim => {
+              Com(
+                AbsClosure(i => tpr(i).typ(dim)),
+                PathApp(base, dim),
+                Seq(
+                  Face(phi, AbsClosure(_ => PathApp(base, dim))),
+                  Face(Formula.Neg(dim), AbsClosure(a => tpr(a).left)),
+                  Face(dim, AbsClosure(a => tpr(a).right))
+                ))
+            })))
+          case r: Record =>
+            if (r.nodes.isEmpty) {
+              Some(base)
+            } else {
+              def tpr(i: Value.Formula) = tp(i).whnf.asInstanceOf[Record]
+              val closures = mutable.ArrayBuffer[AbsClosure]()
+              for (i <- r.nodes.indices) {
+                val res = r.nodes(i) match {
+                  case _: ClosureGraph.Independent =>
+                    AbsClosure(j => {
+                      transpFill(j,
+                        phi,
+                        AbsClosure(k => tpr(k).nodes(i).independent.typ),
+                        Projection(base, i)
+                      )
+                    })
+                  case _: ClosureGraph.Dependent =>
+                    AbsClosure(j => {
+                      transpFill(j,
+                        phi,
+                        AbsClosure(k => {val tt = tpr(k); ClosureGraph.get(tt.nodes, i, j => closures(j)(k))  }),
+                        Projection(base, i)
+                      )
+                    })
+                }
+                closures.append(res)
+              }
+              Some(Make(closures.toSeq.map(_.apply(Formula.True))))
+            }
+          case _: Sum =>
+            ???
+          case _: Universe =>
+            Some(base)
+          case _ => None
+        }
       }
     }
   }
-  case class Com(@stuck_pos tp: AbsClosure.StuckPos, base: Value, faces: Seq[Face]) extends Redux {
-    override def reduce(): Option[Value] = {
-      // IMPL
-      ???
-    }
+  case class Com(@stuck_pos tp: AbsClosure, base: Value, faces: Seq[Face]) extends Redux {
+    override def reduce(): Option[Value] =
+      Some(Hcom(
+        tp(Formula.True),
+        forward(tp, Formula.False, base),
+        faces.map(f => Face(f.restriction, AbsClosure(i => forward(tp, i, f.body(i)))))))
   }
 
   case class Hcom(@stuck_pos tp: Value, base: Value, faces: Seq[Face]) extends Redux {
@@ -700,8 +790,41 @@ object Value {
       faces.find(_.restriction.normalForm == NormalForm.True) match {
         case Some(t) => Some(t.body(Formula.True))
         case None =>
-          // IMPL
-          None
+          val tp0 = tp.whnf
+           tp0 match {
+            case PathType(a, u, w) =>
+               Some(PathLambda(AbsClosure(j => Hcom(a(j), PathApp(base, j), Seq(
+                 Face(Formula.Neg(j), AbsClosure(_ => u)),
+                 Face(j, AbsClosure(_ => w))
+               )))))
+            case Function(_, _, b) =>
+               Some(Lambda(Closure(v => Hcom(b(v), App(base, v), faces.map(f => Face(f.restriction, App(f.body, v)))))))
+            case Record(i, ns, ms, cs) =>
+              if (cs.isEmpty) {
+                Some(base)
+              } else {
+                val closures = mutable.ArrayBuffer[AbsClosure]()
+                for (i <- cs.indices) {
+                  val res = cs(i) match {
+                    case in: ClosureGraph.Independent =>
+                      hfill(in.typ, Projection(base, i),
+                        faces.map(f => Face(f.restriction, f.body.map(a => Projection(a, i))))
+                      )
+                    case com: ClosureGraph.Dependent =>
+                      fill(
+                        AbsClosure(k => ClosureGraph.get(cs, i, j => closures(j)(k))),
+                        Projection(base, i),
+                        faces.map(n => Face(n.restriction, n.body.map(a => Projection(a, i))))
+                      )
+                  }
+                  closures.append(res)
+                }
+                Some(Make(closures.toSeq.map(_.apply(Formula.True))))
+              }
+            case u: Universe => ???
+            case Sum(i, cs) => ???
+            case _ => None
+          }
       }
     }
   }
