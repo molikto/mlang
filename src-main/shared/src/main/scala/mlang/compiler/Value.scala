@@ -292,7 +292,7 @@ object Value {
   sealed trait Referential extends Value {
     _from = this
     type Self <: Referential
-    def getRestricted(asgs: Formula.Assignments): Self
+    private[Value] def getRestricted(asgs: Formula.Assignments): Self
     def lookupChildren(v: Referential): Option[Formula.Assignments]
     def referenced: Value
 
@@ -422,9 +422,9 @@ object Value {
 
   case class GlobalReference(@lateinit var value: Value) extends Reference {
     override type Self = GlobalReference
-    override def getRestricted(asgs: Assignments): GlobalReference = this
+    override private[Value] def getRestricted(asgs: Assignments): GlobalReference = this
     def lookupChildren(v: Referential): Option[Formula.Assignments] = if (this.eq(v)) Some(Set.empty) else None
-    override protected private[Value] def supportShallow() = SupportShallow.empty
+    override protected def supportShallow(): SupportShallow = SupportShallow.empty
     override def support(): Support = Support.empty
 }
 
@@ -660,6 +660,8 @@ object Value {
     }
   }
 
+  type System[T] = Map[Formula, T]
+  case class Face(restriction: Formula, body: AbsClosure)
   object Face {
     private[Value] def supportShallow(faces: Seq[Face]): SupportShallow = {
       SupportShallow.flatten(faces.map(f => f.body.supportShallow() +- f.restriction.names))
@@ -711,7 +713,6 @@ object Value {
   def forward(A: AbsClosure, r: Formula, u: Value) =
     Transp(AbsClosure(i => A(Formula.Or(i, r))), r, u)
 
-  case class Face(restriction: Formula, body: AbsClosure)
   case class Transp(@stuck_pos tp: AbsClosure, phi: Formula, base: Value) extends Redux {
 
 
@@ -1024,7 +1025,7 @@ sealed trait Value {
     spt
   }
 
-  private[Value] def supportShallow(): SupportShallow  = this match {
+  protected def supportShallow(): SupportShallow  = this match {
     case Universe(level) => SupportShallow.empty
     case Function(domain, impict, codomain) => domain.supportShallow() ++ codomain.supportShallow()
     case Lambda(closure) => closure.supportShallow()
@@ -1091,8 +1092,8 @@ sealed trait Value {
       PatternRedux(lambda.restrict(lv).asInstanceOf[PatternLambda], stuck.restrict(lv))
     case PathApp(left, stuck) =>
       PathApp(left.restrict(lv), stuck.restrict(lv))
-    case Glue(base, faces) =>
-      Glue(base.restrict(lv), Face.restrict(faces, lv))
+    case GlueType(base, faces) =>
+      GlueType(base.restrict(lv), Face.restrict(faces, lv))
     case Glue(base, faces) =>
       Glue(base.restrict(lv), Face.restrict(faces, lv))
     case Unglue(tp, base, faces) =>

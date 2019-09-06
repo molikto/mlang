@@ -3,7 +3,6 @@ package mlang.compiler
 import mlang.compiler.Concrete._
 import Declaration.Modifier
 import mlang.compiler.Layer.Layers
-import mlang.compiler.Value.Formula
 import mlang.utils._
 
 import scala.collection.mutable
@@ -30,7 +29,7 @@ class Elaborator private(protected override val layers: Layers)
 
   def doForValidFormulaOrThrow[T](f: Value.Formula, a: Value.Formula.Assignments => T): T = {
     val davn = f.normalForm
-    val valid = davn.filter(Value.Formula.satisfiable)
+    val valid = davn.filter(Value.Formula.Assignments.satisfiable)
     if (valid.isEmpty) {
       throw ElaboratorException.RemoveStaticFalseOrUnsatisfiableFace()
     } else {
@@ -67,7 +66,7 @@ class Elaborator private(protected override val layers: Layers)
           // this might evaluate the dimensions to new values
           val dfv = asgn1 ++ asgn0
           // only used to test if this restriction is false face or not
-          if (Assignments.satisfiable(dfv)) {
+          if (Value.Formula.Assignments.satisfiable(dfv)) {
             val ctx0 = newSyntaxDirectedRestrictionLayer(dfv)
             val (ctx1, dim) = ctx0.newDimensionLayer(Name.empty)
             if (!ctx1.unifyTerm(
@@ -542,7 +541,7 @@ class Elaborator private(protected override val layers: Layers)
                       val asg = asgn ++ asgn2
                       if (Value.Formula.Assignments.satisfiable(asg)) {
                         val ctx = newSyntaxDirectedRestrictionLayer(asg).newDimensionLayer(Name.empty)._1
-                        val bd1 = tf.body(Formula.Generic.HACK).restrict(asg)
+                        val bd1 = tf.body(Value.Formula.Generic.HACK).restrict(asg)
                         val res = ctx.check(f._3, Value.Projection(bd1, 0))
                         val itemv = eval(res)
                         if (ctx.unifyTerm(ty.restrict(asg), bv.restrict(asg), Value.App(Value.Projection(bd1, 1), itemv))) {

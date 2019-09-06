@@ -99,6 +99,7 @@ object Abstract {
   case class PathApp(let: Abstract, r: Formula) extends Abstract
 
   // restriction doesn't take binding, but they have a level non-the-less
+  type System[T] = Map[Formula, T]
   case class Face(pair: Formula, body: AbsClosure) {
     def diff(depth: Int, x: Int): Face = Face(pair.diff(depth, x), body.diff(depth, x))
     def dependencies(i: Int): Set[Dependency] = body.dependencies(i + 1)
