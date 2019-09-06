@@ -1,6 +1,7 @@
 
 
 
+/* TODO revive this
 define id_equiv(A: type): equiv(A, A) =
   make(
     a → a,
@@ -11,3 +12,4 @@ define id_equiv(A: type): equiv(A, A) =
         make(aux(0), aux)
       }
     ))
+*/

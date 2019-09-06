@@ -9,7 +9,7 @@ sealed trait ElaboratorContextLookupException extends CompilerException
 
 object ElaboratorContextLookupException {
   case class NonExistingReference(name: Text) extends Exception(s"Non existing reference $name") with ElaboratorContextLookupException
-  case class ReferenceSortWrong(name: Text) extends ElaboratorContextLookupException
+  case class ReferenceSortWrong(name: Text) extends Exception(s"Reference sort wrong $name") with ElaboratorContextLookupException
 }
 
 trait ElaboratorContextLookup extends ElaboratorContextBase {

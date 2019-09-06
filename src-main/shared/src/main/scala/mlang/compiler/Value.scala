@@ -302,6 +302,7 @@ object Value {
     override def toString: String = "Reference"
     var value: Value
     def referenced = value
+
   }
 
   case class Support(names: Set[Long], openMetas: Set[Meta])
@@ -475,7 +476,7 @@ object Value {
         case PatternRedux(_, stuck) => unapply(stuck)
         case PathApp(left, _) => unapply(left)
         case VProj(_, m, _) => unapply(m)
-        case Transp(_, typ, _) =>
+        case Transp(typ, _, _) =>
           // FIXME this rule is really wired...
           unapply(typ(Formula.Generic(dgen())).whnf)
         case Hcom(tp, _, _) => unapply(tp)
@@ -679,7 +680,7 @@ object Value {
 
   // create a path from base  => transp, tp is constant on phi
   def transpFill(i: Formula, phi: Formula, tp: AbsClosure, base: Value) =
-    Transp(Formula.Or(Formula.Neg(i), phi), AbsClosure(j => tp(Formula.And(i, j))), base)
+    Transp(AbsClosure(j => tp(Formula.And(i, j))), Formula.Or(Formula.Neg(i), phi), base)
 
   // from base => hcomp
   def hfill(tp: Value, base: Value, faces: Seq[Face]) = {
@@ -701,18 +702,18 @@ object Value {
 
   // here base is of type tp(1), the result is of type tp(0)
   def transp_inv(phi: Formula, tp: AbsClosure, base: Value) =
-    Transp(phi, AbsClosure(j => tp(Formula.Neg(j))), base)
+    Transp(AbsClosure(j => tp(Formula.Neg(j))), phi, base)
 
   // here base is of type tp(1), the result is transp_inv(...) => base
   def transpFill_inv(i: Formula, phi: Formula, tp: AbsClosure, base: Value) =
-    Transp(Formula.Or(i, phi), AbsClosure(j => tp(Formula.And(Formula.Neg(i), Formula.Neg(j)))), base)
+    Transp(AbsClosure(j => tp(Formula.And(Formula.Neg(i), Formula.Neg(j)))), Formula.Or(i, phi), base)
 
   // where i|- A, u: A(i/r), it's type is A(i/1)
   def forward(A: AbsClosure, r: Formula, u: Value) =
-    Transp(r, AbsClosure(i => A(Formula.Or(i, r))), u)
+    Transp(AbsClosure(i => A(Formula.Or(i, r))), r, u)
 
   case class Face(restriction: Formula, body: AbsClosure)
-  case class Transp(phi: Formula, @stuck_pos tp: AbsClosure, base: Value) extends Redux {
+  case class Transp(@stuck_pos tp: AbsClosure, phi: Formula, base: Value) extends Redux {
 
 
     override def reduce(): Option[Value] = {
@@ -725,7 +726,7 @@ object Value {
             Some(Lambda(Closure(v => {
               def w(i: Formula) = transpFill_inv(i, phi, AbsClosure(a => tpr(a).domain), v)
               val w0 = transp_inv(phi, AbsClosure(a => tpr(a).domain), base)
-              Transp(phi, AbsClosure(i => tpr(i).codomain(w(i))), App(base, w0))
+              Transp(AbsClosure(i => tpr(i).codomain(w(i))), phi, App(base, w0))
             })))
           case _: PathType =>
             def tpr(i: Value.Formula) = tp(i).whnf.asInstanceOf[PathType]
@@ -772,6 +773,7 @@ object Value {
             ???
           case _: Universe =>
             Some(base)
+          case _: Internal => logicError()
           case _ => None
         }
       }
@@ -798,7 +800,7 @@ object Value {
                  Face(j, AbsClosure(_ => w))
                )))))
             case Function(_, _, b) =>
-               Some(Lambda(Closure(v => Hcom(b(v), App(base, v), faces.map(f => Face(f.restriction, App(f.body, v)))))))
+               Some(Lambda(Closure(v => Hcom(b(v), App(base, v), faces.map(f => Face(f.restriction, f.body.map(j => App(j, v))))))))
             case Record(i, ns, ms, cs) =>
               if (cs.isEmpty) {
                 Some(base)
@@ -823,6 +825,7 @@ object Value {
               }
             case u: Universe => ???
             case Sum(i, cs) => ???
+            case _: Internal => logicError()
             case _ => None
           }
       }
@@ -840,6 +843,12 @@ object Value {
 sealed trait Value {
   final override def equals(obj: Any): Boolean = (this, obj) match {
     case (r: Referential, j: Referential) => r.eq(j)
+    case _ => logicError()
+  }
+
+
+  override def hashCode(): Int = this match {
+    case r: Referential => super.hashCode()
     case _ => logicError()
   }
 
@@ -1048,7 +1057,7 @@ sealed trait Value {
     case PatternRedux(lambda, stuck) => lambda.supportShallow() ++ stuck.supportShallow()
     case Projection(make, field) => make.supportShallow()
     case PathApp(left, dimension) => left.supportShallow() +- dimension.names
-    case Transp(direction, tp, base) => tp.supportShallow() ++ base.supportShallow() +- direction.names
+    case Transp(tp, direction, base) => tp.supportShallow() ++ base.supportShallow() +- direction.names
     case Com(tp, base, faces) => tp.supportShallow() ++ base.supportShallow() ++ Face.supportShallow(faces)
     case Hcom(tp, base, faces) => tp.supportShallow() ++ base.supportShallow() ++ Face.supportShallow(faces)
     case Maker(value, field) => value.supportShallow()
@@ -1081,8 +1090,8 @@ sealed trait Value {
       PathLambda(body.restrict(lv))
     case App(lambda, argument) =>
       App(lambda.restrict(lv), argument.restrict(lv))
-    case Transp(direction, tp, base) =>
-      Transp(direction.restrict(lv), tp.restrict(lv), base.restrict(lv))
+    case Transp(tp, direction, base) =>
+      Transp(tp.restrict(lv), direction.restrict(lv), base.restrict(lv))
     case Hcom(tp, base, faces) =>
       Hcom(tp.restrict(lv), base.restrict(lv), Face.restrict(faces, lv))
     case Com(tp, base, faces) =>

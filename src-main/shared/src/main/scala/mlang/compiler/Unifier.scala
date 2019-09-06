@@ -252,7 +252,7 @@ trait Unifier extends Reifier with ElaboratorContextRebind with Evaluator with P
           } else None
         } else None
       case (PathApp(l1, d1), PathApp(l2, d2)) =>
-        if (d1 == d2) {
+        if (d1.normalForm == d2.normalForm) {
           recNeutral(l1, l2).map(_.whnf match {
             case PathType(typ, _, _) =>
               typ(d1)
@@ -281,8 +281,8 @@ trait Unifier extends Reifier with ElaboratorContextRebind with Evaluator with P
         } else {
           None
         }
-      case (Transp(d1, t1, b1), Transp(d2, t2, b2)) =>
-        if (d1 == d2 && recTypeAbsClosure(t1, t2) && recTerm(t1(Value.Formula.False), b1, b2)) {
+      case (Transp(t1, d1, b1), Transp(t2, d2, b2)) =>
+        if (d1.normalForm == d2.normalForm && recTypeAbsClosure(t1, t2) && recTerm(t1(Value.Formula.False), b1, b2)) {
           Some(t1(Value.Formula.True))
         } else {
           None

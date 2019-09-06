@@ -104,7 +104,7 @@ object Abstract {
 
     def dependencies(i: Int): Set[Dependency] = body.dependencies(i + 1)
   }
-  case class Transp(direction: Formula, tp: AbsClosure, base: Abstract) extends Abstract
+  case class Transp(tp: AbsClosure, direction: Formula, base: Abstract) extends Abstract
   case class Hcom(tp: Abstract, base: Abstract, faces: Seq[Face]) extends Abstract
 
   case class Com(tp: AbsClosure, base: Abstract, faces: Seq[Face]) extends Abstract
@@ -151,7 +151,7 @@ sealed trait Abstract {
     case PathLambda(body) => PathLambda(body.diff(depth, x))
     case PathType(typ, left, right) => PathType(typ.diff(depth, x), left.diff(depth, x), right.diff(depth, x))
     case PathApp(let, r) => PathApp(let.diff(depth, x), r.diff(depth, x))
-    case Transp(direction, tp, base) => Transp(direction.diff(depth, x), tp.diff(depth, x), base.diff(depth, x))
+    case Transp(tp, direction, base) => Transp(tp.diff(depth, x), direction.diff(depth, x), base.diff(depth, x))
     case Hcom(tp, base, faces) => Hcom(tp.diff(depth, x), base.diff(depth, x), faces.map(_.diff(depth, x)))
     case Com(tp, base, faces) => Com(tp.diff(depth, x), base.diff(depth, x), faces.map(_.diff(depth, x)))
     case VType(y, a, b, e) => VType(y.diff(depth, x), a.diff(depth, x), b.diff(depth, x), e.diff(depth, x))
@@ -178,7 +178,7 @@ sealed trait Abstract {
     case PathLambda(body) => body.dependencies(i)
     case PathType(typ, left, right) => typ.dependencies(i) ++ left.dependencies(i) ++ right.dependencies(i)
     case PathApp(lef, _) => lef.dependencies(i)
-    case Transp(_, tp, base) => tp.dependencies(i) ++ base.dependencies(i)
+    case Transp(tp, _, base) => tp.dependencies(i) ++ base.dependencies(i)
     case Hcom(tp, base, faces) => tp.dependencies(i) ++ base.dependencies(i) ++ faces.flatMap(_.dependencies(i)).toSet
     case Com(tp, base, faces) => tp.dependencies(i + 1) ++ base.dependencies(i) ++ faces.flatMap(_.dependencies(i)).toSet
     case VType(_, a, b, e) => a.dependencies(i) ++ b.dependencies(i) ++ e.dependencies(i)

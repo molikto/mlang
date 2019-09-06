@@ -213,7 +213,7 @@ class Elaborator private(protected override val layers: Layers)
         val fl = fs.map(_._1).max
         (Value.Universe(fl), Abstract.Sum(None, fs.map(_._2).zip(constructors).map(a =>
           Abstract.Constructor(a._2.name, a._1.map(k => k._2), a._1.zipWithIndex.map(kk => (0 until kk._2, kk._1._3))))))
-      case Concrete.Transp(direction, tp, base) =>
+      case Concrete.Transp(tp, direction, base) =>
         // LATER does these needs finish off implicits?
         val (dv, da) = checkAndEvalFormula(direction)
         val (tv, ta) = checkTypeLine(tp)
@@ -226,7 +226,7 @@ class Elaborator private(protected override val layers: Layers)
           throw ElaboratorException.TranspShouldBeConstantOn()
         }
         val ba = check(base, cl(Value.Formula.False))
-        (cl(Value.Formula.True), Abstract.Transp(da, ta, ba))
+        (cl(Value.Formula.True), Abstract.Transp(ta, da, ba))
       case Concrete.Com(tp, base, faces) =>
         val (_, ta) = checkTypeLine(tp)
         val cl = eval(ta)

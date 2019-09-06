@@ -129,9 +129,9 @@ trait PlatformEvaluator extends Evaluator {
         case Abstract.PathType(typ, left, right) =>
           val d = depth + 1
           s"PathType(AbsClosure(dm$d => ${emitInner(typ, d)}), ${emit(left, depth)}, ${emit(right, depth)})"
-        case Abstract.Transp(dir, tp, base) =>
+        case Abstract.Transp(tp, dir, base) =>
           val d = depth + 1
-          s"Transp(${emit(dir, depth)}, AbsClosure(dm$d => ${emitInner(tp, d)}), ${emit(base, depth)})"
+          s"Transp(AbsClosure(dm$d => ${emitInner(tp, d)}), ${emit(dir, depth)}, ${emit(base, depth)})"
         case Abstract.Hcom(tp, base, faces) =>
           val d = depth + 2
           s"Hcom(" +

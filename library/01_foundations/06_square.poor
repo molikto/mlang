@@ -13,10 +13,10 @@ define square(
   r0 ≡[i → u(i) ≡ v(i)] r1
 
 define square_constant(#A: type, #a: A, p: a ≡ a): square(p, p, p, p) =
-  i → j → hcom(0, 1, connection_or(p, i, j) |i=0: x_refl(p(j))
-                                            |j=0: x_refl(p(i))
-                                            |i=1: connection_and(p, j)
-                                            |j=1: connection_and(p, i))
+  i → j → hcom(a |~i: k → p(j ∨ ~k)
+                 | i: k → p(j ∧ k)
+                 |~j: k → p(i ∨ ~k)
+                 | j: k → p(i ∧ k))
 
 // TODO alternative definition when we have the feature bellow
 // [issue 7] const_projections syntax accepts a reference, then you can use them as `square.constant(p)`

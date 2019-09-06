@@ -130,8 +130,8 @@ private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorCon
         Maker(reify(s), i)
       case Value.PathApp(left, stuck) =>
         PathApp(reify(left), reify(stuck))
-      case Value.Transp(dir, tp, base) =>
-        Transp(reify(dir), reify(tp), reify(base))
+      case Value.Transp(tp, dir, base) =>
+        Transp(reify(tp), reify(dir), reify(base))
       case Value.Hcom(tp, base, faces) =>
         Hcom(reify(tp), reify(base), faces.map(r => Face(reify(r.restriction), newReifierRestrictionLayer(r.restriction).reify(r.body))))
       case Value.Com(tp, base, faces) =>

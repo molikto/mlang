@@ -22,5 +22,5 @@ define path_compose_eq(#A: type, #x #y #z: A, xy: x ≡ y, yz: y ≡ z)
 */
 
 define transport(#A #B: type, AB: A ≡ B, a: A): B =
-  transp(0, AB, a)
+  transp(AB, 0, a)
 

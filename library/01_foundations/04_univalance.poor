@@ -3,9 +3,11 @@
 
 
 
+/*
 define ua(#A #B: type, e: equiv(A, B)): A ≡ B =
   i → V_type(i, A, B, e)
 
+*/
 
 
 define equivs(B: type) = record {
