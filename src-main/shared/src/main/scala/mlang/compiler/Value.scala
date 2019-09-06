@@ -10,9 +10,22 @@ import scala.collection.mutable
 
 private[compiler] class stuck_pos extends Annotation
 
+case class ImplementationLimitationCannotRestrictOpenMeta() extends Exception
+
 object Value {
   sealed trait Formula extends {
     import Formula.{And, Assignments, False, Neg, NormalForm, Or, True}
+    def names: Set[Long] = {
+      this match {
+        case Formula.Generic(id) => Set(id)
+        case Formula.True => Set.empty
+        case Formula.False => Set.empty
+        case And(left, right) => left.names ++ right.names
+        case Or(left, right) => left.names ++ right.names
+        case Neg(unit) => unit.names
+        case _: Formula.Internal => logicError()
+      }
+    }
     def normalForm: NormalForm  = {
       def merge(a: NormalForm, b: NormalForm): NormalForm = {
         def properSupersetOfAny(c: Assignments, g: NormalForm) = b.exists(g => g.subsetOf(c) && g != c)
@@ -73,6 +86,9 @@ object Value {
       val True: NormalForm = Set(Set.empty)
       val False: NormalForm = Set.empty
     }
+    object Generic {
+      val HACK = Generic(0)
+    }
     case class Generic(id: Long) extends Formula {
       def simplify(asgs: Assignments): Formula = asgs.find(_._1 == id) match {
         case Some(a) => if (a._2) True else False
@@ -88,7 +104,9 @@ object Value {
     case class Derestricted(a: Formula, b: Formula.Assignments) extends Internal
   }
 
+
   implicit class MultiClosure(private val func: Seq[Value] => Value) extends AnyVal {
+    def supportShallow(): SupportShallow = func(Generic.HACKS).supportShallow()
     def eq(b: MultiClosure): Boolean = func.eq(b.func)
     def apply() = func(Seq.empty)
     def apply(seq: Seq[Value]): Value = func(seq)
@@ -96,6 +114,7 @@ object Value {
   }
 
   implicit class Closure(private val func: Value => Value) extends AnyVal {
+    def supportShallow(): SupportShallow = func(Generic.HACK).supportShallow()
     def eq(b: Closure): Boolean = func.eq(b.func)
     def apply(seq: Value): Value = func(seq)
     def restrict(dav: Formula.Assignments): Closure = Closure(d => func(Derestricted(d, dav)).restrict(dav))
@@ -111,6 +130,7 @@ object Value {
   }
 
   implicit class AbsClosure(private val func: Formula => Value) extends AnyVal {
+    def supportShallow(): SupportShallow = func(Formula.Generic.HACK).supportShallow()
     def eq(b: AbsClosure): Boolean = func.eq(b.func)
     def apply(seq: Formula): Value = func(seq)
     def mapd(a: (Value, Formula) => Value): AbsClosure = AbsClosure(d => a(this(d), d))
@@ -120,12 +140,27 @@ object Value {
 
   type ClosureGraph = Seq[ClosureGraph.Node]
   object ClosureGraph {
+    def supportShallow(graph: ClosureGraph): SupportShallow = {
+      val mss = mutable.ArrayBuffer[Meta]()
+      val res = graph.map {
+        case IndependentWithMeta(ds, ms, typ) =>
+          mss.appendAll(ms)
+          typ.supportShallow() ++ (ms.toSet: Set[Referential])
+        case DependentWithMeta(ds, mc, c) =>
+          val res = c(mss.toSeq, Generic.HACKS)
+          mss.appendAll(res._1)
+          res._2.supportShallow() ++ (res._1.toSet: Set[Referential])
+        case _ => logicError()
+      }
+      SupportShallow.flatten(res)
+    }
+
     def restrict(graph: ClosureGraph, lv: Formula.Assignments): ClosureGraph =  {
       graph.map {
-        case DependentWithMeta(ds, mc, c) =>
-        DependentWithMeta(ds, mc, (a, b) => { val t = c(a, b.map(k => Derestricted(k, lv))); (t._1, t._2.restrict(lv)) })
         case IndependentWithMeta(ds, ms, typ) =>
           IndependentWithMeta(ds, ms, typ.restrict(lv))
+        case DependentWithMeta(ds, mc, c) =>
+        DependentWithMeta(ds, mc, (a, b) => { val t = c(a, b.map(k => Derestricted(k, lv))); (t._1, t._2.restrict(lv)) })
         case _ => logicError()
       }
     }
@@ -260,41 +295,88 @@ object Value {
     type Self <: Referential
     def getRestricted(asgs: Formula.Assignments): Self
     def lookupChildren(v: Referential): Option[Formula.Assignments]
-  }
+    def referenced: Value
+
+}
 
   sealed trait Reference extends Referential {
     override def toString: String = "Reference"
     var value: Value
+    def referenced = value
   }
 
+  case class Support(names: Set[Long], openMetas: Set[Meta])
+  object Support {
+    val empty: Support = Support(Set.empty, Set.empty)
+  }
+
+  case class SupportShallow(names: Set[Long], references: Set[Referential]) {
+    def ++(s: SupportShallow) = SupportShallow(names ++ s.names, references ++ s.references)
+    def ++(s: Set[Referential]) = SupportShallow(names, references ++ s)
+    def +-(s: Set[Long]) = SupportShallow(names ++ s, references)
+  }
+
+  object SupportShallow {
+    val empty: SupportShallow = SupportShallow(Set.empty, Set.empty)
+    def flatten(ss: Seq[SupportShallow]): SupportShallow = SupportShallow(ss.flatMap(_.names).toSet, ss.flatMap(_.references).toSet)
+    def orEmpty(a: Option[SupportShallow]): SupportShallow = a.getOrElse(empty)
+  }
 
   sealed trait LocalReferential extends Referential {
     type Self <: LocalReferential
-    private var state: mutable.Map[Formula.Assignments, LocalReferential] = null
-    private var self: Formula.Assignments = null
-    protected def clearSavedAfterValueChange() = {
-      if (self != null && self.nonEmpty) logicError() // you don't want to do this
-      state = null
+    private var supportCache: Support = null
+
+    private[Value] def supportCached() : Support = {
+      if (supportCache != null && supportCache.openMetas.exists(_.isSolved)) {
+        supportCache = null
+        restrictedCache = null
+      }
+      supportCache
+    }
+
+    override def support(): Support = {
+      supportCached() // this will try to invalidate the support cache
+      if (supportCache == null) supportCache = super.support()
+      supportCache
+    }
+
+    // LATER merge the two into one variable??? it is confusing though
+    // only not null for parents
+    private var restrictedCache: mutable.Map[Formula.Assignments, LocalReferential] = null
+    // only not null for children
+    private var childRestricted: (LocalReferential, Formula.Assignments) = null
+    protected def clearSavedAfterValueChange(): Unit = {
+      if (childRestricted != null) logicError() // you don't want to do this
+      supportCache = null
+      restrictedCache = null
     }
 
     protected def createNewEmpty(): Self
-
     protected def restrictAndInitContent(s: Self, assignments: Assignments): Unit
     def getRestricted(assigments: Formula.Assignments): Self = {
-      if (state == null) {
-        state = mutable.Map()
-        self = Set.empty
-      }
-      val (mp, asg) = (state, self ++ assigments)
-      mp.get(asg) match {
-        case Some(r) => r.asInstanceOf[Self]
-        case None =>
-          val n = createNewEmpty()
-          n.state = mp
-          n.self = asg
-          mp.put(asg, n)
-          restrictAndInitContent(n, asg)
-          n
+      if (childRestricted != null) { // direct to parent
+        childRestricted._1.asInstanceOf[Referential].getRestricted(childRestricted._2 ++ assigments).asInstanceOf[Self]
+      } else {
+        val spt = support() // this will re-calculate the support if metas changed
+        if (spt.openMetas.nonEmpty) {
+          throw ImplementationLimitationCannotRestrictOpenMeta()
+        }
+        val asgg = assigments.filter(a => spt.names.contains(a._1))
+        if (asgg.isEmpty) {
+          this.asInstanceOf[Self]
+        } else {
+          if (restrictedCache == null) restrictedCache = mutable.Map()
+          debug(s"getting restricted value by $asgg", 2)
+          restrictedCache.get(asgg) match {
+            case Some(r) => r.asInstanceOf[Self]
+            case None =>
+              val n = createNewEmpty()
+              n.childRestricted = (this, asgg)
+              restrictedCache.put(asgg, n)
+              restrictAndInitContent(n, asgg)
+              n
+          }
+        }
       }
     }
 
@@ -302,8 +384,8 @@ object Value {
       if (this.eq(v)) {
         Some(Set.empty)
       } else {
-        assert(self == null || self.isEmpty)
-        if (state != null) state.find(_._2.eq(v)).map(_._1)
+        assert(childRestricted == null) // you can only lookup children from root
+        if (restrictedCache != null) restrictedCache.find(_._2.eq(v)).map(_._1)
         else None
       }
     }
@@ -314,12 +396,14 @@ object Value {
     case class Closed(v: Value) extends MetaState
     case class Open(id: Long, typ: Value) extends MetaState
   }
-  case class Meta(@polarized_mutation private var _state: MetaState) extends LocalReferential {
+  case class MetaProblem(@polarized_mutation var metaState: MetaState)
+  case class Meta(private var _state: MetaState) extends LocalReferential {
     def solved: Value = state.asInstanceOf[MetaState.Closed].v
     def isSolved: Boolean = state.isInstanceOf[MetaState.Closed]
     def state_=(a: MetaState) = {
       clearSavedAfterValueChange()
       _state = a
+      if (debug.enabled) assert(isSolved)
     }
     def state = _state
 
@@ -327,16 +411,23 @@ object Value {
     override protected def createNewEmpty(): Meta = Meta(null)
     override protected def restrictAndInitContent(s: Meta, assignments: Assignments): Unit = state match {
       case MetaState.Closed(v) => s._state = MetaState.Closed(v.restrict(assignments))
-      case MetaState.Open(id, typ) => s._state = MetaState.Open(id, typ.restrict(assignments))
+      case MetaState.Open(id, typ) => logicError()
     }
-  }
+
+    override def referenced: Value = state match {
+      case MetaState.Closed(v) => v
+      case MetaState.Open(id, typ) => typ
+    }
+}
 
 
   case class GlobalReference(@lateinit var value: Value) extends Reference {
     override type Self = GlobalReference
     override def getRestricted(asgs: Assignments): GlobalReference = this
     def lookupChildren(v: Referential): Option[Formula.Assignments] = if (this.eq(v)) Some(Set.empty) else None
-  }
+    override protected def supportShallow() = SupportShallow.empty
+    override def support(): Support = Support.empty
+}
 
   case class LocalReference(@lateinit private var _value: Value) extends LocalReferential with Reference {
 
@@ -352,6 +443,10 @@ object Value {
       s._value = value.restrict(assignments)
   }
 
+  object Generic {
+    private[Value] val HACK = Generic(0, null)
+    private[Value] val HACKS = (0 until 20).map(_ => HACK)
+  }
   case class Generic(id: Long, @lateinit private var _typ: Value) extends LocalReferential {
 
     def typ_=(a: Value) = {
@@ -364,7 +459,9 @@ object Value {
     override protected def createNewEmpty(): Generic = Generic(id, null)
     override protected def restrictAndInitContent(s: Generic, assignments: Assignments) =
       s._typ = typ.restrict(assignments)
-  }
+
+    override def referenced: Value = _typ
+}
 
   object WhnfOpenMetaHeaded {
 
@@ -466,7 +563,9 @@ object Value {
     }
     def tryApp(v: Value): Option[Value] = extract(pattern, v).map(a => closure(a))
   }
-  // FIXME seems we must have domain here? --- or when we don't have lambda head?
+
+  // the reason we must have a domain here is because we support unordered pattern matching
+  // LATER is unordered pattern matching really a good thing? but I don't want case trees!
   case class PatternLambda(id: Long, domain: Value, typ: Closure, cases: Seq[Case]) extends HeadCanonical
   case class PatternRedux(lambda: PatternLambda, @stuck_pos stuck: Value) extends Redux {
     // FIXME cubical tt will also work if argument is a hcomp
@@ -485,6 +584,7 @@ object Value {
 
   case class Inductively(id: Long, level: Int) {
     def restrict(lv: Formula.Assignments): Inductively = this
+    def supportShallow(): SupportShallow =  SupportShallow.empty
   }
 
   case class Record(
@@ -562,6 +662,9 @@ object Value {
   }
 
   object Face {
+    def supportShallow(faces: Seq[Face]): SupportShallow = {
+      SupportShallow.flatten(faces.map(f => f.body.supportShallow() +- f.restriction.names))
+    }
     def restrict(faces: Seq[Face], lv: Formula.Assignments) = {
       faces.flatMap(n => {
         val r = n.restriction.restrict(lv)
@@ -612,24 +715,38 @@ object Value {
 
 
 sealed trait Value {
-  final override def equals(obj: Any): Boolean = throw new IllegalArgumentException("Values don't have equal. Either call eq or do conversion checking")
+  final override def equals(obj: Any): Boolean = (this, obj) match {
+    case (r: Referential, j: Referential) => r.eq(j)
+    case _ => logicError()
+  }
 
-  @cached_mutation private[Value] var _from: Value = _
-  @cached_mutation private[Value] var _whnf: Value = _
+  private[Value] var _from: Value = _
+  private[Value] var _whnfCache: Object = _
 
-  def from: Value = if (_from == null) this else _from
+  def fromOrThis: Value = if (_from == null) this else _from
 
   // it is ensured that if the value is not reducable, it will return the same reference
   def whnf: Value = {
     def eqFaces(f1: Seq[Face], f2: Seq[Face]): Boolean = f1.eq(f2) || (f1.size == f2.size && f1.zip(f2).forall(p => {
       p._1.restriction == p._2.restriction && p._1.body.eq(p._2.body)
     }))
-    if (_whnf == null) {
-      val current = this
-      var changed = true
-      while (changed) {
-
+    val cached =
+      if (_whnfCache == null) {
+        null
+      } else {
+        _whnfCache match {
+          case (v: Value, m: Meta) =>
+            if (m.isSolved) {
+              _whnfCache = null
+              null
+            } else {
+              v
+            }
+          case v: Value =>
+            v
+        }
       }
+    if (cached == null) {
       val candidate = this match {
         case a: HeadCanonical =>
           a
@@ -740,18 +857,83 @@ sealed trait Value {
           candidate._from = this
         }
       }
-
-      candidate match {
-        case Value.WhnfOpenMetaHeaded(_) =>
+      val cache = candidate match {
+        case Value.WhnfOpenMetaHeaded(m) =>
+          (candidate, m)
         case _ =>
+          candidate
           // remember for stable values
-          _whnf = candidate
-          candidate._whnf = candidate
       }
+      _whnfCache = cache
+      candidate._whnfCache = cache
       candidate
     } else {
-      _whnf
+      cached
     }
+  }
+
+
+  def support(): Support = {
+    val tested = mutable.Set.empty[Referential]
+    val ss = supportShallow() // in case of reference, it will just put the reference here
+    val toTest = mutable.Set.from(ss.references)
+    val names = mutable.Set.from(ss.names)
+    while (toTest.nonEmpty) {
+      val candidate = toTest.head
+      toTest.remove(candidate)
+      candidate match {
+        case GlobalReference(value) => // skip global reference
+        case Generic(id, _typ) if id == 0 => // skip hack generic
+        case r: LocalReferential =>
+          tested.add(candidate)
+          val cached = r.supportCached()
+          if (cached != null) {
+            names.addAll(cached.names)
+            tested.addAll(cached.openMetas)
+          } else {
+            val SupportShallow(ns, rs) = candidate.referenced.supportShallow()
+            names.addAll(ns)
+            toTest.addAll(rs.filter(tested))
+          }
+      }
+    }
+    val spt = Support(names.toSet, tested.flatMap {
+      case m@Meta(o: MetaState.Open) => Some(m)
+      case _ => None
+    }.toSet)
+    if (spt.names.nonEmpty) debug(s"non-empty support ${spt.names}", 2)
+    spt
+  }
+
+  protected def supportShallow(): SupportShallow  = this match {
+    case Universe(level) => SupportShallow.empty
+    case Function(domain, impict, codomain) => domain.supportShallow() ++ codomain.supportShallow()
+    case Lambda(closure) => closure.supportShallow()
+    case PatternLambda(id, domain, typ, cases) =>
+      domain.supportShallow() ++ typ.supportShallow() ++ SupportShallow.flatten(cases.map(_.closure.supportShallow()))
+    case Record(inductively, names, ims, nodes) =>
+      SupportShallow.orEmpty(inductively.map(_.supportShallow())) ++ ClosureGraph.supportShallow(nodes)
+    case Make(values) => SupportShallow.flatten(values.map(_.supportShallow()))
+    case Construct(name, vs) =>
+      SupportShallow.flatten(vs.map(_.supportShallow()))
+    case Sum(inductively, constructors) =>
+      SupportShallow.orEmpty(inductively.map(_.supportShallow())) ++ SupportShallow.flatten(constructors.map(a => ClosureGraph.supportShallow(a.nodes)))
+    case PathType(typ, left, right) =>
+      typ.supportShallow() ++ left.supportShallow() ++ right.supportShallow()
+    case PathLambda(body) => body.supportShallow()
+    case App(lambda, argument) => lambda.supportShallow() ++ argument.supportShallow()
+    case PatternRedux(lambda, stuck) => lambda.supportShallow() ++ stuck.supportShallow()
+    case Projection(make, field) => make.supportShallow()
+    case PathApp(left, dimension) => left.supportShallow() +- dimension.names
+    case Transp(direction, tp, base) => tp.supportShallow() ++ base.supportShallow() +- direction.names
+    case Com(tp, base, faces) => tp.supportShallow() ++ base.supportShallow() ++ Face.supportShallow(faces)
+    case Hcom(tp, base, faces) => tp.supportShallow() ++ base.supportShallow() ++ Face.supportShallow(faces)
+    case Maker(value, field) => value.supportShallow()
+    case VProj(x, m, f) => ???
+    case VType(x, a, b, e) => ???
+    case VMake(x, m, n) => ???
+    case referential: Referential => SupportShallow.empty ++ Set(referential)
+    case internal: Internal => logicError()
   }
 
   def restrict(lv: Value.Formula.Assignments): Value = if (lv.isEmpty) this else this match {

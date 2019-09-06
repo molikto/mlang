@@ -12,5 +12,3 @@ private[compiler] class lateinit extends Annotation
 // a essential mutation field, once a value of Right(...) is set, it will be stable
 private[compiler] class polarized_mutation extends Annotation
 
-private[compiler] class cached_mutation extends Annotation
-

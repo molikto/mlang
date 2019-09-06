@@ -4,13 +4,12 @@
 
 under major renovation.
 
-* should we design a new value with type annotations?
-    * don't use type directed conversion checking anymore, should lambda be headless?
-    * proper reify without null hacks?
-* finally fix how restriction is implemented ─ I think I know now, except for meta ─ figure it out
 * re-implement hcoms
 * re-implement new glue/unglue
 * implement new up
+* should we design a new value with type annotations?
+    * don't use type directed conversion checking anymore, should lambda be type annotated?
+    * ~~proper reify without null hacks?~~
 
 ---------------
 
@@ -132,11 +131,13 @@ the one marked `FIXME` in code is important problems needs expert to figure out.
 
 there is a `Nominal` typeclass in `cubicaltt`, it is what we have implemented `restrict` which is the `act` method in `cubicaltt`
 
+### universe levels
 
+we use cumulative universes, done in syntax layer, with `up` operator
 
 ### dbi core syntax `Abstract`
 
-this class is just core syntax in de bruijn index. we don't do any manipulation on it, it is just used to eval to values. the conversion from `Abstract` to `Value` is called `eval`, we have currently a compiler by using the Scala compiler directly
+this class is just core syntax in de bruijn index. it is elaborated from concrete syntax. we don't do any manipulation on it, it is just used to eval to values. the conversion from `Abstract` to `Value` is called `eval`, we have currently a compiler by using the Scala compiler directly
 
 abstract and values is "type free", let expressions don't have types, etc. the context will have the types when needed. this is natural in a type directed way
 
@@ -152,23 +153,30 @@ our value higher order abstract syntax, it use closure of the host language as c
 
 we represent recursive references directly by recursive data structure, with a trick of mutation and nulls
 
-there are actually syntaxtial changes in values, like restriction, reify, they all maintain the mutual reference.
+values is considered "context free", all operation done on a value don't need to be pass in a context object, but nontheless, you need to know if a value is valid in current context, for eaxmple reading back a value defined locally in a global context will result in rebinding error
 
+unlike normalization by evaluation, redux (application, projection, cubical hcom etc.) etc is translated to values, not directly performing the operation. this is because elaborator needs to fill holes by reify from value, and directly normalizing all redux (out side of a closure) will make the term very big
 
-
-unlike normalization by evaluation, redux (application, projection, cubical hcom etc.) etc is translated to stuck values. this is because elaborator needs to fill holes by reify from value, and directly normalizing all redux (out side of a closure) will make the term very big
-
-values is considered "context free", all operation done on a value don't need to be pass in a context object
+values can be manipulated like syntax, like restriction, reify, support. but you need to maintain the mutual reference, it is a little bit trickier, but not much
 
 #### reductions
 
+but most importantly values can have whnf. this is not a syntactical operation.
+
 we have weak head normal form defined on hoas, `wnhf`, the `app` closure application is call-by-need because we implemented whnf caching
 
-### recursive elaboration
+### elaboration
 
-recursive code is done by everytime a new item in a let expression (or global) is added to the context, we re-evaluate all stuff that depends on it recursively and rewire the pointers, these ones refers to a open variable before
+elaboration is standard bidiractional elaboration
 
-### structural types
+#### recursive elaboration
+
+for a item that previously declared but not defined, when it is defined, we re-evaluate all stuff that depends on it recursively and rewire the pointers, these ones refers to a open variable before
+
+### types system
+
+
+#### structural data types
 
 unlike almost all implementations, we try to treat type definitions structural. validity of recursive definitions can mostly done by syntax restrictions, just like how people makes "nested inductive definitions" works (I suppose). so there is no "schema" of parameterized inductive type definitions, just recursive sum types under a telescope, the "schema" then is a semantics level predicate, not syntax level construction
 
@@ -176,7 +184,6 @@ unlike almost all implementations, we try to treat type definitions structural. 
 but for recursive types, they cannot have structural equality, so currently we restrict them to be defined on toplevel, also make them has nominal equality (id'ed `Sum` and `Record` type, just like id'ed pattern expressions)
 
 we don't allow parameterized ones yet. but this is a easy fix
-
 
 ### conversion checking
 
@@ -194,11 +201,9 @@ something similar should be possible with recursive type definitions, in this ca
 
 at least we want to be semi-decidable, this allows more equality to be checked.
 
-
-
 ### meta variables
 
-#### local representation
+#### local representation in `Abstract`
 
 conceptually, implicit variables and meta variables are *just* (abstract in the sense before) terms that omitted and can be inferred from other part of the term.
 
@@ -212,7 +217,8 @@ we don't explicitly present metas in value world, like we have direct references
 
 we make sure all meta is solved when a context is closed, this way the solved meta can generate abstract properly. see `finishReify` usages
 
-#### mutable metas
+#### in value world
+
 
 we are not using an contextual monad, but directly using mutation and using JVM referential equality.
 
@@ -224,33 +230,28 @@ having mutable metas and mutable context means our values is mutable.
 
 this means: unification and type checking is side-effecting. this means one need to be careful when writing these code. call order maters. you should `finishReify` at the last thing you do in this context.
 
-also this means whnf is not stable in some cases. this seems to be transparent to outside of `Value.scala`, but it means we cannot remember whnf of open meta headed values, because they might change after open meta is solved. this doesn't have more effect though.
+also this means whnf is not stable in some cases. this seems to be transparent to outside of `Value.scala`
 
 other than this, our algorithm is pretty ignorance about metas. open metas is much like a generic variable, closed metas is much like a reference, when evaluation on them doesn't work, we just stuck, when unification doesn't work, just return false. what can be wrong with this? (funny face)
+
+so the only thing is to keep in mind that unifier/typechecking is side-effecting
+
+one thing keep in mind is closure DON'T create new open metas, all open metas is currently in context
+
+so a value with a solved meta behaves much like a normal value. a value with a open meta does not. it is kind of a value with undetermined part, so reify works on it, support works on it, but restrictions currently not (see bellow)
 
 #### meta solving
 
 we use the most simple meta solving algorithm, no constraint etc.
 
-### universe levels
-
-!!!
-
 ### kan types
 
 #### restrictions
 
-restricted layer happens for face expression, vtype and vmake expressions.
-
-context restrictions is done by quoting any **reference** not defined in the restricted context by a restriction (might be multiple layers). for lambda parameter, consider you instinated an lambda parameter as a value that contains other parameters, and the restricted version will be    
-
-restriction will not reduce on any kind of reference, they are forced by whnf.
-
-like lift operator, which has a "deup" for lambda parameters, restrictions will also de-restrict lambda parameters
-
-restriction is done by total ordering all ids, and get the large one, thi means that you need to make sure the if you want to compare to value, or referencing a pair of value/type, their restriction is the same.
+restricted layer happens for face expression, and glues.
 
 
+we don't allow restricting a open meta for now, because it has indefinite support, for example a restricted open meta might turns wrong when it has value, because the value is not restricted and might contains names in the restriction. this is not a theoretical bad problem, because you can always fill in the meta values. but in practice we don't know yet
 
 #### kan ops
 

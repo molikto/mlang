@@ -183,7 +183,7 @@ trait Unifier extends Reifier with ElaboratorContextRebind with Evaluator with P
   private def solve(m: Meta, vs: Seq[Value], t20: Value): Value = Benchmark.Solve {
     var MetaState.Open(_, typ) = m.state.asInstanceOf[MetaState.Open]
     val ref = rebindMeta(m)
-    var ctx = drop(ref.up)
+    var ctx = drop(ref.up) // back to the layer where the meta is introduced
     val index = ref.index
     val os = vs.map {
       case o: Generic => o
@@ -192,12 +192,13 @@ trait Unifier extends Reifier with ElaboratorContextRebind with Evaluator with P
     val gs = os.map(_.id)
     for (i <- gs.indices) {
       val o = os(i)
-      if (gs.drop(i + 1).contains(o.id) || ctx.containsGeneric(o)) {
-        error("Spine is not linear")
-      }
+      if (ctx.containsGeneric(o)) error("Spine is not linear")
       ctx = ctx.newParameterLayerProvided(Name.empty, o).asInstanceOf[Self]
     }
-    val t2 = t20.from // FIXME is this sound??
+    val t2 = t20.fromOrThis // FIXME is this sound??
+    if (t2.support().openMetas.contains(m)) {
+      error("Meta solution contains self")
+    }
     // this might throw error if scope checking fails
     var abs = ctx.reify(t2)
     for (g <- os) {
@@ -207,20 +208,8 @@ trait Unifier extends Reifier with ElaboratorContextRebind with Evaluator with P
         case _ => logicError()
       }
     }
-    val toCheck = Seq((Dependency(index, true), abs)).toBuffer
-    val checked = mutable.HashSet.empty[Dependency]
-    while (toCheck.nonEmpty) {
-      val head = toCheck.head
-      val dps = head._2.dependencies(0)
-      if (dps.contains(Dependency(index, true))) {
-        error("Meta solution contains itself")
-      }
-      checked.add(head._1)
-      toCheck.remove(0)
-      toCheck.appendAll(dps.diff(checked).flatMap(a => getDependency(a).map(v => (a, reify(v)))))
-    }
     // FIXME type checking??
-    debug(s"meta solved with $abs, checked bodies ${checked.size}", 1)
+    debug(s"meta solved with $abs", 1)
     val v = ctx.eval(abs)
     m.state = Value.MetaState.Closed(v)
     typ

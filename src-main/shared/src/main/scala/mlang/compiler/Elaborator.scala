@@ -54,7 +54,7 @@ class Elaborator private(protected override val layers: Layers)
           val naa = ctx0.eval(na)
           val nv = naa(Formula.False)
           tms.append(nv)
-          if (!ctx0.unifyTerm(btr(dim), bv.restrict(asgn0), nv.restrict(asgn0))) {
+          if (!ctx0.unifyTerm(btr(dim), bv.restrict(asgn0), nv)) { // nv.restrict(asgn0)
             throw ElaboratorException.CapNotMatching()
           }
           for (j <- 0 until i) {
@@ -260,7 +260,7 @@ class Elaborator private(protected override val layers: Layers)
             ttt match {
               case Some(t) =>
                 val ta = newDimensionLayer(Name.empty)._1.reify(t)
-                debug(s"infer path type $ta", 1)
+                debug(s"infer path type $ta", 0)
                 (Value.Universe(t.inferLevel), Abstract.PathType(Abstract.AbsClosure(Seq.empty, ta), la, ra))
               case None =>
                 throw ElaboratorException.InferPathEndPointsTypeNotMatching()
@@ -580,6 +580,7 @@ class Elaborator private(protected override val layers: Layers)
 
   private def newReference(v: Value = null): Value.Reference = if (layers.size == 1) Value.GlobalReference(v) else Value.LocalReference(v)
 
+  // FIXME should we make sure type annotation is the minimal type?
   private def checkDeclaration(
       s: Declaration,
       mis: mutable.ArrayBuffer[CodeInfo[Value.Meta]],

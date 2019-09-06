@@ -20,6 +20,7 @@ define some_test2 = run { // these also passes in Agda
 
   declare test2: ^type
 
+  // here there is a reeval of meta value, because refl is solved to be left hand side
   define test3: test(test2) ≡ type = ^refl
 
   define test2 = type
