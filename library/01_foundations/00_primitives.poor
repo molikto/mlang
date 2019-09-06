@@ -15,3 +15,8 @@ define equiv(A B: type): type = record {
   field component: (b: B) ⇒ is_contractible(fiber_at(f, b))
 }
 
+define equiv_of(A: type): type = record {
+  field B: type
+  field eq: equiv(A, B)
+}
+

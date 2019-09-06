@@ -11,7 +11,7 @@ define path_reverse(#A: type, #x #y: A, p: x ≡ y): y ≡ x =
   i → p(~i)
 
 
-// FIXME why replace the body with refl doesn't works?
+// FIXME(META) why replace the body with refl doesn't works?
 define path_reverse_unit(#A: type, x: A): (─ → x) ≡[─ → x ≡ x] path_reverse(x_refl(x)) =
   ─ → (─ → x)
 
@@ -24,7 +24,7 @@ define dependent_path_reverse(#A1 #A2: type, #A: A1 ≡ A2, #x: A1, #y: A2, p: x
 define path_compose(#A: type, #x #y #z: A, xy: x ≡ y, yz: y ≡ z): x ≡ z =
   i → hcom(xy(i) |~i: x_refl(x) |i: yz)
 
-/* FIXME reimplement these
+/* TODO reimplement these
 // a * b
 define path_compose_filler(#A: type, #x #y #z: A, xy: x ≡ y, yz: y ≡ z, j i: I): A =
   hfill(xy(i) |~i: x_refl(x) |i: yz)(j)

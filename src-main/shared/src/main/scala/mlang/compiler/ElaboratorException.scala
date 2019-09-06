@@ -40,6 +40,7 @@ object ElaboratorException {
   case class CapNotMatching() extends ElaboratorException
   case class StaticFaceConstraintNotSatisfiable() extends ElaboratorException
   case class FacesNotMatching() extends ElaboratorException
+  case class GlueNotMatching() extends ElaboratorException
 
   case class RequiresValidRestriction() extends ElaboratorException
   case class TermICanOnlyAppearInDomainOfFunction() extends ElaboratorException
@@ -47,8 +48,6 @@ object ElaboratorException {
 
   case class CannotInferMakeExpression() extends ElaboratorException
   case class CannotInferVMakeExpression() extends ElaboratorException
-
-  case class VProjCannotInfer() extends ElaboratorException
 
   case class CannotInferMeta() extends ElaboratorException
 
@@ -70,13 +69,9 @@ object ElaboratorException {
 
   case class TranspShouldBeConstantOn() extends ElaboratorException
 
-  // TODO maybe we should just show a warning
-  case class RemoveFalseFace() extends ElaboratorException
+  case class RemoveStaticFalseOrUnsatisfiableFace() extends ElaboratorException
   case class StaticDisjunctionCurrentlyNotSupported() extends ElaboratorException
-  case class RemoveConstantVType() extends ElaboratorException
-  case class VTypeDimensionInconsistent() extends ElaboratorException
-
-  case class VMakeMismatch() extends ElaboratorException
+  case class UnglueCannotInfer() extends ElaboratorException
 
   case class ConstantSortWrong() extends ElaboratorException
 }

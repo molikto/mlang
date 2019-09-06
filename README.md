@@ -4,7 +4,6 @@
 
 under major renovation.
 
-* re-implement hcoms
 * re-implement new glue/unglue
 * implement new up
 * should we design a new value with type annotations?

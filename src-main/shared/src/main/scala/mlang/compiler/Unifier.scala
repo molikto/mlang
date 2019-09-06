@@ -267,7 +267,7 @@ trait Unifier extends Reifier with ElaboratorContextRebind with Evaluator with P
             val n1 = p._1.restriction.normalForm
             val eqForm = n1 == p._2.restriction.normalForm
             if (eqForm) {
-              n1.filter(Value.Formula.satisfiable).forall(f => {
+              n1.filter(Value.Formula.Assignments.satisfiable).forall(f => {
                 newSyntaxDirectedRestrictionLayer(f).recAbsClosure(t1.restrict(f), p._1.body.restrict(f), p._2.body.restrict(f))
               })
             } else {

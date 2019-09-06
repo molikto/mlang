@@ -26,6 +26,7 @@ object Value {
         case _: Formula.Internal => logicError()
       }
     }
+
     def normalForm: NormalForm  = {
       def merge(a: NormalForm, b: NormalForm): NormalForm = {
         def properSupersetOfAny(c: Assignments, g: NormalForm) = b.exists(g => g.subsetOf(c) && g != c)
@@ -65,24 +66,23 @@ object Value {
         case Formula.False => Formula.False
         case And(left, right) => And(left.restrict(lv), right.restrict(lv))
         case Or(left, right) => Or(left.restrict(lv), right.restrict(lv))
-        case Formula.Derestricted(r, g) =>
-          if (g.subsetOf(lv)) {
-            r.restrict(lv -- g)
-          } else {
-            logicError()
-          }
+        case Formula.Derestricted(r, g) => if (g.subsetOf(lv)) r.restrict(lv -- g) else logicError()
         case Neg(unit) => Neg(unit.restrict(lv))
       }
     }
   }
 
   object Formula {
-    def satisfiable(rs: Assignments): Boolean = rs.map(_._1).size == rs.size
 
     type Assignment = (Long, Boolean)
     type Assignments = Set[Assignment]
+    object Assignments {
+      def satisfiable(rs: Assignments): Boolean = rs.map(_._1).size == rs.size
+    }
     type NormalForm = Set[Assignments]
     object NormalForm {
+      def satisfiable(_2: NormalForm): Boolean = _2.exists(Assignments.satisfiable)
+
       val True: NormalForm = Set(Set.empty)
       val False: NormalForm = Set.empty
     }
@@ -106,7 +106,7 @@ object Value {
 
 
   implicit class MultiClosure(private val func: Seq[Value] => Value) extends AnyVal {
-    def supportShallow(): SupportShallow = func(Generic.HACKS).supportShallow()
+    private[Value] def supportShallow(): SupportShallow = func(Generic.HACKS).supportShallow()
     def eq(b: MultiClosure): Boolean = func.eq(b.func)
     def apply() = func(Seq.empty)
     def apply(seq: Seq[Value]): Value = func(seq)
@@ -114,7 +114,7 @@ object Value {
   }
 
   implicit class Closure(private val func: Value => Value) extends AnyVal {
-    def supportShallow(): SupportShallow = func(Generic.HACK).supportShallow()
+    private[Value] def supportShallow(): SupportShallow = func(Generic.HACK).supportShallow()
     def eq(b: Closure): Boolean = func.eq(b.func)
     def apply(seq: Value): Value = func(seq)
     def restrict(dav: Formula.Assignments): Closure = Closure(d => func(Derestricted(d, dav)).restrict(dav))
@@ -129,7 +129,7 @@ object Value {
   }
 
   implicit class AbsClosure(private val func: Formula => Value) extends AnyVal {
-    def supportShallow(): SupportShallow = func(Formula.Generic.HACK).supportShallow()
+    private[Value] def supportShallow(): SupportShallow = func(Formula.Generic.HACK).supportShallow()
     def eq(b: AbsClosure): Boolean = func.eq(b.func)
     def apply(seq: Formula): Value = func(seq)
     def mapd(a: (Value, Formula) => Value): AbsClosure = AbsClosure(d => a(this(d), d))
@@ -139,7 +139,7 @@ object Value {
 
   type ClosureGraph = Seq[ClosureGraph.Node]
   object ClosureGraph {
-    def supportShallow(graph: ClosureGraph): SupportShallow = {
+    private[Value] def supportShallow(graph: ClosureGraph): SupportShallow = {
       val mss = mutable.ArrayBuffer[Meta]()
       val res = graph.map {
         case IndependentWithMeta(ds, ms, typ) =>
@@ -310,7 +310,7 @@ object Value {
     val empty: Support = Support(Set.empty, Set.empty)
   }
 
-  case class SupportShallow(names: Set[Long], references: Set[Referential]) {
+  private[Value] case class SupportShallow(names: Set[Long], references: Set[Referential]) {
     def ++(s: SupportShallow) = SupportShallow(names ++ s.names, references ++ s.references)
     def ++(s: Set[Referential]) = SupportShallow(names, references ++ s)
     def +-(s: Set[Long]) = SupportShallow(names ++ s, references)
@@ -353,7 +353,7 @@ object Value {
 
     protected def createNewEmpty(): Self
     protected def restrictAndInitContent(s: Self, assignments: Assignments): Unit
-    def getRestricted(assigments: Formula.Assignments): Self = {
+    private[Value] def getRestricted(assigments: Formula.Assignments): Self = {
       if (childRestricted != null) { // direct to parent
         childRestricted._1.asInstanceOf[Referential].getRestricted(childRestricted._2 ++ assigments).asInstanceOf[Self]
       } else {
@@ -396,7 +396,6 @@ object Value {
     case class Closed(v: Value) extends MetaState
     case class Open(id: Long, typ: Value) extends MetaState
   }
-  case class MetaProblem(@polarized_mutation var metaState: MetaState)
   case class Meta(private var _state: MetaState) extends LocalReferential {
     def solved: Value = state.asInstanceOf[MetaState.Closed].v
     def isSolved: Boolean = state.isInstanceOf[MetaState.Closed]
@@ -425,7 +424,7 @@ object Value {
     override type Self = GlobalReference
     override def getRestricted(asgs: Assignments): GlobalReference = this
     def lookupChildren(v: Referential): Option[Formula.Assignments] = if (this.eq(v)) Some(Set.empty) else None
-    override protected def supportShallow() = SupportShallow.empty
+    override protected private[Value] def supportShallow() = SupportShallow.empty
     override def support(): Support = Support.empty
 }
 
@@ -475,7 +474,7 @@ object Value {
         case Projection(make, _) => unapply(make)
         case PatternRedux(_, stuck) => unapply(stuck)
         case PathApp(left, _) => unapply(left)
-        case VProj(_, m, _) => unapply(m)
+        case Unglue(_, m, _) => unapply(m)
         case Transp(typ, _, _) =>
           // FIXME this rule is really wired...
           unapply(typ(Formula.Generic(dgen())).whnf)
@@ -584,7 +583,7 @@ object Value {
 
   case class Inductively(id: Long, level: Int) {
     def restrict(lv: Formula.Assignments): Inductively = this
-    def supportShallow(): SupportShallow =  SupportShallow.empty
+    private[Value] def supportShallow(): SupportShallow =  SupportShallow.empty
   }
 
   case class Record(
@@ -662,7 +661,7 @@ object Value {
   }
 
   object Face {
-    def supportShallow(faces: Seq[Face]): SupportShallow = {
+    private[Value] def supportShallow(faces: Seq[Face]): SupportShallow = {
       SupportShallow.flatten(faces.map(f => f.body.supportShallow() +- f.restriction.names))
     }
     def restrict(faces: Seq[Face], lv: Formula.Assignments) = {
@@ -832,9 +831,9 @@ object Value {
     }
   }
 
-  case class VType(x: Value.Formula, a: Value, b: Value, e: Value) extends CubicalUnstable
-  case class VMake(x: Value.Formula, m: Value, n: Value) extends CubicalUnstable
-  case class VProj(x: Value.Formula, @stuck_pos m: Value, f: Value) extends Redux {
+  case class GlueType(ty: Value, @stuck_pos faces: Seq[Face]) extends CubicalUnstable
+  case class Glue(m: Value, @stuck_pos faces: Seq[Face]) extends CubicalUnstable
+  case class Unglue(ty: Value, base: Value, @stuck_pos faces: Seq[Face]) extends Redux {
     override def reduce(): Option[Value] = ???
   }
 }
@@ -947,23 +946,11 @@ sealed trait Value {
             case Hcom(t2, b2, f2) if tp.eq(t2) && base.eq(b2) && eqFaces(faces, f2) => this
             case a => a
           }
-        case VType(x, a, b, _) =>
-//          x match {
-//            case _: Formula.Generic => this
-//            case Formula.False => a.whnf
-//            case Formula.True => b.whnf
-//            case _: Formula.Internal => logicError()
-//          }
-          ???
-        case VMake(x, m, n) =>
-//          x match {
-//            case g: Formula.Generic => this
-//            case Formula.False => m
-//            case Formula.True => n
-//            case _: Formula.Internal => logicError()
-//          }
-          ???
-        case VProj(x, m, f) =>
+        case GlueType(tm, faces) =>
+          faces.find(_.restriction.normalForm == Formula.NormalForm.True).map(b => Projection(b.body(Formula.Generic.HACK), 0).whnf).getOrElse(this)
+        case Glue(base, faces) =>
+          faces.find(_.restriction.normalForm == Formula.NormalForm.True).map(_.body(Formula.Generic.HACK).whnf).getOrElse(this)
+        case Unglue(x, m, f) =>
 //          x match {
 //            case g: Formula.Generic =>
 //              val mw = m.whnf
@@ -1037,7 +1024,7 @@ sealed trait Value {
     spt
   }
 
-  protected def supportShallow(): SupportShallow  = this match {
+  private[Value] def supportShallow(): SupportShallow  = this match {
     case Universe(level) => SupportShallow.empty
     case Function(domain, impict, codomain) => domain.supportShallow() ++ codomain.supportShallow()
     case Lambda(closure) => closure.supportShallow()
@@ -1061,9 +1048,9 @@ sealed trait Value {
     case Com(tp, base, faces) => tp.supportShallow() ++ base.supportShallow() ++ Face.supportShallow(faces)
     case Hcom(tp, base, faces) => tp.supportShallow() ++ base.supportShallow() ++ Face.supportShallow(faces)
     case Maker(value, field) => value.supportShallow()
-    case VProj(x, m, f) => ???
-    case VType(x, a, b, e) => ???
-    case VMake(x, m, n) => ???
+    case GlueType(tp, faces) => tp.supportShallow()++ Face.supportShallow(faces)
+    case Glue(base, faces) => base.supportShallow() ++ Face.supportShallow(faces)
+    case Unglue(tp, base, faces) => tp.supportShallow() ++ base.supportShallow() ++ Face.supportShallow(faces)
     case referential: Referential => SupportShallow.empty ++ Set(referential)
     case internal: Internal => logicError()
   }
@@ -1104,12 +1091,12 @@ sealed trait Value {
       PatternRedux(lambda.restrict(lv).asInstanceOf[PatternLambda], stuck.restrict(lv))
     case PathApp(left, stuck) =>
       PathApp(left.restrict(lv), stuck.restrict(lv))
-    case VType(x, a, p, e) =>
-      VType(x.restrict(lv), a.restrict(lv), p.restrict(lv), e.restrict(lv))
-    case VMake(x, m, n) =>
-      VMake(x.restrict(lv), m.restrict(lv), n.restrict(lv))
-    case VProj(x, m, f) =>
-      VProj(x.restrict(lv), m.restrict(lv), f.restrict(lv))
+    case Glue(base, faces) =>
+      Glue(base.restrict(lv), Face.restrict(faces, lv))
+    case Glue(base, faces) =>
+      Glue(base.restrict(lv), Face.restrict(faces, lv))
+    case Unglue(tp, base, faces) =>
+      Unglue(tp.restrict(lv), base.restrict(lv), Face.restrict(faces, lv))
     case Derestricted(v, lv0) =>
       if (lv0.subsetOf(lv)) {
         v.restrict(lv -- lv0)
@@ -1128,7 +1115,7 @@ sealed trait Value {
 
   // it is like in type directed conversion checking, this works because we always call infer on whnf, so neutural values
   // can infer it's type
-  def infer: Value = {
+  private[Value] def infer: Value = {
     whnf match {
       case g: Generic =>
         g.typ
@@ -1140,11 +1127,8 @@ sealed trait Value {
           case (Universe(l1), Universe(l2)) => Universe(l1 max l2)
           case _ => logicError()
         }
-      case VType(_, a, b, _) =>
-        (a.infer, b.infer) match {
-          case (Universe(l1), Universe(l2)) => Universe(l1 max l2)
-          case _ => logicError()
-        }
+      case GlueType(ty, pos) =>
+        ty.infer // FIXME this seems wrong, what if we annotate the level? generally we want to make sure this is working as intent
       case r: Record =>
         r.inductively.map(a => Universe(a.level)).getOrElse(Universe(ClosureGraph.inferLevel(r.nodes)))
       case s: Sum =>
@@ -1197,4 +1181,5 @@ object BuildIn {
   var equiv: Value = null
   var fiber_at: Value = null
   var fiber_at_ty: Value = null
+  var equiv_of: Value = null
 }

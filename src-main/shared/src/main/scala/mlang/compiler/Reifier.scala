@@ -78,6 +78,9 @@ private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorCon
     }
   }
 
+  def reifyFaces(faces: Seq[Value.Face]) =
+    faces.map(r => Face(reify(r.restriction), newReifierRestrictionLayer(r.restriction).reify(r.body)))
+
   def reify(v: Value): Abstract = {
     v match {
       case Value.Universe(level) =>
@@ -133,17 +136,15 @@ private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorCon
       case Value.Transp(tp, dir, base) =>
         Transp(reify(tp), reify(dir), reify(base))
       case Value.Hcom(tp, base, faces) =>
-        Hcom(reify(tp), reify(base), faces.map(r => Face(reify(r.restriction), newReifierRestrictionLayer(r.restriction).reify(r.body))))
+        Hcom(reify(tp), reify(base), reifyFaces(faces))
       case Value.Com(tp, base, faces) =>
-        Com(reify(tp), reify(base),
-          faces.map(r => Face(reify(r.restriction), newReifierRestrictionLayer(r.restriction).reify(r.body)))
-        )
-      case Value.VType(x, a, b, e) =>
-        VType(reify(x), reifyMetaEnclosed(a), reify(b), reifyMetaEnclosed(e))
-      case Value.VMake(x, m, n) =>
-        VMake(reify(x), reifyMetaEnclosed(m), reify(n))
-      case Value.VProj(x, m, f) =>
-        VProj(reify(x), reify(m), reify(f))
+        Com(reify(tp), reify(base), reifyFaces(faces))
+      case Value.GlueType(ty, faces) =>
+        GlueType(reify(ty), reifyFaces(faces))
+      case Value.Glue(base, faces) =>
+        Glue(reify(base), reifyFaces(faces))
+      case Value.Unglue(ty, base, faces) =>
+        Unglue(reify(ty), reify(base), reifyFaces(faces))
       case _: Value.Internal =>
         logicError()
     }
@@ -160,6 +161,7 @@ private class ReifierContextCont(override val base: ReifierContextBottom, overri
 }
 
 // this is the context of the let expression where out-of-scope reference is collected
+// FIXME the logic is wrong for local let expression, because we removed the logic to have let values in Value...
 private class ReifierContextBottom(layersBefore: Layers) extends ReifierContext {
 
   private val terms = new mutable.ArrayBuffer[DefineItem]()
@@ -209,10 +211,11 @@ private class ReifierContextBottom(layersBefore: Layers) extends ReifierContext 
 object Reifier {
   private def reify(v: Value, layers: Seq[Layer]): Abstract = Benchmark.Reify { new ReifierContextBottom(layers).reifyValue(v)  }
 }
-trait Reifier extends ElaboratorContextBuilder {
+trait Reifier extends ElaboratorContextBuilder with ElaboratorContextRebind {
 
   protected def reify(v: Value): Abstract = Reifier.reify(v, layers)
 
+  // TODO the logic for base/top reify is confusing, try clean them up
   protected def reify(v: Value.Closure): Abstract.Closure = {
     val l = debug_metasSize
     val (c, t) = newParameterLayer(Name.empty, null)
@@ -220,6 +223,19 @@ trait Reifier extends ElaboratorContextBuilder {
     assert(debug_metasSize == l) // we don't create meta in current layer!
     assert(c.debug_metasSize == 0) // also we don't create in that one!
     r
+  }
+
+  protected def reifyFaces(v: Seq[Value.Face]): Seq[Abstract.Face] = {
+    v.map(f => {
+      Abstract.Face(rebindFormula(f.restriction),  {
+        val l = debug_metasSize
+        val (c, t) = newReifierRestrictionLayer(f.restriction).newDimensionLayer(Name.empty)
+        val r = Abstract.AbsClosure(Seq.empty, c.asInstanceOf[Reifier].reify(f.body(t)))
+        assert(debug_metasSize == l) // we don't create meta in current layer!
+        assert(c.debug_metasSize == 0) // also we don't create in that one!
+        r
+      })
+    })
   }
 
   protected def freezeReify(): Seq[Abstract] = {

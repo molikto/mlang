@@ -3,6 +3,7 @@ package mlang.compiler
 import mlang.compiler.Concrete._
 import Declaration.Modifier
 import mlang.compiler.Layer.Layers
+import mlang.compiler.Value.Formula
 import mlang.utils._
 
 import scala.collection.mutable
@@ -27,6 +28,17 @@ class Elaborator private(protected override val layers: Layers)
 
   override protected implicit def create(a: Layers): Self = new Elaborator(a)
 
+  def doForValidFormulaOrThrow[T](f: Value.Formula, a: Value.Formula.Assignments => T): T = {
+    val davn = f.normalForm
+    val valid = davn.filter(Value.Formula.satisfiable)
+    if (valid.isEmpty) {
+      throw ElaboratorException.RemoveStaticFalseOrUnsatisfiableFace()
+    } else {
+      if (valid.size > 1) throw ElaboratorException.StaticDisjunctionCurrentlyNotSupported()
+      a(valid.head)
+    }
+  }
+
   def checkCompatibleCapAndFaces(
                                   faces: Seq[Concrete.Face],
                                   bt: Value.AbsClosure,
@@ -38,46 +50,36 @@ class Elaborator private(protected override val layers: Layers)
     faces.indices.map { i =>
       val a = faces(i)
       val (dav, daa) = checkAndEvalFormula(a.dimension)
-      val davn = dav.normalForm
-      if (davn == Formula.NormalForm.False) {
-        throw ElaboratorException.RemoveFalseFace()
-      } else if (davn.size > 1) {
-        throw ElaboratorException.StaticDisjunctionCurrentlyNotSupported()
-      } else {
-        val asgn0 = davn.head
-        if (Value.Formula.satisfiable(asgn0)) {
-          nfs.append(asgn0)
-          val ctx0 = newSyntaxDirectedRestrictionLayer(asgn0)
-          val btr = bt.restrict(asgn0)
-          // FIXME no hurry to finalize this context? use information in cap to infer?
-          val (dim, na) = ctx0.checkLine(a.term, btr)
-          val naa = ctx0.eval(na)
-          val nv = naa(Formula.False)
-          tms.append(nv)
-          if (!ctx0.unifyTerm(btr(dim), bv.restrict(asgn0), nv)) { // nv.restrict(asgn0)
-            throw ElaboratorException.CapNotMatching()
-          }
-          for (j <- 0 until i) {
-            val asgn1 = nfs(j)
-            // this might evaluate the dimensions to new values
-            val dfv = asgn1 ++ asgn0
-            // only used to test if this restriction is false face or not
-            if (Formula.satisfiable(dfv)) {
-              val ctx0 = newSyntaxDirectedRestrictionLayer(dfv)
-              val (ctx1, dim) = ctx0.newDimensionLayer(Name.empty)
-              if (!ctx1.unifyTerm(
-                btr(dim).restrict(dfv),
-                nv.restrict(dfv),
-                tms(j).restrict(dfv))) {
-                throw ElaboratorException.FacesNotMatching()
-              }
+      doForValidFormulaOrThrow(dav, asgn0 => {
+        nfs.append(asgn0)
+        val ctx0 = newSyntaxDirectedRestrictionLayer(asgn0)
+        val btr = bt.restrict(asgn0)
+        // FIXME no hurry to finalize this context? use information in cap to infer?
+        val (dim, na) = ctx0.checkLine(a.term, btr)
+        val naa = ctx0.eval(na)
+        val nv = naa(Formula.False)
+        tms.append(nv)
+        if (!ctx0.unifyTerm(btr(dim), bv.restrict(asgn0), nv)) { // nv.restrict(asgn0)
+          throw ElaboratorException.CapNotMatching()
+        }
+        for (j <- 0 until i) {
+          val asgn1 = nfs(j)
+          // this might evaluate the dimensions to new values
+          val dfv = asgn1 ++ asgn0
+          // only used to test if this restriction is false face or not
+          if (Assignments.satisfiable(dfv)) {
+            val ctx0 = newSyntaxDirectedRestrictionLayer(dfv)
+            val (ctx1, dim) = ctx0.newDimensionLayer(Name.empty)
+            if (!ctx1.unifyTerm(
+              btr(dim).restrict(dfv),
+              nv.restrict(dfv),
+              tms(j).restrict(dfv))) {
+              throw ElaboratorException.FacesNotMatching()
             }
           }
-          Abstract.Face(daa, na)
-        } else {
-          throw ElaboratorException.StaticFaceConstraintNotSatisfiable()
         }
-      }
+        Abstract.Face(daa, na)
+      })
     }
   }
 
@@ -177,7 +179,7 @@ class Elaborator private(protected override val layers: Layers)
         throw ElaboratorException.TermICanOnlyAppearInDomainOfFunction()
       case Concrete.Make =>
         throw ElaboratorException.CannotInferMakeExpression()
-      case _: Concrete.VMake =>
+      case _: Concrete.Glue =>
         throw ElaboratorException.CannotInferVMakeExpression()
       case Concrete.Cast(v, t) =>
         val (_, ta) = inferLevel(t)
@@ -219,7 +221,7 @@ class Elaborator private(protected override val layers: Layers)
         val (tv, ta) = checkTypeLine(tp)
         val cl = eval(ta)
         val (ctx, dim) = newDimensionLayer(Name.empty)
-        val constant = dv.normalForm.filter(a => Value.Formula.satisfiable(a)).forall(asg => {
+        val constant = dv.normalForm.filter(a => Value.Formula.Assignments.satisfiable(a)).forall(asg => {
           ctx.newSyntaxDirectedRestrictionLayer(asg).unifyTerm(Value.Universe(tv), cl(dim).restrict(asg), cl(Value.Formula.False).restrict(asg))
         })
         if (!constant) {
@@ -266,13 +268,6 @@ class Elaborator private(protected override val layers: Layers)
                 throw ElaboratorException.InferPathEndPointsTypeNotMatching()
             }
         }
-      case Concrete.VProj(m) =>
-        val (mt, ma) = infer(m)
-         mt.whnf match {
-          case Value.VType(x, _, b, e) =>
-            (b, Abstract.VProj(rebindFormula(x), ma, Abstract.Projection(reify(e), 0)))
-          case _ => throw ElaboratorException.VProjCannotInfer()
-        }
       case p: Concrete.PatternLambda =>
         throw ElaboratorException.CannotInferReturningTypeWithPatterns()
       case l: Concrete.Lambda =>
@@ -315,22 +310,27 @@ class Elaborator private(protected override val layers: Layers)
         val (lt, la) = infer(lambda, true)
         val (v1, v2) = inferApp(lt, la, arguments)
         reduceMore(v1, v2) // because inferApp stops when arguments is finished
-      case Concrete.VType(x, a, b, e) =>
-        ???
-//        val (xv, xa) = checkFormula(x)
-//        xv match {
-//          case g: Dimension.Generic =>
-//            val dp = Value.DimensionPair(g, Value.Dimension.False)
-//            val ctxr1 = newRestrictionLayer(dp)
-//            val (al, aa0) = ctxr1.inferLevel(a)
-//            val aa = Abstract.MetaEnclosed(ctxr1.finishReify(), aa0)
-//            val (bl, ba) = inferLevel(b)
-//            val ctxr2 = newRestrictionLayer(dp)
-//            val ea = ctxr2.check(e, Value.App(Value.App(Value.equiv, ctxr1.eval(aa0)), eval(ba).restrict(dp)))
-//            (Value.Universe(al max bl), Abstract.VType(xa, aa, ba, Abstract.MetaEnclosed(ctxr2.finishReify(), ea)))
-//          case _ =>
-//            throw TypeCheckException.RemoveConstantVType()
-//        }
+      case Concrete.GlueType(ty, faces) =>
+        val (lv, ta) = inferLevel(ty)
+        val tv = eval(ta)
+        val facesA = faces.map(f => {
+          val formula = checkAndEvalFormula(f.dimension)
+          val ba = doForValidFormulaOrThrow(formula._1, asgn => {
+            val ctx = newDimensionLayer(Name.empty)._1 // this is currently a hack!
+            // TODO here we checked by same level as ty.
+            val bd = ctx.check(f.term, Value.App(BuildIn.equiv_of, tv).restrict(asgn))
+            Abstract.AbsClosure(ctx.finishReify(), bd)
+          })
+          Abstract.Face(formula._2, ba)
+        })
+        (Value.Universe(lv), Abstract.GlueType(ta, facesA))
+      case Concrete.Unglue(m) =>
+        val (mt, ma) = infer(m)
+        mt.whnf match {
+          case Value.GlueType(ty, faces) =>
+            (ty, Abstract.Unglue(reify(ty), ma, reifyFaces(faces)))
+          case _ => throw ElaboratorException.UnglueCannotInfer()
+        }
       case Concrete.Let(declarations, in) =>
         val (ctx, ms, da) = newDefinesLayer().checkDeclarations(declarations, false)
         val (it, ia) = ctx.infer(in)
@@ -525,22 +525,47 @@ class Elaborator private(protected override val layers: Layers)
               fallback()
             }
         }
-      case Value.VType(x, a, b, e) =>
-//        term match {
-//          case Concrete.VMake(tm, tn) =>
-//            val dp = Value.DimensionPair(x, Value.Dimension.False)
-//            val ctxr = newRestrictionLayer(dp)
-//            val m0 = ctxr.check(tm, a)
-//            val m = Abstract.MetaEnclosed(ctxr.finishReify(), m0)
-//            val n = check(tn, b)
-//            if (ctxr.unifyTerm(b.restrict(dp), Value.App(Value.Projection(e, 0), ctxr.eval(m0)), eval(n).restrict(dp))) {
-//              Abstract.VMake(rebindDimension(x), m, n)
-//            } else {
-//              throw TypeCheckException.VMakeMismatch()
-//            }
-//          case _ => fallback()
-//        }
-        ???
+      case Value.GlueType(ty, faces) =>
+        term match {
+          case Concrete.Glue(base, fs) =>
+            val ba = check(base, ty)
+            val bv = eval(ba)
+            val phi1 = faces.flatMap(_.restriction.normalForm).toSet
+            val ffs = fs.map(a => { val (f1, f2) = checkAndEvalFormula(a.dimension); (f1, f2, a.term) })
+            val phi2 = ffs.flatMap(_._1.normalForm).toSet
+            if (phi1 == phi2) {
+              val fas = ffs.map(f => {
+                val body = doForValidFormulaOrThrow(f._1, asgn => {
+                  val terms = mutable.Set.empty[Abstract.AbsClosure]
+                  for (tf <- faces) {
+                    tf.restriction.normalForm.filter(Value.Formula.Assignments.satisfiable).foreach(asgn2 => {
+                      val asg = asgn ++ asgn2
+                      if (Value.Formula.Assignments.satisfiable(asg)) {
+                        val ctx = newSyntaxDirectedRestrictionLayer(asg).newDimensionLayer(Name.empty)._1
+                        val bd1 = tf.body(Formula.Generic.HACK).restrict(asg)
+                        val res = ctx.check(f._3, Value.Projection(bd1, 0))
+                        val itemv = eval(res)
+                        if (ctx.unifyTerm(ty.restrict(asg), bv.restrict(asg), Value.App(Value.Projection(bd1, 1), itemv))) {
+                          terms.add(Abstract.AbsClosure(ctx.finishReify(), res))
+                        } else {
+                          throw ElaboratorException.GlueNotMatching()
+                        }
+                      }
+                    })
+                  }
+                  if (terms.size != 1) {
+                    logicError()
+                  }
+                  terms.head
+                })
+                Abstract.Face(f._2, body)
+              })
+              Abstract.Glue(ba, fas)
+            } else {
+              throw ElaboratorException.FacesNotMatching()
+            }
+          case _ => fallback()
+        }
       case Value.PathType(typ, left, right) =>
         term match {
           case Concrete.Lambda(n, b, _, body) =>
@@ -712,6 +737,9 @@ class Elaborator private(protected override val layers: Layers)
               } else if (name == Name(Text("equiv"))) {
                 assert(BuildIn.equiv == null)
                 BuildIn.equiv = ref.value
+              } else if (name == Name(Text("equiv_of"))) {
+                assert(BuildIn.equiv_of == null)
+                BuildIn.equiv_of = ref.value
               }
               info(s"defined $name")
               ctx2

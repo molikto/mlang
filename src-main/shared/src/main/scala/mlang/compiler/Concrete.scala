@@ -82,9 +82,9 @@ object Concrete {
   case class Transp(typ: Concrete, direction: Concrete, base: Concrete) extends Concrete
   case class Hcom(base: Concrete, faces: Seq[Face]) extends Concrete
   case class Com(typ: Concrete, base: Concrete, faces: Seq[Face]) extends Concrete
-  case class VType(x: Concrete, a: Concrete, b: Concrete, e: Concrete) extends Concrete
-  case class VMake(m: Concrete, n: Concrete) extends Concrete
-  case class VProj(m: Concrete) extends Concrete
+  case class GlueType(x: Concrete, faces: Seq[Face]) extends Concrete
+  case class Glue(m: Concrete, faces: Seq[Face]) extends Concrete
+  case class Unglue(m: Concrete) extends Concrete
 
   case object Undefined extends Concrete
   case object Hole extends Concrete

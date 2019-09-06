@@ -66,7 +66,12 @@ trait PlatformEvaluator extends Evaluator {
   }
 
 
-    def emit(term: Abstract, depth: Int): String = {
+  def emitFaces(faces: Seq[Abstract.Face], depth: Int) = {
+    val d = depth + 2
+    s"Seq(${faces.map(a => s"Face(${emit(a.pair, depth)}, AbsClosure(dm$d => ${emitInner(a.body, d)}))").mkString(", ")})"
+  }
+
+  def emit(term: Abstract, depth: Int): String = {
       term match {
         case Abstract.Universe(l) =>
           s"Universe($l)"
@@ -133,27 +138,33 @@ trait PlatformEvaluator extends Evaluator {
           val d = depth + 1
           s"Transp(AbsClosure(dm$d => ${emitInner(tp, d)}), ${emit(dir, depth)}, ${emit(base, depth)})"
         case Abstract.Hcom(tp, base, faces) =>
-          val d = depth + 2
           s"Hcom(" +
               s"${emit(tp, depth)}, " +
               s"${emit(base, depth)}, " +
-              s"Seq(${faces.map(a => s"Face(${emit(a.pair, depth)}, AbsClosure(dm$d => ${emitInner(a.body, d)}))").mkString(", ")})" +
+              emitFaces(faces, depth) +
               s")"
         case Abstract.Com(tp, base, faces) =>
-          val d = depth + 2
           s"Com(" +
               s"AbsClosure(dm${depth + 1} => ${emitInner(tp, depth + 1)}), " +
               s"${emit(base, depth)}, " +
-              s"Seq(${faces.map(a => s"Face(${emit(a.pair, depth)}, AbsClosure(dm$d => ${emitInner(a.body, d)}))").mkString(", ")})" +
+              emitFaces(faces, depth) +
               s")"
-        case Abstract.VType(x, a, b, e) =>
-          val d = depth + 1
-          s"VType(${emit(x, depth)}, ${emitInner(a, d)}, ${emit(b, depth)}, ${emitInner(e, d)})"
-        case Abstract.VMake(x, m, n) =>
-          val d = depth + 1
-          s"VMake(${emit(x, depth)}, ${emitInner(m, d)}, ${emit(n, depth)})"
-        case Abstract.VProj(x, m, f) =>
-          s"VProj(${emit(x, depth)}, ${emit(m, depth)}, ${emit(f, depth)})"
+        case Abstract.GlueType(tp, faces) =>
+          s"GlueType(" +
+              s"${emit(tp, depth)}, " +
+              emitFaces(faces, depth) +
+              s")"
+        case Abstract.Glue(base, faces) =>
+          s"Glue(" +
+              s"${emit(base, depth)}, " +
+              emitFaces(faces, depth) +
+              s")"
+        case Abstract.Unglue(tp, base, faces) =>
+          s"Unglue(" +
+              s"${emit(tp, depth)}, " +
+              s"${emit(base, depth)}, " +
+              emitFaces(faces, depth) +
+              s")"
       }
     }
 

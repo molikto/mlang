@@ -33,7 +33,7 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
     override def whitespaceChar: Parser[Char] = elem("", _ == '│') | super.whitespaceChar
   }
 
-  lexical.reserved ++= List("define", "declare", "const_projections", "case", "__debug", "as", "transp", "hcom", "com", "hfill", "field", "ignored", "match", "record", "type", "sum", "inductively", "run", "with_constructors", "I", "_", "make", "V_type", "V_make", "V_proj")
+  lexical.reserved ++= List("define", "declare", "const_projections", "case", "__debug", "as", "transp", "hcom", "com", "hfill", "field", "ignored", "match", "record", "type", "sum", "inductively", "run", "with_constructors", "I", "_", "make", "glue_type", "glue", "unglue")
   lexical.delimiters ++= List("{", "}", "[", "]", ":", ",", "(", ")", "#", "≡", "─", "???", "┬", "┌", "⊏", "└", "├", "⇒", "→", "+", "-", ";", "=", "@", "\\", ".", "|", "^", "∨", "∧", "~")
 
   def delimited[T](a: String, t: Parser[T], b: String): Parser[T] = a ~> t <~ b
@@ -86,7 +86,7 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
         meta |
         sum |
         up |
-        transp | com | hcom | hfill | vtype | vmake | vproj |
+        transp | com | hcom | hfill | glueType | glue | unglue |
         universe | make |
         delimited("(", term, ")") |
         absDimension | reference
@@ -114,11 +114,21 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
     Transp(a._1._1, a._1._2, a._2)
   }}
 
-  lazy val vtype: PackratParser[Concrete]=(keyword("V_type") ~> delimited("(", term ~ delimited(",", term, ",") ~ term ~ ("," ~> term), ")")) ^^ { a => Concrete.VType(a._1._1._1, a._1._1._2, a._1._2, a._2)}
+  lazy val glueType: PackratParser[Concrete]=  keyword("glue_type") ~> ("(" ~> term) ~ (rep(face) <~ ")") ^^ { a =>
+    GlueType(a._1, a._2)
+  }
 
-  lazy val vmake: PackratParser[Concrete]=  keyword("V_make") ~>  delimited("(", (term <~ ",") ~ term, ")") ^^ { a => Concrete.VMake(a._1, a._2) }
+  lazy val glue: PackratParser[Concrete]=  keyword("glue") ~> ("(" ~> term) ~ (rep(face) <~ ")") ^^ { a =>
+    Glue(a._1, a._2)
+  }
 
-  lazy val vproj: PackratParser[Concrete]= keyword("V_proj") ~>  delimited("(", term, ")") ^^ { a => Concrete.VProj(a) }
+   lazy val unglue: PackratParser[Concrete]= keyword("unglue") ~> ("(" ~> term) <~ (")") ^^ { a =>
+      Unglue(a)
+    }
+
+//  lazy val unglue: PackratParser[Concrete]= keyword("unglue") ~> ("(" ~> term) ~ (rep(face) <~ ")") ^^ { a =>
+//    Unglue(a._1, a._2)
+//  }
 
   lazy val face: PackratParser[Concrete.Face] = (("|" ~> term <~ ":") ~ term) ^^ { a => Face(a._1, a._2) }
 
