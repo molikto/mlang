@@ -149,7 +149,7 @@ references in a abstract term points to context or other part of the term, very 
 
 this is **very straight forward** to understand compared to "value" class
 
-### hoas core term `Value`
+### hoas value `Value`
 
 our value higher order abstract syntax, it use closure of the host language as closure, and mutable cell of host language as reference
 
