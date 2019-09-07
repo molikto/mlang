@@ -134,6 +134,7 @@ object Value {
     def apply(a: Value): AbsClosure = AbsClosure(_ => a)
   }
 
+  // LATER make sure AnyVal classes is eliminated in bytecode
   implicit class AbsClosure(private val func: Formula => Value) extends AnyVal {
     private[Value] def supportShallow(): SupportShallow = func(Formula.Generic.HACK).supportShallow()
     def eq(b: AbsClosure): Boolean = func.eq(b.func)
@@ -860,7 +861,14 @@ object Value {
                 }
                 Some(Make(closures.toSeq.map(_.apply(Formula.True))))
               }
-            case u: Universe => ??? //  Glue(tp, faces.map(f => Face(f.restriction, f.body)))
+            case u: Universe =>
+              val res = Glue(tp, faces.map(f =>
+                Face(f.restriction, AbsClosure(_ => {
+                  val A = f.body(Formula.False)
+                  val B = f.body(Formula.True)
+                  Make(Seq(B, Apps(BuiltIn.path_to_equiv, Seq(B, A, PathLambda(AbsClosure(a => f.body(Formula.Neg(a))))))))
+                }))))
+              Some(res)
             case Sum(i, cs) => ???
             case _: Internal => logicError()
             case _ => None
@@ -1258,4 +1266,5 @@ object BuiltIn {
   var fiber_at: Value = null
   var fiber_at_ty: Value = null
   var equiv_of: Value = null
+  var path_to_equiv: Value = null
 }

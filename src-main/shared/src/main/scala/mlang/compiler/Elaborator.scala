@@ -742,6 +742,9 @@ class Elaborator private(protected override val layers: Layers)
               } else if (name == Name(Text("equiv_of"))) {
                 assert(BuiltIn.equiv_of == null)
                 BuiltIn.equiv_of = ref.value
+              } else if (name == Name(Text("path_to_equiv"))) {
+                assert(BuiltIn.path_to_equiv == null)
+                BuiltIn.path_to_equiv = ref.value
               }
               info(s"defined $name")
               ctx2
