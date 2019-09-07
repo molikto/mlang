@@ -818,7 +818,7 @@ object Value {
   }
 
   /**
-    * whnf: tp is not canonical
+    * whnf: tp is whnf and not canonical
     */
   case class Hcom(@type_annotation @stuck_pos tp: Value, base: Value, faces: Seq[Face]) extends Redux {
     override def reduce(): Option[Value] = {
@@ -856,7 +856,7 @@ object Value {
                 }
                 Some(Make(closures.toSeq.map(_.apply(Formula.True))))
               }
-            case u: Universe => ???
+            case u: Universe => Glue(tp, faces.map(f => Face(f.restriction, f.body)))
             case Sum(i, cs) => ???
             case _: Internal => logicError()
             case _ => None
@@ -875,9 +875,10 @@ object Value {
   case class Glue(m: Value, @stuck_pos faces: Seq[Face]) extends CubicalUnstableCanonical
   /**
     * whnf: faces is not constant, base is whnf, and m's whnf is not glue
+    * LATER this is how the whnf is defined, so glue is considered canonical
     */
   case class Unglue(ty: Value, base: Value, @stuck_pos faces: Seq[Face]) extends Redux {
-    override def reduce(): Option[Value] = ???
+    override def reduce(): Option[Value] = logicError() // in whnf
   }
 }
 
@@ -1000,7 +1001,7 @@ sealed trait Value {
             case a => a
           }
         case hcom@Hcom(tp, base, faces) =>
-          hcom.reduceThenWhnfOrSelf() match {
+          Hcom(tp.whnf, base, faces).reduceThenWhnfOrSelf() match {
             case Hcom(t2, b2, f2) if tp.eq(t2) && base.eq(b2) && eqFaces(faces, f2) => this
             case a => a
           }
@@ -1248,7 +1249,7 @@ sealed trait Value {
   }
 }
 
-object BuildIn {
+object BuiltIn {
   var equiv: Value = null
   var fiber_at: Value = null
   var fiber_at_ty: Value = null

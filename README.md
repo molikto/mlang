@@ -206,7 +206,21 @@ we don't allow parameterized ones yet. but this is a easy fix
 
 our pattern matching is NOT compiled to a case tree, but are [overlapping and order independent](https://link.springer.com/chapter/10.1007/978-3-642-54833-8_6), but these has some problems: pattern matching can stuck on constructors, this causes some problems... so be careful
 
+### evaluation
+
+there are two tools on values: whnf and conversion checking. 
+
+#### whnf
+
+it is very unclear how to represent whnf/value with a type, also we do whnf caching, so it is necessary to have a condition says when something changed, the whnf need to be reevaluated, this might not be a good design
+
+
+
 ### conversion checking
+
+conversion checking's only nontrivial part is eta-handling, it is not clear if type-directed way is the best with the addition of cubical and overlapping pattern matching. `cubicaltt` uses non-type-directed, Agda and redtt use complex unification algorithms (which I am not familiar)
+
+*bellow is older note*
 
 the conversion checking is type directed conversion checking, but as we use hoas, open variables have a nominal equality, and we don't do index shuffling
 

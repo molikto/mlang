@@ -318,7 +318,7 @@ class Elaborator private(protected override val layers: Layers)
           val ba = doForValidFormulaOrThrow(formula._1, asgn => {
             val ctx = newDimensionLayer(Name.empty)._1 // this is currently a hack!
             // TODO here we checked by same level as ty.
-            val bd = ctx.check(f.term, Value.App(BuildIn.equiv_of, tv).restrict(asgn))
+            val bd = ctx.check(f.term, Value.App(BuiltIn.equiv_of, tv).restrict(asgn))
             Abstract.AbsClosure(ctx.finishReify(), bd)
           })
           Abstract.Face(formula._2, ba)
@@ -731,15 +731,15 @@ class Elaborator private(protected override val layers: Layers)
               // these definition should not have re-eval behaviour.
               // TODO add a primitive modifier so that no error happens with this
               if (name == Name(Text("fiber_at"))) {
-                assert(BuildIn.fiber_at == null)
-                BuildIn.fiber_at = ref.value
-                BuildIn.fiber_at_ty = tv
+                assert(BuiltIn.fiber_at == null)
+                BuiltIn.fiber_at = ref.value
+                BuiltIn.fiber_at_ty = tv
               } else if (name == Name(Text("equiv"))) {
-                assert(BuildIn.equiv == null)
-                BuildIn.equiv = ref.value
+                assert(BuiltIn.equiv == null)
+                BuiltIn.equiv = ref.value
               } else if (name == Name(Text("equiv_of"))) {
-                assert(BuildIn.equiv_of == null)
-                BuildIn.equiv_of = ref.value
+                assert(BuiltIn.equiv_of == null)
+                BuiltIn.equiv_of = ref.value
               }
               info(s"defined $name")
               ctx2

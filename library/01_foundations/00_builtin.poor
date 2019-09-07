@@ -1,0 +1,47 @@
+
+
+define is_contractible(A: type): type = record {
+  field center: A
+  field to_center: (a: A) ⇒ a ≡ center
+}
+
+define fiber_at(#A #B: type, f: A ⇒ B, b: B): type = record {
+  field from: A
+  field is: f(from) ≡ b
+}
+
+define equiv(A B: type): type = record {
+  field f: A ⇒ B
+  field component: (b: B) ⇒ is_contractible(fiber_at(f, b))
+}
+
+define equiv_of(A: type): type = record {
+  field B: type
+  field eq: equiv(A, B)
+}
+
+/*
+
+define path_to_equiv(#A #B: type, E: A ≡ B): equiv(A, B) = run {
+  define Ei: B ≡ A = i → E(~i)
+  define f(x: A): B = transp(E, 0, x)
+  define g(y: B): A = transp(i → E(~i), 0, y)
+  define u(x: A, i: I): E(i) = transp(j → E(i∧j), ~i, x)
+  define v(y: B, i: I): E(i) = transp(j → Ei((~i)∧j), i, y)
+  define fiber_path(b: B, xbeta0 xbeta1: fiber_at(f, y)): xbeta0 ≡ xbeta1 = run {
+    define sys(
+    define w0
+  }
+}
+
+
+*/
+
+
+
+
+
+
+
+
+
