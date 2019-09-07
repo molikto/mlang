@@ -17,6 +17,7 @@ object Value {
 
   sealed trait Formula extends {
 
+
     import Formula.{And, Assignments, False, Neg, NormalForm, Or, True}
     def names: Set[Long] = {
       this match {
@@ -62,6 +63,16 @@ object Value {
           }
         case _: Formula.Internal => logicError()
       }
+    }
+
+    def fswap(w: Long, z: Formula): Formula = this match {
+      case g:Formula.Generic => if (g.id == w) z else g
+      case Formula.True => Formula.True
+      case Formula.False => Formula.False
+      case And(left, right) => And(left.fswap(w, z), right.fswap(w, z))
+      case Or(left, right) => Or(left.fswap(w, z), right.fswap(w, z))
+      case Neg(unit) => Neg(unit.fswap(w, z))
+      case _: Formula.Internal => logicError()
     }
 
     def restrict(lv: Value.Formula.Assignments): Formula = if (lv.isEmpty) this else {
@@ -117,6 +128,7 @@ object Value {
     def apply() = func(Seq.empty)
     def apply(seq: Seq[Value]): Value = func(seq)
     def restrict(dav: Formula.Assignments): MultiClosure = MultiClosure(v => this(v.map(a => Derestricted(a, dav))).restrict(dav))
+    def fswap(w: Long, z: Formula): MultiClosure = MultiClosure(d => func(d).fswap(w, z))
   }
 
   implicit class Closure(private val func: Value => Value) extends AnyVal {
@@ -124,6 +136,7 @@ object Value {
     def eq(b: Closure): Boolean = func.eq(b.func)
     def apply(seq: Value): Value = func(seq)
     def restrict(dav: Formula.Assignments): Closure = Closure(d => func(Derestricted(d, dav)).restrict(dav))
+    def fswap(w: Long, z: Formula): Closure = Closure(d => func(d).fswap(w, z))
   }
 
   object Closure {
@@ -142,6 +155,7 @@ object Value {
     def mapd(a: (Value, Formula) => Value): AbsClosure = AbsClosure(d => a(this(d), d))
     def map(a: Value => Value): AbsClosure = AbsClosure(d => a(this(d)))
     def restrict(dav: Formula.Assignments): AbsClosure = AbsClosure(d => func(Formula.Derestricted(d, dav)).restrict(dav))
+    def fswap(w: Long, z: Formula): AbsClosure = AbsClosure(d => func(d).fswap(w, z))
   }
 
   type ClosureGraph = Seq[ClosureGraph.Node]
@@ -161,12 +175,23 @@ object Value {
       SupportShallow.flatten(res)
     }
 
+    def fswap(graph: ClosureGraph, w: Long, z: Formula): ClosureGraph = {
+      graph.map {
+        case IndependentWithMeta(ds, ms, typ) =>
+          IndependentWithMeta(ds, ms, typ.fswap(w, z))
+        case DependentWithMeta(ds, mc, c) =>
+          DependentWithMeta(ds, mc, (a, b) => {
+            val t = c(a, b); (t._1.map(_.fswap(w, z).asInstanceOf[Value.Meta]), t._2.fswap(w, z)) })
+        case _ => logicError()
+      }
+    }
     def restrict(graph: ClosureGraph, lv: Formula.Assignments): ClosureGraph =  {
       graph.map {
         case IndependentWithMeta(ds, ms, typ) =>
           IndependentWithMeta(ds, ms, typ.restrict(lv))
         case DependentWithMeta(ds, mc, c) =>
-        DependentWithMeta(ds, mc, (a, b) => { val t = c(a, b.map(k => Derestricted(k, lv))); (t._1, t._2.restrict(lv)) })
+        DependentWithMeta(ds, mc, (a, b) => {
+          val t = c(a, b.map(k => Derestricted(k, lv))); (t._1.map(_.restrict(lv).asInstanceOf[Value.Meta]), t._2.restrict(lv)) })
         case _ => logicError()
       }
     }
@@ -299,7 +324,8 @@ object Value {
   sealed trait Referential extends Value {
     _from = this
     type Self <: Referential
-    private[Value] def getRestricted(asgs: Formula.Assignments): Self
+    private[Value] def getRestrict(asgs: Formula.Assignments): Self
+    private[Value] def getFswap(w: Long, z: Formula): Self
     def lookupChildren(v: Referential): Option[Formula.Assignments]
     def referenced: Value
 
@@ -352,6 +378,7 @@ object Value {
     private var restrictedCache: mutable.Map[Formula.Assignments, LocalReferential] = null
     // only not null for children
     private var childRestricted: (LocalReferential, Formula.Assignments) = null
+    private var fswapCache: mutable.Map[(Long, Formula), LocalReferential] = null
     protected def clearSavedAfterValueChange(): Unit = {
       if (childRestricted != null) logicError() // you don't want to do this
       supportCache = null
@@ -360,9 +387,34 @@ object Value {
 
     protected def createNewEmpty(): Self
     protected def restrictAndInitContent(s: Self, assignments: Assignments): Unit
-    private[Value] def getRestricted(assigments: Formula.Assignments): Self = {
+    protected def fswapAndInitContent(s: Self, w: Long, z: Formula): Unit
+
+    private[Value] def getFswap(w: Long, z: Formula): Self = {
+      val spt = support()
+      if (spt.openMetas.nonEmpty) {
+        throw ImplementationLimitationCannotRestrictOpenMeta()
+      }
+      if (!spt.names.contains(w)) {
+        this.asInstanceOf[Self]
+      } else {
+        if (fswapCache == null) fswapCache = mutable.Map()
+        debug(s"getting fswap value by $w, $z", 2)
+        val key = (w, z)
+        fswapCache.get(key) match {
+          case Some(r) => r.asInstanceOf[Self]
+          case None =>
+            val n = createNewEmpty()
+            n.supportCache = Support(spt.names -- Set(w) ++ z.names, spt.openMetas)
+            fswapCache.put(key, n)
+            fswapAndInitContent(n, w, z)
+            n
+        }
+      }
+    }
+
+    private[Value] def getRestrict(assigments: Formula.Assignments): Self = {
       if (childRestricted != null) { // direct to parent
-        childRestricted._1.asInstanceOf[Referential].getRestricted(childRestricted._2 ++ assigments).asInstanceOf[Self]
+        childRestricted._1.asInstanceOf[Referential].getRestrict(childRestricted._2 ++ assigments).asInstanceOf[Self]
       } else {
         val spt = support() // this will re-calculate the support if metas changed
         if (spt.openMetas.nonEmpty) {
@@ -379,6 +431,7 @@ object Value {
             case None =>
               val n = createNewEmpty()
               n.childRestricted = (this, asgg)
+              n.supportCache = Support(spt.names -- asgg.map(_._1), spt.openMetas)
               restrictedCache.put(asgg, n)
               restrictAndInitContent(n, asgg)
               n
@@ -417,7 +470,11 @@ object Value {
     override protected def createNewEmpty(): Meta = Meta(null)
     override protected def restrictAndInitContent(s: Meta, assignments: Assignments): Unit = state match {
       case MetaState.Closed(v) => s._state = MetaState.Closed(v.restrict(assignments))
-      case MetaState.Open(id, typ) => logicError()
+      case _: MetaState.Open => logicError()
+    }
+    override protected def fswapAndInitContent(s: Meta, w: Long, z: Formula): Unit = state match {
+      case MetaState.Closed(v) => s._state = MetaState.Closed(v.fswap(w, z))
+      case _: MetaState.Open => logicError()
     }
 
     override def referenced: Value = state match {
@@ -429,7 +486,8 @@ object Value {
 
   case class GlobalReference(@lateinit var value: Value) extends Reference {
     override type Self = GlobalReference
-    override private[Value] def getRestricted(asgs: Assignments): GlobalReference = this
+    override private[Value] def getRestrict(asgs: Assignments): GlobalReference = this
+    private[Value] def getFswap(w: Long, z: Formula): Self = this
     def lookupChildren(v: Referential): Option[Formula.Assignments] = if (this.eq(v)) Some(Set.empty) else None
     override protected def supportShallow(): SupportShallow = SupportShallow.empty
     override def support(): Support = Support.empty
@@ -447,6 +505,9 @@ object Value {
     override protected def createNewEmpty(): LocalReference = LocalReference(null)
     override protected def restrictAndInitContent(s: LocalReference, assignments: Assignments) =
       s._value = value.restrict(assignments)
+
+    override protected def fswapAndInitContent(s: LocalReference, w: Long, z: Formula) =
+      s._value = value.fswap(w, z)
   }
 
   object Generic {
@@ -465,6 +526,9 @@ object Value {
     override protected def createNewEmpty(): Generic = Generic(id, null)
     override protected def restrictAndInitContent(s: Generic, assignments: Assignments) =
       s._typ = typ.restrict(assignments)
+
+    override protected def fswapAndInitContent(s: Generic, w: Long, z: Formula) =
+      logicError() // currently we only use fresh variable, and fresh variable should not generate new generic supported
 
     override def referenced: Value = _typ
 }
@@ -605,7 +669,9 @@ object Value {
 
 
   case class Inductively(id: Long, level: Int) {
+
     def restrict(lv: Formula.Assignments): Inductively = this
+    def fswap(w: Long, z: Formula): Inductively = this
     private[Value] def supportShallow(): SupportShallow =  SupportShallow.empty
   }
 
@@ -697,10 +763,21 @@ object Value {
     private[Value] def supportShallow(faces: Seq[Face]): SupportShallow = {
       SupportShallow.flatten(faces.map(f => f.body.supportShallow() +- f.restriction.names))
     }
+    def fswap(faces: Seq[Face], w: Long, z: Formula): Seq[Face] = {
+      faces.flatMap(n => {
+        val r = n.restriction.fswap(w, z)
+        // TODO can you simply remove unsatifiable faces?
+        if (r.normalForm == Formula.NormalForm.False) {
+          None
+        } else {
+          Some(Face(r, n.body.fswap(w, z)))
+        }
+      })
+    }
     def restrict(faces: Seq[Face], lv: Formula.Assignments) = {
       faces.flatMap(n => {
         val r = n.restriction.restrict(lv)
-        // FIXME can you simply remove unsatifiable faces?
+        // TODO can you simply remove unsatifiable faces?
         if (r.normalForm == Formula.NormalForm.False) {
           None
         } else {
@@ -749,11 +826,13 @@ object Value {
     */
   case class Transp(@stuck_pos tp: AbsClosure, phi: Formula, base: Value) extends Redux {
 
+
     override def reduce(): Option[Value] = {
       if (phi.normalFormTrue) {
         Some(base)
       } else {
-        tp.apply(Value.Formula.Generic(dgen())).whnf match {
+        val dim = dgen()
+        tp.apply(Value.Formula.Generic(dim)).whnf match {
           case _: Function =>
             def tpr(i: Value.Formula) = tp(i).whnf.asInstanceOf[Function]
             Some(Lambda(Closure(v => {
@@ -804,6 +883,8 @@ object Value {
             }
           case _: Sum =>
             ???
+          case g: GlueType =>
+            Some(transpGlue(g, dim, phi, base))
           case _: Universe =>
             Some(base)
           case _: Internal => logicError()
@@ -812,6 +893,20 @@ object Value {
       }
     }
   }
+
+  def transpGlue(B: GlueType, i: Long, si: Formula, u0: Value): Value = {
+//    def A(to: Boolean) = B.ty.restrict(Set((i, to)))
+//    val phi = Formula.phi(B.faces.map(_.restriction)).
+//    val A0 = A(false)
+//    val A1 = A(true)
+//    val a0 = Unglue(A0, u0, ???)
+    ???
+  }
+
+  def hcompGlue(g: Glue, base: Value, faces: Seq[Face]): Value = {
+    ???
+  }
+
 
   // TODO when we have a syntax for partial values, these should be removed
   case class Comp(@stuck_pos tp: AbsClosure, base: Value, faces: Seq[Face]) extends Redux {
@@ -826,6 +921,8 @@ object Value {
     * whnf: tp is whnf and not canonical
     */
   case class Hcomp(@type_annotation @stuck_pos tp: Value, base: Value, faces: Seq[Face]) extends Redux {
+
+
     override def reduce(): Option[Value] = {
       faces.find(_.restriction.normalFormTrue) match {
         case Some(t) => Some(t.body(Formula.True))
@@ -870,6 +967,8 @@ object Value {
                 }))))
               Some(res)
             case Sum(i, cs) => ???
+            case g: Glue =>
+              Some(hcompGlue(g, base, faces))
             case _: Internal => logicError()
             case _ => None
           }
@@ -1032,21 +1131,6 @@ sealed trait Value {
               case _ => if (bf.eq(base)) this else Unglue(ty, bf, faces)
             }
           }
-//          x match {
-//            case g: Formula.Generic =>
-//              val mw = m.whnf
-//              @inline def fallback() = if (mw.eq(m)) this else VProj(x, mw, f)
-//              mw match {
-//                case VMake(x2, _, n) =>
-//                  assert(x == x2)
-//                  n.whnf
-//                case _ => fallback()
-//              }
-//            case Formula.False => app(f, m).whnf
-//            case Formula.True => m.whnf
-//            case _: Formula.Internal => logicError()
-//          }
-          ???
         case _: Internal =>
           logicError()
       }
@@ -1138,6 +1222,41 @@ sealed trait Value {
     case internal: Internal => logicError()
   }
 
+  /**
+    * fresh swap, the id being swapped cannot be used after. this helps because no need for Deswap...
+    */
+  def fswap(w: Long, z: Formula): Value = this match {
+    case u: Universe => u
+    case Function(domain, im, codomain) => Function(domain.fswap(w, z), im, codomain.fswap(w, z))
+    case Record(inductively, ms, ns, nodes) =>
+      Record(inductively.map(_.fswap(w, z)), ms, ns, ClosureGraph.fswap(nodes, w, z))
+    case Make(values) => Make(values.map(_.fswap(w, z)))
+    case Construct(name, vs) => Construct(name, vs.map(_.fswap(w, z)))
+    case Sum(inductively, constructors) =>
+      Sum(inductively.map(_.fswap(w, z)), constructors.map(n => Constructor(n.name, n.ims, ClosureGraph.fswap(n.nodes, w, z))))
+    case Lambda(closure) => Lambda(closure.fswap(w, z))
+    case PatternLambda(id, dom, typ, cases) =>
+      PatternLambda(id, dom.fswap(w, z), typ.fswap(w, z), cases.map(a => Case(a.pattern, a.closure.fswap(w, z))))
+    case PathType(typ, left, right) =>
+      PathType(typ.fswap(w, z), left.fswap(w, z), right.fswap(w, z))
+    case PathLambda(body) => PathLambda(body.fswap(w, z))
+    case App(lambda, argument) => App(lambda.fswap(w, z), argument.fswap(w, z))
+    case Transp(tp, direction, base) => Transp(tp.fswap(w, z), direction.fswap(w, z), base.fswap(w, z))
+    case Hcomp(tp, base, faces) => Hcomp(tp.fswap(w, z), base.fswap(w, z), Face.fswap(faces, w, z))
+    case Comp(tp, base, faces) => Comp(tp.fswap(w, z), base.fswap(w, z), Face.fswap(faces, w, z))
+    case Maker(value, field) => Maker(value.fswap(w, z), field)
+    case Projection(make, field) => Projection(make.fswap(w, z), field)
+    case PatternRedux(lambda, stuck) =>
+      PatternRedux(lambda.fswap(w, z).asInstanceOf[PatternLambda], stuck.fswap(w, z))
+    case PathApp(left, stuck) => PathApp(left.fswap(w, z), stuck.fswap(w, z))
+    case GlueType(base, faces) => GlueType(base.fswap(w, z), Face.fswap(faces, w, z))
+    case Glue(base, faces) => Glue(base.fswap(w, z), Face.fswap(faces, w, z))
+    case Unglue(tp, base, faces) => Unglue(tp.fswap(w, z), base.fswap(w, z), Face.fswap(faces, w, z))
+    case g: Referential => g.getFswap(w, z)
+    case _: Internal => logicError()
+  }
+
+
   def restrict(lv: Value.Formula.Assignments): Value = if (lv.isEmpty) this else this match {
     case u: Universe => u
     case Function(domain, im, codomain) =>
@@ -1187,10 +1306,11 @@ sealed trait Value {
         logicError()
       }
     case g: Referential =>
-      g.getRestricted(lv)
+      g.getRestrict(lv)
   }
 
 
+  // TODO as said bellow, infer on value can be probmatic, so maybe we should disable this functionality
   def inferLevel: Int = infer match {
     case Universe(l) => l
     case _ => logicError()
