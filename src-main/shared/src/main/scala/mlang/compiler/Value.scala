@@ -14,6 +14,7 @@ private[compiler] class type_annotation extends Annotation // see Readme about a
 case class ImplementationLimitationCannotRestrictOpenMeta() extends Exception
 
 object Value {
+
   sealed trait Formula extends {
     import Formula.{And, Assignments, False, Neg, NormalForm, Or, True}
     def names: Set[Long] = {
@@ -32,7 +33,7 @@ object Value {
 
     def normalForm: NormalForm  = {
       def merge(a: NormalForm, b: NormalForm): NormalForm = {
-        def properSupersetOfAny(c: Assignments, g: NormalForm) = b.exists(g => g.subsetOf(c) && g != c)
+        def properSupersetOfAny(c: Assignments, g: NormalForm) = g.exists(g => g.subsetOf(c) && g != c)
         a.filter(c => !properSupersetOfAny(c, b)) ++ b.filter(c => !properSupersetOfAny(c, a))
       }
       this match {
@@ -42,7 +43,7 @@ object Value {
         case And(left, right) =>
           val ln = left.normalForm.toSeq
           val rn = right.normalForm.toSeq
-          ln.flatMap(i => rn.map(r => Set(i ++ r) : NormalForm)).foldLeft(NormalForm.False) { (a, b) => merge(a, b)}
+          ln.flatMap(i => rn.map(r => Set(i ++ r) : NormalForm)).foldLeft(NormalForm.False) { (a, b) => merge(a, b) }
         case Or(left, right) => merge(left.normalForm, right.normalForm)
         case Neg(unit) =>
           def negate(f: Formula): Formula = f match {
@@ -279,7 +280,7 @@ object Value {
   // these serve the purpose of recovering syntax
   sealed trait Internal extends Value
   sealed trait Canonical extends Value
-  sealed trait CubicalUnstableCanonical extends Canonical // this value can reduce more, but only when restricted
+  sealed trait CubicalUnstableCanonical extends Value // this value can reduce more, but only when restricted
   sealed trait Redux extends Value {
     // TODO this is not that well defined, since some term will always whnf on arguments, some not
     def reduce(): Option[Value]
@@ -470,6 +471,7 @@ object Value {
     def unapply(value: Value): Option[Value] = {
       value match {
         case _: Canonical => None
+        case _: CubicalUnstableCanonical => None
         case _: Generic => None
         case o: Meta => Some(o)
         case App(lambda, _) => unapply(lambda)
@@ -486,9 +488,9 @@ object Value {
             case m: Meta => m
             case _ => t
           }
-        case Hcom(tp, _, _) => unapply(tp)
+        case Hcomp(tp, _, _) => unapply(tp)
         case u@Unglue(_, m, _) => Some(u)
-        case _: Com => logicError()
+        case _: Comp => logicError()
         case _: Reference => logicError()
         case _: Maker => logicError()
         case _: Internal => logicError()
@@ -712,7 +714,7 @@ object Value {
   // from base => hcomp
   def hfill(tp: Value, base: Value, faces: Seq[Face]) = {
     AbsClosure(i =>
-      Hcom(tp, base, faces.map(f => Face(f.restriction, AbsClosure(j => f.body(Formula.And(i, j))))) :+
+      Hcomp(tp, base, faces.map(f => Face(f.restriction, AbsClosure(j => f.body(Formula.And(i, j))))) :+
           Face(Formula.Neg(i), AbsClosure(_ => base)))
     )
   }
@@ -720,7 +722,7 @@ object Value {
   // from base => com
   def fill(tp: AbsClosure, base: Value, faces: Seq[Face]) = {
     AbsClosure(i =>
-      Com(AbsClosure(j => tp(Formula.And(i, j))),
+      Comp(AbsClosure(j => tp(Formula.And(i, j))),
         base,
         faces.map(f => Face(f.restriction, AbsClosure(j => f.body(Formula.And(i, j))))) :+
           Face(Formula.Neg(i), AbsClosure(_ => base)))
@@ -759,7 +761,7 @@ object Value {
           case _: PathType =>
             def tpr(i: Value.Formula) = tp(i).whnf.asInstanceOf[PathType]
             Some(PathLambda(AbsClosure(dim => {
-              Com(
+              Comp(
                 AbsClosure(i => tpr(i).typ(dim)),
                 PathApp(base, dim),
                 Seq(
@@ -809,9 +811,9 @@ object Value {
   }
 
   // TODO when we have a syntax for partial values, these should be removed
-  case class Com(@stuck_pos tp: AbsClosure, base: Value, faces: Seq[Face]) extends Redux {
+  case class Comp(@stuck_pos tp: AbsClosure, base: Value, faces: Seq[Face]) extends Redux {
     override def reduce(): Option[Value] =
-      Some(Hcom(
+      Some(Hcomp(
         tp(Formula.True),
         forward(tp, Formula.False, base),
         faces.map(f => Face(f.restriction, AbsClosure(i => forward(tp, i, f.body(i)))))))
@@ -820,7 +822,7 @@ object Value {
   /**
     * whnf: tp is whnf and not canonical
     */
-  case class Hcom(@type_annotation @stuck_pos tp: Value, base: Value, faces: Seq[Face]) extends Redux {
+  case class Hcomp(@type_annotation @stuck_pos tp: Value, base: Value, faces: Seq[Face]) extends Redux {
     override def reduce(): Option[Value] = {
       faces.find(_.restriction.normalFormTrue) match {
         case Some(t) => Some(t.body(Formula.True))
@@ -828,12 +830,12 @@ object Value {
           val tp0 = tp.whnf
            tp0 match {
             case PathType(a, u, w) =>
-               Some(PathLambda(AbsClosure(j => Hcom(a(j), PathApp(base, j), Seq(
+               Some(PathLambda(AbsClosure(j => Hcomp(a(j), PathApp(base, j), Seq(
                  Face(Formula.Neg(j), AbsClosure(_ => u)),
                  Face(j, AbsClosure(_ => w))
                )))))
             case Function(_, _, b) =>
-               Some(Lambda(Closure(v => Hcom(b(v), App(base, v), faces.map(f => Face(f.restriction, f.body.map(j => App(j, v))))))))
+               Some(Lambda(Closure(v => Hcomp(b(v), App(base, v), faces.map(f => Face(f.restriction, f.body.map(j => App(j, v))))))))
             case Record(i, ns, ms, cs) =>
               if (cs.isEmpty) {
                 Some(base)
@@ -856,7 +858,7 @@ object Value {
                 }
                 Some(Make(closures.toSeq.map(_.apply(Formula.True))))
               }
-            case u: Universe => Glue(tp, faces.map(f => Face(f.restriction, f.body)))
+            case u: Universe => ??? //  Glue(tp, faces.map(f => Face(f.restriction, f.body)))
             case Sum(i, cs) => ???
             case _: Internal => logicError()
             case _ => None
@@ -995,14 +997,14 @@ sealed trait Value {
             case Transp(d2, t2, b2) if d2 == direction && t2.eq(tp) && base.eq(b2) => this
             case a => a
           }
-        case com@Com(tp, base, faces) =>
+        case com@Comp(tp, base, faces) =>
           com.reduceThenWhnfOrSelf() match {
-            case Com(t2, b2, f2) if tp.eq(t2) && base.eq(b2) && eqFaces(faces, f2) => this
+            case Comp(t2, b2, f2) if tp.eq(t2) && base.eq(b2) && eqFaces(faces, f2) => this
             case a => a
           }
-        case hcom@Hcom(tp, base, faces) =>
-          Hcom(tp.whnf, base, faces).reduceThenWhnfOrSelf() match {
-            case Hcom(t2, b2, f2) if tp.eq(t2) && base.eq(b2) && eqFaces(faces, f2) => this
+        case hcom@Hcomp(tp, base, faces) =>
+          Hcomp(tp.whnf, base, faces).reduceThenWhnfOrSelf() match {
+            case Hcomp(t2, b2, f2) if tp.eq(t2) && base.eq(b2) && eqFaces(faces, f2) => this
             case a => a
           }
         case GlueType(tm, faces) =>
@@ -1116,8 +1118,8 @@ sealed trait Value {
     case Projection(make, field) => make.supportShallow()
     case PathApp(left, dimension) => left.supportShallow() +- dimension.names
     case Transp(tp, direction, base) => tp.supportShallow() ++ base.supportShallow() +- direction.names
-    case Com(tp, base, faces) => tp.supportShallow() ++ base.supportShallow() ++ Face.supportShallow(faces)
-    case Hcom(tp, base, faces) => tp.supportShallow() ++ base.supportShallow() ++ Face.supportShallow(faces)
+    case Comp(tp, base, faces) => tp.supportShallow() ++ base.supportShallow() ++ Face.supportShallow(faces)
+    case Hcomp(tp, base, faces) => tp.supportShallow() ++ base.supportShallow() ++ Face.supportShallow(faces)
     case Maker(value, field) => value.supportShallow()
     case GlueType(tp, faces) => tp.supportShallow()++ Face.supportShallow(faces)
     case Glue(base, faces) => base.supportShallow() ++ Face.supportShallow(faces)
@@ -1150,10 +1152,10 @@ sealed trait Value {
       App(lambda.restrict(lv), argument.restrict(lv))
     case Transp(tp, direction, base) =>
       Transp(tp.restrict(lv), direction.restrict(lv), base.restrict(lv))
-    case Hcom(tp, base, faces) =>
-      Hcom(tp.restrict(lv), base.restrict(lv), Face.restrict(faces, lv))
-    case Com(tp, base, faces) =>
-      Com(tp.restrict(lv), base.restrict(lv), Face.restrict(faces, lv))
+    case Hcomp(tp, base, faces) =>
+      Hcomp(tp.restrict(lv), base.restrict(lv), Face.restrict(faces, lv))
+    case Comp(tp, base, faces) =>
+      Comp(tp.restrict(lv), base.restrict(lv), Face.restrict(faces, lv))
     case Maker(value, field) =>
       Maker(value.restrict(lv), field)
     case Projection(make, field) =>
@@ -1224,9 +1226,9 @@ sealed trait Value {
           case PathType(typ, _, _) => typ(d1)
           case _ => logicError()
         }
-      case h: Hcom => h.tp
+      case h: Hcomp => h.tp
       case t: Transp => t.tp(Formula.True)
-      case h: Com => h.tp(Formula.True)
+      case h: Comp => h.tp(Formula.True)
       case GlueType(ty, pos) =>
         ty.infer // FIXME NOW this seems wrong, what if we annotate the level? generally we want to make sure this is working as intent
       case Unglue(ty, _, _) => ty

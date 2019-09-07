@@ -22,7 +22,7 @@ define dependent_path_reverse(#A1 #A2: type, #A: A1 ≡ A2, #x: A1, #y: A2, p: x
 
 
 define path_compose(#A: type, #x #y #z: A, xy: x ≡ y, yz: y ≡ z): x ≡ z =
-  i → hcom(xy(i) |~i: x_refl(x) |i: yz)
+  i → hcomp(xy(i) |~i: x_refl(x) |i: yz)
 
 /* TODO reimplement these
 // a * b
@@ -34,7 +34,7 @@ define path_compose_unit_r(#A: type, #x #y: A, p: x ≡ y): p ≡ path_compose(p
 
 
 define path_compose_unit_l(#A: type, #x #y: A, p: x ≡ y): p ≡ path_compose(x_refl(x), p) =
-  i → j → hcom( x |~i: k → p(j ∧ k)
+  i → j → hcomp( x |~i: k → p(j ∧ k)
                   |~j: x_refl(x)
                   |j: p)
 */

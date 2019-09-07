@@ -80,8 +80,8 @@ object Concrete {
   case class PathType(typ: Option[Concrete], left: Concrete, right: Concrete) extends Concrete
   case class Face(dimension: Concrete, term: Concrete)
   case class Transp(typ: Concrete, direction: Concrete, base: Concrete) extends Concrete
-  case class Hcom(base: Concrete, faces: Seq[Face]) extends Concrete
-  case class Com(typ: Concrete, base: Concrete, faces: Seq[Face]) extends Concrete
+  case class Hcomp(base: Concrete, faces: Seq[Face]) extends Concrete
+  case class Comp(typ: Concrete, base: Concrete, faces: Seq[Face]) extends Concrete
   case class GlueType(x: Concrete, faces: Seq[Face]) extends Concrete
   case class Glue(m: Concrete, faces: Seq[Face]) extends Concrete
   case class Unglue(m: Concrete) extends Concrete
@@ -96,7 +96,6 @@ object Concrete {
 
 
   sealed trait Declaration {
-    def modifiers: Seq[Declaration.Modifier]
   }
 
   object Declaration {
@@ -107,9 +106,14 @@ object Concrete {
       case object __Debug extends Modifier
     }
 
-    case class Define(modifiers: Seq[Modifier], name: Name, parameters: Seq[NameType], typ: Option[Concrete], term: Concrete) extends Declaration
+    sealed trait Single extends Declaration  {
+      def modifiers: Seq[Modifier]
+    }
+    case class Define(modifiers: Seq[Modifier], name: Name, parameters: Seq[NameType], typ: Option[Concrete], term: Concrete) extends Single
     // depending on our algorithm, recursive ones might not need to declare first
-    case class Declare(modifiers: Seq[Modifier], name: Name, parameters: Seq[NameType], typ: Concrete) extends Declaration
+    case class Declare(modifiers: Seq[Modifier], name: Name, parameters: Seq[NameType], typ: Concrete) extends Single
+
+    case class Parameters(parameters: Seq[NameType], items: Seq[Declaration]) extends Declaration
   }
 
 }

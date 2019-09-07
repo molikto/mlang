@@ -33,13 +33,13 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
     override def whitespaceChar: Parser[Char] = elem("", _ == '│') | super.whitespaceChar
   }
 
-  lexical.reserved ++= List("define", "declare", "const_projections", "case", "__debug", "as", "transp", "hcom", "com", "hfill", "field", "ignored", "match", "record", "type", "sum", "inductively", "run", "with_constructors", "I", "_", "make", "glue_type", "glue", "unglue")
+  lexical.reserved ++= List("define", "declare", "const_projections", "parameters", "case", "__debug", "as", "transp", "hcomp", "comp", "hfill", "fill", "field", "ignored", "match", "record", "type", "sum", "inductively", "run", "with_constructors", "I", "_", "make", "glue_type", "glue", "unglue")
   lexical.delimiters ++= List("{", "}", "[", "]", ":", ",", "(", ")", "#", "≡", "─", "???", "┬", "┌", "⊏", "└", "├", "⇒", "→", "+", "-", ";", "=", "@", "\\", ".", "|", "^", "∨", "∧", "~")
 
   def delimited[T](a: String, t: Parser[T], b: String): Parser[T] = a ~> t <~ b
 
 
-  lazy val declaration: PackratParser[Declaration] =declare |  define
+  lazy val declaration: PackratParser[Declaration] =  parameters | declare |  define
 
   lazy val defineModifiers: PackratParser[Seq[Declaration.Modifier]] =
     rep(
@@ -50,6 +50,10 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
 
   lazy val define: PackratParser[Declaration.Define] = (keyword("define") ~> defineModifiers ~ ident) ~ opt(tele) ~ opt(":" ~> term) ~ ("=" ~> term) ^^ { a =>
     Declaration.Define(a._1._1._1._1, Name(Text(a._1._1._1._2)), a._1._1._2.getOrElse(Seq.empty), a._1._2, a._2)
+  }
+
+  lazy val parameters: PackratParser[Declaration] = (keyword("parameters") ~> tele ~ delimited("{", rep(declaration), "}")) ^^ { a =>
+    Declaration.Parameters(a._1, a._2)
   }
 
   lazy val declare: PackratParser[Declaration.Declare] = (keyword("declare") ~> defineModifiers ~ ident) ~ opt(tele) ~ (":" ~> term) ^^ { a =>
@@ -86,7 +90,7 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
         meta |
         sum |
         up |
-        transp | com | hcom | hfill | glueType | glue | unglue |
+        transp | com | hcom | hfill | fill | glueType | glue | unglue |
         universe | make |
         delimited("(", term, ")") |
         absDimension | reference
@@ -132,29 +136,50 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
 
   lazy val face: PackratParser[Concrete.Face] = (("|" ~> term <~ ":") ~ term) ^^ { a => Face(a._1, a._2) }
 
-  lazy val hcom: PackratParser[Concrete] = keyword("hcom") ~> ("(" ~> term) ~ (rep(face) <~ ")") ^^ { a =>
-    Hcom(a._1, a._2)
+  lazy val hcom: PackratParser[Concrete] = keyword("hcomp") ~> ("(" ~> term) ~ (rep(face) <~ ")") ^^ { a =>
+    Hcomp(a._1, a._2)
   }
 
   val nameGen = new AtomicLong()
   def genName = Text("$" + nameGen.getAndIncrement())
 
-  lazy val hfill: PackratParser[Concrete] = keyword("hfill") ~> ("(" ~> term) ~ (rep(face) <~ ")") ^^ { a =>
+  // FIXME these is really ugly!!!
+  lazy val hfill: PackratParser[Concrete] = keyword("hfill") ~> ("(" ~> term) ~ (rep(face) <~ ")") ^^ { tttm =>
+      val base = tttm._1
+    val tfaces = tttm._2
     val ni = genName
     val nj = genName
-    val face1 = Face(Neg(Reference(ni)), Lambda(Name.empty, false, false, a._1))
-    val faces = a._2.map(a => {
+    val face1 = Face(Neg(Reference(ni)), Lambda(Name.empty, false, false, base))
+    val faces = tfaces.map(a => {
       val body = a.term match {
         case l: Lambda => l.copy(ensuredPath = true)
         case a => a
       }
       Face(a.dimension, Lambda(Name(nj), false, false, App(body, And(Reference(nj), Reference(ni)))))
     })
-    Lambda(Name(ni), false, true, Hcom(a._1, face1 +: faces))
+    Lambda(Name(ni), false, true, Hcomp(base, face1 +: faces))
   }
 
-  lazy val com: PackratParser[Concrete] = keyword("com") ~> delimited("(", term,",") ~ term  ~  (rep(face) <~")") ^^ { a =>
-    Com(a._1._1, a._1._2, a._2)
+  lazy val fill: PackratParser[Concrete] = keyword("fill") ~>  delimited("(", term,",") ~ term  ~  (rep(face) <~")") ^^ { tttm =>
+      val tp = tttm._1._1
+    val base = tttm._1._2
+    val tfaces = tttm._2
+    val nt = genName
+    val ni = genName
+    val nj = genName
+    val face1 = Face(Neg(Reference(ni)), Lambda(Name.empty, false, false, base))
+    val faces = tfaces.map(a => {
+      val body = a.term match {
+        case l: Lambda => l.copy(ensuredPath = true)
+        case a => a
+      }
+      Face(a.dimension, Lambda(Name(nj), false, false, App(body, And(Reference(nj), Reference(ni)))))
+    })
+    Lambda(Name(ni), false, true, Comp(Lambda(Name(nt), false, true, App(tp, And(Reference(ni), Reference(nt)))), base, face1 +: faces))
+  }
+
+  lazy val com: PackratParser[Concrete] = keyword("comp") ~> delimited("(", term,",") ~ term  ~  (rep(face) <~")") ^^ { a =>
+    Comp(a._1._1, a._1._2, a._2)
   }
 
 

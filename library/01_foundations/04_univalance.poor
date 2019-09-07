@@ -12,7 +12,7 @@ define ua(#A #B: type, e: equiv(A, B)): A ≡ B =
 
 define equivs(B: type) = record {
   field A: type
-  field is: equiv(A, B)
+  field eq: equiv(A, B)
 }
 
 /*

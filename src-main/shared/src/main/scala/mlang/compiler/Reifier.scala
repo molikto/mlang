@@ -135,10 +135,10 @@ private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorCon
         PathApp(reify(left), reify(stuck))
       case Value.Transp(tp, dir, base) =>
         Transp(reify(tp), reify(dir), reify(base))
-      case Value.Hcom(tp, base, faces) =>
-        Hcom(reify(tp), reify(base), reifyFaces(faces))
-      case Value.Com(tp, base, faces) =>
-        Com(reify(tp), reify(base), reifyFaces(faces))
+      case Value.Hcomp(tp, base, faces) =>
+        Hcomp(reify(tp), reify(base), reifyFaces(faces))
+      case Value.Comp(tp, base, faces) =>
+        Comp(reify(tp), reify(base), reifyFaces(faces))
       case Value.GlueType(ty, faces) =>
         GlueType(reify(ty), reifyFaces(faces))
       case Value.Glue(base, faces) =>

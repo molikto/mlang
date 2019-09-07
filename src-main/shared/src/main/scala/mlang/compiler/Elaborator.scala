@@ -229,19 +229,19 @@ class Elaborator private(protected override val layers: Layers)
         }
         val ba = check(base, cl(Value.Formula.False))
         (cl(Value.Formula.True), Abstract.Transp(ta, da, ba))
-      case Concrete.Com(tp, base, faces) =>
+      case Concrete.Comp(tp, base, faces) =>
         val (_, ta) = checkTypeLine(tp)
         val cl = eval(ta)
         val ba = check(base, cl(Value.Formula.False))
         val rs = checkCompatibleCapAndFaces(faces, cl, eval(ba))
-        (cl(Value.Formula.True), Abstract.Com(ta, ba, rs))
-      case Concrete.Hcom(base, faces) =>
+        (cl(Value.Formula.True), Abstract.Comp(ta, ba, rs))
+      case Concrete.Hcomp(base, faces) =>
         val (bt, ba) = infer(base)
         val bv = eval(ba)
         val rs = checkCompatibleCapAndFaces(faces, Value.AbsClosure(bt), bv)
         val btr = reify(bt)
         debug(s"infer hcom type $btr", 1)
-        (bt, Abstract.Hcom(btr, ba, rs))
+        (bt, Abstract.Hcomp(btr, ba, rs))
       case Concrete.PathType(typ, left, right) =>
         typ match {
           case Some(tp) =>
@@ -607,7 +607,7 @@ class Elaborator private(protected override val layers: Layers)
 
   // FIXME should we make sure type annotation is the minimal type?
   private def checkDeclaration(
-      s: Declaration,
+      s: Declaration.Single,
       mis: mutable.ArrayBuffer[CodeInfo[Value.Meta]],
       vis: mutable.ArrayBuffer[DefinitionInfo], topLevel: Boolean): Self = {
     def wrapBody(t: Concrete, imp: Seq[Boolean]): Concrete = if (imp.isEmpty) t else wrapBody(Concrete.Lambda(Name.empty, imp.last, false, t), imp.dropRight(1))
@@ -777,8 +777,17 @@ class Elaborator private(protected override val layers: Layers)
     }
   }
 
-  private def checkDeclarations(seq: Seq[Declaration], topLevel: Boolean): (Self, Seq[Abstract], Seq[Abstract]) = {
+  private def checkDeclarations(seq0: Seq[Declaration], topLevel: Boolean): (Self, Seq[Abstract], Seq[Abstract]) = {
     // how to handle mutual recursive definitions, calculate strong components
+    def flatten(d: Declaration, ps: Seq[NameType]): Seq[Declaration.Single] = d match {
+      case d: Declaration.Define =>
+        Seq(d.copy(parameters = ps ++ d.parameters))
+      case d: Declaration.Declare =>
+        Seq(d.copy(parameters = ps ++ d.parameters))
+      case Declaration.Parameters(parameters, items) =>
+        items.flatMap(a => flatten(a, ps ++ parameters))
+    }
+    val seq = seq0.flatMap(a => flatten(a, Seq.empty))
     var ctx = this
     val ms = mutable.ArrayBuffer.empty[CodeInfo[Value.Meta]]
     val vs = mutable.ArrayBuffer.empty[DefinitionInfo]

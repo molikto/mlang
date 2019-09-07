@@ -137,14 +137,14 @@ trait PlatformEvaluator extends Evaluator {
         case Abstract.Transp(tp, dir, base) =>
           val d = depth + 1
           s"Transp(AbsClosure(dm$d => ${emitInner(tp, d)}), ${emit(dir, depth)}, ${emit(base, depth)})"
-        case Abstract.Hcom(tp, base, faces) =>
-          s"Hcom(" +
+        case Abstract.Hcomp(tp, base, faces) =>
+          s"Hcomp(" +
               s"${emit(tp, depth)}, " +
               s"${emit(base, depth)}, " +
               emitFaces(faces, depth) +
               s")"
-        case Abstract.Com(tp, base, faces) =>
-          s"Com(" +
+        case Abstract.Comp(tp, base, faces) =>
+          s"Comp(" +
               s"AbsClosure(dm${depth + 1} => ${emitInner(tp, depth + 1)}), " +
               s"${emit(base, depth)}, " +
               emitFaces(faces, depth) +

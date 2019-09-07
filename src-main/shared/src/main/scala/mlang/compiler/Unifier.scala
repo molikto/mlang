@@ -261,7 +261,7 @@ trait Unifier extends Reifier with ElaboratorContextRebind with Evaluator with P
         } else {
           None
         }
-      case (Hcom(t1, b1, r1), Hcom(t2, b2, r2)) =>
+      case (Hcomp(t1, b1, r1), Hcomp(t2, b2, r2)) =>
         if (!recType(t1, t2)) {
           logicError()
         } else if (recTerm(t1, b1, b2)) {

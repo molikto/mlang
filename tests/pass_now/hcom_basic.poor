@@ -10,7 +10,7 @@ define path_compose_filler(#A: type, #x #y #z: A, xy: x ≡ y, yz: y ≡ z, j i:
 
 
 define path_compose(#A: type, #x #y #z: A, xy: x ≡ y, yz: y ≡ z): x ≡ z =
-  i → hcom(xy(i) |~i: x_refl(x) |i: yz)
+  i → hcomp(xy(i) |~i: x_refl(x) |i: yz)
 
 define path_compose2(#A: type, #x #y #z: A, xy: x ≡ y, yz: y ≡ z): x ≡ z =
   i → path_compose_filler(xy, yz, 1, i)

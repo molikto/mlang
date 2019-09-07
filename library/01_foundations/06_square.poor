@@ -13,7 +13,7 @@ define square(
   r0 ≡[i → u(i) ≡ v(i)] r1
 
 define square_constant(#A: type, #a: A, p: a ≡ a): square(p, p, p, p) =
-  i → j → hcom(a |~i: k → p(j ∨ ~k)
+  i → j → hcomp(a |~i: k → p(j ∨ ~k)
                  | i: k → p(j ∧ k)
                  |~j: k → p(i ∨ ~k)
                  | j: k → p(i ∧ k))
