@@ -262,7 +262,9 @@ trait Unifier extends Reifier with ElaboratorContextRebind with Evaluator with P
           None
         }
       case (Hcom(t1, b1, r1), Hcom(t2, b2, r2)) =>
-        if (recType(t1, t2) && recTerm(t1, b1, b2)) {
+        if (!recType(t1, t2)) {
+          logicError()
+        } else if (recTerm(t1, b1, b2)) {
           if (r1.size == r2.size && r1.zip(r2).forall(p => {
             val n1 = p._1.restriction.normalForm
             val eqForm = n1 == p._2.restriction.normalForm
@@ -356,9 +358,6 @@ trait Unifier extends Reifier with ElaboratorContextRebind with Evaluator with P
           }
         case (Universe(_), tt1, tt2) =>
           recType(tt1, tt2) // it will call unify neutral at then end
-        case (WhnfStuckReason(_), _, _) =>
-          warn("meta directed???")
-          false
         case (_, tt1, tt2) => recNeutral(tt1, tt2)
       }
     }

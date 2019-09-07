@@ -9,8 +9,9 @@ under major renovation.
 * write univalence in library
 * write Brunerie's number
 * implement new up
-* should we design a new value with type annotations?
-    * don't use type directed conversion checking anymore, should lambda be type annotated?
+    * we have some problem with `infer` on value
+* don't use type directed conversion checking anymore, should lambda be type annotated?
+    * should we design a new lambda value with type annotations? (like in cubicaltt)
     * ~~proper reify without null hacks?~~
 
 ---------------
@@ -174,6 +175,20 @@ elaboration is standard bidiractional elaboration
 #### recursive elaboration
 
 for a item that previously declared but not defined, when it is defined, we re-evaluate all stuff that depends on it recursively and rewire the pointers, these ones refers to a open variable before
+
+#### abstract-surface syntax mismatch
+
+some core term is more syntax heavy than abstract term
+
+* metas or stuff treated like meta (homogeneous path type)
+* type annotation to make our checking decidable
+    * pattern matching needs both domain and codomain added
+    * `hcom`
+* make pattern (this can be seen as a syntax sugar)
+
+the ones that has type annotated is kind of disturbing, can we have a semantic judgement when some can be added?
+
+one argument is as terms is determined by types, so adding type annotation doesn't really mater, because it doesn't change what's of the type, so if this is true, then checking type annotations is not needed. so for example we don't need to unify them at all!
 
 ### types system
 

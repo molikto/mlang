@@ -9,6 +9,7 @@ import scala.annotation.Annotation
 import scala.collection.mutable
 
 private[compiler] class stuck_pos extends Annotation
+private[compiler] class type_annotation extends Annotation // see Readme about abstract-surface syntax mismatch
 
 case class ImplementationLimitationCannotRestrictOpenMeta() extends Exception
 
@@ -26,6 +27,8 @@ object Value {
         case _: Formula.Internal => logicError()
       }
     }
+
+    def normalFormTrue = normalForm == NormalForm.True
 
     def normalForm: NormalForm  = {
       def merge(a: NormalForm, b: NormalForm): NormalForm = {
@@ -275,9 +278,10 @@ object Value {
 
   // these serve the purpose of recovering syntax
   sealed trait Internal extends Value
-  sealed trait Whnf extends Value
-  sealed trait HeadCanonical extends Whnf
-  sealed trait Redux extends Whnf {
+  sealed trait Canonical extends Value
+  sealed trait CubicalUnstableCanonical extends Canonical // this value can reduce more, but only when restricted
+  sealed trait Redux extends Value {
+    // TODO this is not that well defined, since some term will always whnf on arguments, some not
     def reduce(): Option[Value]
 
     def reduceThenWhnfOrSelf() = reduce() match {
@@ -285,7 +289,6 @@ object Value {
       case _ => this
     }
   }
-  sealed trait CubicalUnstable extends Whnf // this value can reduce more, but only when restricted
 
   case class Derestricted(a: Value, asgn: Formula.Assignments) extends Internal
 
@@ -394,7 +397,7 @@ object Value {
   sealed trait MetaState
   object MetaState {
     case class Closed(v: Value) extends MetaState
-    case class Open(id: Long, typ: Value) extends MetaState
+    case class Open(id: Long, @type_annotation typ: Value) extends MetaState
   }
   case class Meta(private var _state: MetaState) extends LocalReferential {
     def solved: Value = state.asInstanceOf[MetaState.Closed].v
@@ -446,7 +449,7 @@ object Value {
     private[Value] val HACK = Generic(0, null)
     private[Value] val HACKS = (0 until 20).map(_ => HACK)
   }
-  case class Generic(id: Long, @lateinit private var _typ: Value) extends LocalReferential {
+  case class Generic(id: Long, @type_annotation @lateinit private var _typ: Value) extends LocalReferential {
 
     def typ_=(a: Value) = {
       clearSavedAfterValueChange()
@@ -466,15 +469,14 @@ object Value {
 
     def unapply(value: Value): Option[Value] = {
       value match {
-        case _: HeadCanonical => None
-        case _: CubicalUnstable => None
+        case _: Canonical => None
         case _: Generic => None
         case o: Meta => Some(o)
         case App(lambda, _) => unapply(lambda)
         case Projection(make, _) => unapply(make)
         case a@PatternRedux(_, stuck) =>
           stuck match {
-            case c: HeadCanonical => Some(a) // can only be make or construct
+            case c: Canonical => Some(a) // can only be make or construct
             case _ => unapply(stuck)
           }
         case PathApp(left, _) => unapply(left)
@@ -485,7 +487,7 @@ object Value {
             case _ => t
           }
         case Hcom(tp, _, _) => unapply(tp)
-        case Unglue(_, m, _) => ???
+        case u@Unglue(_, m, _) => Some(u)
         case _: Com => logicError()
         case _: Reference => logicError()
         case _: Maker => logicError()
@@ -512,7 +514,7 @@ object Value {
   }
 
 
-  case class Universe(level: Int) extends HeadCanonical
+  case class Universe(level: Int) extends Canonical
 
   object Universe {
     val TypeInType = true
@@ -521,7 +523,11 @@ object Value {
     def level1 = Universe(if (TypeInType) 0 else 1)
   }
 
-  case class Function(domain: Value, impict: Boolean, codomain: Closure) extends HeadCanonical
+  case class Function(domain: Value, impict: Boolean, codomain: Closure) extends Canonical
+
+  /**
+    * whnf: lambda is whnf and is not a canonical
+    */
   case class App(@stuck_pos lambda: Value, argument: Value) extends Redux {
     def reduce(): Option[Value] = {
       // FIXME cubicaltt will also work if lambda is a trans lambda or a comp lambda
@@ -536,7 +542,7 @@ object Value {
     }
   }
   def Apps(maker: Value, values: Seq[Value]) : Value = values.foldLeft(maker) { (m: Value, v: Value) => Value.App(m, v) }
-  case class Lambda(closure: Closure) extends HeadCanonical
+  case class Lambda(closure: Closure) extends Canonical
   case class Case(pattern: Pattern, closure: MultiClosure) {
     private def extract(pattern: Pattern, v: Value): Option[Seq[Value]] = {
       val vs = mutable.ArrayBuffer[Value]()
@@ -571,8 +577,13 @@ object Value {
   }
 
   // the reason we must have a domain here is because we support unordered pattern matching
+  // so pattern redux can be stuck value when non of their arguments is stuck
   // LATER is unordered pattern matching really a good thing? but I don't want case trees!
-  case class PatternLambda(id: Long, domain: Value, typ: Closure, cases: Seq[Case]) extends HeadCanonical
+  case class PatternLambda(id: Long, @type_annotation domain: Value, @type_annotation typ: Closure, cases: Seq[Case]) extends Canonical
+
+  /**
+    * whnf: stuck is whnf AND pattern redux cannot continue
+    */
   case class PatternRedux(lambda: PatternLambda, @stuck_pos stuck: Value) extends Redux {
     // FIXME cubical tt will also work if argument is a hcomp
     def reduce(): Option[Value] = {
@@ -597,7 +608,7 @@ object Value {
       inductively: Option[Inductively],
       names: Seq[Name],
       ims: Seq[Boolean],
-      nodes: ClosureGraph) extends HeadCanonical {
+      nodes: ClosureGraph) extends Canonical {
     assert(names.size == nodes.size)
 
     private def rthis(): Value = LocalReference(this)
@@ -610,9 +621,13 @@ object Value {
       ClosureGraph.get(nodes, name, i => Projection(values, i))
     }
   }
-  case class Make(values: Seq[Value]) extends HeadCanonical
+  case class Make(values: Seq[Value]) extends Canonical
   // FIXME do away with this
   case class Maker(value: Value, field: Int) extends Value
+
+  /**
+    * whnf: make is whnf and is not canonical
+    */
   case class Projection(@stuck_pos make: Value, field: Int) extends Redux {
     def reduce(): Option[Value] = {
       make match {
@@ -622,7 +637,7 @@ object Value {
     }
   }
 
-  case class Construct(name: Int, vs: Seq[Value]) extends HeadCanonical
+  case class Construct(name: Int, vs: Seq[Value]) extends Canonical
   case class Constructor(name: Name, ims: Seq[Boolean], nodes: ClosureGraph) {
     private[Value] var _sum: Sum = _
     private def rthis(): Value = LocalReference(_sum)
@@ -635,14 +650,18 @@ object Value {
   }
   case class Sum(
       inductively: Option[Inductively],
-      constructors: Seq[Constructor]) extends HeadCanonical {
+      constructors: Seq[Constructor]) extends Canonical {
     for (c <- constructors) {
       c._sum = this
     }
   }
 
-  case class PathType(typ: AbsClosure, left: Value, right: Value) extends HeadCanonical
-  case class PathLambda(body: AbsClosure) extends HeadCanonical
+  case class PathType(typ: AbsClosure, left: Value, right: Value) extends Canonical
+  case class PathLambda(body: AbsClosure) extends Canonical
+
+  /**
+    * whnf: left is whnf but not canonical, and dimension is not constant
+    */
   case class PathApp(@stuck_pos left: Value, @stuck_pos dimension: Formula) extends Redux {
     def reduce(): Option[Value] = left match {
       case PathLambda(c) =>
@@ -676,8 +695,8 @@ object Value {
     def restrict(faces: Seq[Face], lv: Formula.Assignments) = {
       faces.flatMap(n => {
         val r = n.restriction.restrict(lv)
-        val nf = r.normalForm
-        if (nf == Formula.NormalForm.False) {
+        // FIXME can you simply remove unsatifiable faces?
+        if (r.normalForm == Formula.NormalForm.False) {
           None
         } else {
           Some(Face(r, n.body.restrict(lv)))
@@ -720,11 +739,13 @@ object Value {
   def forward(A: AbsClosure, r: Formula, u: Value) =
     Transp(AbsClosure(i => A(Formula.Or(i, r))), r, u)
 
+  /**
+    * whnf: tp on a generic value cannot reduce to a canonical
+    */
   case class Transp(@stuck_pos tp: AbsClosure, phi: Formula, base: Value) extends Redux {
 
-
     override def reduce(): Option[Value] = {
-      if (phi.normalForm == Formula.NormalForm.True) {
+      if (phi.normalFormTrue) {
         Some(base)
       } else {
         tp.apply(Value.Formula.Generic(dgen())).whnf match {
@@ -786,6 +807,8 @@ object Value {
       }
     }
   }
+
+  // TODO when we have a syntax for partial values, these should be removed
   case class Com(@stuck_pos tp: AbsClosure, base: Value, faces: Seq[Face]) extends Redux {
     override def reduce(): Option[Value] =
       Some(Hcom(
@@ -794,9 +817,12 @@ object Value {
         faces.map(f => Face(f.restriction, AbsClosure(i => forward(tp, i, f.body(i)))))))
   }
 
-  case class Hcom(@stuck_pos tp: Value, base: Value, faces: Seq[Face]) extends Redux {
+  /**
+    * whnf: tp is not canonical
+    */
+  case class Hcom(@type_annotation @stuck_pos tp: Value, base: Value, faces: Seq[Face]) extends Redux {
     override def reduce(): Option[Value] = {
-      faces.find(_.restriction.normalForm == NormalForm.True) match {
+      faces.find(_.restriction.normalFormTrue) match {
         case Some(t) => Some(t.body(Formula.True))
         case None =>
           val tp0 = tp.whnf
@@ -839,8 +865,17 @@ object Value {
     }
   }
 
-  case class GlueType(ty: Value, @stuck_pos faces: Seq[Face]) extends CubicalUnstable
-  case class Glue(m: Value, @stuck_pos faces: Seq[Face]) extends CubicalUnstable
+  /**
+    * whnf: faces is not constant
+    */
+  case class GlueType(ty: Value, @stuck_pos faces: Seq[Face]) extends CubicalUnstableCanonical
+  /**
+    * whnf: faces is not constant
+    */
+  case class Glue(m: Value, @stuck_pos faces: Seq[Face]) extends CubicalUnstableCanonical
+  /**
+    * whnf: faces is not constant, base is whnf, and m's whnf is not glue
+    */
   case class Unglue(ty: Value, base: Value, @stuck_pos faces: Seq[Face]) extends Redux {
     override def reduce(): Option[Value] = ???
   }
@@ -902,7 +937,7 @@ sealed trait Value {
       }
     if (cached == null) {
       val candidate = this match {
-        case a: HeadCanonical =>
+        case a: Canonical =>
           a
         case r: Reference =>
           r.value.whnf
@@ -970,10 +1005,20 @@ sealed trait Value {
             case a => a
           }
         case GlueType(tm, faces) =>
-          faces.find(_.restriction.normalForm == Formula.NormalForm.True).map(b => Projection(b.body(Formula.Generic.HACK), 0).whnf).getOrElse(this)
+          faces.find(_.restriction.normalFormTrue).map(b => Projection(b.body(Formula.Generic.HACK), 0).whnf).getOrElse(this)
         case Glue(base, faces) =>
-          faces.find(_.restriction.normalForm == Formula.NormalForm.True).map(_.body(Formula.Generic.HACK).whnf).getOrElse(this)
-        case Unglue(x, m, f) =>
+          faces.find(_.restriction.normalFormTrue).map(_.body(Formula.Generic.HACK).whnf).getOrElse(this)
+        case Unglue(ty, base, faces) =>
+          val red = faces.find(_.restriction.normalFormTrue).map(b => App(Projection(b.body(Formula.Generic.HACK), 1), base).whnf)
+          red match {
+            case Some(a) => a
+            case None =>
+              val bf = base.whnf
+              bf match {
+              case Glue(b, _) => b.whnf
+              case _ => if (bf.eq(base)) this else Unglue(ty, bf, faces)
+            }
+          }
 //          x match {
 //            case g: Formula.Generic =>
 //              val mw = m.whnf
@@ -1001,7 +1046,7 @@ sealed trait Value {
         }
       }
       val cache = candidate match {
-        // LATER I'm surprised that this thing is so tricky.
+        // LATER I'm surprised that this thing is so tricky. maybe remove this (and the equals stuff)
         case Value.WhnfStuckReason(m) =>
           (candidate, m)
         case _ =>
@@ -1152,8 +1197,6 @@ sealed trait Value {
           case (Universe(l1), Universe(l2)) => Universe(l1 max l2)
           case _ => logicError()
         }
-      case GlueType(ty, pos) =>
-        ty.infer // FIXME NOW this seems wrong, what if we annotate the level? generally we want to make sure this is working as intent
       case r: Record =>
         r.inductively.map(a => Universe(a.level)).getOrElse(Universe(ClosureGraph.inferLevel(r.nodes)))
       case s: Sum =>
@@ -1183,6 +1226,9 @@ sealed trait Value {
       case h: Hcom => h.tp
       case t: Transp => t.tp(Formula.True)
       case h: Com => h.tp(Formula.True)
+      case GlueType(ty, pos) =>
+        ty.infer // FIXME NOW this seems wrong, what if we annotate the level? generally we want to make sure this is working as intent
+      case Unglue(ty, _, _) => ty
       case _ => logicError()
     }
   }
