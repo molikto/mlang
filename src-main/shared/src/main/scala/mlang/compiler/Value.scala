@@ -16,6 +16,7 @@ case class ImplementationLimitationCannotRestrictOpenMeta() extends Exception
 object Value {
 
   sealed trait Formula extends {
+
     import Formula.{And, Assignments, False, Neg, NormalForm, Or, True}
     def names: Set[Long] = {
       this match {
@@ -78,6 +79,7 @@ object Value {
 
   object Formula {
 
+    def phi(se: Seq[Formula]) = se.flatMap(_.normalForm).toSet
     type Assignment = (Long, Boolean)
     type Assignments = Set[Assignment]
     object Assignments {

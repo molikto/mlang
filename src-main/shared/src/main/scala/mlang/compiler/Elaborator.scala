@@ -530,9 +530,9 @@ class Elaborator private(protected override val layers: Layers)
           case Concrete.Glue(base, fs) =>
             val ba = check(base, ty)
             val bv = eval(ba)
-            val phi1 = faces.flatMap(_.restriction.normalForm).toSet
+            val phi1 = Value.Formula.phi(faces.map(_.restriction))
             val ffs = fs.map(a => { val (f1, f2) = checkAndEvalFormula(a.dimension); (f1, f2, a.term) })
-            val phi2 = ffs.flatMap(_._1.normalForm).toSet
+            val phi2 =  Value.Formula.phi(ffs.map(_._1))
             if (phi1 == phi2) {
               val fas = ffs.map(f => {
                 val body = doForValidFormulaOrThrow(f._1, asgn => {
@@ -586,13 +586,15 @@ class Elaborator private(protected override val layers: Layers)
           case _ => fallback()
         }
       case r: Value.Record =>
-        val cpd = reify(cp)
-        debug(s"reified record make type $cpd", 1)
         term match {
           case Concrete.App(Concrete.Make, vs) =>
+            val cpd = reify(cp)
+            debug(s"reified record make type $cpd", 1)
             inferApp(r.makerType, Abstract.Maker(cpd, -1), vs)._2
           case Concrete.Let(declarations, Concrete.App(Concrete.Make, vs)) =>
             val (ctx, ms, da) = newDefinesLayer().checkDeclarations(declarations, false)
+            val cpd = ctx.reify(cp)
+            debug(s"reified record make type $cpd", 1)
             val ia= ctx.inferApp(r.makerType, Abstract.Maker(cpd, -1), vs)._2
             val ms0 = ctx.freezeReify()
             Abstract.Let(ms ++ ms0, da, ia)

@@ -25,6 +25,7 @@ object SolvableMetaForm {
   }
 }
 
+private case class BreakException() extends Exception()
 
 trait Unifier extends Reifier with ElaboratorContextRebind with Evaluator with PlatformEvaluator {
 
@@ -58,6 +59,13 @@ trait Unifier extends Reifier with ElaboratorContextRebind with Evaluator with P
     }
   }
 
+  def unifyFailedFalse(): Boolean = {
+    false
+  }
+
+  def unifyFailed(): Option[Value] = {
+    None
+  }
   private implicit def optToBool[T](opt: Option[T]): Boolean = opt.isDefined
 
   private def recClosureGraph(n1: ClosureGraph, n2: ClosureGraph, mode: Int = 0): Boolean = {
@@ -95,7 +103,7 @@ trait Unifier extends Reifier with ElaboratorContextRebind with Evaluator with P
     if (recType(tt, c2(c), mode)) {
       Some(tt)
     } else {
-      None
+      unifyFailed()
     }
   }
 
@@ -154,7 +162,7 @@ trait Unifier extends Reifier with ElaboratorContextRebind with Evaluator with P
         case (t1, t2) =>
           recNeutral(t1, t2).map(_.whnf match {
             case Universe(_) => true
-            case _ => false
+            case _ => logicError()
           })
       }
     }
@@ -170,9 +178,9 @@ trait Unifier extends Reifier with ElaboratorContextRebind with Evaluator with P
         }
         exception match {
           case _: UnificationFailedException =>
-            None
+            unifyFailed()
           case _: RebindNotFoundException =>
-            None
+            unifyFailed()
           case e => throw e
         }
       case Success(v) =>
@@ -225,7 +233,7 @@ trait Unifier extends Reifier with ElaboratorContextRebind with Evaluator with P
             logicError()
           }
         } else {
-          None
+          unifyFailed()
         }
       case (App(l1, a1), App(l2, a2)) =>
         recNeutral(l1, l2).flatMap(_.whnf match {
@@ -233,7 +241,7 @@ trait Unifier extends Reifier with ElaboratorContextRebind with Evaluator with P
           if (recTerm(d, a1, a2)) {
             Some(c(a1))
           } else {
-            None
+            unifyFailed()
           }
           case _ => logicError()
         })
@@ -248,9 +256,9 @@ trait Unifier extends Reifier with ElaboratorContextRebind with Evaluator with P
           if (recTerm(l1.domain, s1, s2)) {
             if (recTypeClosure(n, l1.typ, l2.typ) && sameTypePatternLambdaWithAssumptions(n, l1, l2)) {
               Some(l1.typ(s1))
-            } else None
-          } else None
-        } else None
+            } else unifyFailed()
+          } else unifyFailed()
+        } else unifyFailed()
       case (PathApp(l1, d1), PathApp(l2, d2)) =>
         if (d1.normalForm == d2.normalForm) {
           recNeutral(l1, l2).map(_.whnf match {
@@ -259,35 +267,53 @@ trait Unifier extends Reifier with ElaboratorContextRebind with Evaluator with P
             case _ => logicError()
           })
         } else {
-          None
+          unifyFailed()
         }
       case (Hcomp(t1, b1, r1), Hcomp(t2, b2, r2)) =>
-        if (!recType(t1, t2)) {
-          logicError()
-        } else if (recTerm(t1, b1, b2)) {
-          if (r1.size == r2.size && r1.zip(r2).forall(p => {
-            val n1 = p._1.restriction.normalForm
-            val eqForm = n1 == p._2.restriction.normalForm
-            if (eqForm) {
-              n1.filter(Value.Formula.Assignments.satisfiable).forall(f => {
-                newSyntaxDirectedRestrictionLayer(f).recAbsClosure(t1.restrict(f), p._1.body.restrict(f), p._2.body.restrict(f))
-              })
-            } else {
-              false
-            }
-          })) {
-            Some(t1)
-          } else {
-            None
+        if (debug.enabled) {
+          if (!recType(t1, t2)) {
+            logicError()
           }
+        }
+        if (recTerm(t1, b1, b2)) {
+          val ph1 = Formula.phi(r1.map(_.restriction))
+          val ph2 = Formula.phi(r2.map(_.restriction))
+          try {
+            if (ph1 == ph2) {
+              for (f1 <- r1) {
+                for (f2 <- r2) {
+                  val as1 = f1.restriction.normalForm
+                  val as2 = f2.restriction.normalForm
+                  for (a1 <- as1) {
+                    for (a2 <- as2) {
+                      val a = a1 ++ a2
+                      if (Formula.Assignments.satisfiable(a)) {
+                        if (newSyntaxDirectedRestrictionLayer(a).recAbsClosure(t1.restrict(a), f1.body.restrict(a), f2.body.restrict(a))) {
+
+                        } else {
+                          throw BreakException()
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            } else {
+              unifyFailed()
+            }
+          } catch {
+            case e: BreakException => None
+            case d => throw d
+          }
+          Some(t1)
         } else {
-          None
+          unifyFailed()
         }
       case (Transp(t1, d1, b1), Transp(t2, d2, b2)) =>
         if (d1.normalForm == d2.normalForm && recTypeAbsClosure(t1, t2) && recTerm(t1(Value.Formula.False), b1, b2)) {
           Some(t1(Value.Formula.True))
         } else {
-          None
+          unifyFailed()
         }
 
       // FIXME solve meta headed?
@@ -302,7 +328,7 @@ trait Unifier extends Reifier with ElaboratorContextRebind with Evaluator with P
         trySolve(m, gs, t2)
       case (t1, SolvableMetaForm(m, _, gs)) =>
         trySolve(m, gs, t1)
-      case _ => None
+      case _ => unifyFailed()
     }
   }
 

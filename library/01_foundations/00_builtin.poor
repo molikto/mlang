@@ -2,7 +2,7 @@
 
 define is_contractible(A: type): type = record {
   field center: A
-  field to_center: (a: A) ⇒ a ≡ center
+  field to_center: (a: A) ⇒ center ≡ a
 }
 
 // TODO this is a perfect example, a: fiber_at(a, b) should have reloaded application on both term and dimension
@@ -30,6 +30,7 @@ define path_to_equiv(#A #B: type, E: A ≡ B): equiv(A, B) = run {
   define v(y: B, i: I): E(i) = transp(j → Ei((~i)∧j), i, y)
   define fiber_path(y: B, fib0 fib1: fiber_at(f, y)): fib0 ≡ fib1 = k → run {
     parameters (j: I) {
+      // LATER I wish I have a concrete syntax for system and partial elements
       define w0 = comp(Ei, fib0.path(~j) |~j: i → v(y, ~i) |j: i → u(fib0.from, ~i))
       define w1 = comp(Ei, fib1.path(~j) |~j: i → v(y, ~i) |j: i → u(fib1.from, ~i))
       define t0 = fill(Ei, fib0.path(~j) |~j: i → v(y, ~i) |j: i → u(fib0.from, ~i))
@@ -37,14 +38,16 @@ define path_to_equiv(#A #B: type, E: A ≡ B): equiv(A, B) = run {
     }
     define w = hcomp(g(y) |~k: w0 |k: w1)
     define tt = hfill(g(y) |~k: w0 |k: w1)
-    define __debug dt(j: I) = comp(E, tt(j) |~j: v(y)
-                                            |~k: i → t0(j, ~i)
-                                            | j: u(w)
-                                            | k: i → t1(j, ~i))
+    define dt(j: I) = comp(E, tt(j) |~j: v(y) |~k: i → t0(j, ~i) | j: u(w) | k: i → t1(j, ~i))
     fiber_at(f, y).make(w, j → dt(~j))
   }
-  define yy(y: B): y ≡ f(g(y)) = comp(g(y), E |~j: v(y) |j: u(g(y)))
-  make(f, y → make(make(g(y), k → yy(y, ~k)), fiber_path(y)))
+  define yy(y: B): y ≡ f(g(y)) = j → comp(E, g(y) |~j: v(y) |j: u(g(y)))
+
+  define equ(y: B): is_contractible(fiber_at(f, y)) = run {
+    define center: fiber_at(f, y) = make(g(y), k → yy(y, ~k))
+    make(center, fiber_path(y, center))
+  }
+  make(f, equ)
 }
 
 
