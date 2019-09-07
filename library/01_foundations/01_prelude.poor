@@ -81,12 +81,14 @@ define path_map(#A: type, #B: A ⇒ type, f: (x: A) ⇒ B(x), #x #y: A, p: x ≡
 define is_prop(A: type): type = (a b: A) ⇒ a ≡ b
 
 
+
+/* TODO local match expression or with expression
+
 define inductively h_level: type = sum {
   case contractible
   case suc(: h_level)
 }
 
-/* TODO local match expression or with expression
 define is_h_level:
   h_level          ⇒ (type ⇒ type) =
 ┌ contractible     → is_contractible

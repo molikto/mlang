@@ -5,6 +5,9 @@
 under major renovation.
 
 * re-implement new glue/unglue
+* implement HITs
+* write univalence in library
+* write Brunerie's number
 * implement new up
 * should we design a new value with type annotations?
     * don't use type directed conversion checking anymore, should lambda be type annotated?

@@ -161,7 +161,7 @@ private class ReifierContextCont(override val base: ReifierContextBottom, overri
 }
 
 // this is the context of the let expression where out-of-scope reference is collected
-// FIXME the logic is wrong for local let expression, because we removed the logic to have let values in Value...
+// FIXME the logic is wrong for local let expression, because we removed the logic to have let values in Value... also rewrite the reifyFaces stuff
 private class ReifierContextBottom(layersBefore: Layers) extends ReifierContext {
 
   private val terms = new mutable.ArrayBuffer[DefineItem]()

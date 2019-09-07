@@ -1,6 +1,4 @@
 
-
-
 define pointed: ^type = record {
   field #A: type
   field center: A

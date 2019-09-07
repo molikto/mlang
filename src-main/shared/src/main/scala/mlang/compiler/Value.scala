@@ -462,9 +462,9 @@ object Value {
     override def referenced: Value = _typ
 }
 
-  object WhnfOpenMetaHeaded {
+  object WhnfStuckReason {
 
-    def unapply(value: Value): Option[Meta] = {
+    def unapply(value: Value): Option[Value] = {
       value match {
         case _: HeadCanonical => None
         case _: CubicalUnstable => None
@@ -472,13 +472,20 @@ object Value {
         case o: Meta => Some(o)
         case App(lambda, _) => unapply(lambda)
         case Projection(make, _) => unapply(make)
-        case PatternRedux(_, stuck) => unapply(stuck)
+        case a@PatternRedux(_, stuck) =>
+          stuck match {
+            case c: HeadCanonical => Some(a) // can only be make or construct
+            case _ => unapply(stuck)
+          }
         case PathApp(left, _) => unapply(left)
-        case Unglue(_, m, _) => unapply(m)
-        case Transp(typ, _, _) =>
-          // FIXME this rule is really wired...
-          unapply(typ(Formula.Generic(dgen())).whnf)
+        case t@Transp(typ, _, _) =>
+          // TODO this rule is really wired...
+          unapply(typ(Formula.Generic(dgen())).whnf).map {
+            case m: Meta => m
+            case _ => t
+          }
         case Hcom(tp, _, _) => unapply(tp)
+        case Unglue(_, m, _) => ???
         case _: Com => logicError()
         case _: Reference => logicError()
         case _: Maker => logicError()
@@ -867,12 +874,27 @@ sealed trait Value {
         null
       } else {
         _whnfCache match {
-          case (v: Value, m: Meta) =>
-            if (m.isSolved) {
-              _whnfCache = null
-              null
-            } else {
-              v
+          case (v: Value, m: Value) =>
+            m match {
+              case m: Meta =>
+                if (m.isSolved) {
+                  _whnfCache = null
+                  null
+                } else {
+                  v
+                }
+              case o =>
+                if (o.eq(this)) {
+                  _whnfCache = null
+                  null
+                } else {
+                  if (!o.whnf.eq(o)) {
+                    _whnfCache = null
+                    null
+                  } else {
+                    v
+                  }
+                }
             }
           case v: Value =>
             v
@@ -900,7 +922,7 @@ sealed trait Value {
             case _ => logicError() // because we don't accept anoymouns maker expression
           }
         case app@App(lambda, argument) =>
-          // FIXME don't do this equals stuff!!!
+          // TODO don't do this equals stuff!!!
           def app2(lambda: Value, argument: Value): Value = {
             lambda match {
               case Lambda(closure) =>
@@ -972,13 +994,15 @@ sealed trait Value {
       }
       // because some values is shared, it means the solved ones is not created for this whnf, we don't say this
       // is from us
-      if (!candidate.eq(candidate._from)) { // FIXME these are already defined ones
+      // TODO these are already defined ones, think more about this
+      if (!candidate.eq(candidate._from)) {
         if (!candidate.eq(this)) {
           candidate._from = this
         }
       }
       val cache = candidate match {
-        case Value.WhnfOpenMetaHeaded(m) =>
+        // LATER I'm surprised that this thing is so tricky.
+        case Value.WhnfStuckReason(m) =>
           (candidate, m)
         case _ =>
           candidate
@@ -1129,7 +1153,7 @@ sealed trait Value {
           case _ => logicError()
         }
       case GlueType(ty, pos) =>
-        ty.infer // FIXME this seems wrong, what if we annotate the level? generally we want to make sure this is working as intent
+        ty.infer // FIXME NOW this seems wrong, what if we annotate the level? generally we want to make sure this is working as intent
       case r: Record =>
         r.inductively.map(a => Universe(a.level)).getOrElse(Universe(ClosureGraph.inferLevel(r.nodes)))
       case s: Sum =>
