@@ -187,6 +187,10 @@ but for recursive types, they cannot have structural equality, so currently we r
 
 we don't allow parameterized ones yet. but this is a easy fix
 
+#### native pattern matching
+
+our pattern matching is NOT compiled to a case tree, but are [overlapping and order independent](https://link.springer.com/chapter/10.1007/978-3-642-54833-8_6), but these has some problems: pattern matching can stuck on constructors, this causes some problems... so be careful
+
 ### conversion checking
 
 the conversion checking is type directed conversion checking, but as we use hoas, open variables have a nominal equality, and we don't do index shuffling

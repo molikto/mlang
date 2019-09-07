@@ -116,7 +116,7 @@ object Abstract {
 
   case class Com(tp: AbsClosure, base: Abstract, faces: Seq[Face]) extends Abstract
 
-  // FIXME don't use face anymore!!! it is wrong concept!!
+  // TODO don't use face anymore!!! it is wrong concept!! (but I am too lazy to change it for now)
   case class GlueType(tp: Abstract, faces: Seq[Face]) extends Abstract
   case class Glue(base: Abstract, faces: Seq[Face]) extends Abstract
   case class Unglue(tp: Abstract, base: Abstract, faces: Seq[Face]) extends Abstract

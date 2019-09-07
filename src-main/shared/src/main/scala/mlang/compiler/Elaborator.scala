@@ -16,6 +16,7 @@ object Elaborator {
   def topLevel(): Elaborator = new Elaborator(Seq.empty).newDefinesLayer()
 }
 
+// TODO because these are mutational code (see Readme about meta), reread these so no errors
 class Elaborator private(protected override val layers: Layers)
     extends ElaboratorContextBuilder
         with ElaboratorContextLookup
