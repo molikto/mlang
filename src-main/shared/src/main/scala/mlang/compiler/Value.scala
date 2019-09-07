@@ -1079,7 +1079,7 @@ sealed trait Value {
         case GlobalReference(value) => // skip global reference
         case Generic(id, _typ) if id == 0 => // skip hack generic
         case r: LocalReferential =>
-          tested.add(candidate)
+          tested.add(r)
           val cached = r.supportCached()
           if (cached != null) {
             names.addAll(cached.names)
@@ -1087,7 +1087,7 @@ sealed trait Value {
           } else {
             val SupportShallow(ns, rs) = candidate.referenced.supportShallow()
             names.addAll(ns)
-            toTest.addAll(rs.filter(tested))
+            toTest.addAll(rs.filterNot(tested))
           }
       }
     }

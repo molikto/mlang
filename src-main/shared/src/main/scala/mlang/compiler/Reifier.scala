@@ -8,6 +8,7 @@ import mlang.utils.{Benchmark, Name, debug}
 import scala.collection.mutable
 
 
+// TODO this implicitly uses positive generated ids, also unification, becasue they modify the layers, this is not a problem because we don't use positive/negative difference, but it defeats the design
 private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorContextRebind {
   def base: ReifierContextBottom
 
@@ -175,7 +176,7 @@ private class ReifierContextBottom(layersBefore: Layers) extends ReifierContext 
   def saveOutOfScopeValue(r: Value.Reference): Unit = {
     val index = terms.size
     debug(s"out of scope value saved??", 2)
-    terms.append(DefineItem(ParameterBinder(Name.empty, null), Some(r)))
+    terms.append(DefineItem(ParameterBinder(Name.empty, Value.Generic(LongGen.Negative.gen(), null)), Some(r)))
     val abs = if (r.value.eq(self)) {
       None : Option[Abstract]
     } else {
