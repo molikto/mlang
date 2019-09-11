@@ -11,14 +11,14 @@ define fiber_at(#A #B: type, f: A ⇒ B, b: B): type = record {
   field path: f(from) ≡ b
 }
 
-define equiv(A B: type): type = record {
-  field f: A ⇒ B
-  field component: (b: B) ⇒ is_contractible(fiber_at(f, b))
+define equiv(T A: type): type = record {
+  field f: T ⇒ A
+  field component: (a: A) ⇒ is_contractible(fiber_at(f, a))
 }
 
 define equiv_of(A: type): type = record {
-  field B: type
-  field eq: equiv(A, B)
+  field T: type
+  field eq: equiv(T, A)
 }
 
 // adapted from cubical agda

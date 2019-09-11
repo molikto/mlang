@@ -89,6 +89,12 @@ object Value {
   }
 
   object Formula {
+    def apply(nf: NormalForm): Formula =
+      nf.foldLeft(Formula.False : Formula) {(f, z) =>
+        Formula.Or(f, z.foldLeft(Formula.True : Formula) { (t, y) => Formula.And(t, if (y._2) Formula.Generic(y._1) else Formula.Neg(Formula.Generic(y._1)))})}
+
+    def elim(f: Formula, i: Long): Formula = Formula(NormalForm.elim(f.normalForm, i))
+
 
     def phi(se: Seq[Formula]) = se.flatMap(_.normalForm).toSet
     type Assignment = (Long, Boolean)
@@ -98,6 +104,8 @@ object Value {
     }
     type NormalForm = Set[Assignments]
     object NormalForm {
+      def elim(nf: NormalForm, value: Long) = nf.filter(!_.exists(_._1 == value))
+
       def satisfiable(_2: NormalForm): Boolean = _2.exists(Assignments.satisfiable)
 
       val True: NormalForm = Set(Set.empty)
@@ -894,12 +902,25 @@ object Value {
     }
   }
 
-  def transpGlue(B: GlueType, i: Long, si: Formula, u0: Value): Value = {
-//    def A(to: Boolean) = B.ty.restrict(Set((i, to)))
-//    val phi = Formula.phi(B.faces.map(_.restriction)).
-//    val A0 = A(false)
-//    val A1 = A(true)
-//    val a0 = Unglue(A0, u0, ???)
+  def transpGlue(B: GlueType, dim: Long, si: Formula, u0: Value): Value = {
+    def B_swap(f: Formula) = B.fswap(dim, f).asInstanceOf[GlueType]
+    val B0 = B_swap(Formula.False)
+    val A0 = B0.ty
+    val a0 = Unglue(A0, u0, B0.faces)
+    val a1 = Comp(
+      AbsClosure(i => B_swap(i).ty),
+      a0,
+      Face(si, AbsClosure(_ => a0)) +:
+      B.faces.map(a => Face(Formula.elim(a.restriction, dim), AbsClosure(i => {
+        val bd = a.body.apply(Formula.Generic.HACK)
+        val EQi = bd.fswap(dim, i)
+        //val T = Projection(EQi, 0)
+        val w = Projection(EQi, 1)
+        App(
+          Projection(w, 0),
+          transpFill(i, si, AbsClosure(j => bd.fswap(dim, j)), u0)
+        )
+      }))))
     ???
   }
 
