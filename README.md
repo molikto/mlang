@@ -4,7 +4,6 @@
 
 under major renovation.
 
-* rewrite and delete maker expression
 * pretty print
 * write more code with univalance
 * implement HITs

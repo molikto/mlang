@@ -171,7 +171,7 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
             case Some(ref) =>
               t.whnf match {
                 case sum: Value.Sum if { index = sum.constructors.indexWhere(c => c.name.by(ref) && c.nodes.isEmpty); index >= 0 } =>
-                  ret = (Value.Maker(t, index), Pattern.Construct(index, Seq.empty))
+                  ret = (Value.Construct(index, Seq.empty), Pattern.Construct(index, Seq.empty))
                 case _ =>
               }
             case _ =>

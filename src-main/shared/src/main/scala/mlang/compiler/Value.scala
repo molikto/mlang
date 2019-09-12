@@ -292,30 +292,6 @@ object Value {
         case _ => logicError()
       }
     }
-
-    def makerAndType(graph: ClosureGraph, ims: Seq[Boolean], vc: Seq[Value] => Value, tc: Value): (Value, Value) = {
-      def rmake(known: Seq[Value]): Value = {
-        val size = graph.size - known.size
-        size match {
-          case 0 => vc(known)
-          case _ => Lambda(Closure(p => rmake(known :+ p)))
-        }
-      }
-      def rtyp(index: Int, graph: Seq[ClosureGraph.Node]): Value = {
-        val size = graph.size - index
-        size match {
-          case 0 => tc
-          case _ =>
-            Function(graph(index).independent.typ, ims(index), Closure(p => {
-              val ng = reduce(graph, index, p)
-              rtyp(index + 1, ng)
-            }))
-        }
-      }
-      val mv = rmake(Seq.empty)
-      val mt = rtyp(0, graph)
-      (mv, mt)
-    }
   }
 
 
@@ -696,20 +672,11 @@ object Value {
       ims: Seq[Boolean],
       nodes: ClosureGraph) extends Canonical {
     assert(names.size == nodes.size)
-
-    private def rthis(): Value = LocalReference(this)
-
-    private lazy val makerAndType: (Value, Value) = ClosureGraph.makerAndType(nodes, ims, vs => Make(vs), rthis())
-    lazy val maker: Value = makerAndType._1
-    lazy val makerType: Value = makerAndType._2
-
     def projectedType(values: Value, name: Int): Value = {
       ClosureGraph.get(nodes, name, i => Projection(values, i))
     }
   }
   case class Make(values: Seq[Value]) extends Canonical
-  // FIXME do away with this
-  case class Maker(value: Value, field: Int) extends Value
 
   /**
     * whnf: make is whnf and is not canonical
@@ -724,23 +691,8 @@ object Value {
   }
 
   case class Construct(name: Int, vs: Seq[Value]) extends Canonical
-  case class Constructor(name: Name, ims: Seq[Boolean], nodes: ClosureGraph) {
-    private[Value] var _sum: Sum = _
-    private def rthis(): Value = LocalReference(_sum)
-
-    private def index = _sum.constructors.indexWhere(_.eq(this))
-
-    private lazy val makerAndType: (Value, Value) = ClosureGraph.makerAndType(nodes, ims, vs => Construct(index, vs), rthis())
-    lazy val maker: Value = makerAndType._1
-    lazy val makerType: Value = makerAndType._2
-  }
-  case class Sum(
-      inductively: Option[Inductively],
-      constructors: Seq[Constructor]) extends Canonical {
-    for (c <- constructors) {
-      c._sum = this
-    }
-  }
+  case class Constructor(name: Name, ims: Seq[Boolean], nodes: ClosureGraph)
+  case class Sum(inductively: Option[Inductively], constructors: Seq[Constructor]) extends Canonical
 
   case class PathType(typ: AbsClosure, left: Value, right: Value) extends Canonical
   case class PathLambda(body: AbsClosure) extends Canonical
@@ -1448,12 +1400,6 @@ sealed trait Value {
     case Meta(c: MetaState.Closed) => c.v.deref()
     case _: Internal => logicError()
     case _ => this
-  }
-
-  def makerType(i: Int): Value = this.whnf match {
-    case s: Sum => s.constructors(i).makerType
-    case v: Record => v.makerType
-    case _ => logicError()
   }
 }
 

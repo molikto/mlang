@@ -121,8 +121,10 @@ trait PlatformEvaluator extends Evaluator {
           val d = depth + 1 // we some how have have one layer for the constructor names
           s"""Sum(${emit(id, depth)}, Seq(${constructors.zipWithIndex.map(c =>
             s"Constructor(${source(c._1.name)}, ${emit(c._1.implicits)}, ${emitGraph(c._1.params, d)})").mkString(", ")}))"""
-        case Abstract.Maker(sum, field) =>
-          s"Maker(${emit(sum, depth)}, $field)"
+        case Abstract.Make(vs) =>
+          s"Make(${vs.map(v => emit(v, depth))})"
+        case Abstract.Construct(name, vs) =>
+          s"Construct($name, ${vs.map(v => emit(v, depth))})"
         case Abstract.PatternLambda(id, dom, codomain, cases) =>
           val d = depth + 1
           s"PatternLambda($id, ${emit(dom, depth)}, Closure(r$d => ${emitInner(codomain, d)}), Seq(${cases.map(c => s"Case(${tunnel(c.pattern)}, MultiClosure(r$d => ${emitInner(c.body, d)}))").mkString(", ")}))"

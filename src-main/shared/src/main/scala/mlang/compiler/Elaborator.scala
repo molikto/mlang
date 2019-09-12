@@ -3,12 +3,15 @@ package mlang.compiler
 import mlang.compiler.Concrete._
 import Declaration.Modifier
 import mlang.compiler.Layer.Layers
+import mlang.compiler.Value.ClosureGraph
 import mlang.utils._
 
+import scala.annotation.Annotation
 import scala.collection.mutable
 import scala.language.implicitConversions
 
 
+class syntax_creation extends Annotation
 
 object Elaborator {
   private val pgen = new LongGen.Positive()
@@ -130,6 +133,7 @@ class Elaborator private(protected override val layers: Layers)
     }
   }
 
+
   private def infer(term: Concrete, noReduceMore: Boolean = false): (Value, Abstract) = {
     debug(s"infer $term")
     def reduceMore(v: Value, abs: Abstract): (Value, Abstract) = {
@@ -139,12 +143,44 @@ class Elaborator private(protected override val layers: Layers)
         finishOffImplicits(v, abs)
       }
     }
+
+    def inferProjectionApp(left: Concrete, right: Concrete, arguments: Seq[(Boolean, Concrete)]): (Value, Abstract) = {
+      val (lt, la) = infer(left)
+      val lv = eval(la)
+      lazy val ltr = lt.whnf.asInstanceOf[Value.Record]
+      def error() = throw ElaboratorException.UnknownProjection()
+      var index = -1
+      def calIndex(a: Text => Int) = {
+        index = right match {
+          case Concrete.Reference(name) => a(name)
+          case _ => -1
+        }
+        index >= 0
+      }
+      lt.whnf match {
+        case m: Value.Record if calIndex(t => ltr.names.indexWhere(_.by(t))) =>
+          val (a,b) = inferApp(m.projectedType(lv, index), Abstract.Projection(la, index), arguments)
+          reduceMore(a, b)
+        case _ =>
+          lv.whnf match {
+            // TODO user defined projections for a type, i.e.
+            // TODO [issue 7] implement const_projections syntax
+            case r: Value.Record if right == Concrete.Make =>
+              (lv, Abstract.Make(inferGraph(r.nodes, r.ims, arguments)))
+            case r: Value.Sum if calIndex(t => r.constructors.indexWhere(_.name.by(t))) =>
+              val c = r.constructors(index)
+              (lv, Abstract.Construct(index, inferGraph(c.nodes, c.ims, arguments)))
+            case _ => error()
+          }
+      }
+    }
     val res = term match {
       case Concrete.Type =>
         (Value.Universe.level1, Abstract.Universe(0))
       case Concrete.Up(a, b) =>
         a match {
           case Concrete.Up(c, d) =>
+            // @syntax_creation
             infer(Concrete.Up(c, b + d))
           case Concrete.Type =>
             (Value.Universe.suc(b + 1), Abstract.Universe(if (Value.Universe.TypeInType) 0 else b))
@@ -273,49 +309,26 @@ class Elaborator private(protected override val layers: Layers)
       case l: Concrete.Lambda =>
         if (l.ensuredPath) {
           assert(!l.imps)
+          // @syntax_creation
           val (ta, va) = inferTelescope(Seq((false, l.name, Concrete.I)), None, l.body)
           (eval(ta), va)
         } else {
           throw ElaboratorException.CannotInferLambda()
         }
-      case Concrete.Projection(left, right) =>
-        val (lt, la) = infer(left)
-        val lv = eval(la)
-        lazy val ltr = lt.whnf.asInstanceOf[Value.Record]
-        def error() = throw ElaboratorException.UnknownProjection()
-        var index = -1
-        def calIndex(a: Text => Int) = {
-          index = right match {
-            case Concrete.Reference(name) => a(name)
-            case _ => -1
-          }
-          index >= 0
-        }
-        lt.whnf match {
-          case m: Value.Record if calIndex(t => ltr.names.indexWhere(_.by(t))) =>
-            reduceMore(m.projectedType(lv, index), Abstract.Projection(la, index))
-          case _ =>
-            lv.whnf match {
-              // TODO user defined projections for a type, i.e.
-              // TODO [issue 7] implement const_projections syntax
-              case r: Value.Record if right == Concrete.Make =>
-                reduceMore(r.makerType, Abstract.Maker(-1, r.nodes.size))
-              case r: Value.Sum if calIndex(t => r.constructors.indexWhere(_.name.by(t))) =>
-                val c = r.constructors(index)
-                reduceMore(c.makerType, Abstract.Maker(index, c.nodes.size))
-              case _ => error()
-            }
-        }
       case Concrete.App(lambda, arguments) =>
-        if (arguments.isEmpty) throw ElaboratorException.EmptyArguments()
         lambda match {
           case Concrete.App(l2, a2) =>
+            // @syntax_creation
             infer(Concrete.App(l2, a2 ++ arguments))
+          case Concrete.Projection(left, right) =>
+            inferProjectionApp(left, right, arguments)
           case _ =>
             val (lt, la) = infer(lambda, true)
             val (v1, v2) = inferApp(lt, la, arguments)
             reduceMore(v1, v2) // because inferApp stops when arguments is finished
         }
+      case Concrete.Projection(left, right) =>
+        inferProjectionApp(left, right, Seq.empty)
       case Concrete.GlueType(ty, faces) =>
         val (lv, ta) = inferLevel(ty)
         val tv = eval(ta)
@@ -448,6 +461,42 @@ class Elaborator private(protected override val layers: Layers)
     }
   }
 
+  def inferGraph(nodes: ClosureGraph, ims: Seq[Boolean], arguments: Seq[(Boolean, Concrete)], accumulator: Seq[Abstract] = Seq.empty): Seq[Abstract] = {
+    val i = accumulator.size
+    def implicitCase() = {
+      val (mv, ma) = newMeta(nodes(i).independent.typ)
+      val ns = ClosureGraph.reduce(nodes, i, mv)
+      inferGraph(ns, ims.tail, arguments, accumulator :+ ma)
+    }
+    arguments match {
+      case head +: tail => // more arguments
+        if (ims.isEmpty) {
+          throw ElaboratorException.ConstructorWithMoreArguments()
+        } else {
+          if (ims.head == head._1) { // this is a given argument
+            val aa = check(head._2, nodes(i).independent.typ)
+            val av = eval(aa)
+            val ns = ClosureGraph.reduce(nodes, i, av)
+            inferGraph(ns, ims.tail, tail, accumulator :+ aa)
+          } else if (ims.head) { // this is a implicit argument not given
+            implicitCase()
+          } else {
+            throw ElaboratorException.NotExpectingImplicitArgument()
+          }
+        }
+      case Seq() =>
+        if (ims.isEmpty) { // no argument and no field, perfect!
+          accumulator
+        } else {
+          if (ims.head) { // more implicits, finish off
+            implicitCase()
+          } else { // no more implicits, we want to wrap the thing in lambda
+            throw ElaboratorException.NotFullyAppliedConstructorNotSupportedYet()
+          }
+        }
+    }
+  }
+
   private def inferApp(lt: Value, la: Abstract, arguments: Seq[(Boolean, Concrete)]): (Value, Abstract) = {
     arguments match {
       case head +: tail =>
@@ -514,99 +563,99 @@ class Elaborator private(protected override val layers: Layers)
         val ms0 = ctx.freezeReify()
         Abstract.Let(ms ++ ms0, da, ba)
       case _ =>
-    }
-    cp.whnf match {
-      case Value.Function(domain, fimp, codomain) =>
-        term match {
-          case Concrete.Lambda(n, limp, ensuredPath, body) if fimp == limp =>
-            assert(!ensuredPath)
-            val (ctx, v) = newParameterLayer(n.nonEmptyOrElse(hint), domain)
-            val ba = ctx.check(body, codomain(v), tail)
-            Abstract.Lambda(Abstract.Closure(ctx.finishReify(), ba))
-          case Concrete.PatternLambda(limp, cases) if fimp == limp =>
-            val res = cases.map(c => {
-              val (ctx, v, pat) = newPatternLayer(c.pattern, domain)
-              val ba = ctx.check(c.body, codomain(v), tail)
-              Abstract.Case(pat, Abstract.MultiClosure(ctx.finishReify(), ba))
-            })
-            Abstract.PatternLambda(Elaborator.pgen(), reify(domain), reify(codomain), res)
-          case _ =>
-            if (fimp) {
-              val (ctx, v) = newParameterLayer(Name.empty, domain)
-              val ba = ctx.check(term, codomain(v), tail)
-              Abstract.Lambda(Abstract.Closure(ctx.finishReify(), ba))
-            } else {
-              fallback()
-            }
-        }
-      case Value.GlueType(ty, faces) =>
-        term match {
-          case Concrete.Glue(base, fs) =>
-            val ba = check(base, ty)
-            val bv = eval(ba)
-            val phi1 = Value.Formula.phi(faces.map(_.restriction))
-            val ffs = fs.map(a => { val (f1, f2) = checkAndEvalFormula(a.dimension); (f1, f2, a.term) })
-            val phi2 =  Value.Formula.phi(ffs.map(_._1))
-            if (phi1 == phi2) {
-              val fas = ffs.map(f => {
-                val body = doForValidFormulaOrThrow(f._1, asgn => {
-                  val terms = mutable.Set.empty[Abstract.AbsClosure]
-                  for (tf <- faces) {
-                    tf.restriction.normalForm.filter(Value.Formula.Assignments.satisfiable).foreach(asgn2 => {
-                      val asg = asgn ++ asgn2
-                      if (Value.Formula.Assignments.satisfiable(asg)) {
-                        val ctx = newSyntaxDirectedRestrictionLayer(asg).newDimensionLayer(Name.empty)._1
-                        val bd1 = tf.body(Value.Formula.Generic.HACK).restrict(asg)
-                        val res = ctx.check(f._3, Value.Projection(bd1, 0))
-                        val itemv = eval(res)
-                        if (ctx.unifyTerm(ty.restrict(asg), bv.restrict(asg), Value.App(Value.Projection(bd1, 1), itemv))) {
-                          terms.add(Abstract.AbsClosure(ctx.finishReify(), res))
-                        } else {
-                          throw ElaboratorException.GlueNotMatching()
-                        }
-                      }
-                    })
-                  }
-                  if (terms.size != 1) {
-                    logicError()
-                  }
-                  terms.head
+        cp.whnf match {
+          case Value.Function(domain, fimp, codomain) =>
+            term match {
+              case Concrete.Lambda(n, limp, ensuredPath, body) if fimp == limp =>
+                assert(!ensuredPath)
+                val (ctx, v) = newParameterLayer(n.nonEmptyOrElse(hint), domain)
+                val ba = ctx.check(body, codomain(v), tail)
+                Abstract.Lambda(Abstract.Closure(ctx.finishReify(), ba))
+              case Concrete.PatternLambda(limp, cases) if fimp == limp =>
+                val res = cases.map(c => {
+                  val (ctx, v, pat) = newPatternLayer(c.pattern, domain)
+                  val ba = ctx.check(c.body, codomain(v), tail)
+                  Abstract.Case(pat, Abstract.MultiClosure(ctx.finishReify(), ba))
                 })
-                Abstract.Face(f._2, body)
-              })
-              Abstract.Glue(ba, fas)
-            } else {
-              throw ElaboratorException.FacesNotMatching()
+                Abstract.PatternLambda(Elaborator.pgen(), reify(domain), reify(codomain), res)
+              case _ =>
+                if (fimp) {
+                  val (ctx, v) = newParameterLayer(Name.empty, domain)
+                  val ba = ctx.check(term, codomain(v), tail)
+                  Abstract.Lambda(Abstract.Closure(ctx.finishReify(), ba))
+                } else {
+                  fallback()
+                }
+            }
+          case Value.GlueType(ty, faces) =>
+            term match {
+              case Concrete.Glue(base, fs) =>
+                val ba = check(base, ty)
+                val bv = eval(ba)
+                val phi1 = Value.Formula.phi(faces.map(_.restriction))
+                val ffs = fs.map(a => { val (f1, f2) = checkAndEvalFormula(a.dimension); (f1, f2, a.term) })
+                val phi2 =  Value.Formula.phi(ffs.map(_._1))
+                if (phi1 == phi2) {
+                  val fas = ffs.map(f => {
+                    val body = doForValidFormulaOrThrow(f._1, asgn => {
+                      val terms = mutable.Set.empty[Abstract.AbsClosure]
+                      for (tf <- faces) {
+                        tf.restriction.normalForm.filter(Value.Formula.Assignments.satisfiable).foreach(asgn2 => {
+                          val asg = asgn ++ asgn2
+                          if (Value.Formula.Assignments.satisfiable(asg)) {
+                            val ctx = newSyntaxDirectedRestrictionLayer(asg).newDimensionLayer(Name.empty)._1
+                            val bd1 = tf.body(Value.Formula.Generic.HACK).restrict(asg)
+                            val res = ctx.check(f._3, Value.Projection(bd1, 0))
+                            val itemv = eval(res)
+                            if (ctx.unifyTerm(ty.restrict(asg), bv.restrict(asg), Value.App(Value.Projection(bd1, 1), itemv))) {
+                              terms.add(Abstract.AbsClosure(ctx.finishReify(), res))
+                            } else {
+                              throw ElaboratorException.GlueNotMatching()
+                            }
+                          }
+                        })
+                      }
+                      if (terms.size != 1) {
+                        logicError()
+                      }
+                      terms.head
+                    })
+                    Abstract.Face(f._2, body)
+                  })
+                  Abstract.Glue(ba, fas)
+                } else {
+                  throw ElaboratorException.FacesNotMatching()
+                }
+              case _ => fallback()
+            }
+          case Value.PathType(typ, left, right) =>
+            term match {
+              case Concrete.Lambda(n, b, _, body) =>
+                if (b) throw ElaboratorException.DimensionLambdaCannotBeImplicit()
+                val (c1, dv) = newDimensionLayer(n.nonEmptyOrElse(hint))
+                val t1 = typ(dv)
+                import Value.Formula._
+                val a1 = c1.check(body, t1, tail)
+                val ps = Abstract.AbsClosure(c1.finishReify(), a1)
+                val pv = eval(ps)
+                val leftEq = unifyTerm(typ(False), pv(False), left)
+                val rightEq = unifyTerm(typ(True), pv(True), right)
+                if (leftEq && rightEq) {
+                  Abstract.PathLambda(ps)
+                } else {
+                  throw ElaboratorException.PathEndPointsNotMatching()
+                }
+              case _ => fallback()
+            }
+          case r: Value.Record =>
+            term match {
+              case Concrete.App(Concrete.Make, vs) =>
+                Abstract.Make(inferGraph(r.nodes, r.ims, vs))
+              case _ =>
+                fallback()
             }
           case _ => fallback()
         }
-      case Value.PathType(typ, left, right) =>
-        term match {
-          case Concrete.Lambda(n, b, _, body) =>
-            if (b) throw ElaboratorException.DimensionLambdaCannotBeImplicit()
-            val (c1, dv) = newDimensionLayer(n.nonEmptyOrElse(hint))
-            val t1 = typ(dv)
-            import Value.Formula._
-            val a1 = c1.check(body, t1, tail)
-            val ps = Abstract.AbsClosure(c1.finishReify(), a1)
-            val pv = eval(ps)
-            val leftEq = unifyTerm(typ(False), pv(False), left)
-            val rightEq = unifyTerm(typ(True), pv(True), right)
-            if (leftEq && rightEq) {
-              Abstract.PathLambda(ps)
-            } else {
-              throw ElaboratorException.PathEndPointsNotMatching()
-            }
-          case _ => fallback()
-        }
-      case r: Value.Record =>
-        term match {
-          case Concrete.App(Concrete.Make, vs) =>
-            inferApp(r.makerType, Abstract.Maker(-1, r.nodes.size), vs)._2
-          case _ =>
-            fallback()
-        }
-      case _ => fallback()
     }
   }
 
@@ -617,6 +666,7 @@ class Elaborator private(protected override val layers: Layers)
       s: Declaration.Single,
       mis: mutable.ArrayBuffer[CodeInfo[Value.Meta]],
       vis: mutable.ArrayBuffer[DefinitionInfo], topLevel: Boolean): Self = {
+    // @syntax_creation
     def wrapBody(t: Concrete, imp: Seq[Boolean]): Concrete = if (imp.isEmpty) t else wrapBody(Concrete.Lambda(Name.empty, imp.last, false, t), imp.dropRight(1))
     def appendMetas(ms: Seq[Value.Meta]): Unit = {
       for (m <- ms) {

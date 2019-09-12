@@ -121,7 +121,6 @@ object Abstract {
   case class GlueType(tp: Abstract, faces: Seq[Face]) extends Abstract
   case class Glue(base: Abstract, faces: Seq[Face]) extends Abstract
   case class Unglue(tp: Abstract, base: Abstract, faces: Seq[Face]) extends Abstract
-  case class Maker(value: Int, size: Int) extends Abstract
 }
 
 
@@ -154,7 +153,6 @@ sealed trait Abstract {
     case App(left, right) => App(left.diff(depth, x), right.diff(depth, x))
     case Record(id, names, implicits, graph) => Record(id.map(_.diff(depth, x)), names, implicits, graph.map(a => (a._1, a._2.diff(depth, x))))
     case Projection(left, field) => Projection(left.diff(depth, x), field)
-    case Maker(field, size) => this
     case Sum(id, constructors) => Sum(id.map(_.diff(depth, x)), constructors.map(c => Constructor(c.name, c.implicits, c.params.map(a => (a._1, a._2.diff(depth, x))))))
     case Make(vs) => Make(vs.map(_.diff(depth, x)))
     case Construct(f, vs) => Construct(f, vs.map(_.diff(depth, x)))
@@ -182,7 +180,6 @@ sealed trait Abstract {
     case App(left, right) => left.dependencies(i) ++ right.dependencies(i)
     case Record(id, _, _, nodes) => id.map(_.dependencies(i)).getOrElse(Set.empty) ++ nodes.flatMap(_._2.dependencies(i)).toSet
     case Projection(left, _) => left.dependencies(i)
-    case Maker(field, size) => Set.empty
     case Sum(id, constructors) =>  id.map(_.dependencies(i)).getOrElse(Set.empty) ++ constructors.flatMap(_.params.flatMap(_._2.dependencies(i))).toSet
     case Make(vs) => vs.flatMap(_.dependencies(i)).toSet
     case Construct(_, vs) => vs.flatMap(_.dependencies(i)).toSet

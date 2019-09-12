@@ -56,6 +56,10 @@ object ElaboratorException {
 
   case class NotExpectingImplicitArgument() extends ElaboratorException
 
+  case class ConstructorWithMoreArguments() extends ElaboratorException
+
+  case class NotFullyAppliedConstructorNotSupportedYet() extends ElaboratorException
+
   case class RecursiveTypesMustBeDefinedAtTopLevel() extends ElaboratorException
 
   case class UpCanOnlyBeUsedOnTopLevelDefinitionOrUniverse()  extends ElaboratorException
