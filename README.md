@@ -8,8 +8,7 @@ under major renovation.
 * pretty print
 * write more code with univalance
 * implement HITs
-* write univalence in library
-* write Brunerie's number
+* towards Brunerie's number
 * implement new up
     * we have some problem with `infer` on value
 * don't use type directed conversion checking anymore, should lambda be type annotated?

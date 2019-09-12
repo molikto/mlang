@@ -299,17 +299,23 @@ class Elaborator private(protected override val layers: Layers)
               // TODO user defined projections for a type, i.e.
               // TODO [issue 7] implement const_projections syntax
               case r: Value.Record if right == Concrete.Make =>
-                reduceMore(r.makerType, Abstract.Maker(la, -1))
+                reduceMore(r.makerType, Abstract.Maker(-1, r.nodes.size))
               case r: Value.Sum if calIndex(t => r.constructors.indexWhere(_.name.by(t))) =>
-                reduceMore(r.constructors(index).makerType, Abstract.Maker(la, index))
+                val c = r.constructors(index)
+                reduceMore(c.makerType, Abstract.Maker(index, c.nodes.size))
               case _ => error()
             }
         }
       case Concrete.App(lambda, arguments) =>
         if (arguments.isEmpty) throw ElaboratorException.EmptyArguments()
-        val (lt, la) = infer(lambda, true)
-        val (v1, v2) = inferApp(lt, la, arguments)
-        reduceMore(v1, v2) // because inferApp stops when arguments is finished
+        lambda match {
+          case Concrete.App(l2, a2) =>
+            infer(Concrete.App(l2, a2 ++ arguments))
+          case _ =>
+            val (lt, la) = infer(lambda, true)
+            val (v1, v2) = inferApp(lt, la, arguments)
+            reduceMore(v1, v2) // because inferApp stops when arguments is finished
+        }
       case Concrete.GlueType(ty, faces) =>
         val (lv, ta) = inferLevel(ty)
         val tv = eval(ta)
@@ -596,9 +602,7 @@ class Elaborator private(protected override val layers: Layers)
       case r: Value.Record =>
         term match {
           case Concrete.App(Concrete.Make, vs) =>
-            val cpd = reify(cp)
-            debug(s"reified record make type $cpd", 1)
-            inferApp(r.makerType, Abstract.Maker(cpd, -1), vs)._2
+            inferApp(r.makerType, Abstract.Maker(-1, r.nodes.size), vs)._2
           case _ =>
             fallback()
         }

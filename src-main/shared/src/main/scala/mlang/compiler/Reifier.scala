@@ -94,12 +94,6 @@ private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorCon
         Sum(reify(id), constructors.map(c => Constructor(c.name, c.ims, reify(c.nodes))))
       case Value.PathType(ty, left, right) =>
         PathType(reify(ty), reify(left), reify(right))
-      case Value.Make(_) =>
-        // we believe at least values from typechecker don't have these stuff
-        // we can extends it when time comes
-        logicError()
-      case Value.Construct(_, _) =>
-        logicError()
       case Value.Lambda(closure) =>
         Lambda(reify(closure))
       case Value.PatternLambda(id, dom, ty, cases) =>
@@ -130,8 +124,10 @@ private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorCon
         Projection(reify(make), field)
       case Value.PatternRedux(lambda, stuck) =>
         App(reify(lambda), reify(stuck))
-      case Value.Maker(s, i) =>
-        Maker(reify(s), i)
+      case Value.Make(vs) =>
+        Make(vs.map(reify))
+      case Value.Construct(f, vs) =>
+        Construct(f, vs.map(reify))
       case Value.PathApp(left, stuck) =>
         PathApp(reify(left), reify(stuck))
       case Value.Transp(tp, dir, base) =>

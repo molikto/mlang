@@ -85,14 +85,15 @@ object Abstract {
     def dependencies(i: Int): Set[Dependency] = Set.empty
     def diff(depth: Int, x: Int): Inductively = this
   }
-  case class Maker(sum: Abstract, field: Int) extends Abstract
 
   case class Record(inductively: Option[Inductively], names: Seq[Name], implicits: Seq[Boolean], graph: ClosureGraph) extends Abstract
   case class Projection(left: Abstract, field: Int) extends Abstract
+  case class Make(vs: Seq[Abstract]) extends Abstract
 
   case class Constructor(name: Name, implicits: Seq[Boolean], params: ClosureGraph)
   case class Sum(inductively: Option[Inductively], constructors: Seq[Constructor]) extends Abstract
   case class Case(pattern: Pattern, body: MultiClosure)
+  case class Construct(f: Int, vs: Seq[Abstract]) extends Abstract
 
   case class PathLambda(body: AbsClosure) extends Abstract
   case class PathType(typ: AbsClosure, left: Abstract, right: Abstract) extends Abstract
@@ -120,6 +121,7 @@ object Abstract {
   case class GlueType(tp: Abstract, faces: Seq[Face]) extends Abstract
   case class Glue(base: Abstract, faces: Seq[Face]) extends Abstract
   case class Unglue(tp: Abstract, base: Abstract, faces: Seq[Face]) extends Abstract
+  case class Maker(value: Int, size: Int) extends Abstract
 }
 
 
@@ -152,8 +154,10 @@ sealed trait Abstract {
     case App(left, right) => App(left.diff(depth, x), right.diff(depth, x))
     case Record(id, names, implicits, graph) => Record(id.map(_.diff(depth, x)), names, implicits, graph.map(a => (a._1, a._2.diff(depth, x))))
     case Projection(left, field) => Projection(left.diff(depth, x), field)
+    case Maker(field, size) => this
     case Sum(id, constructors) => Sum(id.map(_.diff(depth, x)), constructors.map(c => Constructor(c.name, c.implicits, c.params.map(a => (a._1, a._2.diff(depth, x))))))
-    case Maker(sum, field) => Maker(sum.diff(depth, x), field)
+    case Make(vs) => Make(vs.map(_.diff(depth, x)))
+    case Construct(f, vs) => Construct(f, vs.map(_.diff(depth, x)))
     case Let(metas, definitions, in) => Let(metas.map(_.diff(depth + 1, x)), definitions.map(_.diff(depth + 1, x)), in.diff(depth + 1, x))
     case PatternLambda(id, dom, typ, cases) => PatternLambda(id, dom.diff(depth, x), typ.diff(depth, x), cases.map(a => Case(a.pattern, a.body.diff(depth, x))))
     case PathLambda(body) => PathLambda(body.diff(depth, x))
@@ -178,8 +182,10 @@ sealed trait Abstract {
     case App(left, right) => left.dependencies(i) ++ right.dependencies(i)
     case Record(id, _, _, nodes) => id.map(_.dependencies(i)).getOrElse(Set.empty) ++ nodes.flatMap(_._2.dependencies(i)).toSet
     case Projection(left, _) => left.dependencies(i)
+    case Maker(field, size) => Set.empty
     case Sum(id, constructors) =>  id.map(_.dependencies(i)).getOrElse(Set.empty) ++ constructors.flatMap(_.params.flatMap(_._2.dependencies(i))).toSet
-    case Maker(sum, _) => sum.dependencies(i)
+    case Make(vs) => vs.flatMap(_.dependencies(i)).toSet
+    case Construct(_, vs) => vs.flatMap(_.dependencies(i)).toSet
     case Let(metas, definitions, in) =>
       metas.flatMap(a => a.dependencies(i + 1)).toSet  ++ definitions.flatMap(a => a.dependencies(i + 1)).toSet ++ in.dependencies(i + 1)
     case PatternLambda(_, dom, cd, cases) => dom.dependencies(i) ++ cd.dependencies(i) ++ cases.flatMap(_.body.dependencies(i)).toSet

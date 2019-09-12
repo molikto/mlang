@@ -187,7 +187,7 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
             case r: Value.Record =>
               if (maps.size == r.nodes.size) {
                 val vs = recs(maps, r.nodes)
-                (Value.Apps(Value.Maker(t, -1), vs.map(_._1)), Pattern.Make(vs.map(_._2)))
+                (Value.Make(vs.map(_._1)), Pattern.Make(vs.map(_._2)))
               } else {
                 throw PatternExtractException.MakeWrongSize()
               }
@@ -201,7 +201,7 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
                 val c = sum.constructors(index)
                 if (c.nodes.size == maps.size) {
                   val vs = recs(maps, c.nodes)
-                  (Value.Apps(Value.Maker(t, index), vs.map(_._1)), Pattern.Construct(index, vs.map(_._2)))
+                  (Value.Construct(index, vs.map(_._1)), Pattern.Construct(index, vs.map(_._2)))
                 } else {
                   throw PatternExtractException.ConstructWrongSize()
                 }

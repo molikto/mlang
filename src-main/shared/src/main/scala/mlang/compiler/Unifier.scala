@@ -417,7 +417,7 @@ trait Unifier extends Reifier with ElaboratorContextRebind with Evaluator with P
           t.whnf match {
             case r: Record  =>
               if (maps.size == r.nodes.size) {
-                Apps(Maker(t, -1), recs(maps, r.nodes))
+                Make(recs(maps, r.nodes))
               } else {
                 logicError()
               }
@@ -428,7 +428,7 @@ trait Unifier extends Reifier with ElaboratorContextRebind with Evaluator with P
             case sum: Sum =>
               val c = sum.constructors(name)
               if (c.nodes.size == maps.size) {
-                Apps(Maker(t, name), recs(maps, c.nodes))
+                Construct(name, recs(maps, c.nodes))
               } else {
                 logicError()
               }

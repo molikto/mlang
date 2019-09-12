@@ -575,7 +575,6 @@ object Value {
         case u@Unglue(_, m, _) => Some(u)
         case _: Comp => logicError()
         case _: Reference => logicError()
-        case _: Maker => logicError()
         case _: Internal => logicError()
       }
     }
@@ -1142,14 +1141,6 @@ sealed trait Value {
             case MetaState.Closed(v) => v.whnf
             case _: MetaState.Open => m
           }
-        case Maker(r, i) =>
-          r.whnf match {
-            case s: Sum => s.constructors(i).maker
-            case r: Record =>
-              assert(i == -1)
-              r.maker
-            case _ => logicError() // because we don't accept anoymouns maker expression
-          }
         case app@App(lambda, argument) =>
           // TODO don't do this equals stuff!!!
           def app2(lambda: Value, argument: Value): Value = {
@@ -1303,7 +1294,6 @@ sealed trait Value {
     case Transp(tp, direction, base) => tp.supportShallow() ++ base.supportShallow() +- direction.names
     case Comp(tp, base, faces) => tp.supportShallow() ++ base.supportShallow() ++ Face.supportShallow(faces)
     case Hcomp(tp, base, faces) => tp.supportShallow() ++ base.supportShallow() ++ Face.supportShallow(faces)
-    case Maker(value, field) => value.supportShallow()
     case GlueType(tp, faces) => tp.supportShallow()++ Face.supportShallow(faces)
     case Glue(base, faces) => base.supportShallow() ++ Face.supportShallow(faces)
     case Unglue(tp, base, faces) => tp.supportShallow() ++ base.supportShallow() ++ Face.supportShallow(faces)
@@ -1333,7 +1323,6 @@ sealed trait Value {
     case Transp(tp, direction, base) => Transp(tp.fswap(w, z), direction.fswap(w, z), base.fswap(w, z))
     case Hcomp(tp, base, faces) => Hcomp(tp.fswap(w, z), base.fswap(w, z), Face.fswap(faces, w, z))
     case Comp(tp, base, faces) => Comp(tp.fswap(w, z), base.fswap(w, z), Face.fswap(faces, w, z))
-    case Maker(value, field) => Maker(value.fswap(w, z), field)
     case Projection(make, field) => Projection(make.fswap(w, z), field)
     case PatternRedux(lambda, stuck) =>
       PatternRedux(lambda.fswap(w, z).asInstanceOf[PatternLambda], stuck.fswap(w, z))
@@ -1374,8 +1363,6 @@ sealed trait Value {
       Hcomp(tp.restrict(lv), base.restrict(lv), Face.restrict(faces, lv))
     case Comp(tp, base, faces) =>
       Comp(tp.restrict(lv), base.restrict(lv), Face.restrict(faces, lv))
-    case Maker(value, field) =>
-      Maker(value.restrict(lv), field)
     case Projection(make, field) =>
       Projection(make.restrict(lv), field)
     case PatternRedux(lambda, stuck) =>
