@@ -1049,7 +1049,7 @@ object Value {
                 }))))
               Some(res)
             case Sum(i, cs) => ???
-            case g: Glue =>
+            case g: GlueType =>
               Some(hcompGlue(g, base, faces))
             case _: Internal => logicError()
             case _ => None
