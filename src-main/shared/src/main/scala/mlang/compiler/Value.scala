@@ -123,6 +123,13 @@ object Value {
     object True extends Formula
     object False extends Formula
     case class And(left: Formula, right: Formula) extends Formula
+    object Or {
+      def apply(fs: Seq[Formula]): Formula = {
+        fs.foldLeft(Formula.False: Formula) {
+          (f, a) => Or(f, a)
+        }
+      }
+    }
     case class Or(left: Formula, right: Formula) extends Formula
     case class Neg(unit: Formula) extends Formula
     sealed trait Internal extends Formula
@@ -319,6 +326,7 @@ object Value {
   sealed trait CubicalUnstableCanonical extends Value // this value can reduce more, but only when restricted
   sealed trait Redux extends Value {
     // TODO this is not that well defined, since some term will always whnf on arguments, some not
+    // maybe inline in whnf
     def reduce(): Option[Value]
 
     def reduceThenWhnfOrSelf() = reduce() match {
@@ -905,27 +913,80 @@ object Value {
   def transpGlue(B: GlueType, dim: Long, si: Formula, u0: Value): Value = {
     def B_swap(f: Formula) = B.fswap(dim, f).asInstanceOf[GlueType]
     val B0 = B_swap(Formula.False)
+    def A(i: Formula) = B.ty.fswap(dim, i)
+    val B1 = B_swap(Formula.True)
+    val phi1 = Formula.Or(B1.faces.map(_.restriction))
+    val A1 = B1.ty
     val A0 = B0.ty
-    val a0 = Unglue(A0, u0, B0.faces)
-    val a1 = Comp(
-      AbsClosure(i => B_swap(i).ty),
+    // a0: A(i/0)
+    val a0 = LocalReference(Unglue(A0, u0, B0.faces))
+    val phi_elim_i = Formula.elim(Formula.Or(B.faces.map(_.restriction)), dim)
+    // defined in phi_elim_i
+    def t_tide(trueFace: Value, i: Formula) = {
+      transpFill(i, si, AbsClosure(i => {
+      Projection(trueFace.fswap(dim, i), 0)
+      }), u0)
+    }
+    def trueElimFace() = B.faces.find(b => Formula.elim(b.restriction, dim).normalFormTrue).get.body(Formula.Generic.HACK)
+    def t1(trueFace: Value) = t_tide(trueFace, Formula.True)
+    // a1: A(i/1) and is defined on both si and elim(i, phi)
+    val a1 = LocalReference(Comp(
+      AbsClosure(i => A(i)),
       a0,
-      Face(si, AbsClosure(_ => a0)) +:
-      B.faces.map(a => Face(Formula.elim(a.restriction, dim), AbsClosure(i => {
-        val bd = a.body.apply(Formula.Generic.HACK)
-        val EQi = bd.fswap(dim, i)
-        //val T = Projection(EQi, 0)
-        val w = Projection(EQi, 1)
-        App(
-          Projection(w, 0),
-          transpFill(i, si, AbsClosure(j => bd.fswap(dim, j)), u0)
+      Seq(
+        Face(si, AbsClosure(_ => a0)),
+        Face(phi_elim_i, AbsClosure(i => {
+          val tf = trueElimFace()
+          val EQi  = tf.fswap(dim, i)
+          val w = Projection(EQi, 1)
+          App(Projection(w, 0), t_tide(tf, i))
+        }))
+      )))
+    // ..., phi(i/1) |- (t1`, alpha) // true face must have (i/1)
+    def pair(trueFace: Value) = {
+      val w = Projection(trueFace, 1)
+      val compo = App(Projection(w, 1), a1) // is_contractible(fiber_at(w(i/1).1, a1))
+      Comp(AbsClosure(i => A(i)), Projection(compo, 0),
+        Seq(
+          Face(si, AbsClosure(i => {
+            val u = Make(Seq(u0, PathLambda(AbsClosure(_ => a1))))
+            PathApp(App(Projection(compo, 1), u), i)
+          })),
+          Face(phi_elim_i, AbsClosure(i => {
+            val u = Make(Seq(t1(trueElimFace()), PathLambda(AbsClosure(_ => a1))))
+            PathApp(App(Projection(compo, 1), u), i)
+          }))
         )
-      }))))
-    ???
+      )
+    }
+    val a1p = Hcomp(A1, a1,
+      Seq(
+        Face(phi1, AbsClosure(j => {
+          val bd = B1.faces.find(_.restriction.normalFormTrue).get.body(Formula.Generic.HACK)
+          PathApp(Projection(pair(bd), 1), j)
+        })),
+        Face(si, AbsClosure(j => a1))))
+    Glue(a1p, Seq(Face(phi1, AbsClosure(_ => {
+      val bd = B1.faces.find(_.restriction.normalFormTrue).get.body(Formula.Generic.HACK)
+      Projection(pair(bd), 0)
+    }))))
   }
 
-  def hcompGlue(g: Glue, base: Value, faces: Seq[Face]): Value = {
-    ???
+  def hcompGlue(B: GlueType, u0: Value, faces: Seq[Face]): Value = {
+    val si = Formula.Or(faces.map(_.restriction))
+    def t_tide(trueFace: Value) = {
+      hfill(Projection(trueFace, 0), u0, faces)
+    }
+    def t1(trueFace: Value) = t_tide(trueFace)(Formula.True)
+    val a1 = Hcomp(B.ty, Unglue(B.ty, u0, faces),
+      faces.map(f => Face(f.restriction, f.body.map(u => Unglue(B.ty, u, B.faces)))) ++
+      B.faces.map(f => Face(f.restriction, f.body.mapd((pair, i) => {
+        val w = Projection(pair, 1)
+        val f = Projection(w, 0)
+        App(f, t_tide(pair)(i))
+      })))
+    )
+    Glue(a1, B.faces.map(f => Face(f.restriction, f.body.map(bd => t1(bd)))))
   }
 
 
@@ -1180,6 +1241,13 @@ sealed trait Value {
   }
 
 
+  // FIXME current problems of restriction/fswap system:
+  // they have overlapping, fswap by constant is similar to restriction, but they produce
+  // referential different terms (this is not a bug, but is a dirtyness)
+  // newly produced local referenctal has the problem that they will not be compared by reference
+  // easily, (again, not a bug, only dirtyness)
+  // but I think we can currently
+  // without fswap, the first problem dispears
   def support(): Support = {
     val tested = mutable.Set.empty[Referential]
     val ss = supportShallow() // in case of reference, it will just put the reference here

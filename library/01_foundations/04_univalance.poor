@@ -3,19 +3,14 @@
 
 
 
+
+
+
 /*
+
 define ua(#A #B: type, e: equiv(A, B)): A ≡ B =
-  i → V_type(i, A, B, e)
+  i → glue_type(B |~i: equiv_of(B).make(A, e) |i: equiv_of(B).make(B, id_equiv(B)))
 
-*/
-
-
-define equivs(B: type) = record {
-  field A: type
-  field eq: equiv(A, B)
-}
-
-/*
 define univalence(B: type): is_contractible(equivs(B)) =
   make(make(B, id_equiv(B)), ???)
 */

@@ -501,6 +501,14 @@ class Elaborator private(protected override val layers: Layers)
           }
       }
     }
+    term match {
+      case Concrete.Let(declarations, bd) =>
+        val (ctx, ms, da) = newDefinesLayer().checkDeclarations(declarations, false)
+        val ba = ctx.check(bd, cp)
+        val ms0 = ctx.freezeReify()
+        Abstract.Let(ms ++ ms0, da, ba)
+      case _ =>
+    }
     cp.whnf match {
       case Value.Function(domain, fimp, codomain) =>
         term match {
@@ -591,13 +599,6 @@ class Elaborator private(protected override val layers: Layers)
             val cpd = reify(cp)
             debug(s"reified record make type $cpd", 1)
             inferApp(r.makerType, Abstract.Maker(cpd, -1), vs)._2
-          case Concrete.Let(declarations, Concrete.App(Concrete.Make, vs)) =>
-            val (ctx, ms, da) = newDefinesLayer().checkDeclarations(declarations, false)
-            val cpd = ctx.reify(cp)
-            debug(s"reified record make type $cpd", 1)
-            val ia= ctx.inferApp(r.makerType, Abstract.Maker(cpd, -1), vs)._2
-            val ms0 = ctx.freezeReify()
-            Abstract.Let(ms ++ ms0, da, ia)
           case _ =>
             fallback()
         }

@@ -1,15 +1,10 @@
 
 
 
-/* TODO revive this
 define id_equiv(A: type): equiv(A, A) =
   make(
     a → a,
     a → make(
       make(a, refl),
-      p → i → run {
-        define aux(j: I): A = hcomp(1, j, a |i=0: p.path |i=1: k → a)
-        make(aux(0), aux)
-      }
+      z → i → make(z.path(~i), j → z.path((~i) ∨ j))
     ))
-*/

@@ -4,7 +4,9 @@
 
 under major renovation.
 
-* re-implement new glue/unglue
+* rewrite and delete maker expression
+* pretty print
+* write more code with univalance
 * implement HITs
 * write univalence in library
 * write Brunerie's number
