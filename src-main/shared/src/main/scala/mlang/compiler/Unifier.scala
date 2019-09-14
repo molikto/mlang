@@ -5,7 +5,7 @@ import mlang.utils.{Benchmark, Name, debug, warn}
 
 import scala.collection.mutable
 import scala.util.{Failure, Success, Try}
-import LongGen.Negative.{gen, dgen}
+import GenLong.Negative.{gen, dgen}
 
 private case class Assumption(left: Long, right: Long, domain: Value, codomain: Closure)
 

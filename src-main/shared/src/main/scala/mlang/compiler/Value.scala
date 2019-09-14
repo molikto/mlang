@@ -1,6 +1,6 @@
 package mlang.compiler
 
-import mlang.compiler.LongGen.Negative.{dgen, gen}
+import mlang.compiler.GenLong.Negative.{dgen, gen}
 import mlang.compiler.Value.Formula.{Assignments, NormalForm}
 import mlang.compiler.Value.{AbsClosure, _}
 import mlang.utils.{Name, debug}
@@ -10,6 +10,7 @@ import scala.collection.mutable
 
 private[compiler] class stuck_pos extends Annotation
 private[compiler] class type_annotation extends Annotation // see Readme about abstract-surface syntax mismatch
+private[compiler] class nominal_equality extends Annotation
 
 case class ImplementationLimitationCannotRestrictOpenMeta() extends Exception
 
@@ -639,7 +640,7 @@ object Value {
   // the reason we must have a domain here is because we support unordered pattern matching
   // so pattern redux can be stuck value when non of their arguments is stuck
   // LATER is unordered pattern matching really a good thing? but I don't want case trees!
-  case class PatternLambda(id: Long, @type_annotation domain: Value, @type_annotation typ: Closure, cases: Seq[Case]) extends Canonical
+  case class PatternLambda(@nominal_equality id: Long, @type_annotation domain: Value, @type_annotation typ: Closure, cases: Seq[Case]) extends Canonical
 
   /**
     * whnf: stuck is whnf AND pattern redux cannot continue
@@ -659,7 +660,7 @@ object Value {
   }
 
 
-  case class Inductively(id: Long, level: Int) {
+  case class Inductively(@nominal_equality id: Long, level: Int) {
 
     def restrict(lv: Formula.Assignments): Inductively = this
     def fswap(w: Long, z: Formula): Inductively = this

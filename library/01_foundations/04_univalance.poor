@@ -5,11 +5,11 @@
 
 
 
+define ua(#A #B: type, e: equiv(A, B)): A ≡ B =
+  i → glue_type(B |~i: equiv_of(B).make(A, e) |i: equiv_of(B).make(B, id_equiv(B)))
 
 /*
 
-define ua(#A #B: type, e: equiv(A, B)): A ≡ B =
-  i → glue_type(B |~i: equiv_of(B).make(A, e) |i: equiv_of(B).make(B, id_equiv(B)))
 
 define univalence(B: type): is_contractible(equivs(B)) =
   make(make(B, id_equiv(B)), ???)

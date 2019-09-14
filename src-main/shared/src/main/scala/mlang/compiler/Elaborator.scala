@@ -2,6 +2,7 @@ package mlang.compiler
 
 import mlang.compiler.Concrete._
 import Declaration.Modifier
+import mlang.compiler.Abstract.MetaEnclosed
 import mlang.compiler.Layer.Layers
 import mlang.compiler.Value.ClosureGraph
 import mlang.utils._
@@ -14,8 +15,8 @@ import scala.language.implicitConversions
 class syntax_creation extends Annotation
 
 object Elaborator {
-  private val pgen = new LongGen.Positive()
-  private val igen = new LongGen.Positive()
+  private val pgen = new GenLong.Positive()
+  private val igen = new GenLong.Positive()
   def topLevel(): Elaborator = new Elaborator(Seq.empty).newDefinesLayer()
 }
 
@@ -25,6 +26,7 @@ class Elaborator private(protected override val layers: Layers)
         with ElaboratorContextLookup
         with ElaboratorContextRebind
         with ElaboratorContextForEvaluator
+        with DebugPrettyPrinter
         with Evaluator with PlatformEvaluator with Unifier {
 
   override type Self = Elaborator
@@ -737,6 +739,7 @@ class Elaborator private(protected override val layers: Layers)
             info(s"check defined $name")
             if (ps.nonEmpty || t0.nonEmpty) throw ElaboratorException.SeparateDefinitionCannotHaveTypesNow()
             val va = check(v, typ, Seq.empty)
+            info("body:"); print(va)
             appendMetas(freeze())
             val ref = newReference()
             val ctx = newDefinitionChecked(index, name, ref)
@@ -751,6 +754,7 @@ class Elaborator private(protected override val layers: Layers)
               info(s"define $name")
               val pps = NameType.flatten(ps)
               val (_, ta) = inferTelescope(pps, t)
+              info("type:"); print(ta)
               appendMetas(freeze())
               val tv = eval(ta)
               val (ctx, index, generic) = newDeclaration(name, tv) // allows recursive definitions
@@ -777,6 +781,7 @@ class Elaborator private(protected override val layers: Layers)
               } else {
                 va0
               }
+              info("body:"); print(va)
               appendMetas(ctx.freeze())
               val ref = newReference()
               val ctx2 = ctx.newDefinitionChecked(index, name, ref)
@@ -807,6 +812,8 @@ class Elaborator private(protected override val layers: Layers)
               // term without type
               info(s"infer $name")
               val (ta, va) = inferTelescope(NameType.flatten(ps), t0, v)
+              info("type:"); print(ta)
+              info("body:"); print(va)
               appendMetas(freeze())
               val ref = newReference(eval(va))
               val (ctx, index, generic) = newDefinition(name, eval(ta), ref)
@@ -826,6 +833,7 @@ class Elaborator private(protected override val layers: Layers)
             info(s"declare $name")
             if (ms.exists(_ != Modifier.__Debug)) throw ElaboratorException.ForbiddenModifier()
             val (_, ta) = inferTelescope(NameType.flatten(ps), t)
+            info("type:"); print(ta)
             appendMetas(freeze())
             val tv = eval(ta)
             val (ctx, index, generic) = newDeclaration(name, tv)
@@ -886,6 +894,8 @@ class Elaborator private(protected override val layers: Layers)
   def check(m: Module): Elaborator = Benchmark.TypeChecking {
     checkDeclarations(m.declarations, true)._1
   }
+
+
 }
 
 

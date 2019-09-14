@@ -11,7 +11,7 @@ object ContextWithMetaOpsException {
 
 object ElaboratorContextWithMetaOps {
 
-  private val mgen = new LongGen.Positive()
+  private val mgen = new GenLong.Positive()
 }
 import ElaboratorContextWithMetaOps._
 
@@ -23,7 +23,8 @@ trait ElaboratorContextWithMetaOps extends ElaboratorContextBase {
   protected def createMetas(): MetasState = new MetasState(mutable.ArrayBuffer.empty, 0)
 
   protected def solvedMeta(meta: Value.Meta): Abstract.MetaReference = {
-    assert(meta.isSolved)
+    // TODO pretty print disabled this for now
+    //assert(meta.isSolved)
     val ms = layers.head.metas
     if (ms.debug_final) logicError()
     val index = ms.size
@@ -69,7 +70,7 @@ trait ElaboratorContextWithMetaOps extends ElaboratorContextBase {
       var i = 0
       var ll = ls.head.metas.metas
       while (ll.nonEmpty && binder == null) {
-        ll.head.lookupChildren(meta) match {
+        ll.head._2.lookupChildren(meta) match {
           case Some(asgn) if restrictionsMatchWith(up, asgn) =>
             index = i
             binder = Abstract.MetaReference(up, index)

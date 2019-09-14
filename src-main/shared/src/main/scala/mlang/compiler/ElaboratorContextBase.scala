@@ -7,27 +7,27 @@ import mlang.utils.{Name, debug}
 import scala.collection.mutable
 
 
-class MetasState(val metas: mutable.ArrayBuffer[Value.Meta], var frozen: Int) {
+class MetasState(val metas: mutable.ArrayBuffer[(Name, Value.Meta)], var frozen: Int) {
   def debug_allFrozen: Boolean = metas.size == frozen
 
   def freeze(): Seq[Value.Meta] = {
     val vs = metas.slice(frozen, metas.size)
     frozen = metas.size
-    vs.toSeq
+    vs.map(_._2).toSeq
   }
 
-  def apply(i: Int): Value.Meta = metas(i)
+  def apply(i: Int): Value.Meta = metas(i)._2
 
   var debug_final = false
   def size: Int = metas.size
 
   def isEmpty: Boolean = metas.isEmpty
   def nonEmpty: Boolean = metas.nonEmpty
-  def head: Value.Meta = metas.head
+  def head: Value.Meta = metas.head._2
 
   def append(a: Value.Meta): Unit = {
     if (debug_final) logicError()
-    metas.append(a)
+    metas.append((GenName(), a))
   }
 }
 

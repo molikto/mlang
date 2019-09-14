@@ -17,8 +17,8 @@ object ElaboratorContextBuilderException {
 
 
 object ElaboratorContextBuilder {
-  private val gen = new LongGen.Positive()
-  private val dgen = new LongGen.Positive()
+  private val gen = new GenLong.Positive()
+  private val dgen = new GenLong.Positive()
 }
 
 import ElaboratorContextBuilder._
