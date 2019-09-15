@@ -56,7 +56,6 @@ trait DebugPrettyPrinter extends ElaboratorContextBuilder {
           case parameters: Layer.Parameters if index >= 0 => parameters.binders(index).name.main
           case Layer.Parameter(binder, _) if index == -1 => binder.name.main
           case Layer.Defines(_, terms) if index >= 0 => terms(index).typ0.name.main
-          case Layer.Defines(_, terms) => terms.head.typ0.name.main
           case whatever => logicError(s"$whatever is unexpected")
         }).toString
       case Abstract.MetaReference(up, index) =>
