@@ -2,7 +2,6 @@ package mlang.compiler
 
 import mlang.compiler.Concrete._
 import Declaration.Modifier
-import mlang.compiler.Abstract.MetaEnclosed
 import mlang.compiler.Layer.Layers
 import mlang.compiler.Value.ClosureGraph
 import mlang.utils._

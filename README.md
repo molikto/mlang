@@ -1,37 +1,5 @@
 # mlang
 
-Under major renovation.
-
-* pretty print
-* write more code with univalence
-* implement HITs
-* towards Brunerie's number
-* implement new up
-    * we have some problem with `infer` on value
-* don't use type directed conversion checking anymore, should lambda be type annotated?
-    * should we design a new lambda value with type annotations? (like in cubicaltt)
-
-#### pretty print
-
-The current goal of pretty print is to make it easier to debug the elaborated core term,
-and to present faithfully the elaborated term, they are different with concrete term in various ways:
-
-* various notation is elaborated to different form. like `nat.zero` syntax is elaborated to `construct(0)`
-  (introduction rule for sum type, where 0 means the first constructor)
-* meta is elaborated
-* there is no `define what(a: A, b: B): C = ??/` telescope, where `a` and `b` is in both type and term.
-* more type is present in core term (see `core.type_annotation` annotation)
-
-so some improvements:
-
-* syntax
-    * makes reference use same identifier with concrete term, instead of randomly generated term
-    * makes sum type construct use name of the field instead of index
-    * make the syntax more like in concrete syntax (for example application syntax)
-* layout: two alternatives:
-    * pretty print to HTML with clear AST delimitation/boundary, layout it properly, might print it like a tree, it is ok
-    * plain text: makes sure pretty printed term can be "mentally parsed" and have proper indentation
-
 ---------------
 
 [![Join the chat at https://gitter.im/mlang-discuess/community](https://badges.gitter.im/mlang-discuess/community.svg)](https://gitter.im/mlang-discuess/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge) 
@@ -62,24 +30,57 @@ there are other kind of TODOs in the project, they are `LATER`, `TODO`, and `FIX
 the one marked `FIXME` in code is important problems needs expert to figure out.
 
 
+### pretty print
+
+(ice1000, can you do this?)
+
+The current goal of pretty print is to make it easier to debug the elaborated core term, and to present faithfully the elaborated term, they are different with concrete term in various ways:
+
+* various notation is elaborated to different form. like `nat.zero` syntax is elaborated to `construct(0)`
+  (introduction rule for sum type, where 0 means the first constructor)
+* meta is elaborated
+* there is no `define what(a: A, b: B): C = ??/` telescope, where `a` and `b` is in both type and term.
+* more type is present in core term (see `core.type_annotation` annotation)
+
+so some improvements:
+
+* syntax
+    * makes reference use same identifier with concrete term, instead of randomly generated term
+    * makes sum type construct use name of the field instead of index
+    * make the syntax more like in concrete syntax (for example application syntax)
+* pretty print to HTML with clear AST delimitation/boundary, layout it properly, might print it like a tree (see Lamdu project)
+    
+
 ## roadmap
+
+
+Under major renovation.
+
+* write more code with univalence
+* implement HITs
+* towards Brunerie's number
+* implement new up
+    * we have some problem with `infer` on value
+* don't use type directed conversion checking anymore, should lambda be type annotated?
+    * should we design a new lambda value with type annotations? (like in cubicaltt)
+
+------------------------
 
 * **DONE** totally unsafe MLTT basics
     * function types, record types, sum types
     * bidirectional elaborating type checker
     * mutual recursive definitions
-    * type directed conversion check with eta and recursive definitions
+    * conversion check and whnf with eta and recursive definitions
     * concrete syntax, core syntax, core semantics and reification
     * basic `.poor` syntax and parser
 * **DONE** overlapping and order independent patterns, see `plus_tests` in library for detail
-* **DONE** cumulative universe with "up" operator for global definitions (see [here](https://mazzo.li/epilogue/index.html%3Fp=857&cpage=1.html))
 * **DONE** locally scoped meta; very simple unification; implicit arguments syntax
 * cubical features
     * **DONE** path type
-    * **DONE** coe, com, hcom; checking, computation for basic types
-    * **WIP** V-type and univalence
-    * fibrant universe
-    * sum type's Kan ops; fcom, higher inductive types
+    * **DONE** composition structure (hcomp, transp)
+    * **DONE** glue type and univalence, fibrant universe
+    * **WIP** sum type's composition structure, higher inductive types
+* cumulative universe with "lift" operator for global definitions (see [here](https://mazzo.li/epilogue/index.html%3Fp=857&cpage=1.html))
 * ~~~~~~~~
 * user defined eliminations
     * constant projection `square.constant`
