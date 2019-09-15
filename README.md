@@ -20,7 +20,6 @@ and to present faithfully the elaborated term, they are different with concrete 
   (introduction rule for sum type, where 0 means the first constructor)
 * meta is elaborated
 * there is no `define what(a: A, b: B): C = ??/` telescope, where `a` and `b` is in both type and term.
-  Elaborated term has a type and a body, no shared parts
 * more type is present in core term (see `core.type_annotation` annotation)
 
 ---------------
