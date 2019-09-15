@@ -32,7 +32,7 @@ class Elaborator private(protected override val layers: Layers)
 
   override protected implicit def create(a: Layers): Self = new Elaborator(a)
 
-  def doForValidFormulaOrThrow[T](f: Value.Formula, a: Value.Formula.Assignments => T): T = {
+  private def doForValidFormulaOrThrow[T](f: Value.Formula, a: Value.Formula.Assignments => T): T = {
     val davn = f.normalForm
     val valid = davn.filter(Value.Formula.Assignments.satisfiable)
     if (valid.isEmpty) {
@@ -43,7 +43,7 @@ class Elaborator private(protected override val layers: Layers)
     }
   }
 
-  def checkCompatibleCapAndFaces(
+  private def checkCompatibleCapAndFaces(
                                   faces: Seq[Concrete.Face],
                                   bt: Value.AbsClosure,
                                   bv: Value
@@ -88,7 +88,7 @@ class Elaborator private(protected override val layers: Layers)
   }
 
 
-  def checkLine(a: Concrete, typ: Value.AbsClosure): (Value.Formula.Generic, Abstract.AbsClosure) = {
+  private def checkLine(a: Concrete, typ: Value.AbsClosure): (Value.Formula.Generic, Abstract.AbsClosure) = {
     a match {
       case Concrete.Lambda(n, b, _, body) =>
         if (b) throw ElaboratorException.DimensionLambdaCannotBeImplicit()
@@ -105,7 +105,8 @@ class Elaborator private(protected override val layers: Layers)
         }
     }
   }
-  def checkTypeLine(a: Concrete): (Int, Abstract.AbsClosure) = {
+
+  private def checkTypeLine(a: Concrete): (Int, Abstract.AbsClosure) = {
     a match {
       case Concrete.Lambda(n, b, _, body) =>
         if (b) throw ElaboratorException.DimensionLambdaCannotBeImplicit()
@@ -463,7 +464,7 @@ class Elaborator private(protected override val layers: Layers)
     }
   }
 
-  def inferGraph(nodes: ClosureGraph, ims: Seq[Boolean], arguments: Seq[(Boolean, Concrete)], accumulator: Seq[Abstract] = Seq.empty): Seq[Abstract] = {
+  private def inferGraph(nodes: ClosureGraph, ims: Seq[Boolean], arguments: Seq[(Boolean, Concrete)], accumulator: Seq[Abstract] = Seq.empty): Seq[Abstract] = {
     val i = accumulator.size
     def implicitCase() = {
       val (mv, ma) = newMeta(nodes(i).independent.typ)
