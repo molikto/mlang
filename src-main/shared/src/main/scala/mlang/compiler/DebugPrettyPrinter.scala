@@ -6,7 +6,11 @@ trait DebugPrettyPrinter extends ElaboratorContextBuilder {
   override type Self <: DebugPrettyPrinter
 
 
-  def print(a: Abstract): Unit = println(debugPPrint(a))
+  def print(a: Abstract): Unit =  {
+    // disabled now. has bugs
+    //println(debugPPrint(a))
+  }
+
 
   def debugPPrintInner(ms: Abstract.MetaEnclosedT): String = {
     if (ms.metas.isEmpty) debugPPrint(ms.term) else {
