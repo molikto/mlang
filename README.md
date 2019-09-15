@@ -22,6 +22,14 @@ and to present faithfully the elaborated term, they are different with concrete 
 * there is no `define what(a: A, b: B): C = ??/` telescope, where `a` and `b` is in both type and term.
 * more type is present in core term (see `core.type_annotation` annotation)
 
+so some improvements:
+
+* makes reference use same identifier with concrete term, instead of randomly generated term
+* makes sum type construct use name of the field instead of index
+* make the syntax more like in concrete syntax (for example application syntax)
+* makes sure pretty printed term can be "mentally parsed" or you should pretty print to HTML with clear AST delimitation/boundary
+    * layout it properly
+
 ---------------
 
 [![Join the chat at https://gitter.im/mlang-discuess/community](https://badges.gitter.im/mlang-discuess/community.svg)](https://gitter.im/mlang-discuess/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge) 
