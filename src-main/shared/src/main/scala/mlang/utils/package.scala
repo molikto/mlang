@@ -4,7 +4,9 @@ import scala.collection.mutable
 
 package object utils {
 
-  def logicError() = throw new IllegalArgumentException("This state is considered a logic error")
+  def logicError(): Nothing = logicError("no additional info provided")
+
+  def logicError(additionalInfo: String) = throw new IllegalArgumentException(s"This state is considered a logic error (${additionalInfo})")
 
   implicit class Text(val s: String) extends AnyVal {
     def string: String = s
