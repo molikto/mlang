@@ -53,19 +53,6 @@ so some improvements:
 
 ## roadmap
 
-
-Under major renovation.
-
-* write more code with univalence
-* implement HITs
-* towards Brunerie's number
-* implement new up
-    * we have some problem with `infer` on value
-* don't use type directed conversion checking anymore, should lambda be type annotated?
-    * should we design a new lambda value with type annotations? (like in cubicaltt)
-
-------------------------
-
 * **DONE** totally unsafe MLTT basics
     * function types, record types, sum types
     * bidirectional elaborating type checker
@@ -81,6 +68,8 @@ Under major renovation.
     * **DONE** glue type and univalence, fibrant universe
     * **WIP** sum type's composition structure, higher inductive types
 * cumulative universe with "lift" operator for global definitions (see [here](https://mazzo.li/epilogue/index.html%3Fp=857&cpage=1.html))
+* think how we can have a syntax for partial elements and dimension
+* think how we can incorporate XTT or/and two level system
 * ~~~~~~~~
 * user defined eliminations
     * constant projection `square.constant`
@@ -121,9 +110,6 @@ Under major renovation.
     * https://github.com/HoTT/HoTT
     * unimath
     * the big problems list
-    * Agda Katas
-* meta-theory
-    * compared to CCHM, Copop != C
 
 
 ## internals

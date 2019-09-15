@@ -363,6 +363,7 @@ trait Unifier extends Reifier with ElaboratorContextRebind with Evaluator with P
 
   /**
     * it is REQUIRED that t1 and t2 indeed has that type!!!!
+    * FIXME what impact will there be if unification is not type directed?
     */
   private def recTerm(typ: Value, t1: Value, t2: Value): Boolean = {
     if (t1.eq(t2)) {

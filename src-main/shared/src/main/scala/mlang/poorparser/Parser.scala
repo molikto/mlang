@@ -232,7 +232,6 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
 
   lazy val app: PackratParser[App] = term ~ delimited("(", repsep(opt("@") ~ term, ","), ")") ^^ {a => App(a._1, a._2.map(k => (k._1.isDefined, k._2)))}
 
-
   lazy val record: PackratParser[Record] = keyword("record") ~> delimited("{", rep(((keyword("field") ~> rep1(nonEmptyImplicitPattern) <~ ":") ~ term) ^^ {a => NameType(a._1, a._2)}), "}") ^^ {a => Record(a) }
 
   lazy val projection: PackratParser[Projection] = (term <~ ".") ~ (make | reference) ^^ {a => Projection(a._1, a._2)}
