@@ -46,6 +46,11 @@ trait DebugPrettyPrinter extends ElaboratorContextBuilder {
     s"${name.main} → ${ctx.debugPPrintInner(ast)}"
   }
 
+  def debugPPrint(cons: Abstract.Constructor): String = {
+    // TODO: closure graph?
+    s"${cons.name}"
+  }
+
   def debugPPrint(ast: Seq[Abstract.Face]): String = {
     ast.map(a => s"| ${a.pair}: ${newReifierRestrictionLayer(Value.Formula.True).debugPPrintAbsClosure(a.body)}").mkString("")
   }
@@ -100,13 +105,13 @@ trait DebugPrettyPrinter extends ElaboratorContextBuilder {
       case Abstract.Record(inductively, names, implicits, graph) =>
         "[record]"
       case Abstract.Sum(inductively, constructors) =>
-        "[sum]"
+        s"sum ${inductively.fold("")(_.toString + " ")}{${constructors.map(a => debugPPrint(a)).mkString("; ")}}"
       case Abstract.Projection(left, field) =>
         s"${debugPPrint(left)}.$field"
       case Abstract.Make(vs) =>
-        "make(" + vs.map(a => debugPPrint(a)) + ")"
+        s"make(${vs.map(a => debugPPrint(a))})"
       case Abstract.Construct(f, vs) =>
-        s"construct($f, " + vs.map(a => debugPPrint(a)) + ")"
+        s"construct($f, ${vs.map(a => debugPPrint(a))})"
       case Abstract.PathType(typ, left, right) =>
         s"path(${debugPPrint(left)}, ${debugPPrintAbsClosure(typ)}, ${debugPPrint(right)})"
       case Abstract.PathApp(let, r) =>

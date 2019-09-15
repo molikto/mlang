@@ -84,6 +84,7 @@ object Abstract {
   case class Inductively(id: Long, level: Int) {
     def dependencies(i: Int): Set[Dependency] = Set.empty
     def diff(depth: Int, x: Int): Inductively = this
+    override def toString: String = "inductively"
   }
 
   case class Record(inductively: Option[Inductively], names: Seq[Name], implicits: Seq[Boolean], graph: ClosureGraph) extends Abstract
