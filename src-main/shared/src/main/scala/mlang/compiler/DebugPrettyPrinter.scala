@@ -16,7 +16,7 @@ trait DebugPrettyPrinter extends ElaboratorContextBuilder {
       val ctx = this
       for (m <- metas) ctx.solvedMeta(null)
       for ((m, ii) <- metas.zipWithIndex) {
-        val name = ctx.layers(0).metas.metas(ii)._1.main
+        val name = ctx.layers.head.metas.metas(ii)._1.main
         sb.append(s"meta $name = ${ctx.debugPPrint(m)}\n")
       }
       sb.append(ctx.debugPPrint(ms.term))
@@ -50,12 +50,13 @@ trait DebugPrettyPrinter extends ElaboratorContextBuilder {
 
   def debugPPrint(ast: Abstract): String = {
     ast match {
-      case Abstract.Universe(i) => if (i == 0) "type" else (0 until i).map(_ => "^").mkString("") + "type"
+      case Abstract.Universe(i) => if (i == 0) "type" else "^" * i + "type"
       case Abstract.Reference(up, index) =>
         (layers(up) match {
           case parameters: Layer.Parameters if index >= 0 => parameters.binders(index).name.main
           case Layer.Parameter(binder, _) if index == -1 => binder.name.main
           case Layer.Defines(_, terms) if index >= 0 => terms(index).typ0.name.main
+          case Layer.Defines(_, terms) => terms.head.typ0.name.main
           case whatever => logicError(s"$whatever is unexpected")
         }).toString
       case Abstract.MetaReference(up, index) =>
@@ -67,11 +68,11 @@ trait DebugPrettyPrinter extends ElaboratorContextBuilder {
         for (m <- metas) ctx.solvedMeta(null)
         for (d <- definitions) ctx = ctx.newDefinition(GenName(), null, null)._1.asInstanceOf[DebugPrettyPrinter]
         for ((m, ii) <- metas.zipWithIndex) {
-          val name = ctx.layers(0).metas.metas(ii)._1.main.toString
+          val name = ctx.layers.head.metas.metas(ii)._1.main.toString
           sb.append(s"meta $name = ${ctx.debugPPrint(m)}\n")
         }
         for ((d, ii) <- definitions.zipWithIndex) {
-          val name = ctx.layers(0).asInstanceOf[Layer.Defines].terms(ii).typ0.name.main.toString
+          val name = ctx.layers.head.asInstanceOf[Layer.Defines].terms(ii).typ0.name.main.toString
           sb.append(s"define $name = ${ctx.debugPPrint(d)}\n")
         }
         sb.append(ctx.debugPPrint(in))

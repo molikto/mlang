@@ -126,6 +126,7 @@ class Elaborator private(protected override val layers: Layers)
     }
   }
 
+  @scala.annotation.tailrec
   private def finishOffImplicits(v: Value, abs: Abstract): (Value, Abstract) = {
     v.whnf match {
       case Value.Function(d, i, c) if i =>
