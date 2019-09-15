@@ -41,11 +41,13 @@ trait DebugPrettyPrinter extends ElaboratorContextBuilder {
   }
 
   def debugPPrintAbsClosure(ast: Abstract.AbsClosure): String = {
-    debugPPrint(Abstract.PathLambda(ast))
+    val name = GenName()
+    val ctx = newDimensionLayer(name, null)
+    s"${name.main} → ${ctx.debugPPrintInner(ast)}"
   }
 
   def debugPPrint(ast: Seq[Abstract.Face]): String = {
-    ast.map(a => s"| ${a.pair}: ${debugPPrintAbsClosure(a.body)}").mkString("")
+    ast.map(a => s"| ${a.pair}: ${newReifierRestrictionLayer(Value.Formula.True).debugPPrintAbsClosure(a.body)}").mkString("")
   }
 
   def debugPPrint(ast: Abstract): String = {
