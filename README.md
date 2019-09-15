@@ -24,11 +24,13 @@ and to present faithfully the elaborated term, they are different with concrete 
 
 so some improvements:
 
-* makes reference use same identifier with concrete term, instead of randomly generated term
-* makes sum type construct use name of the field instead of index
-* make the syntax more like in concrete syntax (for example application syntax)
-* makes sure pretty printed term can be "mentally parsed" or you should pretty print to HTML with clear AST delimitation/boundary
-    * layout it properly
+* syntax
+    * makes reference use same identifier with concrete term, instead of randomly generated term
+    * makes sum type construct use name of the field instead of index
+    * make the syntax more like in concrete syntax (for example application syntax)
+* layout: two alternatives:
+    * pretty print to HTML with clear AST delimitation/boundary, layout it properly, might print it like a tree, it is ok
+    * plain text: makes sure pretty printed term can be "mentally parsed" and have proper indentation
 
 ---------------
 

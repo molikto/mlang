@@ -338,7 +338,7 @@ class Elaborator private(protected override val layers: Layers)
         val facesA = faces.map(f => {
           val formula = checkAndEvalFormula(f.dimension)
           val ba = doForValidFormulaOrThrow(formula._1, asgn => {
-            val ctx = newDimensionLayer(Name.empty)._1 // this is currently a hack!
+            val ctx = newSyntaxDirectedRestrictionLayer(asgn).newDimensionLayer(Name.empty)._1 // this is currently a hack!
             // TODO here we checked by same level as ty.
             val bd = ctx.check(f.term, Value.App(BuiltIn.equiv_of, tv).restrict(asgn))
             Abstract.AbsClosure(ctx.finishReify(), bd)
@@ -640,6 +640,7 @@ class Elaborator private(protected override val layers: Layers)
                 import Value.Formula._
                 val a1 = c1.check(body, t1, tail)
                 val ps = Abstract.AbsClosure(c1.finishReify(), a1)
+                info("path body:"); print(Abstract.PathLambda(ps))
                 val pv = eval(ps)
                 val leftEq = unifyTerm(typ(False), pv(False), left)
                 val rightEq = unifyTerm(typ(True), pv(True), right)
