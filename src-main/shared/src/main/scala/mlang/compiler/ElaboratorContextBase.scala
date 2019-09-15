@@ -57,13 +57,13 @@ object Layer {
   }
   case class Parameter(binder: ParameterBinder, metas: MetasState) extends Layer // lambda expression
 
-  case class PatternParameters(binders: Seq[ParameterBinder], metas: MetasState) extends Parameters
+  case class PatternParameters(binders: Seq[ParameterBinder], metas: MetasState) extends Parameters // for pattern matching
 
-  case class ParameterGraph(defined: Seq[ParameterBinder], metas: MetasState) extends Parameters {
+  case class ParameterGraph(defined: Seq[ParameterBinder], metas: MetasState) extends Parameters { // for pi and record telescope
     def binders: Seq[ParameterBinder] = defined
   }
 
-  case class Defines(metas: MetasState, terms: Seq[DefineItem]) extends Layer // notice the metas is FIRST!!
+  case class Defines(metas: MetasState, terms: Seq[DefineItem]) extends Layer // notice the metas is FIRST!!, for let expression and global
   case class Dimension(value: Value.Formula.Generic, name: Name, metas: MetasState) extends Layer {
     def id = value.id
   }

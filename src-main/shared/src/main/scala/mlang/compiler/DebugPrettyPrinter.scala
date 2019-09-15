@@ -9,7 +9,7 @@ trait DebugPrettyPrinter extends ElaboratorContextBuilder {
   def print(a: Abstract): Unit = println(debugPPrint(a))
 
   def debugPPrintInner(ms: Abstract.MetaEnclosedT): String = {
-    if (ms.metas.size == 0) debugPPrint(ms.term) else {
+    if (ms.metas.isEmpty) debugPPrint(ms.term) else {
       val sb = new StringBuilder()
       sb.append("{\n")
       val metas = ms.metas

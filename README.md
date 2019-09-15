@@ -14,6 +14,15 @@ under major renovation.
     * should we design a new lambda value with type annotations? (like in cubicaltt)
     * ~~proper reify without null hacks?~~
 
+
+
+#### pretty print
+
+the current goal of pretty print is to make it easier to debug the elaborated core term, and to present faithfully the elaborated term, they are different with concrete term in various ways:
+* meta is elaborated
+* there is no `define what(a: A, b: B): C = ??/` telescope, where `a` and `b` is in both type and term. elaborated term has a type and a body, no shared parts
+* more type is present in core term (see `core.type_annotation` annotation)
+
 ---------------
 
 [![Join the chat at https://gitter.im/mlang-discuess/community](https://badges.gitter.im/mlang-discuess/community.svg)](https://gitter.im/mlang-discuess/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge) 
