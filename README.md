@@ -12,7 +12,6 @@ under major renovation.
     * we have some problem with `infer` on value
 * don't use type directed conversion checking anymore, should lambda be type annotated?
     * should we design a new lambda value with type annotations? (like in cubicaltt)
-    * ~~proper reify without null hacks?~~
 
 
 
