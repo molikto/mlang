@@ -239,8 +239,8 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
 
   lazy val sum: PackratParser[Sum] =
     (keyword("sum") ~> delimited("{", rep(
-      (keyword("case") ~> atomicPattern ~ tele ^^ { a => Seq(Concrete.Constructor(a._1, a._2)) }) |
-      (keyword("case") ~> rep1(atomicPattern) ^^ { _.map(i => Concrete.Constructor(i, Seq.empty)) : Seq[Concrete.Constructor] })
+      (keyword("case") ~> atomicPattern ~ tele ~ rep(face) ^^ { a => Seq(Concrete.Constructor(a._1._1, a._1._2, a._2)) }) |
+      (keyword("case") ~> rep1(atomicPattern) ^^ { _.map(i => Concrete.Constructor(i, Seq.empty, Seq.empty)) : Seq[Concrete.Constructor] })
     ),"}")) ^^ { a =>
       Sum(a.flatten)
     }

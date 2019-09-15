@@ -1,0 +1,7 @@
+
+
+
+define inductively S1: type = sum {
+  case base
+  case loop(i: I | ~i: base | i: base)
+}

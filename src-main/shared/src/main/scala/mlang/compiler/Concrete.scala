@@ -57,7 +57,7 @@ object Concrete {
     val names = fields.flatMap(_.names)
   }
 
-  case class Constructor(name: Name, term: Seq[NameType])
+  case class Constructor(name: Name, term: Seq[NameType], restrictions: Seq[Face])
 
   case class Sum(constructors: Seq[Constructor]) extends Concrete
 

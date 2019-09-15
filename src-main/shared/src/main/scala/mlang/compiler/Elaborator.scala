@@ -664,7 +664,8 @@ class Elaborator private(protected override val layers: Layers)
 
   private def newReference(v: Value = null): Value.Reference = if (layers.size == 1) Value.GlobalReference(v) else Value.LocalReference(v)
 
-  // FIXME should we make sure type annotation is the minimal type?
+  // should we make sure type annotation is the minimal type?
+  // ANS: we don't and we actually cannot
   private def checkDeclaration(
       s: Declaration.Single,
       mis: mutable.ArrayBuffer[CodeInfo[Value.Meta]],
