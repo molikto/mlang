@@ -1,6 +1,6 @@
 package mlang.compiler
 
-import mlang.compiler.Abstract.Formula
+import mlang.compiler.Abstract.{AbsClosure, Formula}
 
 trait DebugPrettyPrinter extends ElaboratorContextBuilder {
   override type Self <: DebugPrettyPrinter
@@ -46,7 +46,21 @@ trait DebugPrettyPrinter extends ElaboratorContextBuilder {
     s"${name.main} → ${ctx.debugPPrintInner(ast)}"
   }
 
+  def debugPPrintClosure(ast: Abstract.Closure): String = debugPPrintAbsClosure(AbsClosure(ast.metas, ast.term))
+
+  def debugPPrintMultiClosure(ast: Abstract.MultiClosure): String = debugPPrintAbsClosure(AbsClosure(ast.metas, ast.term))
+
   def debugPPrint(cons: Abstract.Constructor): String = s"${cons.name} ${cons.params}"
+
+  def debugPPrint(pat: Pattern): String = {
+    pat match {
+      case Pattern.Atom => "_"
+      case Pattern.Make(names) => s"(${names.mkString(", ")})"
+      case Pattern.Construct(name, pattern) => s"($name ${pattern.map(a => debugPPrint(a)).mkString(", ")})"
+    }
+  }
+
+  def debugPPrint(c: Abstract.Case): String = s"${debugPPrint(c.pattern)} ${debugPPrintMultiClosure(c.body)}"
 
   def debugPPrint(ast: Seq[Abstract.Face]): String = {
     ast.map(a => s"| ${a.pair}: ${newReifierRestrictionLayer(Value.Formula.True).debugPPrintAbsClosure(a.body)}").mkString("")
@@ -96,7 +110,7 @@ trait DebugPrettyPrinter extends ElaboratorContextBuilder {
         val ctx = newDimensionLayer(name, null)
         s"${name.main} → ${ctx.debugPPrintInner(body)}"
       case Abstract.PatternLambda(id, domain, typ, cases) =>
-        "[pattern lambda]"
+        s"lam ${debugPPrint(domain)} -> ${debugPPrintClosure(typ)} { ${cases.map(a => debugPPrint(a)).mkString("; ")} }"
       case Abstract.App(left, right) =>
         s"${debugPPrint(left)}(${debugPPrint(right)})"
       case Abstract.Record(inductively, names, implicits, graph) =>
