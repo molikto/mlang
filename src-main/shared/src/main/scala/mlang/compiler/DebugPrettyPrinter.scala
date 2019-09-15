@@ -9,14 +9,14 @@ trait DebugPrettyPrinter extends ElaboratorContextBuilder {
   def print(a: Abstract): Unit = println(debugPPrint(a))
 
   def debugPPrintInner(ms: Abstract.MetaEnclosedT): String = {
-    if (ms.metas.size == 0) debugPPrint(ms.term) else {
+    if (ms.metas.isEmpty) debugPPrint(ms.term) else {
       val sb = new StringBuilder()
       sb.append("{\n")
       val metas = ms.metas
       val ctx = this
       for (m <- metas) ctx.solvedMeta(null)
       for ((m, ii) <- metas.zipWithIndex) {
-        val name = ctx.layers(0).metas.metas(ii)._1.main.toString
+        val name = ctx.layers(0).metas.metas(ii)._1.main
         sb.append(s"meta $name = ${ctx.debugPPrint(m)}\n")
       }
       sb.append(ctx.debugPPrint(ms.term))
@@ -52,14 +52,14 @@ trait DebugPrettyPrinter extends ElaboratorContextBuilder {
     ast match {
       case Abstract.Universe(i) => if (i == 0) "type" else (0 until i).map(_ => "^").mkString("") + "type"
       case Abstract.Reference(up, index) =>
-        layers(up) match {
-          case parameters: Layer.Parameters if index >= 0 => parameters.binders(index).name.main.toString
-          case Layer.Parameter(binder, _) if index == -1 => binder.name.main.toString
-          case Layer.Defines(_, terms) if index >= 0 => terms(index).typ0.name.main.toString
+        (layers(up) match {
+          case parameters: Layer.Parameters if index >= 0 => parameters.binders(index).name.main
+          case Layer.Parameter(binder, _) if index == -1 => binder.name.main
+          case Layer.Defines(_, terms) if index >= 0 => terms(index).typ0.name.main
           case _ => logicError()
-        }
+        }).toString
       case Abstract.MetaReference(up, index) =>
-        s"#${layers(up).metas.metas(index)._1.main.toString}"
+        s"#${layers(up).metas.metas(index)._1.main}"
       case Abstract.Let(metas, definitions, in) =>
         var ctx = newDefinesLayer().asInstanceOf[DebugPrettyPrinter]
         val sb = new StringBuilder()
