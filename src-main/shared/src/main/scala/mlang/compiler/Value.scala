@@ -1027,8 +1027,10 @@ object Value {
     */
   case class Glue(m: Value, @stuck_pos faces: Seq[Face]) extends CubicalUnstableCanonical
   /**
-    * whnf: faces is not constant, base is whnf, and m's whnf is not glue
+    * whnf: faces is not constant, base is whnf, and base's whnf is not glue
     * LATER this is how the whnf is defined, so glue is considered canonical
+    *
+    * FIXME it seems ty can be considered a type annotation? I am confused
     */
   case class Unglue(ty: Value, base: Value, @stuck_pos faces: Seq[Face]) extends Redux {
     override def reduce(): Option[Value] = logicError() // in whnf

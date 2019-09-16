@@ -59,7 +59,7 @@ trait ValueConversion {
         val t1 = g1(i).independent.typ
         val t2 = g2(i).independent.typ
         eq = recType(t1, t2, mode)
-        val g = Generic(gen(), t1)
+        val g = Generic(gen(), choose(t1, t2, mode))
         g1 = ClosureGraph.reduce(g1, i, g)
         g2 = ClosureGraph.reduce(g2, i, g)
         i += 1
@@ -108,6 +108,86 @@ trait ValueConversion {
 
   }
 
+  // FIXME is this handling of subtyping sound?
+  def choose(d1: Value, d2: Value, mode: Int): Value = if (mode >= 0) d1 else d2
+
+  def forCompatibleAssignments(t: Seq[Face], r1: Seq[Face], r2: Seq[Face])(handle: (Formula.Assignments, Value.AbsClosure, Value.AbsClosure, Value.AbsClosure) => Boolean): Boolean = {
+    val pht = Formula.phi(t.map(_.restriction))
+    val ph1 = Formula.phi(r1.map(_.restriction))
+    val ph2 = Formula.phi(r2.map(_.restriction))
+    assert(pht == ph1 && ph2 == pht)
+    try {
+      for (ft <- t) {
+        val ast = ft.restriction.normalForm
+        for (at <- ast) {
+          for (f1 <- r1) {
+            for (f2 <- r2) {
+              val as1 = f1.restriction.normalForm
+              val as2 = f2.restriction.normalForm
+              for (a1 <- as1) {
+                for (a2 <- as2) {
+                  val a = at ++ a1 ++ a2
+                  if (Formula.Assignments.satisfiable(a)) {
+                    // FIXME before we create a new layer, but now we don't, because we simply don't allow restriction on meta, think again if this is proper
+                    // newSyntaxDirectedRestrictionLayer(a)
+                    if (handle(a, ft.body, f1.body, f2.body)) {
+                    } else {
+                      throw BreakException()
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      true
+    } catch {
+      case _: BreakException => false
+    }
+  }
+
+  def forCompatibleAssignments(r1: Seq[Face], r2: Seq[Face])(handle: (Formula.Assignments, Value.AbsClosure, Value.AbsClosure) => Boolean): Boolean = {
+    val ph1 = Formula.phi(r1.map(_.restriction))
+    val ph2 = Formula.phi(r2.map(_.restriction))
+    try {
+      if (ph1 == ph2) {
+        for (f1 <- r1) {
+          for (f2 <- r2) {
+            val as1 = f1.restriction.normalForm
+            val as2 = f2.restriction.normalForm
+            for (a1 <- as1) {
+              for (a2 <- as2) {
+                val a = a1 ++ a2
+                if (Formula.Assignments.satisfiable(a)) {
+                  // FIXME before we create a new layer, but now we don't, because we simply don't allow restriction on meta, think again if this is proper
+                  // newSyntaxDirectedRestrictionLayer(a)
+                  if (handle(a, f1.body, f2.body)) {
+                  } else {
+                    throw BreakException()
+                  }
+                }
+              }
+            }
+          }
+        }
+        true
+      } else {
+        unifyFailedFalse()
+      }
+    } catch {
+      case _: BreakException => false
+    }
+  }
+
+  def recGlueFaces(t: Value, r1: Seq[Face], r2: Seq[Face]): Boolean = {
+    forCompatibleAssignments(r1, r2) { (a, b1, b2) =>
+      recTerm(
+        App(BuiltIn.equiv_of, Value.Generic(gen(), t)).restrict(a),
+        b1(Value.Formula.Generic.HACK).restrict(a), b2(Value.Formula.Generic.HACK).restrict(a))
+    }
+  }
+
   /**
     * mode = 1 left =<subtype< right
     * mode = 0 left == right
@@ -119,7 +199,7 @@ trait ValueConversion {
     } else {
       (tm1.whnf, tm2.whnf) match {
         case (Function(d1, i1, c1), Function(d2, i2, c2)) =>
-          i1 == i2 && recType(d1, d2, -mode) && recTypeClosure(d1, c1, c2, mode)
+          i1 == i2 && recType(d1, d2, -mode) && recTypeClosure(choose(d1, d2, -mode), c1, c2, mode)
         case (Universe(l1), Universe(l2)) =>
           mode match {
             case -1 => l2 <= l1
@@ -135,8 +215,9 @@ trait ValueConversion {
           recTypeAbsClosure(t1, t2, mode) &&
             recTerm(t1(Formula.False), l1, l2) &&
             recTerm(t1(Formula.True), r1, r2)
-        case (GlueType(a1, ts1), GlueType(a2, ts2)) =>
-          recType(a1, a2) && ???
+        case (GlueType(a1, r1), GlueType(a2, r2)) =>
+          // FIXME is this treatment of glue + subtype correct?
+          recType(a1, a2, mode) && recGlueFaces(choose(a1, a2, mode), r1, r2)
         case (t1, t2) =>
           recNeutral(t1, t2).map(_.whnf match {
             case Universe(_) => true
@@ -145,6 +226,17 @@ trait ValueConversion {
       }
     }
   }
+
+
+
+
+  /**
+    *
+    *
+    * term part
+    *
+    */
+
 
 
   // FIXME this is potentially non-terminating now, if the domain/codomain changes each time, this can happens for indexed types I think
@@ -167,6 +259,7 @@ trait ValueConversion {
     val c = Formula.Generic(dgen())
     recTerm(typ, t1(c), t2(c))
   }
+
 
   protected def trySolve(m: Meta, vs: Seq[Value], t20: Value): Option[Value]
 
@@ -217,54 +310,31 @@ trait ValueConversion {
           unifyFailed()
         }
       case (Hcomp(t1, b1, r1), Hcomp(t2, b2, r2)) =>
-        if (debug.enabled) {
+        if (debug.enabled) { // here because we know they are of same type
           if (!recType(t1, t2)) {
             logicError()
           }
         }
-        if (recTerm(t1, b1, b2)) {
-          val ph1 = Formula.phi(r1.map(_.restriction))
-          val ph2 = Formula.phi(r2.map(_.restriction))
-          try {
-            if (ph1 == ph2) {
-              for (f1 <- r1) {
-                for (f2 <- r2) {
-                  val as1 = f1.restriction.normalForm
-                  val as2 = f2.restriction.normalForm
-                  for (a1 <- as1) {
-                    for (a2 <- as2) {
-                      val a = a1 ++ a2
-                      if (Formula.Assignments.satisfiable(a)) {
-                        // FIXME before we create a new layer, but now we don't, because we simply don't allow restriction on meta, think again if this is proper
-                        // newSyntaxDirectedRestrictionLayer(a)
-                        if (recAbsClosure(t1.restrict(a), f1.body.restrict(a), f2.body.restrict(a))) {
-
-                        } else {
-                          throw BreakException()
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            } else {
-              unifyFailed()
-            }
-          } catch {
-            case e: BreakException => None
-            case d => throw d
-          }
-          Some(t1)
-        } else {
-          unifyFailed()
+        val res = forCompatibleAssignments(r1, r2) { (a, b1, b2) =>
+          recAbsClosure(t1.restrict(a), b1.restrict(a), b2.restrict(a))
         }
+        if (res) Some(t1) else None
       case (Transp(t1, d1, b1), Transp(t2, d2, b2)) =>
         if (d1.normalForm == d2.normalForm && recTypeAbsClosure(t1, t2) && recTerm(t1(Value.Formula.False), b1, b2)) {
           Some(t1(Value.Formula.True))
         } else {
           unifyFailed()
         }
-
+      case (Unglue(t1, b1, f1), Unglue(t2, b2, f2)) =>
+        if (debug.enabled) { // here because we know they are of same type
+          if (!recType(t1, t2)) {
+            logicError()
+          }
+          if (!recGlueFaces(t1, f1, f2)) {
+            logicError()
+          }
+        }
+        recNeutral(b1, b2).map(_ => t1)
       // FIXME solve meta headed?
       //      case (SolvableMetaForm(m1, o1, gs1), SolvableMetaForm(m2, o2, gs2)) if o1.id == o2.id =>
       //        if (gs1.size == gs2.size) {
@@ -331,6 +401,31 @@ trait ValueConversion {
           n1 == n2 && { val c = s.constructors(n1) ;
             assert(c.nodes.size == v1.size && v2.size == v1.size)
             recTerms(c.nodes, v1, v2)
+          }
+        case (g: GlueType, t1, t2) =>
+          def baseCase(a: Glue, b: Glue): Boolean = {
+            val Glue(m1, r1) = a
+            val Glue(m2, r2) = a
+            recTerm(g.ty, m1, m2) && forCompatibleAssignments(g.faces, r1, r2) { (a, bt, b1, b2) =>
+              recTerm(
+                Projection(bt(Value.Formula.Generic.HACK).restrict(a), 0),
+                b1(Value.Formula.Generic.HACK).restrict(a),
+                b2(Value.Formula.Generic.HACK).restrict(a)
+              )
+            }
+          }
+          def deunglue(a: Value): Value = a match {
+            case g: Glue =>
+              g.m.whnf match {
+                case Unglue(_, base, _) => deunglue(base.whnf)
+                case _ => a
+              }
+            case _ => g
+          }
+          // FIXME is this correct? what about eta for glue?
+          (deunglue(t1), deunglue(t2)) match {
+            case (g1: Glue, g2: Glue) => baseCase(g1, g2)
+            case (a, b) => recNeutral(a, b)
           }
         case (Universe(_), tt1, tt2) =>
           recType(tt1, tt2) // it will call unify neutral at then end
