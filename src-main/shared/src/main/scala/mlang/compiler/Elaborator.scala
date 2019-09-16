@@ -20,16 +20,15 @@ object Elaborator {
 }
 
 // TODO because these are mutational code (see Readme about meta), reread these so no errors
+// TODO there are some marked as "syntax_creation" which modify concrete syntax directly, and this is unwanted
 class Elaborator private(protected override val layers: Layers)
     extends ElaboratorContextBuilder
         with ElaboratorContextLookup
         with ElaboratorContextRebind
         with ElaboratorContextForEvaluator
         with DebugPrettyPrinter
-        with Evaluator with PlatformEvaluator with Unifier {
-
+        with Evaluator with PlatformEvaluator with MetaSolver {
   override type Self = Elaborator
-
   override protected implicit def create(a: Layers): Self = new Elaborator(a)
 
   private def doForValidFormulaOrThrow[T](f: Value.Formula, a: Value.Formula.Assignments => T): T = {
@@ -902,6 +901,7 @@ class Elaborator private(protected override val layers: Layers)
 }
 
 
+// TODO move them into context? they are ugly
 private case class CodeInfo[T](
     code: Abstract,
     t: T) {

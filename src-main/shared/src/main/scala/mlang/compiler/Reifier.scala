@@ -8,7 +8,7 @@ import mlang.utils.{Benchmark, Name, debug}
 import scala.collection.mutable
 
 
-// TODO this implicitly uses positive generated ids, also unification, becasue they modify the layers, this is not a problem because we don't use positive/negative difference, but it defeats the design
+// FIXME this implicitly uses positive generated ids, also unification, becasue they modify the layers, this is not a problem because we don't use positive/negative difference, but it defeats the design
 private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorContextRebind {
   def base: ReifierContextBottom
 
@@ -212,7 +212,7 @@ trait Reifier extends ElaboratorContextBuilder with ElaboratorContextRebind {
 
   protected def reify(v: Value): Abstract = Reifier.reify(v, layers)
 
-  // TODO the logic for base/top reify is confusing, try clean them up
+  // FIXME the logic for base/top reify is confusing, try clean them up
   protected def reify(v: Value.Closure): Abstract.Closure = {
     val l = debug_metasSize
     val (c, t) = newParameterLayer(Name.empty, null)

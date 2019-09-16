@@ -14,6 +14,7 @@ private[compiler] class nominal_equality extends Annotation
 
 case class ImplementationLimitationCannotRestrictOpenMeta() extends Exception
 
+// FIXME: move out whnf
 object Value {
 
   sealed trait Formula extends {
@@ -660,8 +661,7 @@ object Value {
   }
 
 
-  case class Inductively(@nominal_equality id: Long, level: Int) {
-
+  case class Inductively(@nominal_equality id: Long, @type_annotation level: Int) {
     def restrict(lv: Formula.Assignments): Inductively = this
     def fswap(w: Long, z: Formula): Inductively = this
     private[Value] def supportShallow(): SupportShallow =  SupportShallow.empty
@@ -670,7 +670,7 @@ object Value {
   case class Record(
       inductively: Option[Inductively],
       names: Seq[Name],
-      ims: Seq[Boolean],
+      ims: Seq[Boolean], // TODO move ims into ClosureGraph
       nodes: ClosureGraph) extends Canonical {
     assert(names.size == nodes.size)
     def projectedType(values: Value, name: Int): Value = {
@@ -790,9 +790,13 @@ object Value {
     Transp(AbsClosure(i => A(Formula.Or(i, r))), r, u)
 
   /**
-    * whnf: tp on a generic value cannot reduce to a canonical
+    * whnf: tp on a generic value cannot reduce to a canonical, or base is not canonical in case sum type
     */
-  case class Transp(@stuck_pos tp: AbsClosure, phi: Formula, base: Value) extends Redux {
+  case class Transp(
+      @stuck_pos tp: AbsClosure,
+      phi: Formula,
+      @stuck_pos base: Value // it stuck here on sum type sometimes
+  ) extends Redux {
 
 
     override def reduce(): Option[Value] = {
@@ -849,7 +853,11 @@ object Value {
               }
               Some(Make(closures.toSeq.map(_.apply(Formula.True))))
             }
-          case _: Sum =>
+          case s: Sum =>
+            base.whnf match {
+              case Construct(f, ns) =>
+              case _ =>
+            }
             ???
           case g: GlueType =>
             Some(transpGlue(g, dim, phi, base))

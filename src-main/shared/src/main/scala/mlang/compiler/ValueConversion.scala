@@ -1,16 +1,15 @@
 package mlang.compiler
 
-import Value.{Reference => _, _}
-import mlang.utils.{Benchmark, Name, debug, warn}
+import mlang.compiler.GenLong.Negative.{dgen, gen}
+import mlang.compiler.Value._
+import mlang.utils.{Benchmark, Name, debug}
 
 import scala.collection.mutable
 import scala.util.{Failure, Success, Try}
-import GenLong.Negative.{gen, dgen}
 
-private case class Assumption(left: Long, right: Long, domain: Value, codomain: Closure)
+private case class Assumption(left: Long, right: Long, domain: Value, codomain: Value.Closure)
 
-
-case class UnificationFailedException(msg: String) extends Exception
+private case class BreakException() extends Exception()
 
 object SolvableMetaForm {
   def unapply(a: Value): Option[(Value.Meta, Value.MetaState.Open, Seq[Value])] = {
@@ -25,12 +24,8 @@ object SolvableMetaForm {
   }
 }
 
-private case class BreakException() extends Exception()
 
-trait Unifier extends Reifier with ElaboratorContextRebind with Evaluator with PlatformEvaluator {
-
-  type Self  <: Unifier
-
+trait ValueConversion {
   protected def unifyTerm(typ: Value, t1: Value, t2: Value): Boolean = {
     Benchmark.Unify {
       recTerm(typ, t1, t2)
@@ -43,22 +38,6 @@ trait Unifier extends Reifier with ElaboratorContextRebind with Evaluator with P
     }
   }
 
-  // FIXME this is potentially non-terminating now, if the domain/codomain changes each time, this can happens for indexed types I think
-  private val patternAssumptions = mutable.ArrayBuffer[Assumption]()
-
-  private def sameTypePatternLambdaWithAssumptions(domain: Value, l1: PatternLambda, l2: PatternLambda): Boolean = {
-    if (l1.id == l2.id) {
-      true
-    } else {
-      if (patternAssumptions.exists(a => a.left == l1.id && a.right == l2.id && recType(a.domain, domain) && recTypeClosure(a.domain, a.codomain, l1.typ))) {
-        true
-      } else {
-        patternAssumptions.append(Assumption(l1.id, l2.id, domain, l1.typ))
-        recCases(domain, l1.typ, l1.cases, l2.cases)
-      }
-    }
-  }
-
   def unifyFailedFalse(): Boolean = {
     false
   }
@@ -66,7 +45,9 @@ trait Unifier extends Reifier with ElaboratorContextRebind with Evaluator with P
   def unifyFailed(): Option[Value] = {
     None
   }
+
   private implicit def optToBool[T](opt: Option[T]): Boolean = opt.isDefined
+
 
   private def recClosureGraph(n1: ClosureGraph, n2: ClosureGraph, mode: Int = 0): Boolean = {
     n1.size == n2.size && {
@@ -107,11 +88,6 @@ trait Unifier extends Reifier with ElaboratorContextRebind with Evaluator with P
     }
   }
 
-  private def recAbsClosure(typ: Value, t1: AbsClosure, t2: AbsClosure): Boolean = {
-    val c = Formula.Generic(dgen())
-    recTerm(typ, t1(c), t2(c))
-  }
-
 
   private def recTypeAbsClosure(t1: AbsClosure, t2: AbsClosure, mode: Int = 0): Boolean = {
     val c = Formula.Generic(dgen())
@@ -133,9 +109,9 @@ trait Unifier extends Reifier with ElaboratorContextRebind with Evaluator with P
   }
 
   /**
-    * mode = 1 left <subtype< right
+    * mode = 1 left =<subtype< right
     * mode = 0 left == right
-    * mode =-1 right < left
+    * mode =-1 right =< left
     */
   private def recType(tm1: Value, tm2: Value, mode: Int = 0): Boolean = {
     if (tm1.eq(tm2)) {
@@ -157,8 +133,10 @@ trait Unifier extends Reifier with ElaboratorContextRebind with Evaluator with P
           maybeNominal(id1, id2, c1.size == c2.size && c1.zip(c2).forall(p => recConstructor(p._1, p._2, mode)))
         case (PathType(t1, l1, r1), PathType(t2, l2, r2)) =>
           recTypeAbsClosure(t1, t2, mode) &&
-              recTerm(t1(Formula.False), l1, l2) &&
-              recTerm(t1(Formula.True), r1, r2)
+            recTerm(t1(Formula.False), l1, l2) &&
+            recTerm(t1(Formula.True), r1, r2)
+        case (GlueType(a1, ts1), GlueType(a2, ts2)) =>
+          recType(a1, a2) && ???
         case (t1, t2) =>
           recNeutral(t1, t2).map(_.whnf match {
             case Universe(_) => true
@@ -168,60 +146,29 @@ trait Unifier extends Reifier with ElaboratorContextRebind with Evaluator with P
     }
   }
 
-  private def error(s: String) = throw UnificationFailedException(s)
 
-  private def trySolve(m: Meta, vs: Seq[Value], t20: Value): Option[Value] = {
-    Try(solve(m, vs, t20)) match {
-      case Failure(exception) =>
-        if (debug.enabled) {
-          exception.printStackTrace()
-        }
-        exception match {
-          case _: UnificationFailedException =>
-            unifyFailed()
-          case _: RebindNotFoundException =>
-            unifyFailed()
-          case e => throw e
-        }
-      case Success(v) =>
-        Some(v)
-    }
-  }
+  // FIXME this is potentially non-terminating now, if the domain/codomain changes each time, this can happens for indexed types I think
+  private val patternAssumptions = mutable.ArrayBuffer[Assumption]()
 
-  private def solve(m: Meta, vs: Seq[Value], t20: Value): Value = Benchmark.Solve {
-    var MetaState.Open(_, typ) = m.state.asInstanceOf[MetaState.Open]
-    val ref = rebindMeta(m)
-    var ctx = drop(ref.up) // back to the layer where the meta is introduced
-    val index = ref.index
-    val os = vs.map {
-      case o: Generic => o
-      case _ => error("Spine is not generic")
-    }
-    val gs = os.map(_.id)
-    for (i <- gs.indices) {
-      val o = os(i)
-      if (ctx.containsGeneric(o)) error("Spine is not linear")
-      ctx = ctx.newParameterLayerProvided(Name.empty, o).asInstanceOf[Self]
-    }
-    val t2 = t20.fromOrThis // FIXME is this sound??
-    if (t2.support().openMetas.contains(m)) {
-      error("Meta solution contains self")
-    }
-    // this might throw error if scope checking fails
-    var abs = ctx.reify(t2)
-    for (g <- os) {
-      abs = Abstract.Lambda(Abstract.Closure(Seq.empty, abs))
-      typ = typ.whnf match {
-        case f: Value.Function => f.codomain(g)
-        case _ => logicError()
+  private def sameTypePatternLambdaWithAssumptions(domain: Value, l1: PatternLambda, l2: PatternLambda): Boolean = {
+    if (l1.id == l2.id) {
+      true
+    } else {
+      if (patternAssumptions.exists(a => a.left == l1.id && a.right == l2.id && recType(a.domain, domain) && recTypeClosure(a.domain, a.codomain, l1.typ))) {
+        true
+      } else {
+        patternAssumptions.append(Assumption(l1.id, l2.id, domain, l1.typ))
+        recCases(domain, l1.typ, l1.cases, l2.cases)
       }
     }
-    // FIXME type checking??
-    debug(s"meta solved with $abs", 1)
-    val v = ctx.eval(abs)
-    m.state = Value.MetaState.Closed(v)
-    typ
   }
+
+  private def recAbsClosure(typ: Value, t1: AbsClosure, t2: AbsClosure): Boolean = {
+    val c = Formula.Generic(dgen())
+    recTerm(typ, t1(c), t2(c))
+  }
+
+  protected def trySolve(m: Meta, vs: Seq[Value], t20: Value): Option[Value]
 
   private def recNeutral(tmm1: Value, tmm2: Value): Option[Value] = {
     (tmm1.whnf, tmm2.whnf) match {
@@ -238,11 +185,11 @@ trait Unifier extends Reifier with ElaboratorContextRebind with Evaluator with P
       case (App(l1, a1), App(l2, a2)) =>
         recNeutral(l1, l2).flatMap(_.whnf match {
           case Function(d, _, c) =>
-          if (recTerm(d, a1, a2)) {
-            Some(c(a1))
-          } else {
-            unifyFailed()
-          }
+            if (recTerm(d, a1, a2)) {
+              Some(c(a1))
+            } else {
+              unifyFailed()
+            }
           case _ => logicError()
         })
       case (Projection(m1, f1), Projection(m2, f2)) =>
@@ -288,7 +235,9 @@ trait Unifier extends Reifier with ElaboratorContextRebind with Evaluator with P
                     for (a2 <- as2) {
                       val a = a1 ++ a2
                       if (Formula.Assignments.satisfiable(a)) {
-                        if (newSyntaxDirectedRestrictionLayer(a).recAbsClosure(t1.restrict(a), f1.body.restrict(a), f2.body.restrict(a))) {
+                        // FIXME before we create a new layer, but now we don't, because we simply don't allow restriction on meta, think again if this is proper
+                        // newSyntaxDirectedRestrictionLayer(a)
+                        if (recAbsClosure(t1.restrict(a), f1.body.restrict(a), f2.body.restrict(a))) {
 
                         } else {
                           throw BreakException()
@@ -317,13 +266,13 @@ trait Unifier extends Reifier with ElaboratorContextRebind with Evaluator with P
         }
 
       // FIXME solve meta headed?
-//      case (SolvableMetaForm(m1, o1, gs1), SolvableMetaForm(m2, o2, gs2)) if o1.id == o2.id =>
-//        if (gs1.size == gs2.size) {
-//          gs1.zip(gs2).foldLeft(Some(o1.typ)) {
-//          }
-//        } else {
-//          None
-//        }
+      //      case (SolvableMetaForm(m1, o1, gs1), SolvableMetaForm(m2, o2, gs2)) if o1.id == o2.id =>
+      //        if (gs1.size == gs2.size) {
+      //          gs1.zip(gs2).foldLeft(Some(o1.typ)) {
+      //          }
+      //        } else {
+      //          None
+      //        }
       case (SolvableMetaForm(m, _, gs), t2) =>
         trySolve(m, gs, t2)
       case (t1, SolvableMetaForm(m, _, gs)) =>
@@ -391,9 +340,9 @@ trait Unifier extends Reifier with ElaboratorContextRebind with Evaluator with P
   }
 
   private def extractTypes(
-      pattern: Pattern,
-      typ: Value
-  ): (Seq[Generic], Value) = {
+                            pattern: Pattern,
+                            typ: Value
+                          ): (Seq[Generic], Value) = {
     val vs = mutable.ArrayBuffer[Generic]()
 
     def recs(maps: Seq[Pattern], graph0: ClosureGraph): Seq[Value]  = {

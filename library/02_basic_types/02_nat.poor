@@ -38,13 +38,12 @@ define plus_alt_2:
 
 // this definition allows more definitional equality, but the definition body needs to be confluent, we haven't implemented the check yet.
 define plus(a b: nat): nat = run {
-  define nat_pair = record { field a b: nat }
   define rec:
-    nat_pair ⇒ nat =
+    pair(nat, nat) ⇒ nat =
   ┌ (zero, a) → a
   ├ (a, zero) → a
-  └ (x, suc(y)) → suc(rec(nat_pair.make(x, y)))
-  rec(nat_pair.make(a, b))
+  └ (x, suc(y)) → suc(rec(make(x, y)))
+  rec(make(a, b))
 }
 
 // currently we use `_test_xxx` to write test codes

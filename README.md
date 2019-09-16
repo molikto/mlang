@@ -51,17 +51,19 @@ so some improvements:
 * pretty print to HTML with clear AST delimitation/boundary, layout it properly, might print it like a tree (see Lamdu project)
     
 
-## roadmap
+## roadmap/TODO
 
 * **DONE** totally unsafe MLTT basics
-    * function types, record types, sum types
-    * bidirectional elaborating type checker
-    * mutual recursive definitions
-    * conversion check and whnf with eta and recursive definitions
-    * concrete syntax, core syntax, core semantics and reification
     * basic `.poor` syntax and parser
+    * concrete syntax, core syntax, core semantics and reification
+        * function types, record types, sum types, path types
+        * mutually recursive definitions
+        * *problem: should you use type directed conversion checking*
+    * bidirectional elaborating type checker
+    * conversion check and whnf with eta and recursive references
 * **DONE** overlapping and order independent patterns, see `plus_tests` in library for detail
 * **DONE** locally scoped meta; very simple unification; implicit arguments syntax
+    * *problem: the meta solution is not type checked, and other cases metas is not solved see FIXMEs in code*
 * cubical features
     * **DONE** path type
     * **DONE** composition structure (hcomp, transp)
@@ -133,7 +135,10 @@ so some improvements:
 
 **some of bellow is out of date and wrong now, it mainly serves as a place to clear up my thoughts**
 
+
+*in the diagram bellow, unifier is broken into conversion checking (`ValueConversion.scala`) and `MetaSolver.scala`*
 ![](NOTES/DIAGRAM.png)
+
 
 ### relation to `cubicaltt` implementation
 

@@ -1,0 +1,6 @@
+
+
+define pair(A B: type) = record {
+  field a: A
+  field b: B
+}
