@@ -1,6 +1,6 @@
 package mlang.compiler
 
-import mlang.compiler.Layer.Layers
+import mlang.compiler.Layer.{HitDefinition, Layers}
 import mlang.utils.{Name, debug}
 
 import scala.collection.mutable
@@ -53,14 +53,14 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
     (ctx, v)
   }
 
-  def lookupDefined(a: Name): Option[(Int, Value, Boolean)] = layers.head match {
+  def lookupDefined(a: Name): Option[(Int, DefineItem)] = layers.head match {
     case Layer.Defines(_, defines) =>
       val index = defines.indexWhere(_.name.intersect(a))
       if (index < 0) {
         None
       } else {
         val ds = defines(index)
-        Some((index, ds.typ, ds.isDefined))
+        Some((index, ds))
       }
     case _ => logicError()
   }
@@ -128,19 +128,20 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
 
 
 
-  def newParametersLayer(): Self = Layer.ParameterGraph(Seq.empty, createMetas()) +: layers
+  def newParametersLayer(hit: Option[Value] = None): Self =
+    Layer.ParameterGraph(hit.map(a => HitDefinition(a, Seq.empty)), Seq.empty, createMetas()) +: layers
 
 
   def newParameter(name: Name, typ: Value) : (Self, Value) = {
     layers.head match {
-      case Layer.ParameterGraph(binders, metas) =>
+      case Layer.ParameterGraph(alters, binders, metas) =>
         binders.find(_.name.intersect(name)) match {
           case Some(_) => logicError()
           case _ =>
             val g = gen()
             val v = Value.Generic(g, typ)
             assert(metas.debug_allFrozen)
-            (Layer.ParameterGraph(
+            (Layer.ParameterGraph(alters,
               binders :+ ParameterBinder(name, v), metas) +: layers.tail, v)
         }
       case _ => logicError()

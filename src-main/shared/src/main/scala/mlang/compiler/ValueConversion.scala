@@ -50,19 +50,24 @@ trait ValueConversion {
 
 
   private def recClosureGraph(n1: ClosureGraph, n2: ClosureGraph, mode: Int = 0): Boolean = {
-    n1.size == n2.size && {
+    n1.size == n2.size  && {
       var g1 = n1
       var g2 = n2
       var eq = true
       var i = 0
       while (i < n1.size && eq) {
-        val t1 = g1(i).independent.typ
-        val t2 = g2(i).independent.typ
-        eq = recType(t1, t2, mode)
-        val g = Generic(gen(), choose(t1, t2, mode))
-        g1 = ClosureGraph.reduce(g1, i, g)
-        g2 = ClosureGraph.reduce(g2, i, g)
-        i += 1
+        val g1i = g1(i)
+        val g2i = g2(i)
+        eq = g1i.implicitt == g2i.implicitt
+        if (eq) {
+          val t1 = g1(i).independent.typ
+          val t2 = g2(i).independent.typ
+          eq = recType(t1, t2, mode)
+          val g = Generic(gen(), choose(t1, t2, mode))
+          g1 = ClosureGraph.reduce(g1, i, g)
+          g2 = ClosureGraph.reduce(g2, i, g)
+          i += 1
+        }
       }
       eq
     }
@@ -72,7 +77,7 @@ trait ValueConversion {
     if (c1.eq(c2)) {
       true
     } else {
-      c1.name == c2.name && c1.ims == c2.ims && recClosureGraph(c1.nodes, c2.nodes, mode)
+      c1.name == c2.name && recClosureGraph(c1.nodes, c2.nodes, mode)
     }
   }
 
@@ -206,9 +211,9 @@ trait ValueConversion {
             case 0 => l1 == l2
             case 1 => l1 <= l2
           }
-        case (Record(id1, m1, i1, n1), Record(id2, m2, i2, n2)) =>
+        case (Record(id1, i1, n1), Record(id2, i2, n2)) =>
           // need to check level because of up operator
-          maybeNominal(id1, id2, m1 == m2 && i1 == i2 && recClosureGraph(n1, n2, mode))
+          maybeNominal(id1, id2, i1 == i2 && recClosureGraph(n1, n2, mode))
         case (Sum(id1, c1), Sum(id2, c2)) =>
           maybeNominal(id1, id2, c1.size == c2.size && c1.zip(c2).forall(p => recConstructor(p._1, p._2, mode)))
         case (PathType(t1, l1, r1), PathType(t2, l2, r2)) =>

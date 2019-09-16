@@ -40,16 +40,16 @@ trait PlatformEvaluator extends Evaluator {
       val res = a.zipWithIndex.map(pair => {
         val c = pair._1
         val index = pair._2
-        val metasBefore = a.take(index).map(_._2.metas.size).sum
-        val metaBody = if (c._2.metas.isEmpty) {
-          s"(Seq.empty[Value.Meta], ${emit(c._2.term, d)})"
+        val metasBefore = a.take(index).map(_.typ.metas.size).sum
+        val metaBody = if (c.typ.metas.isEmpty) {
+          s"(Seq.empty[Value.Meta], ${emit(c.typ.term, d)})"
         } else {
           s"{ val m$d = m${d}_.toBuffer; " +
-            s"for (k <- 0 until ${c._2.metas.size}) { assert(m$d(k + ${metasBefore}) == null); m$d(k + $metasBefore) = Meta(null)}; " +
-            s"${c._2.metas.zipWithIndex.map(k => (k._1, k._2 + metasBefore)).map(a => s"m$d(${a._2}).state = MetaState.Closed(${emit(a._1, d)}); ").mkString("")}" +
-            s"(m$d.slice($metasBefore, ${metasBefore + c._2.metas.size}).toSeq, ${emit(c._2.term, d)})}"
+            s"for (k <- 0 until ${c.typ.metas.size}) { assert(m$d(k + ${metasBefore}) == null); m$d(k + $metasBefore) = Meta(null)}; " +
+            s"${c.typ.metas.zipWithIndex.map(k => (k._1, k._2 + metasBefore)).map(a => s"m$d(${a._2}).state = MetaState.Closed(${emit(a._1, d)}); ").mkString("")}" +
+            s"(m$d.slice($metasBefore, ${metasBefore + c.typ.metas.size}).toSeq, ${emit(c.typ.term, d)})}"
         }
-        s"(Seq[Int](${c._1.mkString(", ")}), ${c._2.metas.size}, (m${d}_, r$d) => $metaBody)"
+        s"(${c.implicitt}, Seq[Int](${c.deps.mkString(", ")}), ${c.typ.metas.size}, (m${d}_, r$d) => $metaBody)"
       }).mkString(", ")
       s"""ClosureGraph.createMetaAnnotated(Seq($res))""".stripMargin
     }
@@ -112,15 +112,15 @@ trait PlatformEvaluator extends Evaluator {
           s"Lambda(Closure(r$d => ${emitInner(closure, d)}))"
         case Abstract.App(left, right) =>
           s"App(${emit(left, depth)}, ${emit(right, depth)})"
-        case Abstract.Record(id, names, ms, nodes) =>
+        case Abstract.Record(id, names, nodes) =>
           val d = depth + 1
-          s"""Record( ${emit(id, depth)}, Seq(${names.map(n => source(n)).mkString(", ")}), ${emit(ms)}, ${emitGraph(nodes, d)})"""
+          s"""Record( ${emit(id, depth)}, Seq(${names.map(n => source(n)).mkString(", ")}), ${emitGraph(nodes, d)})"""
         case Abstract.Projection(left, field) =>
           s"Projection(${emit(left, depth)}, $field)"
         case Abstract.Sum(id, constructors) =>
           val d = depth + 1 // we some how have have one layer for the constructor names
           s"""Sum(${emit(id, depth)}, Seq(${constructors.zipWithIndex.map(c =>
-            s"Constructor(${source(c._1.name)}, ${emit(c._1.implicits)}, ${emitGraph(c._1.params, d)})").mkString(", ")}))"""
+            s"Constructor(${source(c._1.name)}, ${emitGraph(c._1.params, d)})").mkString(", ")}))"""
         case Abstract.Make(vs) =>
           s"Make(${vs.map(v => emit(v, depth))})"
         case Abstract.Construct(name, vs) =>

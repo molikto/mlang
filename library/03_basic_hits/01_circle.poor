@@ -1,7 +1,5 @@
 
 
-/*
-
 
 define inductively S1: type = sum {
   case base
@@ -15,4 +13,3 @@ define inductively S2: type = sum {
 
 define S1_pointed: pointed = make(S1.base)
 
-*/

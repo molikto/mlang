@@ -117,7 +117,7 @@ trait DebugPrettyPrinter extends ElaboratorContextBuilder {
         s"lam ${debugPPrint(domain)} -> ${debugPPrintClosure(typ)} { ${cases.map(a => debugPPrint(a)).mkString("; ")} }"
       case Abstract.App(left, right) =>
         s"${debugPPrint(left)}(${debugPPrint(right)})"
-      case Abstract.Record(inductively, names, implicits, graph) =>
+      case Abstract.Record(inductively, names, graph) =>
         s"record ${inductively.fold("")(_.toString + " ")}{${
           // TODO
           ""

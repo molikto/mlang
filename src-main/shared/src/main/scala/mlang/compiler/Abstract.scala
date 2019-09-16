@@ -64,7 +64,13 @@ object Abstract {
     def diff(depth: Int, x: Int): MetaEnclosed = MetaEnclosed(metas.map(_.diff(depth + 1, x)), term.diff(depth + 1, x))
   }
 
-  type ClosureGraph = Seq[(Seq[Int], MetaEnclosed)]
+  type ClosureGraph = Seq[ClosureGraph.Node]
+  object ClosureGraph {
+    case class Node(implicitt: Boolean, deps: Seq[Int], typ: MetaEnclosed) {
+      def diff(depth: Int, x: Int) = Node(implicitt, deps, typ.diff(depth, x))
+      def dependencies(i: Int) = typ.dependencies(i)
+    }
+  }
 
   /**
    * ABSTRACT
@@ -81,17 +87,19 @@ object Abstract {
   case class PatternLambda(id: Long, domain: Abstract, typ: Closure, cases: Seq[Case]) extends Abstract
   case class App(left: Abstract, right: Abstract) extends Abstract
 
-  case class Inductively(id: Long, level: Int) {
+  case class Inductively(id: Long, level: Int
+                       /*  , parameters: Seq[Abstract], parameterTypes: ClosureGraph */
+                        ) {
     def dependencies(i: Int): Set[Dependency] = Set.empty
     def diff(depth: Int, x: Int): Inductively = this
     override def toString: String = "inductively"
   }
 
-  case class Record(inductively: Option[Inductively], names: Seq[Name], implicits: Seq[Boolean], graph: ClosureGraph) extends Abstract
+  case class Record(inductively: Option[Inductively], names: Seq[Name], graph: ClosureGraph) extends Abstract
   case class Projection(left: Abstract, field: Int) extends Abstract
   case class Make(vs: Seq[Abstract]) extends Abstract
 
-  case class Constructor(name: Name, implicits: Seq[Boolean], params: ClosureGraph)
+  case class Constructor(name: Name, params: ClosureGraph)
   case class Sum(inductively: Option[Inductively], constructors: Seq[Constructor]) extends Abstract
   case class Case(pattern: Pattern, body: MultiClosure)
   case class Construct(f: Int, vs: Seq[Abstract]) extends Abstract
@@ -152,9 +160,9 @@ sealed trait Abstract {
       Function(domain.diff(depth, x), impict, codomain.diff(depth, x))
     case Lambda(closure) => Lambda(closure.diff(depth, x))
     case App(left, right) => App(left.diff(depth, x), right.diff(depth, x))
-    case Record(id, names, implicits, graph) => Record(id.map(_.diff(depth, x)), names, implicits, graph.map(a => (a._1, a._2.diff(depth, x))))
+    case Record(id, names, graph) => Record(id.map(_.diff(depth, x)), names, graph.map(_.diff(depth, x)))
     case Projection(left, field) => Projection(left.diff(depth, x), field)
-    case Sum(id, constructors) => Sum(id.map(_.diff(depth, x)), constructors.map(c => Constructor(c.name, c.implicits, c.params.map(a => (a._1, a._2.diff(depth, x))))))
+    case Sum(id, constructors) => Sum(id.map(_.diff(depth, x)), constructors.map(c => Constructor(c.name, c.params.map(_.diff(depth, x)))))
     case Make(vs) => Make(vs.map(_.diff(depth, x)))
     case Construct(f, vs) => Construct(f, vs.map(_.diff(depth, x)))
     case Let(metas, definitions, in) => Let(metas.map(_.diff(depth + 1, x)), definitions.map(_.diff(depth + 1, x)), in.diff(depth + 1, x))
@@ -179,9 +187,9 @@ sealed trait Abstract {
     case Function(domain, _, codomain) => domain.dependencies(i) ++ codomain.dependencies(i)
     case Lambda(closure) => closure.dependencies(i)
     case App(left, right) => left.dependencies(i) ++ right.dependencies(i)
-    case Record(id, _, _, nodes) => id.map(_.dependencies(i)).getOrElse(Set.empty) ++ nodes.flatMap(_._2.dependencies(i)).toSet
+    case Record(id, _, nodes) => id.map(_.dependencies(i)).getOrElse(Set.empty) ++ nodes.flatMap(_.dependencies(i)).toSet
     case Projection(left, _) => left.dependencies(i)
-    case Sum(id, constructors) =>  id.map(_.dependencies(i)).getOrElse(Set.empty) ++ constructors.flatMap(_.params.flatMap(_._2.dependencies(i))).toSet
+    case Sum(id, constructors) =>  id.map(_.dependencies(i)).getOrElse(Set.empty) ++ constructors.flatMap(_.params.flatMap(_.dependencies(i))).toSet
     case Make(vs) => vs.flatMap(_.dependencies(i)).toSet
     case Construct(_, vs) => vs.flatMap(_.dependencies(i)).toSet
     case Let(metas, definitions, in) =>

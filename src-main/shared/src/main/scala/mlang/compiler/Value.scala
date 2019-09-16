@@ -180,10 +180,10 @@ object Value {
     private[Value] def supportShallow(graph: ClosureGraph): SupportShallow = {
       val mss = mutable.ArrayBuffer[Meta]()
       val res = graph.map {
-        case IndependentWithMeta(ds, ms, typ) =>
+        case IndependentWithMeta(ims, ds, ms, typ) =>
           mss.appendAll(ms)
           typ.supportShallow() ++ (ms.toSet: Set[Referential])
-        case DependentWithMeta(ds, mc, c) =>
+        case DependentWithMeta(ims, ds, mc, c) =>
           val res = c(mss.toSeq, Generic.HACKS)
           mss.appendAll(res._1)
           res._2.supportShallow() ++ (res._1.toSet: Set[Referential])
@@ -194,26 +194,27 @@ object Value {
 
     def fswap(graph: ClosureGraph, w: Long, z: Formula): ClosureGraph = {
       graph.map {
-        case IndependentWithMeta(ds, ms, typ) =>
-          IndependentWithMeta(ds, ms, typ.fswap(w, z))
-        case DependentWithMeta(ds, mc, c) =>
-          DependentWithMeta(ds, mc, (a, b) => {
+        case IndependentWithMeta(ims, ds, ms, typ) =>
+          IndependentWithMeta(ims, ds, ms, typ.fswap(w, z))
+        case DependentWithMeta(ims, ds, mc, c) =>
+          DependentWithMeta(ims, ds, mc, (a, b) => {
             val t = c(a, b); (t._1.map(_.fswap(w, z).asInstanceOf[Value.Meta]), t._2.fswap(w, z)) })
         case _ => logicError()
       }
     }
     def restrict(graph: ClosureGraph, lv: Formula.Assignments): ClosureGraph =  {
       graph.map {
-        case IndependentWithMeta(ds, ms, typ) =>
-          IndependentWithMeta(ds, ms, typ.restrict(lv))
-        case DependentWithMeta(ds, mc, c) =>
-        DependentWithMeta(ds, mc, (a, b) => {
+        case IndependentWithMeta(ims, ds, ms, typ) =>
+          IndependentWithMeta(ims, ds, ms, typ.restrict(lv))
+        case DependentWithMeta(ims, ds, mc, c) =>
+        DependentWithMeta(ims, ds, mc, (a, b) => {
           val t = c(a, b.map(k => Derestricted(k, lv))); (t._1.map(_.restrict(lv).asInstanceOf[Value.Meta]), t._2.restrict(lv)) })
         case _ => logicError()
       }
     }
 
     sealed trait Node {
+      def implicitt: Boolean
       def dependencies: Seq[Int]
       def independent: Independent = this.asInstanceOf[Independent]
     }
@@ -229,20 +230,20 @@ object Value {
       val value: Value
     }
 
-    private case class DependentWithMeta(dependencies: Seq[Int], metaCount: Int, closure: (Seq[Value.Meta], Seq[Value]) => (Seq[Value.Meta], Value)) extends Dependent
+    private case class DependentWithMeta(implicitt: Boolean, dependencies: Seq[Int], metaCount: Int, closure: (Seq[Value.Meta], Seq[Value]) => (Seq[Value.Meta], Value)) extends Dependent
 
-    private case class IndependentWithMeta(dependencies: Seq[Int], metas: Seq[Value.Meta], typ: Value) extends Independent {
+    private case class IndependentWithMeta(implicitt: Boolean, dependencies: Seq[Int], metas: Seq[Value.Meta], typ: Value) extends Independent {
     }
 
-    private case class ValuedWithMeta(dependencies: Seq[Int], metas: Seq[Value.Meta], typ: Value, value: Value) extends Valued {
+    private case class ValuedWithMeta(implicitt: Boolean, dependencies: Seq[Int], metas: Seq[Value.Meta], typ: Value, value: Value) extends Valued {
     }
 
-    def createMetaAnnotated(nodes: Seq[(Seq[Int], Int, (Seq[Value.Meta], Seq[Value]) => (Seq[Value.Meta], Value))]): ClosureGraph = {
-      nodes.map(a => if (a._1.isEmpty) {
-        val t = a._3(Seq.empty, Seq.empty)
-        IndependentWithMeta(a._1, t._1, t._2)
+    def createMetaAnnotated(nodes: Seq[(Boolean, Seq[Int], Int, (Seq[Value.Meta], Seq[Value]) => (Seq[Value.Meta], Value))]): ClosureGraph = {
+      nodes.map(a => if (a._2.isEmpty) {
+        val t = a._4(Seq.empty, Seq.empty)
+        IndependentWithMeta(a._1, a._2, t._1, t._2)
       } else {
-        DependentWithMeta(a._1, a._2, a._3)
+        DependentWithMeta(a._1, a._2, a._3, a._4)
       })
     }
 
@@ -273,21 +274,21 @@ object Value {
 
     def reduce(from: ClosureGraph, i: Int, a: Value): ClosureGraph = {
       from(i) match {
-        case IndependentWithMeta(ds, mss, typ) =>
-          val ns = ValuedWithMeta(ds, mss, typ, a)
+        case IndependentWithMeta(ims, ds, mss, typ) =>
+          val ns = ValuedWithMeta(ims, ds, mss, typ, a)
           val mms: Seq[Value.Meta] = from.flatMap {
-            case DependentWithMeta(_, ms, _) => (0 until ms).map(_ => null)
-            case IndependentWithMeta(_, ms, _) => ms
-            case ValuedWithMeta(_, ms, _, _) => ms
+            case DependentWithMeta(_, _, ms, _) => (0 until ms).map(_ => null)
+            case IndependentWithMeta(_, _, ms, _) => ms
+            case ValuedWithMeta(_, _, ms, _, _) => ms
           }
           val vs = from.indices.map(j => if (j == i) a else from(j) match {
-            case ValuedWithMeta(_, _, _, v) => v
+            case ValuedWithMeta(_, _, _, _, v) => v
             case _ => null
           })
           from.map {
-            case DependentWithMeta(dss, _, c) if dss.forall(j => vs(j) != null) =>
+            case DependentWithMeta(ims, dss, _, c) if dss.forall(j => vs(j) != null) =>
               val t = c(mms, vs)
-              IndependentWithMeta(dss, t._1, t._2)
+              IndependentWithMeta(ims, dss, t._1, t._2)
             case i =>
               i
           }.updated(i, ns)
@@ -670,7 +671,6 @@ object Value {
   case class Record(
       inductively: Option[Inductively],
       names: Seq[Name],
-      ims: Seq[Boolean], // TODO move ims into ClosureGraph
       nodes: ClosureGraph) extends Canonical {
     assert(names.size == nodes.size)
     def projectedType(values: Value, name: Int): Value = {
@@ -692,7 +692,7 @@ object Value {
   }
 
   case class Construct(name: Int, vs: Seq[Value]) extends Canonical
-  case class Constructor(name: Name, ims: Seq[Boolean], nodes: ClosureGraph)
+  case class Constructor(name: Name, nodes: ClosureGraph)
   case class Sum(inductively: Option[Inductively], constructors: Seq[Constructor]) extends Canonical
 
   case class PathType(typ: AbsClosure, left: Value, right: Value) extends Canonical
@@ -978,7 +978,7 @@ object Value {
                )))))
             case Function(_, _, b) =>
                Some(Lambda(Closure(v => Hcomp(b(v), App(base, v), faces.map(f => Face(f.restriction, f.body.map(j => App(j, v))))))))
-            case Record(i, ns, ms, cs) =>
+            case Record(i, ns, cs) =>
               if (cs.isEmpty) {
                 Some(base)
               } else {
@@ -1240,7 +1240,7 @@ sealed trait Value {
     case Lambda(closure) => closure.supportShallow()
     case PatternLambda(id, domain, typ, cases) =>
       domain.supportShallow() ++ typ.supportShallow() ++ SupportShallow.flatten(cases.map(_.closure.supportShallow()))
-    case Record(inductively, names, ims, nodes) =>
+    case Record(inductively, names, nodes) =>
       SupportShallow.orEmpty(inductively.map(_.supportShallow())) ++ ClosureGraph.supportShallow(nodes)
     case Make(values) => SupportShallow.flatten(values.map(_.supportShallow()))
     case Construct(name, vs) =>
@@ -1270,12 +1270,12 @@ sealed trait Value {
   def fswap(w: Long, z: Formula): Value = this match {
     case u: Universe => u
     case Function(domain, im, codomain) => Function(domain.fswap(w, z), im, codomain.fswap(w, z))
-    case Record(inductively, ms, ns, nodes) =>
-      Record(inductively.map(_.fswap(w, z)), ms, ns, ClosureGraph.fswap(nodes, w, z))
+    case Record(inductively, ns, nodes) =>
+      Record(inductively.map(_.fswap(w, z)), ns, ClosureGraph.fswap(nodes, w, z))
     case Make(values) => Make(values.map(_.fswap(w, z)))
     case Construct(name, vs) => Construct(name, vs.map(_.fswap(w, z)))
     case Sum(inductively, constructors) =>
-      Sum(inductively.map(_.fswap(w, z)), constructors.map(n => Constructor(n.name, n.ims, ClosureGraph.fswap(n.nodes, w, z))))
+      Sum(inductively.map(_.fswap(w, z)), constructors.map(n => Constructor(n.name, ClosureGraph.fswap(n.nodes, w, z))))
     case Lambda(closure) => Lambda(closure.fswap(w, z))
     case PatternLambda(id, dom, typ, cases) =>
       PatternLambda(id, dom.fswap(w, z), typ.fswap(w, z), cases.map(a => Case(a.pattern, a.closure.fswap(w, z))))
@@ -1302,14 +1302,14 @@ sealed trait Value {
     case u: Universe => u
     case Function(domain, im, codomain) =>
       Function(domain.restrict(lv), im, codomain.restrict(lv))
-    case Record(inductively, ms, ns, nodes) =>
-      Record(inductively.map(_.restrict(lv)), ms, ns, ClosureGraph.restrict(nodes, lv))
+    case Record(inductively, ns, nodes) =>
+      Record(inductively.map(_.restrict(lv)), ns, ClosureGraph.restrict(nodes, lv))
     case Make(values) =>
       Make(values.map(_.restrict(lv)))
     case Construct(name, vs) =>
       Construct(name, vs.map(_.restrict(lv)))
     case Sum(inductively, constructors) =>
-      Sum(inductively.map(_.restrict(lv)), constructors.map(n => Constructor(n.name, n.ims, ClosureGraph.restrict(n.nodes, lv))))
+      Sum(inductively.map(_.restrict(lv)), constructors.map(n => Constructor(n.name, ClosureGraph.restrict(n.nodes, lv))))
     case Lambda(closure) =>
       Lambda(closure.restrict(lv))
     case PatternLambda(id, dom, typ, cases) =>

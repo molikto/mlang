@@ -13,6 +13,27 @@ import scala.language.implicitConversions
 
 class syntax_creation extends Annotation
 
+private class IndState(val id: Long, var stop: Boolean, var self: Value) {
+  def consume(level: Int): Option[Abstract.Inductively] = {
+    val ret = if (stop) None else Some(Abstract.Inductively(id, level))
+    stop = true
+    ret
+  }
+
+
+  def map(function: Value => Value): IndState = {
+    if (stop) this else {
+      this.self = function(self)
+      this
+    }
+  }
+
+}
+
+private object IndState {
+  val stop = new IndState(0, true, null)
+}
+
 object Elaborator {
   private val pgen = new GenLong.Positive()
   private val igen = new GenLong.Positive()
@@ -136,7 +157,11 @@ class Elaborator private(protected override val layers: Layers)
   }
 
 
-  private def infer(term: Concrete, noReduceMore: Boolean = false): (Value, Abstract) = {
+  private def infer(
+                     term: Concrete,
+                     noReduceMore: Boolean = false,
+                     indState: IndState = IndState.stop
+                   ): (Value, Abstract) = {
     debug(s"infer $term")
     def reduceMore(v: Value, abs: Abstract): (Value, Abstract) = {
       if (noReduceMore) {
@@ -168,10 +193,10 @@ class Elaborator private(protected override val layers: Layers)
             // TODO user defined projections for a type, i.e.
             // TODO [issue 7] implement const_projections syntax
             case r: Value.Record if right == Concrete.Make =>
-              (lv, Abstract.Make(inferGraph(r.nodes, r.ims, arguments)))
+              (lv, Abstract.Make(inferGraph(r.nodes, arguments)))
             case r: Value.Sum if calIndex(t => r.constructors.indexWhere(_.name.by(t))) =>
               val c = r.constructors(index)
-              (lv, Abstract.Construct(index, inferGraph(c.nodes, c.ims, arguments)))
+              (lv, Abstract.Construct(index, inferGraph(c.nodes, arguments)))
             case _ => error()
           }
       }
@@ -187,19 +212,31 @@ class Elaborator private(protected override val layers: Layers)
           case Concrete.Type =>
             (Value.Universe.suc(b + 1), Abstract.Universe(if (Value.Universe.TypeInType) 0 else b))
           case Concrete.Reference(ref) =>
-            val (binder, abs) = lookupTerm(ref)
-            abs match {
-              case Abstract.Reference(up, _) if up == layers.size - 1 =>
-              reduceMore(binder, abs)
-              //reduceMore(binder.up(b), Abstract.Up(abs, b))
-              case _ => throw ElaboratorException.UpCanOnlyBeUsedOnTopLevelDefinitionOrUniverse()
+            lookupTerm(ref) match {
+              case NameLookupResult.Typed(typ, abs) =>
+                abs match {
+                  case Abstract.Reference(up, _) if up == layers.size - 1 =>
+                    reduceMore(typ, abs)
+                  //reduceMore(binder.up(b), Abstract.Up(abs, b))
+                  case _ => throw ElaboratorException.UpCanOnlyBeUsedOnTopLevelDefinitionOrUniverse()
+                }
+              case _: NameLookupResult.Construct =>
+                throw ElaboratorException.UpCanOnlyBeUsedOnTopLevelDefinitionOrUniverse()
             }
           case _ => throw ElaboratorException.UpCanOnlyBeUsedOnTopLevelDefinitionOrUniverse()
         }
       case Concrete.Reference(name) =>
         // should lookup always return a value? like a open reference?
-        val (binder, abs) = lookupTerm(name)
-        reduceMore(binder, abs)
+        lookupTerm(name) match {
+          case NameLookupResult.Typed(binder, abs) =>
+            reduceMore(binder, abs)
+          case NameLookupResult.Construct(self, index, closure) =>
+            if (closure.nonEmpty) {
+              throw ElaboratorException.NotFullyAppliedConstructorNotSupportedYet()
+            } else {
+              (self, Abstract.Construct(index, Seq.empty))
+            }
+        }
       case Concrete.Hole =>
         throw ElaboratorException.CannotInferMeta()
       case Concrete.True =>
@@ -238,8 +275,12 @@ class Elaborator private(protected override val layers: Layers)
             }
           }
         }
-        val (fl, fs) = newLayerInferFlatLevel(fields)
-        (Value.Universe(fl), Abstract.Record(None, fs.map(_._1), fs.map(_._2), fs.map(a => (a._3.term.termDependencies(0).toSeq.sorted, a._3))))
+        val ctx = newParametersLayer()
+        val (fl, fs) = ctx.inferFlatLevel(fields)
+        (Value.Universe(fl), Abstract.Record(
+          indState.consume(fl),
+          fs.map(_._1),
+          fs.map(a => Abstract.ClosureGraph.Node(a._2, a._3.term.termDependencies(0).toSeq.sorted, a._3))))
       case Concrete.Sum(constructors) =>
         for (i <- constructors.indices) {
           for (j <- (i + 1) until constructors.size) {
@@ -248,11 +289,13 @@ class Elaborator private(protected override val layers: Layers)
             }
           }
         }
-        // TODO in case of HIT, each time a constructor finished, we need to construct a partial sum and update the value
-        val fs = constructors.map(c => newLayerInferFlatLevel(c.term))
+        val ctx = newParametersLayer()
+        val fs = constructors.map(c => {
+          ctx.inferFlatLevel(c.term)
+        })
         val fl = fs.map(_._1).max
-        (Value.Universe(fl), Abstract.Sum(None, fs.map(_._2).zip(constructors).map(a =>
-          Abstract.Constructor(a._2.name, a._1.map(k => k._2), a._1.zipWithIndex.map(kk => (0 until kk._2, kk._1._3))))))
+        (Value.Universe(fl), Abstract.Sum(indState.consume(fl), fs.map(_._2).zip(constructors).map(a =>
+          Abstract.Constructor(a._2.name, a._1.zipWithIndex.map(kk => Abstract.ClosureGraph.Node(kk._1._2, 0 until kk._2, kk._1._3))))))
       case Concrete.Transp(tp, direction, base) =>
         // LATER does these needs finish off implicits?
         val (dv, da) = checkAndEvalFormula(direction)
@@ -318,16 +361,25 @@ class Elaborator private(protected override val layers: Layers)
           throw ElaboratorException.CannotInferLambda()
         }
       case Concrete.App(lambda, arguments) =>
+        @inline def defaultCase(lt: Value, la: Abstract) = {
+          val (v1, v2) = inferApp(lt, la, arguments)
+          reduceMore(v1, v2) // because inferApp stops when arguments is finished
+        }
         lambda match {
           case Concrete.App(l2, a2) =>
             // @syntax_creation
             infer(Concrete.App(l2, a2 ++ arguments))
           case Concrete.Projection(left, right) =>
             inferProjectionApp(left, right, arguments)
+          case Concrete.Reference(name) =>
+            lookupTerm(name) match {
+              case NameLookupResult.Typed(typ, ref) => defaultCase(typ, ref)
+              case NameLookupResult.Construct(self, index, closure) =>
+                ???
+            }
           case _ =>
             val (lt, la) = infer(lambda, true)
-            val (v1, v2) = inferApp(lt, la, arguments)
-            reduceMore(v1, v2) // because inferApp stops when arguments is finished
+            defaultCase(lt, la)
         }
       case Concrete.Projection(left, right) =>
         inferProjectionApp(left, right, Seq.empty)
@@ -370,7 +422,7 @@ class Elaborator private(protected override val layers: Layers)
   private def checkFormula(r: Concrete): Abstract.Formula = {
     r match {
       case Concrete.Reference(name) =>
-         lookupDimension(name)
+         lookupDimension(name).ref
       case Concrete.And(left, right) =>
         val l = checkFormula(left)
         val r = checkFormula(right)
@@ -390,8 +442,8 @@ class Elaborator private(protected override val layers: Layers)
     }
   }
 
-  private def newLayerInferFlatLevel(terms: Seq[NameType]): (Int, Seq[(Name, Boolean, Abstract.MetaEnclosed)]) = {
-    var ctx = newParametersLayer()
+  private def inferFlatLevel(terms: Seq[NameType]): (Int, Seq[(Name, Boolean, Abstract.MetaEnclosed)]) = {
+    var ctx = this
     var l = 0
     val fas = terms.flatMap(f => {
       val fs = NameType.flatten(Seq(f))
@@ -463,34 +515,35 @@ class Elaborator private(protected override val layers: Layers)
     }
   }
 
-  private def inferGraph(nodes: ClosureGraph, ims: Seq[Boolean], arguments: Seq[(Boolean, Concrete)], accumulator: Seq[Abstract] = Seq.empty): Seq[Abstract] = {
+  private def inferGraph(nodes: ClosureGraph, arguments: Seq[(Boolean, Concrete)], accumulator: Seq[Abstract] = Seq.empty): Seq[Abstract] = {
     val i = accumulator.size
     def implicitCase() = {
       val (mv, ma) = newMeta(nodes(i).independent.typ)
       val ns = ClosureGraph.reduce(nodes, i, mv)
-      inferGraph(ns, ims.tail, arguments, accumulator :+ ma)
+      inferGraph(ns, arguments, accumulator :+ ma)
     }
     arguments match {
       case head +: tail => // more arguments
-        if (ims.isEmpty) {
+        if (i >= nodes.size) {
           throw ElaboratorException.ConstructorWithMoreArguments()
         } else {
-          if (ims.head == head._1) { // this is a given argument
+          val imp = nodes(i).implicitt
+          if (imp == head._1) { // this is a given argument
             val aa = check(head._2, nodes(i).independent.typ)
             val av = eval(aa)
             val ns = ClosureGraph.reduce(nodes, i, av)
-            inferGraph(ns, ims.tail, tail, accumulator :+ aa)
-          } else if (ims.head) { // this is a implicit argument not given
+            inferGraph(ns, tail, accumulator :+ aa)
+          } else if (imp) { // this is a implicit argument not given
             implicitCase()
           } else {
             throw ElaboratorException.NotExpectingImplicitArgument()
           }
         }
       case Seq() =>
-        if (ims.isEmpty) { // no argument and no field, perfect!
+        if (i == nodes.size) { // no argument and no field, perfect!
           accumulator
         } else {
-          if (ims.head) { // more implicits, finish off
+          if (nodes(i).implicitt) { // more implicits, finish off
             implicitCase()
           } else { // no more implicits, we want to wrap the thing in lambda
             throw ElaboratorException.NotFullyAppliedConstructorNotSupportedYet()
@@ -534,7 +587,8 @@ class Elaborator private(protected override val layers: Layers)
   private def check(
                      term: Concrete,
                      cp: Value,
-                     lambdaNameHints: Seq[Name] = Seq.empty
+                     lambdaNameHints: Seq[Name] = Seq.empty,
+                     indState: IndState = IndState.stop
   ): Abstract = {
     debug(s"check $term")
     val (hint, tail) = lambdaNameHints match {
@@ -546,7 +600,7 @@ class Elaborator private(protected override val layers: Layers)
         case Concrete.Hole =>
           newMeta(cp)._2
         case _ =>
-          val (tt, ta) = infer(term)
+          val (tt, ta) = infer(term, indState = indState)
           if (subTypeOf(tt, cp)) ta
           else {
             info(s"${reify(tt.whnf)}")
@@ -571,7 +625,7 @@ class Elaborator private(protected override val layers: Layers)
               case Concrete.Lambda(n, limp, ensuredPath, body) if fimp == limp =>
                 assert(!ensuredPath)
                 val (ctx, v) = newParameterLayer(n.nonEmptyOrElse(hint), domain)
-                val ba = ctx.check(body, codomain(v), tail)
+                val ba = ctx.check(body, codomain(v), tail, indState.map(a => Value.App(a, v)))
                 Abstract.Lambda(Abstract.Closure(ctx.finishReify(), ba))
               case Concrete.PatternLambda(limp, cases) if fimp == limp =>
                 val res = cases.map(c => {
@@ -653,7 +707,7 @@ class Elaborator private(protected override val layers: Layers)
           case r: Value.Record =>
             term match {
               case Concrete.App(Concrete.Make, vs) =>
-                Abstract.Make(inferGraph(r.nodes, r.ims, vs))
+                Abstract.Make(inferGraph(r.nodes, vs))
               case _ =>
                 fallback()
             }
@@ -725,22 +779,25 @@ class Elaborator private(protected override val layers: Layers)
         //        if (ms.contains(Modifier.WithConstructor)) {
         //        }
         // a inductive type definition
-        var inductively: Option[Long] =
-          if (ms.contains(Modifier.Inductively)) {
+        var inductively: IndState = IndState.stop
+        def rememberInductivelyBy(self: Value) = {
+          inductively = if (ms.contains(Modifier.Inductively)) {
             if (topLevel) {
-              Some(Elaborator.igen())
+              new IndState(Elaborator.igen(), false, self)
             } else {
               throw ElaboratorException.RecursiveTypesMustBeDefinedAtTopLevel()
             }
-          } else None
+          } else IndState.stop
+          inductively
+        }
         val ret = lookupDefined(name) match {
-          case Some((index, typ, defined)) =>
-            if (defined) {
+          case Some((index, item)) =>
+            if (item.isDefined) {
               throw ElaboratorException.AlreadyDefined()
             }
             info(s"check defined $name")
             if (ps.nonEmpty || t0.nonEmpty) throw ElaboratorException.SeparateDefinitionCannotHaveTypesNow()
-            val va = check(v, typ, Seq.empty)
+            val va = check(v, item.typ, Seq.empty, rememberInductivelyBy(item.ref))
             info("body:"); print(va)
             appendMetas(freeze())
             val ref = newReference()
@@ -767,22 +824,7 @@ class Elaborator private(protected override val layers: Layers)
                   NameType.flatten(d).map(_._2)
                 case _ => Seq.empty
               })
-              val va0 = ctx.check(wrapBody(v, pps.map(_._1)), tv, lambdaNameHints)
-              val va = if (inductively.isDefined) {
-                if (pps.nonEmpty) {
-                  warn("we don't support parameterized inductive type yet")
-                  ???
-                }
-                val level = tv.whnf.asInstanceOf[Value.Universe].level
-                val tt = Some(Abstract.Inductively(inductively.get, level))
-                va0 match {
-                  case s: Abstract.Sum => inductively = None; assert(s.inductively.isEmpty); s.copy(inductively = tt)
-                  case s: Abstract.Record => inductively = None; assert(s.inductively.isEmpty); s.copy(inductively = tt)
-                  case ig => ig
-                }
-              } else {
-                va0
-              }
+              val va = ctx.check(wrapBody(v, pps.map(_._1)), tv, lambdaNameHints, rememberInductivelyBy(generic))
               info("body:"); print(va)
               appendMetas(ctx.freeze())
               val ref = newReference()
@@ -825,7 +867,7 @@ class Elaborator private(protected override val layers: Layers)
               ctx
           }
         }
-        if (inductively.isDefined) warn(s"${name.toString} is not a inductive type but has modifier inductively")
+        if (!inductively.stop) throw ElaboratorException.InductiveModifierNotApplyable()
         ret
       case Declaration.Declare(ms, name, ps, t) =>
         lookupDefined(name) match {

@@ -1,7 +1,7 @@
 package mlang.compiler
 
 import mlang.compiler.Layer.Layers
-import mlang.compiler.Value.Referential
+import mlang.compiler.Value.{Referential}
 import mlang.utils.{Name, debug}
 
 import scala.collection.mutable
@@ -59,7 +59,14 @@ object Layer {
 
   case class PatternParameters(binders: Seq[ParameterBinder], metas: MetasState) extends Parameters // for pattern matching
 
-  case class ParameterGraph(defined: Seq[ParameterBinder], metas: MetasState) extends Parameters { // for pi and record telescope
+  case class HitDefinition(self: Value, branches: Seq[AlternativeGraph])
+  case class AlternativeGraph(name: Name, ps: Value.ClosureGraph)
+
+  case class ParameterGraph(
+    hit: Option[HitDefinition],
+    defined: Seq[ParameterBinder],
+    metas: MetasState
+  ) extends Parameters { // for pi and record telescope
     def binders: Seq[ParameterBinder] = defined
   }
 

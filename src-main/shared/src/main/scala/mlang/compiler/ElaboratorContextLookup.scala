@@ -12,31 +12,38 @@ object ElaboratorContextLookupException {
   case class ReferenceSortWrong(name: Text) extends Exception(s"Reference sort wrong $name") with ElaboratorContextLookupException
 }
 
+sealed trait NameLookupResult
+object NameLookupResult {
+  sealed trait Term extends NameLookupResult
+  case class Typed(typ: Value, ref: Abstract) extends Term
+  case class Construct(self: Value, index: Int, closure: Value.ClosureGraph) extends Term
+  case class Dimension(ref: Abstract.Formula) extends NameLookupResult
+}
+
 trait ElaboratorContextLookup extends ElaboratorContextBase {
 
-  def lookupTerm(name: Text): (Value, Abstract) = {
+  def lookupTerm(name: Text): NameLookupResult.Term = {
     lookup0(name) match {
-      case (t: Value, j: Abstract) =>
-        (t, j)
-      case _ =>
-        throw ElaboratorContextLookupException.ReferenceSortWrong(name)
+      case t: NameLookupResult.Term => t
+      case _ => throw ElaboratorContextLookupException.ReferenceSortWrong(name)
     }
   }
 
 
-  def lookupDimension(name: Text): Abstract.Formula.Reference = {
+  def lookupDimension(name: Text): NameLookupResult.Dimension = {
     lookup0(name) match {
-      case (_: String, j: Abstract.Formula.Reference) =>
-        j
-      case _ =>
-        throw ElaboratorContextLookupException.ReferenceSortWrong(name)
+      case name: NameLookupResult.Dimension => name
+      case _ => throw ElaboratorContextLookupException.ReferenceSortWrong(name)
     }
   }
 
-  private def lookup0(name: Text): (Object, Object) = {
+  private def lookup0(name: Text): NameLookupResult =  {
     var up = 0
     var ls = layers
-    var binder: (Object, Object) = null
+    var binder: NameLookupResult = null
+    def mkTyped(typ: Value, abs: Abstract.Reference): NameLookupResult.Typed = {
+      NameLookupResult.Typed(typ.restrict(getAllRestrictions(abs.up)), abs)
+    }
     while (ls.nonEmpty && binder == null) {
       var i = 0
       ls.head match {
@@ -46,11 +53,22 @@ trait ElaboratorContextLookup extends ElaboratorContextBase {
           while (ll.nonEmpty && binder == null) {
             if (ll.head.name.by(name)) {
               index = i
-              binder = (ll.head.typ,
+              binder = mkTyped(ll.head.typ,
                   Abstract.Reference(up, index))
             }
             i += 1
             ll = ll.tail
+          }
+          if (binder == null) {
+            ly match {
+              case l: Layer.ParameterGraph =>
+                l.hit.foreach(hit => {
+                  hit.branches.zipWithIndex.find(_._1.name.by(name)).foreach(f => {
+                    binder = NameLookupResult.Construct(hit.self, f._2, f._1.ps)
+                  })
+                })
+              case _ =>
+            }
           }
         case ly: Layer.Defines =>
           var ll = ly.terms
@@ -58,7 +76,7 @@ trait ElaboratorContextLookup extends ElaboratorContextBase {
           while (ll.nonEmpty && binder == null) {
             if (ll.head.name.by(name)) {
               index = i
-              binder = (ll.head.typ,
+              binder = mkTyped(ll.head.typ,
                   Abstract.Reference(up, index))
             }
             i += 1
@@ -66,11 +84,11 @@ trait ElaboratorContextLookup extends ElaboratorContextBase {
           }
         case p:Layer.Parameter =>
           if (p.binder.name.by(name)) {
-            binder = (p.binder.typ, Abstract.Reference(up, -1))
+            binder = mkTyped(p.binder.typ, Abstract.Reference(up, -1))
           }
         case d: Layer.Dimension =>
           if (d.name.by(name)) {
-            binder = ("", Abstract.Formula.Reference(up))
+            binder = NameLookupResult.Dimension(Abstract.Formula.Reference(up))
           }
         case _ =>
       }
@@ -82,13 +100,7 @@ trait ElaboratorContextLookup extends ElaboratorContextBase {
     if (binder == null) {
       throw ElaboratorContextLookupException.NonExistingReference(name)
     } else {
-      binder match {
-        case (t: Value, j: Abstract.Reference) =>
-          (t.restrict(getAllRestrictions(j.up)), j)
-        case (a: String, j: Abstract.Formula.Reference) =>
-          (a, j)
-        case _ => logicError()
-      }
+      binder
     }
   }
 }

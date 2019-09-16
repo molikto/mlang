@@ -31,12 +31,12 @@ private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorCon
   def reify(graph0: Value.ClosureGraph): Abstract.ClosureGraph = {
     var ctx: ReifierContext = newParametersLayer()
     var graph = graph0
-    var as =  Seq.empty[(Seq[Int], MetaEnclosed)]
+    var as =  Seq.empty[Abstract.ClosureGraph.Node]
     for (i  <- graph0.indices) {
       val n = graph(i)
       val it = n.independent.typ
       val ttt = ctx.reify(it)
-      val pair = (n.dependencies, Abstract.MetaEnclosed(ctx.reifyMetas(), ttt))
+      val pair = Abstract.ClosureGraph.Node(n.implicitt, n.dependencies, Abstract.MetaEnclosed(ctx.reifyMetas(), ttt))
       as = as :+ pair
       val (ctx0, tm) = ctx.newParameter(Name.empty, null)
       ctx = ctx0
@@ -88,10 +88,10 @@ private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorCon
         Universe(level)
       case Value.Function(domain, i, codomain) =>
         Function(reify(domain), i, reify(codomain))
-      case Value.Record(id, names, is, nodes) =>
-        Record(reify(id), names, is, reify(nodes))
+      case Value.Record(id, names, nodes) =>
+        Record(reify(id), names, reify(nodes))
       case Value.Sum(id, constructors) =>
-        Sum(reify(id), constructors.map(c => Constructor(c.name, c.ims, reify(c.nodes))))
+        Sum(reify(id), constructors.map(c => Constructor(c.name, reify(c.nodes))))
       case Value.PathType(ty, left, right) =>
         PathType(reify(ty), reify(left), reify(right))
       case Value.Lambda(closure) =>

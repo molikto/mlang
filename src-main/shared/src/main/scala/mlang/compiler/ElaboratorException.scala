@@ -60,6 +60,8 @@ object ElaboratorException {
 
   case class NotFullyAppliedConstructorNotSupportedYet() extends ElaboratorException
 
+  case class InductiveModifierNotApplyable() extends ElaboratorException
+
   case class RecursiveTypesMustBeDefinedAtTopLevel() extends ElaboratorException
 
   case class UpCanOnlyBeUsedOnTopLevelDefinitionOrUniverse()  extends ElaboratorException
