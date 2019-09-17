@@ -80,5 +80,7 @@ object ElaboratorException {
   case class UnglueCannotInfer() extends ElaboratorException
 
   case class ConstantSortWrong() extends ElaboratorException
+
+  case class HitContainingExternalDimension() extends ElaboratorException
 }
 

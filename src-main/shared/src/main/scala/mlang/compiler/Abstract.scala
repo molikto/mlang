@@ -101,7 +101,10 @@ object Abstract {
   case class Projection(left: Abstract, field: Int) extends Abstract
   case class Make(vs: Seq[Abstract]) extends Abstract
 
-  case class Constructor(name: Name, params: ClosureGraph)
+  case class Constructor(name: Name, params: ClosureGraph, dim: Int, restrictions: EnclosedSystem) {
+    def dependencies(i: Int): Set[Dependency] = params.flatMap(_.dependencies(i)).toSet ++ EnclosedSystem.dependencies(restrictions, i)
+    def diff(depth: Int, x: Int): Constructor = Constructor(name, params.map(_.diff(depth, x)), dim, EnclosedSystem.diff(restrictions, depth, x))
+  }
   case class Sum(inductively: Option[Inductively], constructors: Seq[Constructor]) extends Abstract
   case class Case(pattern: Pattern, body: MultiClosure)
   case class Construct(f: Int, vs: Seq[Abstract]) extends Abstract
@@ -167,7 +170,7 @@ sealed trait Abstract {
     case App(left, right) => App(left.diff(depth, x), right.diff(depth, x))
     case Record(id, names, graph) => Record(id.map(_.diff(depth, x)), names, graph.map(_.diff(depth, x)))
     case Projection(left, field) => Projection(left.diff(depth, x), field)
-    case Sum(id, constructors) => Sum(id.map(_.diff(depth, x)), constructors.map(c => Constructor(c.name, c.params.map(_.diff(depth, x)))))
+    case Sum(id, constructors) => Sum(id.map(_.diff(depth, x)), constructors.map(_.diff(depth, x)))
     case Make(vs) => Make(vs.map(_.diff(depth, x)))
     case Construct(f, vs) => Construct(f, vs.map(_.diff(depth, x)))
     case Let(metas, definitions, in) => Let(metas.map(_.diff(depth + 1, x)), definitions.map(_.diff(depth + 1, x)), in.diff(depth + 1, x))
@@ -194,7 +197,7 @@ sealed trait Abstract {
     case App(left, right) => left.dependencies(i) ++ right.dependencies(i)
     case Record(id, _, nodes) => id.map(_.dependencies(i)).getOrElse(Set.empty) ++ nodes.flatMap(_.dependencies(i)).toSet
     case Projection(left, _) => left.dependencies(i)
-    case Sum(id, constructors) =>  id.map(_.dependencies(i)).getOrElse(Set.empty) ++ constructors.flatMap(_.params.flatMap(_.dependencies(i))).toSet
+    case Sum(id, constructors) =>  id.map(_.dependencies(i)).getOrElse(Set.empty) ++ constructors.flatMap(_.dependencies(i)).toSet
     case Make(vs) => vs.flatMap(_.dependencies(i)).toSet
     case Construct(_, vs) => vs.flatMap(_.dependencies(i)).toSet
     case Let(metas, definitions, in) =>

@@ -1,6 +1,6 @@
 package mlang.compiler
 
-import mlang.compiler.Layer.{HitDefinition, Layers}
+import mlang.compiler.Layer.{AlternativeGraph, HitDefinition, Layers}
 import mlang.utils.{Name, debug}
 
 import scala.collection.mutable
@@ -128,9 +128,26 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
 
 
 
+
   def newParametersLayer(hit: Option[Value] = None): Self =
     Layer.ParameterGraph(hit.map(a => HitDefinition(a, Seq.empty)), Seq.empty, createMetas()) +: layers
 
+  def newConstructor(name: Name, ps: Value.ClosureGraph, dim: Int): Self =
+    layers.head match {
+      case Layer.ParameterGraph(alters, _, metas) =>
+        alters match {
+          case None => logicError()
+          case Some(value) =>
+            value.branches.find(_.name.intersect(name)) match {
+              case Some(_) => logicError()
+              case None =>
+                assert(metas.debug_allFrozen)
+                val n = AlternativeGraph(name, ps, dim)
+                Layer.ParameterGraph(Some(HitDefinition(value.self, value.branches :+ n)), Seq.empty, createMetas()) +: layers.tail
+            }
+        }
+      case _ => logicError()
+    }
 
   def newParameter(name: Name, typ: Value) : (Self, Value) = {
     layers.head match {

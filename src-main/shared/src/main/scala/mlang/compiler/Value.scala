@@ -697,7 +697,11 @@ object Value {
   }
 
   case class Construct(name: Int, vs: Seq[Value]) extends Canonical
-  case class Constructor(name: Name, nodes: ClosureGraph)
+  case class Constructor(name: Name, nodes: ClosureGraph, dim: Int, res: ValueSystem) {
+    def restrict(lv: Assignments): Constructor = Constructor(name, ClosureGraph.restrict(nodes, lv), dim, ValueSystem.restrict(res, lv))
+    def fswap(w: Long, z: Formula): Constructor = Constructor(name, ClosureGraph.fswap(nodes, w, z), dim, ValueSystem.fswap(res, w, z))
+  }
+
   case class Sum(inductively: Option[Inductively], constructors: Seq[Constructor]) extends Canonical
 
   case class PathType(typ: AbsClosure, left: Value, right: Value) extends Canonical
@@ -1307,7 +1311,7 @@ sealed trait Value {
     case Make(values) => Make(values.map(_.fswap(w, z)))
     case Construct(name, vs) => Construct(name, vs.map(_.fswap(w, z)))
     case Sum(inductively, constructors) =>
-      Sum(inductively.map(_.fswap(w, z)), constructors.map(n => Constructor(n.name, ClosureGraph.fswap(n.nodes, w, z))))
+      Sum(inductively.map(_.fswap(w, z)), constructors.map(_.fswap(w, z)))
     case Lambda(closure) => Lambda(closure.fswap(w, z))
     case PatternLambda(id, dom, typ, cases) =>
       PatternLambda(id, dom.fswap(w, z), typ.fswap(w, z), cases.map(a => Case(a.pattern, a.closure.fswap(w, z))))
@@ -1341,7 +1345,7 @@ sealed trait Value {
     case Construct(name, vs) =>
       Construct(name, vs.map(_.restrict(lv)))
     case Sum(inductively, constructors) =>
-      Sum(inductively.map(_.restrict(lv)), constructors.map(n => Constructor(n.name, ClosureGraph.restrict(n.nodes, lv))))
+      Sum(inductively.map(_.restrict(lv)), constructors.map(_.restrict(lv)))
     case Lambda(closure) =>
       Lambda(closure.restrict(lv))
     case PatternLambda(id, dom, typ, cases) =>

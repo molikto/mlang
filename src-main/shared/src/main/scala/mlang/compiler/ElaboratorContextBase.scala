@@ -60,7 +60,7 @@ object Layer {
   case class PatternParameters(binders: Seq[ParameterBinder], metas: MetasState) extends Parameters // for pattern matching
 
   case class HitDefinition(self: Value, branches: Seq[AlternativeGraph])
-  case class AlternativeGraph(name: Name, ps: Value.ClosureGraph)
+  case class AlternativeGraph(name: Name, ps: Value.ClosureGraph, dim: Int)
 
   case class ParameterGraph(
     hit: Option[HitDefinition],

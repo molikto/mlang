@@ -2,6 +2,7 @@ package mlang.compiler
 
 import mlang.compiler.Concrete._
 import Declaration.Modifier
+import mlang.compiler.Abstract.MetaEnclosed
 import mlang.compiler.Layer.Layers
 import mlang.utils._
 
@@ -9,6 +10,7 @@ import scala.annotation.Annotation
 import scala.collection.mutable
 import scala.language.implicitConversions
 
+case class FinishHitImplimentation() extends Exception
 
 class syntax_creation extends Annotation
 
@@ -49,6 +51,7 @@ class Elaborator private(protected override val layers: Layers)
         with ElaboratorContextForEvaluator
         with DebugPrettyPrinter
         with Evaluator with PlatformEvaluator with MetaSolver {
+
   override type Self = Elaborator
   override protected implicit def create(a: Layers): Self = new Elaborator(a)
 
@@ -304,18 +307,50 @@ class Elaborator private(protected override val layers: Layers)
         val ind = consumeIndState()
         // val hitFakeValue = ind.map(_._1).getOrElse(Value.Generic.HACK)
         // val ctx = newParametersLayer(Some(hitFakeValue))
-        val ctx = newParametersLayer()
+        var ctx = newParametersLayer()
         val fs = constructors.map(c => {
           val seq = NameType.flatten(c.term)
           val tpd = seq.takeWhile(_._3 != Concrete.I)
           val is = seq.drop(tpd.size)
-          // NOW: check extensions
+          for (i <- is) if (i._1) throw ElaboratorException.DimensionLambdaCannotBeImplicit()
+          val iss = is.map(_._2)
           val (ll, tt) = ctx.inferFlatLevel(tpd)
-          (c.name, ll, tt)
+          // NOW: check extensions
+          val (dimCtx, dims) = iss.foldLeft((ctx, Seq.empty[Long])) { (ctx, n) =>
+            val (c, l) = ctx._1.newDimensionLayer(n)
+            (c, ctx._2 :+ l.id)
+          }
+          val es = c.restrictions.map(r => {
+            val (dv, da) = checkAndEvalFormula(r.dimension)
+            // FIXME this is currently extremely limited, will make it better later
+            // one problem is what type we check against
+            val body: Abstract.MetaEnclosed = if (dv.names.forall(dims.contains)) {
+              r.term match {
+                case Concrete.Reference(name) =>
+                  ctx.lookupTerm(name) match {
+                    case NameLookupResult.Construct(self, index, closure) =>
+                      if (closure.isEmpty) {
+                        Abstract.MetaEnclosed(Seq.empty, Abstract.Construct(index, Seq()))
+                      } else throw FinishHitImplimentation()
+                    case NameLookupResult.Typed(typ, ref) => throw FinishHitImplimentation()
+                  }
+                case _ => throw FinishHitImplimentation()
+              }
+            } else {
+              throw ElaboratorException.HitContainingExternalDimension()
+            }
+            (da, body)
+          })
+          ctx = ctx.newConstructor(c.name, null, dims.size)
+          (c.name, ll, tt, iss.size, es)
         })
         val fl = fs.map(_._2).max
         (Value.Universe(fl), Abstract.Sum(ind.map(_._2(fl)), fs.map(a =>
-          Abstract.Constructor(a._1, a._3.zipWithIndex.map(kk => Abstract.ClosureGraph.Node(kk._1._2, 0 until kk._2, kk._1._3))))))
+          Abstract.Constructor(
+            a._1,
+            a._3.zipWithIndex.map(kk => Abstract.ClosureGraph.Node(kk._1._2, 0 until kk._2, kk._1._3)),
+            a._4, a._5.toMap
+          ))))
       case Concrete.Transp(tp, direction, base) =>
         // LATER does these needs finish off implicits?
         val (dv, da) = checkAndEvalFormula(direction)
@@ -395,7 +430,7 @@ class Elaborator private(protected override val layers: Layers)
             lookupTerm(name) match {
               case NameLookupResult.Typed(typ, ref) => defaultCase(typ, ref)
               case NameLookupResult.Construct(self, index, closure) =>
-                ???
+                throw FinishHitImplimentation()
             }
           case _ =>
             val (lt, la) = infer(lambda, true)
@@ -965,5 +1000,6 @@ private case class CodeInfo[T](
 private case class DefinitionInfo(
     var code: Option[CodeInfo[Value.Reference]],
     typ: CodeInfo[Value.Generic])
+
 
 

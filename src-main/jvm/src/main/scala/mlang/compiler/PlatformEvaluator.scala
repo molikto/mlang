@@ -76,6 +76,10 @@ trait PlatformEvaluator extends Evaluator {
     s"Seq(${faces.toSeq.map(a => s"(${emit(a._1, depth)}, ${emitInner(a._2, d)})").mkString(", ")}).toMap"
   }
 
+  def emitConstructor(c: Abstract.Constructor, depth: Int) = {
+    s"Constructor(${source(c.name)}, ${emitGraph(c.params, depth)}, ${c.dim}, ${emitEnclosedSystem(c.restrictions, depth)})"
+  }
+
   def emit(term: Abstract, depth: Int): String = {
       term match {
         case Abstract.Universe(l) =>
@@ -124,8 +128,7 @@ trait PlatformEvaluator extends Evaluator {
           s"Projection(${emit(left, depth)}, $field)"
         case Abstract.Sum(id, constructors) =>
           val d = depth + 1 // we some how have have one layer for the constructor names
-          s"""Sum(${emit(id, depth)}, Seq(${constructors.zipWithIndex.map(c =>
-            s"Constructor(${source(c._1.name)}, ${emitGraph(c._1.params, d)})").mkString(", ")}))"""
+          s"""Sum(${emit(id, depth)}, Seq(${constructors.map(c => emitConstructor(c, depth)).mkString(", ")}))"""
         case Abstract.Make(vs) =>
           s"Make(${vs.map(v => emit(v, depth))})"
         case Abstract.Construct(name, vs) =>

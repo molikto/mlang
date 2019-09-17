@@ -94,7 +94,7 @@ private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorCon
       case Value.Record(id, names, nodes) =>
         Record(reify(id), names, reify(nodes))
       case Value.Sum(id, constructors) =>
-        Sum(reify(id), constructors.map(c => Constructor(c.name, reify(c.nodes))))
+        Sum(reify(id), constructors.map(c => Constructor(c.name, reify(c.nodes), c.dim, reifyEnclosedSystem(c.res))))
       case Value.PathType(ty, left, right) =>
         PathType(reify(ty), reify(left), reify(right))
       case Value.Lambda(closure) =>
