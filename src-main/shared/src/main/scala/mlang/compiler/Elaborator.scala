@@ -13,7 +13,7 @@ import scala.language.implicitConversions
 
 class syntax_creation extends Annotation
 
-private class IndState(val id: Long, var stop: Boolean, var self: Value) {
+private class IndState(val id: Long, var stop: Boolean, var top: Value, var apps: Seq[Value] = Seq.empty) {
   def consume(level: Int): Option[Abstract.Inductively] = {
     val ret = if (stop) None else Some(Abstract.Inductively(id, level))
     stop = true
@@ -21,9 +21,9 @@ private class IndState(val id: Long, var stop: Boolean, var self: Value) {
   }
 
 
-  def map(function: Value => Value): IndState = {
+  def app(v: Value): IndState = {
     if (stop) this else {
-      this.self = function(self)
+      apps = apps :+ v
       this
     }
   }
@@ -276,7 +276,7 @@ class Elaborator private(protected override val layers: Layers)
           }
         }
         val ctx = newParametersLayer()
-        val (fl, fs) = ctx.inferFlatLevel(fields)
+        val (fl, fs) = ctx.inferFlatLevel(NameType.flatten(fields))
         (Value.Universe(fl), Abstract.Record(
           indState.consume(fl),
           fs.map(_._1),
@@ -291,7 +291,11 @@ class Elaborator private(protected override val layers: Layers)
         }
         val ctx = newParametersLayer()
         val fs = constructors.map(c => {
-          ctx.inferFlatLevel(c.term)
+          val seq = NameType.flatten(c.term)
+          val tpd = seq.takeWhile(_._3 != Concrete.I)
+          val is = seq.drop(tpd.size)
+          // NOW: check extensions
+          ctx.inferFlatLevel(tpd)
         })
         val fl = fs.map(_._1).max
         (Value.Universe(fl), Abstract.Sum(indState.consume(fl), fs.map(_._2).zip(constructors).map(a =>
@@ -442,21 +446,17 @@ class Elaborator private(protected override val layers: Layers)
     }
   }
 
-  private def inferFlatLevel(terms: Seq[NameType]): (Int, Seq[(Name, Boolean, Abstract.MetaEnclosed)]) = {
+  private def inferFlatLevel(fs: Concrete.NameType.FlatSeq): (Int, Seq[(Name, Boolean, Abstract.MetaEnclosed)]) = {
     var ctx = this
     var l = 0
-    val fas = terms.flatMap(f => {
-      val fs = NameType.flatten(Seq(f))
-      if (fs.map(_._2).toSet.size != fs.size) {
-        throw ElaboratorException.AlreadyDeclared()
-      }
-      fs.map(n => {
-        val (fl, fa) = ctx.inferLevel(f.ty)
-        l = l max fl
-        val ms = ctx.freezeReify()
-        ctx = ctx.newParameter(n._2, ctx.eval(fa))._1
-        (n._2, n._1, Abstract.MetaEnclosed(ms, fa))
-      })
+    // TODO it used be like this, but I forget what it is for
+    // if (fs.map(_._2).toSet.size != fs.size) throw ElaboratorException.AlreadyDeclared()
+    val fas = fs.map(n => {
+      val (fl, fa) = ctx.inferLevel(n._3)
+      l = l max fl
+      val ms = ctx.freezeReify()
+      ctx = ctx.newParameter(n._2, ctx.eval(fa))._1
+      (n._2, n._1, Abstract.MetaEnclosed(ms, fa))
     })
     (l, fas)
   }
@@ -596,23 +596,20 @@ class Elaborator private(protected override val layers: Layers)
       case _ => (Name.empty, Seq.empty)
     }
     def fallback(): Abstract = {
-      term match {
-        case Concrete.Hole =>
-          newMeta(cp)._2
-        case _ =>
-          val (tt, ta) = infer(term, indState = indState)
-          if (subTypeOf(tt, cp)) ta
-          else {
-            info(s"${reify(tt.whnf)}")
-            info(s"${reify(cp.whnf)}")
-            if (debug.enabled) {
-              val ignore = subTypeOf(tt, cp)
-            }
-            throw ElaboratorException.TypeMismatch()
-          }
+      val (tt, ta) = infer(term, indState = indState)
+      if (subTypeOf(tt, cp)) ta
+      else {
+        info(s"${reify(tt.whnf)}")
+        info(s"${reify(cp.whnf)}")
+        if (debug.enabled) {
+          val ignore = subTypeOf(tt, cp)
+        }
+        throw ElaboratorException.TypeMismatch()
       }
     }
     term match {
+      case Concrete.Hole =>
+        newMeta(cp)._2
       case Concrete.Let(declarations, bd) =>
         val (ctx, ms, da) = newDefinesLayer().checkDeclarations(declarations, false)
         val ba = ctx.check(bd, cp)
@@ -625,7 +622,7 @@ class Elaborator private(protected override val layers: Layers)
               case Concrete.Lambda(n, limp, ensuredPath, body) if fimp == limp =>
                 assert(!ensuredPath)
                 val (ctx, v) = newParameterLayer(n.nonEmptyOrElse(hint), domain)
-                val ba = ctx.check(body, codomain(v), tail, indState.map(a => Value.App(a, v)))
+                val ba = ctx.check(body, codomain(v), tail, indState.app(v))
                 Abstract.Lambda(Abstract.Closure(ctx.finishReify(), ba))
               case Concrete.PatternLambda(limp, cases) if fimp == limp =>
                 val res = cases.map(c => {

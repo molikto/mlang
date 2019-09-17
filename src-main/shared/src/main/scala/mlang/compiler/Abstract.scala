@@ -87,9 +87,11 @@ object Abstract {
   case class PatternLambda(id: Long, domain: Abstract, typ: Closure, cases: Seq[Case]) extends Abstract
   case class App(left: Abstract, right: Abstract) extends Abstract
 
+  // LATER this is just a marker, we might have Record(recursive: Option[RecursiveType], ...) later
+  sealed trait RecursiveType
   case class Inductively(id: Long, level: Int
                        /*  , parameters: Seq[Abstract], parameterTypes: ClosureGraph */
-                        ) {
+                        ) extends RecursiveType {
     def dependencies(i: Int): Set[Dependency] = Set.empty
     def diff(depth: Int, x: Int): Inductively = this
     override def toString: String = "inductively"

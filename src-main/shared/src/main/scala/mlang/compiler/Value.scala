@@ -662,7 +662,8 @@ object Value {
   }
 
 
-  case class Inductively(@nominal_equality id: Long, @type_annotation level: Int) {
+  sealed trait RecursiveType
+  case class Inductively(@nominal_equality id: Long, @type_annotation level: Int) extends RecursiveType {
     def restrict(lv: Formula.Assignments): Inductively = this
     def fswap(w: Long, z: Formula): Inductively = this
     private[Value] def supportShallow(): SupportShallow =  SupportShallow.empty
