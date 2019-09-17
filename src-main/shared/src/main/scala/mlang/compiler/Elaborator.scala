@@ -3,7 +3,6 @@ package mlang.compiler
 import mlang.compiler.Concrete._
 import Declaration.Modifier
 import mlang.compiler.Layer.Layers
-import mlang.compiler.Value.ClosureGraph
 import mlang.utils._
 
 import scala.annotation.Annotation
@@ -14,8 +13,9 @@ import scala.language.implicitConversions
 class syntax_creation extends Annotation
 
 private class IndState(val id: Long, var stop: Boolean, var top: Value, var apps: Seq[Value] = Seq.empty) {
-  def consume(level: Int): Option[Abstract.Inductively] = {
-    val ret = if (stop) None else Some(Abstract.Inductively(id, level))
+  def consume(level: Int): Abstract.Inductively = {
+    assert(!stop)
+    val ret = Abstract.Inductively(id, level)
     stop = true
     ret
   }
@@ -201,6 +201,17 @@ class Elaborator private(protected override val layers: Layers)
           }
       }
     }
+    def consumeIndState(): Option[(Value, Int => Abstract.Inductively)] = {
+      if (!indState.stop) {
+        if (indState.apps.nonEmpty) {
+          throw new Exception("parameterized inductively defined data type is currently not supported")
+        } else {
+          Some((indState.top, indState.consume))
+        }
+      } else {
+        None
+      }
+    }
     val res = term match {
       case Concrete.Type =>
         (Value.Universe.level1, Abstract.Universe(0))
@@ -275,10 +286,11 @@ class Elaborator private(protected override val layers: Layers)
             }
           }
         }
+        val ind = consumeIndState()
         val ctx = newParametersLayer()
         val (fl, fs) = ctx.inferFlatLevel(NameType.flatten(fields))
         (Value.Universe(fl), Abstract.Record(
-          indState.consume(fl),
+          ind.map(_._2(fl)),
           fs.map(_._1),
           fs.map(a => Abstract.ClosureGraph.Node(a._2, a._3.term.termDependencies(0).toSeq.sorted, a._3))))
       case Concrete.Sum(constructors) =>
@@ -289,17 +301,21 @@ class Elaborator private(protected override val layers: Layers)
             }
           }
         }
+        val ind = consumeIndState()
+        // val hitFakeValue = ind.map(_._1).getOrElse(Value.Generic.HACK)
+        // val ctx = newParametersLayer(Some(hitFakeValue))
         val ctx = newParametersLayer()
         val fs = constructors.map(c => {
           val seq = NameType.flatten(c.term)
           val tpd = seq.takeWhile(_._3 != Concrete.I)
           val is = seq.drop(tpd.size)
           // NOW: check extensions
-          ctx.inferFlatLevel(tpd)
+          val (ll, tt) = ctx.inferFlatLevel(tpd)
+          (c.name, ll, tt)
         })
-        val fl = fs.map(_._1).max
-        (Value.Universe(fl), Abstract.Sum(indState.consume(fl), fs.map(_._2).zip(constructors).map(a =>
-          Abstract.Constructor(a._2.name, a._1.zipWithIndex.map(kk => Abstract.ClosureGraph.Node(kk._1._2, 0 until kk._2, kk._1._3))))))
+        val fl = fs.map(_._2).max
+        (Value.Universe(fl), Abstract.Sum(ind.map(_._2(fl)), fs.map(a =>
+          Abstract.Constructor(a._1, a._3.zipWithIndex.map(kk => Abstract.ClosureGraph.Node(kk._1._2, 0 until kk._2, kk._1._3))))))
       case Concrete.Transp(tp, direction, base) =>
         // LATER does these needs finish off implicits?
         val (dv, da) = checkAndEvalFormula(direction)
@@ -515,11 +531,11 @@ class Elaborator private(protected override val layers: Layers)
     }
   }
 
-  private def inferGraph(nodes: ClosureGraph, arguments: Seq[(Boolean, Concrete)], accumulator: Seq[Abstract] = Seq.empty): Seq[Abstract] = {
+  private def inferGraph(nodes: Value.ClosureGraph, arguments: Seq[(Boolean, Concrete)], accumulator: Seq[Abstract] = Seq.empty): Seq[Abstract] = {
     val i = accumulator.size
     def implicitCase() = {
       val (mv, ma) = newMeta(nodes(i).independent.typ)
-      val ns = ClosureGraph.reduce(nodes, i, mv)
+      val ns = Value.ClosureGraph.reduce(nodes, i, mv)
       inferGraph(ns, arguments, accumulator :+ ma)
     }
     arguments match {
@@ -531,7 +547,7 @@ class Elaborator private(protected override val layers: Layers)
           if (imp == head._1) { // this is a given argument
             val aa = check(head._2, nodes(i).independent.typ)
             val av = eval(aa)
-            val ns = ClosureGraph.reduce(nodes, i, av)
+            val ns = Value.ClosureGraph.reduce(nodes, i, av)
             inferGraph(ns, tail, accumulator :+ aa)
           } else if (imp) { // this is a implicit argument not given
             implicitCase()

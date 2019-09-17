@@ -1,5 +1,20 @@
 
 
+/*
+
+// TODO implement type annotation (only allowing equality types)
+define inductively S1: type = sum {
+  case base
+  case loop: base ≡ base
+}
+
+// TODO implement boundary like redtt
+define inductively S2: type = sum {
+  case base
+  case surf(i j: I | ∂(i, j): base)
+}
+*/
+
 
 define inductively S1: type = sum {
   case base
