@@ -116,26 +116,26 @@ trait ValueConversion {
   // FIXME is this handling of subtyping sound?
   def choose(d1: Value, d2: Value, mode: Int): Value = if (mode >= 0) d1 else d2
 
-  def forCompatibleAssignments(t: Seq[Face], r1: Seq[Face], r2: Seq[Face])(handle: (Formula.Assignments, Value.AbsClosure, Value.AbsClosure, Value.AbsClosure) => Boolean): Boolean = {
-    val pht = Formula.phi(t.map(_.restriction))
-    val ph1 = Formula.phi(r1.map(_.restriction))
-    val ph2 = Formula.phi(r2.map(_.restriction))
+  def forCompatibleAssignments[T](t: System[T], r1: System[T], r2: System[T])(handle: (Formula.Assignments, T, T, T) => Boolean): Boolean = {
+    val pht = Formula.phi(t.keys)
+    val ph1 = Formula.phi(r1.keys)
+    val ph2 = Formula.phi(r2.keys)
     assert(pht == ph1 && ph2 == pht)
     try {
       for (ft <- t) {
-        val ast = ft.restriction.normalForm
+        val ast = ft._1.normalForm
         for (at <- ast) {
           for (f1 <- r1) {
             for (f2 <- r2) {
-              val as1 = f1.restriction.normalForm
-              val as2 = f2.restriction.normalForm
+              val as1 = f1._1.normalForm
+              val as2 = f2._1.normalForm
               for (a1 <- as1) {
                 for (a2 <- as2) {
                   val a = at ++ a1 ++ a2
                   if (Formula.Assignments.satisfiable(a)) {
                     // FIXME before we create a new layer, but now we don't, because we simply don't allow restriction on meta, think again if this is proper
                     // newSyntaxDirectedRestrictionLayer(a)
-                    if (handle(a, ft.body, f1.body, f2.body)) {
+                    if (handle(a, ft._2, f1._2, f2._2)) {
                     } else {
                       throw BreakException()
                     }
@@ -152,22 +152,22 @@ trait ValueConversion {
     }
   }
 
-  def forCompatibleAssignments(r1: Seq[Face], r2: Seq[Face])(handle: (Formula.Assignments, Value.AbsClosure, Value.AbsClosure) => Boolean): Boolean = {
-    val ph1 = Formula.phi(r1.map(_.restriction))
-    val ph2 = Formula.phi(r2.map(_.restriction))
+  def forCompatibleAssignments[T](r1: System[T], r2: System[T])(handle: (Formula.Assignments, T, T) => Boolean): Boolean = {
+    val ph1 = Formula.phi(r1.keys)
+    val ph2 = Formula.phi(r2.keys)
     try {
       if (ph1 == ph2) {
         for (f1 <- r1) {
           for (f2 <- r2) {
-            val as1 = f1.restriction.normalForm
-            val as2 = f2.restriction.normalForm
+            val as1 = f1._1.normalForm
+            val as2 = f2._1.normalForm
             for (a1 <- as1) {
               for (a2 <- as2) {
                 val a = a1 ++ a2
                 if (Formula.Assignments.satisfiable(a)) {
                   // FIXME before we create a new layer, but now we don't, because we simply don't allow restriction on meta, think again if this is proper
                   // newSyntaxDirectedRestrictionLayer(a)
-                  if (handle(a, f1.body, f2.body)) {
+                  if (handle(a, f1._2, f2._2)) {
                   } else {
                     throw BreakException()
                   }
@@ -185,11 +185,11 @@ trait ValueConversion {
     }
   }
 
-  def recGlueFaces(t: Value, r1: Seq[Face], r2: Seq[Face]): Boolean = {
+  def recGlueFaces(t: Value, r1: ValueSystem, r2: ValueSystem): Boolean = {
     forCompatibleAssignments(r1, r2) { (a, b1, b2) =>
       recTerm(
         App(BuiltIn.equiv_of, Value.Generic(gen(), t)).restrict(a),
-        b1(Value.Formula.Generic.HACK).restrict(a), b2(Value.Formula.Generic.HACK).restrict(a))
+        b1.restrict(a), b2.restrict(a))
     }
   }
 
@@ -413,9 +413,9 @@ trait ValueConversion {
             val Glue(m2, r2) = a
             recTerm(g.ty, m1, m2) && forCompatibleAssignments(g.faces, r1, r2) { (a, bt, b1, b2) =>
               recTerm(
-                Projection(bt(Value.Formula.Generic.HACK).restrict(a), 0),
-                b1(Value.Formula.Generic.HACK).restrict(a),
-                b2(Value.Formula.Generic.HACK).restrict(a)
+                Projection(bt.restrict(a), 0),
+                b1.restrict(a),
+                b2.restrict(a)
               )
             }
           }

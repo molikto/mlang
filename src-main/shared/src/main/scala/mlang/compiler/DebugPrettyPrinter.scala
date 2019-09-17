@@ -66,8 +66,9 @@ trait DebugPrettyPrinter extends ElaboratorContextBuilder {
 
   def debugPPrint(c: Abstract.Case): String = s"${debugPPrint(c.pattern)} ${debugPPrintMultiClosure(c.body)}"
 
-  def debugPPrint(ast: Seq[Abstract.Face]): String = {
-    ast.map(a => s"| ${a.pair}: ${newReifierRestrictionLayer(Value.Formula.True).debugPPrintAbsClosure(a.body)}").mkString("")
+  def debugPPrint[T](ast: Abstract.System[T]): String = {
+    ""
+    // ast.map(a => s"| ${a.pair}: ${newReifierRestrictionLayer(Value.Formula.True).debugPPrintAbsClosure(a.body)}").mkString("")
   }
 
   def debugPPrint(ast: Abstract): String = {

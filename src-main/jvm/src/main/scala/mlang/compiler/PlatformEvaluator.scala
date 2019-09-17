@@ -66,9 +66,14 @@ trait PlatformEvaluator extends Evaluator {
   }
 
 
-  def emitFaces(faces: Seq[Abstract.Face], depth: Int) = {
+  def emitAbsClosureSystem(faces: Abstract.AbsClosureSystem, depth: Int) = {
     val d = depth + 2
-    s"Seq(${faces.map(a => s"Face(${emit(a.pair, depth)}, AbsClosure(dm$d => ${emitInner(a.body, d)}))").mkString(", ")})"
+    s"Seq(${faces.toSeq.map(a => s"(${emit(a._1, depth)}, AbsClosure(dm$d => ${emitInner(a._2, d)}))").mkString(", ")}).toMap"
+  }
+
+  def emitEnclosedSystem(faces: Abstract.EnclosedSystem, depth: Int) = {
+    val d = depth + 2
+    s"Seq(${faces.toSeq.map(a => s"(${emit(a._1, depth)}, ${emitInner(a._2, d)})").mkString(", ")}).toMap"
   }
 
   def emit(term: Abstract, depth: Int): String = {
@@ -143,29 +148,29 @@ trait PlatformEvaluator extends Evaluator {
           s"Hcomp(" +
               s"${emit(tp, depth)}, " +
               s"${emit(base, depth)}, " +
-              emitFaces(faces, depth) +
+              emitAbsClosureSystem(faces, depth) +
               s")"
         case Abstract.Comp(tp, base, faces) =>
           s"Comp(" +
               s"AbsClosure(dm${depth + 1} => ${emitInner(tp, depth + 1)}), " +
               s"${emit(base, depth)}, " +
-              emitFaces(faces, depth) +
+              emitAbsClosureSystem(faces, depth) +
               s")"
         case Abstract.GlueType(tp, faces) =>
           s"GlueType(" +
               s"${emit(tp, depth)}, " +
-              emitFaces(faces, depth) +
+              emitEnclosedSystem(faces, depth) +
               s")"
         case Abstract.Glue(base, faces) =>
           s"Glue(" +
               s"${emit(base, depth)}, " +
-              emitFaces(faces, depth) +
+            emitEnclosedSystem(faces, depth) +
               s")"
         case Abstract.Unglue(tp, base, faces) =>
           s"Unglue(" +
               s"${emit(tp, depth)}, " +
               s"${emit(base, depth)}, " +
-              emitFaces(faces, depth) +
+            emitEnclosedSystem(faces, depth) +
               s")"
       }
     }

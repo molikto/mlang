@@ -67,7 +67,7 @@ class Elaborator private(protected override val layers: Layers)
                                   faces: Seq[Concrete.Face],
                                   bt: Value.AbsClosure,
                                   bv: Value
-  ): Seq[Abstract.Face] = {
+  ): Abstract.AbsClosureSystem = {
     import Value.Formula
     val nfs = mutable.ArrayBuffer.empty[Value.Formula.Assignments]
     val tms = mutable.ArrayBuffer.empty[Value]
@@ -102,9 +102,9 @@ class Elaborator private(protected override val layers: Layers)
             }
           }
         }
-        Abstract.Face(daa, na)
+        (daa, na)
       })
-    }
+    }.toMap
   }
 
 
@@ -412,16 +412,16 @@ class Elaborator private(protected override val layers: Layers)
             val ctx = newSyntaxDirectedRestrictionLayer(asgn).newDimensionLayer(Name.empty)._1 // this is currently a hack!
             // TODO here we checked by same level as ty.
             val bd = ctx.check(f.term, Value.App(BuiltIn.equiv_of, tv).restrict(asgn))
-            Abstract.AbsClosure(ctx.finishReify(), bd)
+            Abstract.MetaEnclosed(ctx.finishReify(), bd)
           })
-          Abstract.Face(formula._2, ba)
-        })
+          (formula._2, ba)
+        }).toMap
         (Value.Universe(lv), Abstract.GlueType(ta, facesA))
       case Concrete.Unglue(m) =>
         val (mt, ma) = infer(m)
         mt.whnf match {
           case Value.GlueType(ty, faces) =>
-            (ty, Abstract.Unglue(reify(ty), ma, reifyFaces(faces)))
+            (ty, Abstract.Unglue(reify(ty), ma, reifyEnclosedSystem(faces)))
           case _ => throw ElaboratorException.UnglueCannotInfer()
         }
       case Concrete.Let(declarations, in) =>
@@ -661,23 +661,23 @@ class Elaborator private(protected override val layers: Layers)
               case Concrete.Glue(base, fs) =>
                 val ba = check(base, ty)
                 val bv = eval(ba)
-                val phi1 = Value.Formula.phi(faces.map(_.restriction))
+                val phi1 = Value.Formula.phi(faces.keys)
                 val ffs = fs.map(a => { val (f1, f2) = checkAndEvalFormula(a.dimension); (f1, f2, a.term) })
                 val phi2 =  Value.Formula.phi(ffs.map(_._1))
                 if (phi1 == phi2) {
                   val fas = ffs.map(f => {
                     val body = doForValidFormulaOrThrow(f._1, asgn => {
-                      val terms = mutable.Set.empty[Abstract.AbsClosure]
+                      val terms = mutable.Set.empty[Abstract.MetaEnclosed]
                       for (tf <- faces) {
-                        tf.restriction.normalForm.filter(Value.Formula.Assignments.satisfiable).foreach(asgn2 => {
+                        tf._1.normalForm.filter(Value.Formula.Assignments.satisfiable).foreach(asgn2 => {
                           val asg = asgn ++ asgn2
                           if (Value.Formula.Assignments.satisfiable(asg)) {
                             val ctx = newSyntaxDirectedRestrictionLayer(asg).newDimensionLayer(Name.empty)._1
-                            val bd1 = tf.body(Value.Formula.Generic.HACK).restrict(asg)
+                            val bd1 = tf._2.restrict(asg)
                             val res = ctx.check(f._3, Value.Projection(bd1, 0))
                             val itemv = eval(res)
                             if (ctx.unifyTerm(ty.restrict(asg), bv.restrict(asg), Value.App(Value.Projection(bd1, 1), itemv))) {
-                              terms.add(Abstract.AbsClosure(ctx.finishReify(), res))
+                              terms.add(Abstract.MetaEnclosed(ctx.finishReify(), res))
                             } else {
                               throw ElaboratorException.GlueNotMatching()
                             }
@@ -689,8 +689,8 @@ class Elaborator private(protected override val layers: Layers)
                       }
                       terms.head
                     })
-                    Abstract.Face(f._2, body)
-                  })
+                    (f._2, body)
+                  }).toMap
                   Abstract.Glue(ba, fas)
                 } else {
                   throw ElaboratorException.FacesNotMatching()

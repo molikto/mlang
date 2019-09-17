@@ -14,13 +14,16 @@ private[compiler] class nominal_equality extends Annotation
 
 case class ImplementationLimitationCannotRestrictOpenMeta() extends Exception
 
+
 // FIXME: move out whnf
 object Value {
 
-  sealed trait Formula extends {
-
+  sealed trait Formula {
 
     import Formula.{And, Assignments, False, Neg, NormalForm, Or, True}
+
+    def supportShallow(): SupportShallow = SupportShallow(names, Set.empty)
+
     def names: Set[Long] = {
       this match {
         case Formula.Generic(id) => Set(id)
@@ -98,7 +101,7 @@ object Value {
     def elim(f: Formula, i: Long): Formula = Formula(NormalForm.elim(f.normalForm, i))
 
 
-    def phi(se: Seq[Formula]) = se.flatMap(_.normalForm).toSet
+    def phi(se: Iterable[Formula]) = se.flatMap(_.normalForm).toSet
     type Assignment = (Long, Boolean)
     type Assignments = Set[Assignment]
     object Assignments {
@@ -126,7 +129,7 @@ object Value {
     object False extends Formula
     case class And(left: Formula, right: Formula) extends Formula
     object Or {
-      def apply(fs: Seq[Formula]): Formula = {
+      def apply(fs: Iterable[Formula]): Formula = {
         fs.foldLeft(Formula.False: Formula) {
           (f, a) => Or(f, a)
         }
@@ -140,7 +143,7 @@ object Value {
 
 
   implicit class MultiClosure(private val func: Seq[Value] => Value) extends AnyVal {
-    private[Value] def supportShallow(): SupportShallow = func(Generic.HACKS).supportShallow()
+    def supportShallow(): SupportShallow = func(Generic.HACKS).supportShallow()
     def eq(b: MultiClosure): Boolean = func.eq(b.func)
     def apply() = func(Seq.empty)
     def apply(seq: Seq[Value]): Value = func(seq)
@@ -149,7 +152,7 @@ object Value {
   }
 
   implicit class Closure(private val func: Value => Value) extends AnyVal {
-    private[Value] def supportShallow(): SupportShallow = func(Generic.HACK).supportShallow()
+    def supportShallow(): SupportShallow = func(Generic.HACK).supportShallow()
     def eq(b: Closure): Boolean = func.eq(b.func)
     def apply(seq: Value): Value = func(seq)
     def restrict(dav: Formula.Assignments): Closure = Closure(d => func(Derestricted(d, dav)).restrict(dav))
@@ -166,7 +169,7 @@ object Value {
 
   // LATER make sure AnyVal classes is eliminated in bytecode
   implicit class AbsClosure(private val func: Formula => Value) extends AnyVal {
-    private[Value] def supportShallow(): SupportShallow = func(Formula.Generic.HACK).supportShallow()
+    def supportShallow(): SupportShallow = func(Formula.Generic.HACK).supportShallow()
     def eq(b: AbsClosure): Boolean = func.eq(b.func)
     def apply(seq: Formula): Value = func(seq)
     def mapd(a: (Value, Formula) => Value): AbsClosure = AbsClosure(d => a(this(d), d))
@@ -175,9 +178,10 @@ object Value {
     def fswap(w: Long, z: Formula): AbsClosure = AbsClosure(d => func(d).fswap(w, z))
   }
 
+
   type ClosureGraph = Seq[ClosureGraph.Node]
   object ClosureGraph {
-    private[Value] def supportShallow(graph: ClosureGraph): SupportShallow = {
+    def supportShallow(graph: ClosureGraph): SupportShallow = {
       val mss = mutable.ArrayBuffer[Meta]()
       val res = graph.map {
         case IndependentWithMeta(ims, ds, ms, typ) =>
@@ -484,7 +488,7 @@ object Value {
     override private[Value] def getRestrict(asgs: Assignments): GlobalReference = this
     private[Value] def getFswap(w: Long, z: Formula): Self = this
     def lookupChildren(v: Referential): Option[Formula.Assignments] = if (this.eq(v)) Some(Set.empty) else None
-    override protected def supportShallow(): SupportShallow = SupportShallow.empty
+    override def supportShallow(): SupportShallow = SupportShallow.empty
     override def support(): Support = Support.empty
 }
 
@@ -666,7 +670,7 @@ object Value {
   case class Inductively(@nominal_equality id: Long, @type_annotation level: Int) extends RecursiveType {
     def restrict(lv: Formula.Assignments): Inductively = this
     def fswap(w: Long, z: Formula): Inductively = this
-    private[Value] def supportShallow(): SupportShallow =  SupportShallow.empty
+    def supportShallow(): SupportShallow =  SupportShallow.empty
   }
 
   case class Record(
@@ -727,33 +731,66 @@ object Value {
   }
 
   type System[T] = Map[Formula, T]
-  case class Face(restriction: Formula, body: AbsClosure)
-  object Face {
-    private[Value] def supportShallow(faces: Seq[Face]): SupportShallow = {
-      SupportShallow.flatten(faces.map(f => f.body.supportShallow() +- f.restriction.names))
+  type AbsClosureSystem = System[AbsClosure]
+  type ValueSystem = System[Value]
+  object System {
+    def phi[T](a: System[T]) = Value.Formula.phi(a.keys)
+  }
+  object ValueSystem {
+    def supportShallow(faces: ValueSystem): SupportShallow = {
+      SupportShallow.flatten(faces.toSeq.map(f => f._2.supportShallow() +- f._1.names))
     }
-    def fswap(faces: Seq[Face], w: Long, z: Formula): Seq[Face] = {
-      faces.flatMap(n => {
-        val r = n.restriction.fswap(w, z)
+    def fswap(faces: ValueSystem, w: Long, z: Formula): ValueSystem = {
+      faces.toSeq.flatMap(n => {
+        val r = n._1.fswap(w, z)
         // TODO can you simply remove unsatifiable faces?
         if (r.normalForm == Formula.NormalForm.False) {
           None
         } else {
-          Some(Face(r, n.body.fswap(w, z)))
+          Some((r, n._2.fswap(w, z)))
         }
-      })
+      }).toMap
     }
-    def restrict(faces: Seq[Face], lv: Formula.Assignments) = {
-      faces.flatMap(n => {
-        val r = n.restriction.restrict(lv)
+    def restrict(faces: ValueSystem, lv: Formula.Assignments) = {
+      faces.toSeq.flatMap(n => {
+        val r = n._1.restrict(lv)
         // TODO can you simply remove unsatifiable faces?
         if (r.normalForm == Formula.NormalForm.False) {
           None
         } else {
-          Some(Face(r, n.body.restrict(lv)))
+          Some((r, n._2.restrict(lv)))
         }
-      })
+      }).toMap
     }
+  }
+  object AbsClosureSystem {
+
+    def supportShallow(faces: AbsClosureSystem): SupportShallow = {
+      SupportShallow.flatten(faces.toSeq.map(f => f._2.supportShallow() +- f._1.names))
+    }
+    def fswap(faces: AbsClosureSystem, w: Long, z: Formula): AbsClosureSystem = {
+      faces.toSeq.flatMap(n => {
+        val r = n._1.fswap(w, z)
+        // TODO can you simply remove unsatifiable faces?
+        if (r.normalForm == Formula.NormalForm.False) {
+          None
+        } else {
+          Some((r, n._2.fswap(w, z)))
+        }
+      }).toMap
+    }
+    def restrict(faces: AbsClosureSystem, lv: Formula.Assignments) = {
+      faces.toSeq.flatMap(n => {
+        val r = n._1.restrict(lv)
+        // TODO can you simply remove unsatifiable faces?
+        if (r.normalForm == Formula.NormalForm.False) {
+          None
+        } else {
+          Some((r, n._2.restrict(lv)))
+        }
+      }).toMap
+    }
+
   }
 
   // create a path from base  => transp, tp is constant on phi
@@ -761,20 +798,19 @@ object Value {
     Transp(AbsClosure(j => tp(Formula.And(i, j))), Formula.Or(Formula.Neg(i), phi), base)
 
   // from base => hcomp
-  def hfill(tp: Value, base: Value, faces: Seq[Face]) = {
+  def hfill(tp: Value, base: Value, faces: AbsClosureSystem) = {
     AbsClosure(i =>
-      Hcomp(tp, base, faces.map(f => Face(f.restriction, AbsClosure(j => f.body(Formula.And(i, j))))) :+
-          Face(Formula.Neg(i), AbsClosure(_ => base)))
+      Hcomp(tp, base,
+        faces.view.mapValues(f => AbsClosure(j => f(Formula.And(i, j)))).toMap.updated(Formula.Neg(i), AbsClosure(_ => base)))
     )
   }
 
   // from base => com
-  def fill(tp: AbsClosure, base: Value, faces: Seq[Face]) = {
+  def fill(tp: AbsClosure, base: Value, faces: AbsClosureSystem) = {
     AbsClosure(i =>
       Comp(AbsClosure(j => tp(Formula.And(i, j))),
         base,
-        faces.map(f => Face(f.restriction, AbsClosure(j => f.body(Formula.And(i, j))))) :+
-          Face(Formula.Neg(i), AbsClosure(_ => base)))
+        faces.view.mapValues(f => AbsClosure(j => f(Formula.And(i, j)))).toMap.updated(Formula.Neg(i), AbsClosure(_ => base)))
     )
   }
 
@@ -820,10 +856,10 @@ object Value {
                 AbsClosure(i => tpr(i).typ(dim)),
                 PathApp(base, dim),
                 Seq(
-                  Face(phi, AbsClosure(_ => PathApp(base, dim))),
-                  Face(Formula.Neg(dim), AbsClosure(a => tpr(a).left)),
-                  Face(dim, AbsClosure(a => tpr(a).right))
-                ))
+                  (phi, AbsClosure(_ => PathApp(base, dim))),
+                  (Formula.Neg(dim), AbsClosure(a => tpr(a).left)),
+                  (dim, AbsClosure(a => tpr(a).right))
+                ).toMap)
             })))
           case r: Record =>
             if (r.nodes.isEmpty) {
@@ -876,109 +912,106 @@ object Value {
     val B0 = B_swap(Formula.False)
     def A(i: Formula) = B.ty.fswap(dim, i)
     val B1 = B_swap(Formula.True)
-    val phi1 = Formula.Or(B1.faces.map(_.restriction))
+    val phi1 = Formula.Or(B1.faces.keys)
     val A1 = B1.ty
     val A0 = B0.ty
     // a0: A(i/0)
     val a0 = LocalReference(Unglue(A0, u0, B0.faces))
-    val phi_elim_i = Formula.elim(Formula.Or(B.faces.map(_.restriction)), dim)
+    val phi_elim_i = Formula.elim(Formula.Or(B.faces.keys), dim)
     // defined in phi_elim_i
     def t_tide(trueFace: Value, i: Formula) = {
       transpFill(i, si, AbsClosure(i => {
       Projection(trueFace.fswap(dim, i), 0)
       }), u0)
     }
-    def trueElimFace() = B.faces.find(b => Formula.elim(b.restriction, dim).normalFormTrue).get.body(Formula.Generic.HACK)
+    def trueElimFace() = B.faces.find(b => Formula.elim(b._1, dim).normalFormTrue).get._2
     def t1(trueFace: Value) = t_tide(trueFace, Formula.True)
     // a1: A(i/1) and is defined on both si and elim(i, phi)
     val a1 = LocalReference(Comp(
       AbsClosure(i => A(i)),
       a0,
       Seq(
-        Face(si, AbsClosure(_ => a0)),
-        Face(phi_elim_i, AbsClosure(i => {
+        (si, AbsClosure(_ => a0)),
+        (phi_elim_i, AbsClosure(i => {
           val tf = trueElimFace()
           val EQi  = tf.fswap(dim, i)
           val w = Projection(EQi, 1)
           App(Projection(w, 0), t_tide(tf, i))
         }))
-      )))
+      ).toMap))
     // ..., phi(i/1) |- (t1`, alpha) // true face must have (i/1)
     def pair(trueFace: Value) = {
       val w = Projection(trueFace, 1)
       val compo = App(Projection(w, 1), a1) // is_contractible(fiber_at(w(i/1).1, a1))
       Comp(AbsClosure(i => A(i)), Projection(compo, 0),
         Seq(
-          Face(si, AbsClosure(i => {
+          (si, AbsClosure(i => {
             val u = Make(Seq(u0, PathLambda(AbsClosure(_ => a1))))
             PathApp(App(Projection(compo, 1), u), i)
           })),
-          Face(phi_elim_i, AbsClosure(i => {
+          (phi_elim_i, AbsClosure(i => {
             val u = Make(Seq(t1(trueElimFace()), PathLambda(AbsClosure(_ => a1))))
             PathApp(App(Projection(compo, 1), u), i)
           }))
-        )
+        ).toMap
       )
     }
     val a1p = Hcomp(A1, a1,
       Seq(
-        Face(phi1, AbsClosure(j => {
-          val bd = B1.faces.find(_.restriction.normalFormTrue).get.body(Formula.Generic.HACK)
+        (phi1, AbsClosure(j => {
+          val bd = B1.faces.find(_._1.normalFormTrue).get._2
           PathApp(Projection(pair(bd), 1), j)
         })),
-        Face(si, AbsClosure(j => a1))))
-    Glue(a1p, Seq(Face(phi1, AbsClosure(_ => {
-      val bd = B1.faces.find(_.restriction.normalFormTrue).get.body(Formula.Generic.HACK)
-      Projection(pair(bd), 0)
-    }))))
+        (si, AbsClosure(j => a1))).toMap)
+    Glue(a1p, Seq((phi1, Projection(pair(B1.faces.find(_._1.normalFormTrue).get._2), 0))).toMap)
   }
 
-  def hcompGlue(B: GlueType, u0: Value, faces: Seq[Face]): Value = {
-    val si = Formula.Or(faces.map(_.restriction))
+  def hcompGlue(B: GlueType, u0: Value, faces: AbsClosureSystem): Value = {
+    val si = Formula.Or(faces.keys)
     def t_tide(trueFace: Value) = {
       hfill(Projection(trueFace, 0), u0, faces)
     }
     def t1(trueFace: Value) = t_tide(trueFace)(Formula.True)
-    val a1 = Hcomp(B.ty, Unglue(B.ty, u0, faces),
-      faces.map(f => Face(f.restriction, f.body.map(u => Unglue(B.ty, u, B.faces)))) ++
-      B.faces.map(f => Face(f.restriction, f.body.mapd((pair, i) => {
+    val a1 = Hcomp(B.ty, Unglue(B.ty, u0, B.faces),
+      faces.view.mapValues(f => f.map(u => Unglue(B.ty, u, B.faces))).toMap ++
+      B.faces.view.mapValues(pair => AbsClosure(i => {
         val w = Projection(pair, 1)
         val f = Projection(w, 0)
         App(f, t_tide(pair)(i))
-      })))
+      })).toMap
     )
-    Glue(a1, B.faces.map(f => Face(f.restriction, f.body.map(bd => t1(bd)))))
+    Glue(a1, B.faces.view.mapValues(bd => t1(bd)).toMap)
   }
 
 
   // TODO when we have a syntax for partial values, these should be removed
-  case class Comp(@stuck_pos tp: AbsClosure, base: Value, faces: Seq[Face]) extends Redux {
+  case class Comp(@stuck_pos tp: AbsClosure, base: Value, faces: AbsClosureSystem) extends Redux {
     override def reduce(): Option[Value] =
       Some(Hcomp(
         tp(Formula.True),
         forward(tp, Formula.False, base),
-        faces.map(f => Face(f.restriction, AbsClosure(i => forward(tp, i, f.body(i)))))))
+        faces.view.mapValues(f => AbsClosure(i => forward(tp, i, f(i)))).toMap))
   }
 
   /**
     * whnf: tp is whnf and not canonical
     */
-  case class Hcomp(@type_annotation @stuck_pos tp: Value, base: Value, faces: Seq[Face]) extends Redux {
+  case class Hcomp(@type_annotation @stuck_pos tp: Value, base: Value, faces: AbsClosureSystem) extends Redux {
 
 
     override def reduce(): Option[Value] = {
-      faces.find(_.restriction.normalFormTrue) match {
-        case Some(t) => Some(t.body(Formula.True))
+      faces.find(_._1.normalFormTrue) match {
+        case Some(t) => Some(t._2(Formula.True))
         case None =>
           val tp0 = tp.whnf
            tp0 match {
             case PathType(a, u, w) =>
                Some(PathLambda(AbsClosure(j => Hcomp(a(j), PathApp(base, j), Seq(
-                 Face(Formula.Neg(j), AbsClosure(_ => u)),
-                 Face(j, AbsClosure(_ => w))
-               )))))
+                 (Formula.Neg(j), AbsClosure(_ => u)),
+                 (j, AbsClosure(_ => w))
+               ).toMap))))
             case Function(_, _, b) =>
-               Some(Lambda(Closure(v => Hcomp(b(v), App(base, v), faces.map(f => Face(f.restriction, f.body.map(j => App(j, v))))))))
+               Some(Lambda(Closure(v => Hcomp(b(v), App(base, v), faces.view.mapValues(_.map(j => App(j, v))).toMap))))
             case Record(i, ns, cs) =>
               if (cs.isEmpty) {
                 Some(base)
@@ -988,13 +1021,13 @@ object Value {
                   val res = cs(i) match {
                     case in: ClosureGraph.Independent =>
                       hfill(in.typ, Projection(base, i),
-                        faces.map(f => Face(f.restriction, f.body.map(a => Projection(a, i))))
+                        faces.view.mapValues(_.map(a => Projection(a, i))).toMap
                       )
                     case com: ClosureGraph.Dependent =>
                       fill(
                         AbsClosure(k => ClosureGraph.get(cs, i, j => closures(j)(k))),
                         Projection(base, i),
-                        faces.map(n => Face(n.restriction, n.body.map(a => Projection(a, i))))
+                        faces.view.mapValues(_.map(a => Projection(a, i))).toMap
                       )
                   }
                   closures.append(res)
@@ -1002,12 +1035,11 @@ object Value {
                 Some(Make(closures.toSeq.map(_.apply(Formula.True))))
               }
             case u: Universe =>
-              val res = Glue(tp, faces.map(f =>
-                Face(f.restriction, AbsClosure(_ => {
-                  val A = f.body(Formula.False)
-                  val B = f.body(Formula.True)
-                  Make(Seq(B, Apps(BuiltIn.path_to_equiv, Seq(B, A, PathLambda(AbsClosure(a => f.body(Formula.Neg(a))))))))
-                }))))
+              val res = Glue(tp, faces.view.mapValues({ f =>
+                val A = f(Formula.False)
+                val B = f(Formula.True)
+                Make(Seq(B, Apps(BuiltIn.path_to_equiv, Seq(B, A, PathLambda(AbsClosure(a => f(Formula.Neg(a))))))))
+              }).toMap)
               Some(res)
             case Sum(i, cs) => ???
             case g: GlueType =>
@@ -1022,18 +1054,18 @@ object Value {
   /**
     * whnf: faces is not constant
     */
-  case class GlueType(ty: Value, @stuck_pos faces: Seq[Face]) extends CubicalUnstableCanonical
+  case class GlueType(ty: Value, @stuck_pos faces: ValueSystem) extends CubicalUnstableCanonical
   /**
     * whnf: faces is not constant
     */
-  case class Glue(m: Value, @stuck_pos faces: Seq[Face]) extends CubicalUnstableCanonical
+  case class Glue(m: Value, @stuck_pos faces: ValueSystem) extends CubicalUnstableCanonical
   /**
     * whnf: faces is not constant, base is whnf, and base's whnf is not glue
     * LATER this is how the whnf is defined, so glue is considered canonical
     *
     * FIXME it seems ty can be considered a type annotation? I am confused
     */
-  case class Unglue(ty: Value, base: Value, @stuck_pos faces: Seq[Face]) extends Redux {
+  case class Unglue(ty: Value, base: Value, @stuck_pos faces: ValueSystem) extends Redux {
     override def reduce(): Option[Value] = logicError() // in whnf
   }
 }
@@ -1058,9 +1090,8 @@ sealed trait Value {
 
   // it is ensured that if the value is not reducable, it will return the same reference
   def whnf: Value = {
-    def eqFaces(f1: Seq[Face], f2: Seq[Face]): Boolean = f1.eq(f2) || (f1.size == f2.size && f1.zip(f2).forall(p => {
-      p._1.restriction == p._2.restriction && p._1.body.eq(p._2.body)
-    }))
+    def eqFaces(f1: AbsClosureSystem, f2: AbsClosureSystem): Boolean =
+      f1.eq(f2) || (f1.keys == f2.keys && f1.forall(p => p._2.eq(f2(p._1))))
     val cached =
       if (_whnfCache == null) {
         null
@@ -1154,11 +1185,11 @@ sealed trait Value {
             case a => a
           }
         case GlueType(tm, faces) =>
-          faces.find(_.restriction.normalFormTrue).map(b => Projection(b.body(Formula.Generic.HACK), 0).whnf).getOrElse(this)
+          faces.find(_._1.normalFormTrue).map(b => Projection(b._2, 0).whnf).getOrElse(this)
         case Glue(base, faces) =>
-          faces.find(_.restriction.normalFormTrue).map(_.body(Formula.Generic.HACK).whnf).getOrElse(this)
+          faces.find(_._1.normalFormTrue).map(_._2.whnf).getOrElse(this)
         case Unglue(ty, base, faces) =>
-          val red = faces.find(_.restriction.normalFormTrue).map(b => App(Projection(b.body(Formula.Generic.HACK), 1), base).whnf)
+          val red = faces.find(_._1.normalFormTrue).map(b => App(Projection(b._2, 1), base).whnf)
           red match {
             case Some(a) => a
             case None =>
@@ -1235,7 +1266,7 @@ sealed trait Value {
     spt
   }
 
-  protected def supportShallow(): SupportShallow  = this match {
+  def supportShallow(): SupportShallow  = this match {
     case Universe(level) => SupportShallow.empty
     case Function(domain, impict, codomain) => domain.supportShallow() ++ codomain.supportShallow()
     case Lambda(closure) => closure.supportShallow()
@@ -1256,11 +1287,11 @@ sealed trait Value {
     case Projection(make, field) => make.supportShallow()
     case PathApp(left, dimension) => left.supportShallow() +- dimension.names
     case Transp(tp, direction, base) => tp.supportShallow() ++ base.supportShallow() +- direction.names
-    case Comp(tp, base, faces) => tp.supportShallow() ++ base.supportShallow() ++ Face.supportShallow(faces)
-    case Hcomp(tp, base, faces) => tp.supportShallow() ++ base.supportShallow() ++ Face.supportShallow(faces)
-    case GlueType(tp, faces) => tp.supportShallow()++ Face.supportShallow(faces)
-    case Glue(base, faces) => base.supportShallow() ++ Face.supportShallow(faces)
-    case Unglue(tp, base, faces) => tp.supportShallow() ++ base.supportShallow() ++ Face.supportShallow(faces)
+    case Comp(tp, base, faces) => tp.supportShallow() ++ base.supportShallow() ++ AbsClosureSystem.supportShallow(faces)
+    case Hcomp(tp, base, faces) => tp.supportShallow() ++ base.supportShallow() ++ AbsClosureSystem.supportShallow(faces)
+    case GlueType(tp, faces) => tp.supportShallow()++ ValueSystem.supportShallow(faces)
+    case Glue(base, faces) => base.supportShallow() ++ ValueSystem.supportShallow(faces)
+    case Unglue(tp, base, faces) => tp.supportShallow() ++ base.supportShallow() ++ ValueSystem.supportShallow(faces)
     case referential: Referential => SupportShallow.empty ++ Set(referential)
     case internal: Internal => logicError()
   }
@@ -1285,15 +1316,15 @@ sealed trait Value {
     case PathLambda(body) => PathLambda(body.fswap(w, z))
     case App(lambda, argument) => App(lambda.fswap(w, z), argument.fswap(w, z))
     case Transp(tp, direction, base) => Transp(tp.fswap(w, z), direction.fswap(w, z), base.fswap(w, z))
-    case Hcomp(tp, base, faces) => Hcomp(tp.fswap(w, z), base.fswap(w, z), Face.fswap(faces, w, z))
-    case Comp(tp, base, faces) => Comp(tp.fswap(w, z), base.fswap(w, z), Face.fswap(faces, w, z))
+    case Hcomp(tp, base, faces) => Hcomp(tp.fswap(w, z), base.fswap(w, z), AbsClosureSystem.fswap(faces, w, z))
+    case Comp(tp, base, faces) => Comp(tp.fswap(w, z), base.fswap(w, z), AbsClosureSystem.fswap(faces, w, z))
     case Projection(make, field) => Projection(make.fswap(w, z), field)
     case PatternRedux(lambda, stuck) =>
       PatternRedux(lambda.fswap(w, z).asInstanceOf[PatternLambda], stuck.fswap(w, z))
     case PathApp(left, stuck) => PathApp(left.fswap(w, z), stuck.fswap(w, z))
-    case GlueType(base, faces) => GlueType(base.fswap(w, z), Face.fswap(faces, w, z))
-    case Glue(base, faces) => Glue(base.fswap(w, z), Face.fswap(faces, w, z))
-    case Unglue(tp, base, faces) => Unglue(tp.fswap(w, z), base.fswap(w, z), Face.fswap(faces, w, z))
+    case GlueType(base, faces) => GlueType(base.fswap(w, z), ValueSystem.fswap(faces, w, z))
+    case Glue(base, faces) => Glue(base.fswap(w, z), ValueSystem.fswap(faces, w, z))
+    case Unglue(tp, base, faces) => Unglue(tp.fswap(w, z), base.fswap(w, z), ValueSystem.fswap(faces, w, z))
     case g: Referential => g.getFswap(w, z)
     case _: Internal => logicError()
   }
@@ -1324,9 +1355,9 @@ sealed trait Value {
     case Transp(tp, direction, base) =>
       Transp(tp.restrict(lv), direction.restrict(lv), base.restrict(lv))
     case Hcomp(tp, base, faces) =>
-      Hcomp(tp.restrict(lv), base.restrict(lv), Face.restrict(faces, lv))
+      Hcomp(tp.restrict(lv), base.restrict(lv), AbsClosureSystem.restrict(faces, lv))
     case Comp(tp, base, faces) =>
-      Comp(tp.restrict(lv), base.restrict(lv), Face.restrict(faces, lv))
+      Comp(tp.restrict(lv), base.restrict(lv), AbsClosureSystem.restrict(faces, lv))
     case Projection(make, field) =>
       Projection(make.restrict(lv), field)
     case PatternRedux(lambda, stuck) =>
@@ -1334,11 +1365,11 @@ sealed trait Value {
     case PathApp(left, stuck) =>
       PathApp(left.restrict(lv), stuck.restrict(lv))
     case GlueType(base, faces) =>
-      GlueType(base.restrict(lv), Face.restrict(faces, lv))
+      GlueType(base.restrict(lv), ValueSystem.restrict(faces, lv))
     case Glue(base, faces) =>
-      Glue(base.restrict(lv), Face.restrict(faces, lv))
+      Glue(base.restrict(lv), ValueSystem.restrict(faces, lv))
     case Unglue(tp, base, faces) =>
-      Unglue(tp.restrict(lv), base.restrict(lv), Face.restrict(faces, lv))
+      Unglue(tp.restrict(lv), base.restrict(lv), ValueSystem.restrict(faces, lv))
     case Derestricted(v, lv0) =>
       if (lv0.subsetOf(lv)) {
         v.restrict(lv -- lv0)

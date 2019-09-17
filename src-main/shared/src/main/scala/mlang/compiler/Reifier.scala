@@ -79,8 +79,11 @@ private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorCon
     }
   }
 
-  def reifyFaces(faces: Seq[Value.Face]) =
-    faces.map(r => Face(reify(r.restriction), newReifierRestrictionLayer(r.restriction).reify(r.body)))
+  def reifyAbsClosureSystem(faces: Value.AbsClosureSystem) =
+    faces.toSeq.map(r => (reify(r._1), newReifierRestrictionLayer(r._1).reify(r._2))).toMap
+
+  def reifyEnclosedSystem(faces: Value.ValueSystem) =
+    faces.toSeq.map(r => (reify(r._1), newReifierRestrictionLayer(r._1).reifyMetaEnclosed(r._2))).toMap
 
   def reify(v: Value): Abstract = {
     v match {
@@ -133,15 +136,15 @@ private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorCon
       case Value.Transp(tp, dir, base) =>
         Transp(reify(tp), reify(dir), reify(base))
       case Value.Hcomp(tp, base, faces) =>
-        Hcomp(reify(tp), reify(base), reifyFaces(faces))
+        Hcomp(reify(tp), reify(base), reifyAbsClosureSystem(faces))
       case Value.Comp(tp, base, faces) =>
-        Comp(reify(tp), reify(base), reifyFaces(faces))
+        Comp(reify(tp), reify(base), reifyAbsClosureSystem(faces))
       case Value.GlueType(ty, faces) =>
-        GlueType(reify(ty), reifyFaces(faces))
+        GlueType(reify(ty), reifyEnclosedSystem(faces))
       case Value.Glue(base, faces) =>
-        Glue(reify(base), reifyFaces(faces))
+        Glue(reify(base), reifyEnclosedSystem(faces))
       case Value.Unglue(ty, base, faces) =>
-        Unglue(reify(ty), reify(base), reifyFaces(faces))
+        Unglue(reify(ty), reify(base), reifyEnclosedSystem(faces))
       case _: Value.Internal =>
         logicError()
     }
@@ -222,12 +225,12 @@ trait Reifier extends ElaboratorContextBuilder with ElaboratorContextRebind {
     r
   }
 
-  protected def reifyFaces(v: Seq[Value.Face]): Seq[Abstract.Face] = {
+  protected def reifyEnclosedSystem(v: Value.ValueSystem): Abstract.EnclosedSystem = {
     v.map(f => {
-      Abstract.Face(rebindFormula(f.restriction),  {
+      (rebindFormula(f._1),  {
         val l = debug_metasSize
-        val (c, t) = newReifierRestrictionLayer(f.restriction).newDimensionLayer(Name.empty)
-        val r = Abstract.AbsClosure(Seq.empty, c.asInstanceOf[Reifier].reify(f.body(t)))
+        val c = newReifierRestrictionLayer(f._1).newParametersLayer()
+        val r = Abstract.MetaEnclosed(Seq.empty, c.asInstanceOf[Reifier].reify(f._2))
         assert(debug_metasSize == l) // we don't create meta in current layer!
         assert(c.debug_metasSize == 0) // also we don't create in that one!
         r

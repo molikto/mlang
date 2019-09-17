@@ -21,6 +21,7 @@ object Abstract {
   sealed trait Formula {
     import Formula.{And, Or, Neg}
 
+    def dependencies(i: Int): Set[Dependency] = Set.empty
     def diff(depth: Int, x: Int): Formula = {
       this match {
         case Formula.Reference(up) =>
@@ -45,7 +46,6 @@ object Abstract {
     val term: Abstract
     val metas: Seq[Abstract]
     def dependencies(i: Int): Set[Dependency] = term.dependencies(i + 1)
-
   }
   sealed trait ClosureT extends MetaEnclosedT {
   }
@@ -112,26 +112,29 @@ object Abstract {
 
   // restriction doesn't take binding, but they have a level non-the-less
   type System[T] = Map[Formula, T]
-  case class Face(pair: Formula, body: AbsClosure) {
-    def diff(depth: Int, x: Int): Face = Face(pair.diff(depth, x), body.diff(depth + 1, x))
-    def dependencies(i: Int): Set[Dependency] = body.dependencies(i + 1)
+  type AbsClosureSystem = System[AbsClosure]
+  type EnclosedSystem = System[MetaEnclosed]
+  object AbsClosureSystem {
+    def diff(s: AbsClosureSystem, depth: Int, x: Int): AbsClosureSystem =
+      s.map(a => (a._1.diff(depth, x), a._2.diff(depth, x)))
+    def dependencies(s: AbsClosureSystem, i: Int): Set[Dependency] = s.values.flatten(_.dependencies(i)).toSet
   }
-
-  object Face {
-    def diff(faces: Seq[Face], depth: Int, x: Int): Seq[Face] = faces.map(_.diff(depth, x))
-
-    def dependencies(faces: Seq[Face], i: Int): IterableOnce[Dependency] = faces.flatMap(_.dependencies(i)).toSet 
+  object EnclosedSystem {
+    // TODO copied code, same in value
+    def diff(s: EnclosedSystem, depth: Int, x: Int): EnclosedSystem =
+      s.map(a => (a._1.diff(depth, x), a._2.diff(depth, x)))
+    def dependencies(s: EnclosedSystem, i: Int): Set[Dependency] = s.values.flatten(_.dependencies(i)).toSet
   }
 
   case class Transp(tp: AbsClosure, direction: Formula, base: Abstract) extends Abstract
-  case class Hcomp(tp: Abstract, base: Abstract, faces: Seq[Face]) extends Abstract
+  case class Hcomp(tp: Abstract, base: Abstract, faces: AbsClosureSystem) extends Abstract
 
-  case class Comp(tp: AbsClosure, base: Abstract, faces: Seq[Face]) extends Abstract
+  case class Comp(tp: AbsClosure, base: Abstract, faces: AbsClosureSystem) extends Abstract
 
   // TODO don't use face anymore!!! it is wrong concept!! (but I am too lazy to change it for now)
-  case class GlueType(tp: Abstract, faces: Seq[Face]) extends Abstract
-  case class Glue(base: Abstract, faces: Seq[Face]) extends Abstract
-  case class Unglue(tp: Abstract, base: Abstract, faces: Seq[Face]) extends Abstract
+  case class GlueType(tp: Abstract, faces: EnclosedSystem) extends Abstract
+  case class Glue(base: Abstract, faces: EnclosedSystem) extends Abstract
+  case class Unglue(tp: Abstract, base: Abstract, faces: EnclosedSystem) extends Abstract
 }
 
 
@@ -173,11 +176,11 @@ sealed trait Abstract {
     case PathType(typ, left, right) => PathType(typ.diff(depth, x), left.diff(depth, x), right.diff(depth, x))
     case PathApp(let, r) => PathApp(let.diff(depth, x), r.diff(depth, x))
     case Transp(tp, direction, base) => Transp(tp.diff(depth, x), direction.diff(depth, x), base.diff(depth, x))
-    case Hcomp(tp, base, faces) => Hcomp(tp.diff(depth, x), base.diff(depth, x), Face.diff(faces, depth, x))
-    case Comp(tp, base, faces) => Comp(tp.diff(depth, x), base.diff(depth, x), Face.diff(faces, depth, x))
-    case GlueType(tp, faces) => GlueType(tp.diff(depth, x), Face.diff(faces, depth, x))
-    case Glue(tp, faces) => Glue(tp.diff(depth, x), Face.diff(faces, depth, x))
-    case Unglue(tp, base, faces) => Unglue(tp.diff(depth, x), base.diff(depth, x), Face.diff(faces, depth, x))
+    case Hcomp(tp, base, faces) => Hcomp(tp.diff(depth, x), base.diff(depth, x), AbsClosureSystem.diff(faces, depth, x))
+    case Comp(tp, base, faces) => Comp(tp.diff(depth, x), base.diff(depth, x), AbsClosureSystem.diff(faces, depth, x))
+    case GlueType(tp, faces) => GlueType(tp.diff(depth, x), EnclosedSystem.diff(faces, depth, x))
+    case Glue(tp, faces) => Glue(tp.diff(depth, x), EnclosedSystem.diff(faces, depth, x))
+    case Unglue(tp, base, faces) => Unglue(tp.diff(depth, x), base.diff(depth, x), EnclosedSystem.diff(faces, depth, x))
   }
 
   def dependencies(i: Int): Set[Dependency] = this match {
@@ -201,11 +204,11 @@ sealed trait Abstract {
     case PathType(typ, left, right) => typ.dependencies(i) ++ left.dependencies(i) ++ right.dependencies(i)
     case PathApp(lef, _) => lef.dependencies(i)
     case Transp(tp, _, base) => tp.dependencies(i) ++ base.dependencies(i)
-    case Hcomp(tp, base, faces) => tp.dependencies(i) ++ base.dependencies(i) ++ Face.dependencies(faces, i)
-    case Comp(tp, base, faces) => tp.dependencies(i) ++ base.dependencies(i) ++ Face.dependencies(faces, i)
-    case GlueType(tp, faces) => tp.dependencies(i)  ++ Face.dependencies(faces, i)
-    case Glue(base, faces) => base.dependencies(i) ++ Face.dependencies(faces, i)
-    case Unglue(tp, base, faces) => tp.dependencies(i) ++ base.dependencies(i) ++ Face.dependencies(faces, i)
+    case Hcomp(tp, base, faces) => tp.dependencies(i) ++ base.dependencies(i) ++ AbsClosureSystem.dependencies(faces, i)
+    case Comp(tp, base, faces) => tp.dependencies(i) ++ base.dependencies(i) ++ AbsClosureSystem.dependencies(faces, i)
+    case GlueType(tp, faces) => tp.dependencies(i)  ++ EnclosedSystem.dependencies(faces, i)
+    case Glue(base, faces) => base.dependencies(i) ++ EnclosedSystem.dependencies(faces, i)
+    case Unglue(tp, base, faces) => tp.dependencies(i) ++ base.dependencies(i) ++ EnclosedSystem.dependencies(faces, i)
   }
 }
 
