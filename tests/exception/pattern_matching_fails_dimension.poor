@@ -1,0 +1,14 @@
+// ConstructWrongSize
+
+define bool = sum { case true false }
+
+define inductively S1: type = sum {
+  case base
+  case loop(i: I | ~i: base | i: base)
+}
+
+
+define S1_moebius(eq: bool ≡ bool)
+: S1   ⇒ type =
+┌ base → bool
+└ loop → eq(1) // here you need it to be loop(i)

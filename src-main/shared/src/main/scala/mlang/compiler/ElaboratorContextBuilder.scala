@@ -202,8 +202,13 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
           name.asRef match { // we make it as a reference here
             case Some(ref) =>
               t.whnf match {
-                case sum: Value.Sum if { index = sum.constructors.indexWhere(c => c.name.by(ref) && c.nodes.isEmpty); index >= 0 } =>
-                  ret = (Value.Construct(index, Seq.empty, Seq.empty), Pattern.Construct(index, Seq.empty))
+                case sum: Value.Sum if { index = sum.constructors.indexWhere(c => c.name.by(ref)); index >= 0 } =>
+                  val c = sum.constructors(index)
+                  if (c.nodes.isEmpty && c.dim == 0) {
+                    ret = (Value.Construct(index, Seq.empty, Seq.empty), Pattern.Construct(index, Seq.empty))
+                  } else {
+                    throw PatternExtractException.ConstructWrongSize()
+                  }
                 case _ =>
               }
             case _ =>

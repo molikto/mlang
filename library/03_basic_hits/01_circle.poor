@@ -21,10 +21,12 @@ define inductively S1: type = sum {
   case loop(i: I | ~i: base | i: base)
 }
 
-define inductively S2: type = sum {
-  case base
-  case surf(i j: I |~i: base |i: base |~j: base |j: base)
-}
+
+define S1_moebius
+: S1      ⇒ type =
+┌ base    → bool
+└ loop(i) → bool_path_to_neg_bool(i)
+
 
 define S1_pointed: pointed = make(S1.base)
 
