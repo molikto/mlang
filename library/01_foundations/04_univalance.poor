@@ -2,9 +2,6 @@
 
 
 
-
-
-
 define ua(#A #B: type, e: equiv(A, B)): A ≡ B =
   i → glue_type(B |~i: make(A, e) |i: make(B, id_equiv(B)))
 

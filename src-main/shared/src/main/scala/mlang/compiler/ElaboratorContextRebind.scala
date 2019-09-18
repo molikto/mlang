@@ -16,8 +16,8 @@ trait ElaboratorContextRebind extends ElaboratorContextBase {
         case d: Layer.Defines =>
           var ll = d.terms
           while (ll.nonEmpty && binder == null) {
-            ll.head.ref0.flatMap(_.lookupChildren(v)) match {
-              case Some(asgs) if restrictionsMatchWith(up, asgs) =>
+            ll.head.ref0.flatMap(a => lookupMatched(a, v, up)) match {
+              case Some(asgs) =>
                 index = i
                 binder = Abstract.Reference(up, index)
               case _ =>
@@ -57,7 +57,12 @@ trait ElaboratorContextRebind extends ElaboratorContextBase {
       ls.head match {
         case d: Layer.Dimension =>
           if (d.id == id) {
-            binder = Abstract.Formula.Reference(up)
+            binder = Abstract.Formula.Reference(up, -1)
+          }
+        case d: Layer.Parameters =>
+          d.dimensionBinders.zipWithIndex.find(_._1.value.id == id) match {
+            case Some(d) => binder = Abstract.Formula.Reference(up, d._2)
+            case _ =>
           }
         case _ =>
       }
@@ -93,12 +98,11 @@ trait ElaboratorContextRebind extends ElaboratorContextBase {
     var binder: Abstract.Reference = null
     def tryBind(a: Value.Generic, up: Int, i: Int): Unit = {
       if (g.id == a.id) {
-        a.lookupChildren(g) match {
-          case Some(asgs) if restrictionsMatchWith(up, asgs) =>
+        lookupMatched(a, g, up) match {
+          case Some(asgs) =>
             index = i
             binder = Abstract.Reference(up, index)
-          case _ =>
-            logicError() // you should always bind a generic if id is equal
+          case _ => logicError() // you should always bind a generic if id is equal
         }
       }
     }
@@ -106,7 +110,7 @@ trait ElaboratorContextRebind extends ElaboratorContextBase {
       var i = 0
       ls.head match {
         case t: Layer.Parameters =>
-          var ll = t.binders
+          var ll = t.termBinders
           while (ll.nonEmpty && binder == null) {
             tryBind(ll.head.value, up, i)
             i += 1

@@ -10,7 +10,7 @@ object Abstract {
    * FORMULA
    */
   object Formula {
-    case class Reference(up: Int) extends Formula
+    case class Reference(up: Int, index: Int) extends Formula
     case object True extends Formula
     case object False extends Formula
     case class And(left: Formula, right: Formula) extends Formula
@@ -24,9 +24,9 @@ object Abstract {
     def dependencies(i: Int): Set[Dependency] = Set.empty
     def diff(depth: Int, x: Int): Formula = {
       this match {
-        case Formula.Reference(up) =>
+        case Formula.Reference(up, i) =>
           if (up > depth) {
-            Formula.Reference(up + x)
+            Formula.Reference(up + x, i)
           } else {
             this
           }
@@ -107,7 +107,7 @@ object Abstract {
   }
   case class Sum(inductively: Option[Inductively], constructors: Seq[Constructor]) extends Abstract
   case class Case(pattern: Pattern, body: MultiClosure)
-  case class Construct(f: Int, vs: Seq[Abstract]) extends Abstract
+  case class Construct(f: Int, vs: Seq[Abstract], ds: Seq[Abstract.Formula]) extends Abstract
 
   case class PathLambda(body: AbsClosure) extends Abstract
   case class PathType(typ: AbsClosure, left: Abstract, right: Abstract) extends Abstract
@@ -116,18 +116,26 @@ object Abstract {
   // restriction doesn't take binding, but they have a level non-the-less
   type System[T] = Map[Formula, T]
   type AbsClosureSystem = System[AbsClosure]
-  type EnclosedSystem = System[MetaEnclosed]
   object AbsClosureSystem {
     def diff(s: AbsClosureSystem, depth: Int, x: Int): AbsClosureSystem =
       s.map(a => (a._1.diff(depth, x), a._2.diff(depth, x)))
     def dependencies(s: AbsClosureSystem, i: Int): Set[Dependency] = s.values.flatten(_.dependencies(i)).toSet
   }
+  type EnclosedSystem = System[MetaEnclosed]
   object EnclosedSystem {
     // TODO copied code, same in value
     def diff(s: EnclosedSystem, depth: Int, x: Int): EnclosedSystem =
       s.map(a => (a._1.diff(depth, x), a._2.diff(depth, x)))
     def dependencies(s: EnclosedSystem, i: Int): Set[Dependency] = s.values.flatten(_.dependencies(i)).toSet
   }
+
+//  type MultiClosureSystem = System[MultiClosure]
+//  object MultiClosureSystem {
+//    // TODO copied code, same in value
+//    def diff(s: MultiClosureSystem, depth: Int, x: Int): MultiClosureSystem =
+//      s.map(a => (a._1.diff(depth, x), a._2.diff(depth, x)))
+//    def dependencies(s: MultiClosureSystem, i: Int): Set[Dependency] = s.values.flatten(_.dependencies(i)).toSet
+//  }
 
   case class Transp(tp: AbsClosure, direction: Formula, base: Abstract) extends Abstract
   case class Hcomp(tp: Abstract, base: Abstract, faces: AbsClosureSystem) extends Abstract
@@ -172,7 +180,7 @@ sealed trait Abstract {
     case Projection(left, field) => Projection(left.diff(depth, x), field)
     case Sum(id, constructors) => Sum(id.map(_.diff(depth, x)), constructors.map(_.diff(depth, x)))
     case Make(vs) => Make(vs.map(_.diff(depth, x)))
-    case Construct(f, vs) => Construct(f, vs.map(_.diff(depth, x)))
+    case Construct(f, vs, fs) => Construct(f, vs.map(_.diff(depth, x)), fs.map(_.diff(depth, x)))
     case Let(metas, definitions, in) => Let(metas.map(_.diff(depth + 1, x)), definitions.map(_.diff(depth + 1, x)), in.diff(depth + 1, x))
     case PatternLambda(id, dom, typ, cases) => PatternLambda(id, dom.diff(depth, x), typ.diff(depth, x), cases.map(a => Case(a.pattern, a.body.diff(depth, x))))
     case PathLambda(body) => PathLambda(body.diff(depth, x))
@@ -199,7 +207,7 @@ sealed trait Abstract {
     case Projection(left, _) => left.dependencies(i)
     case Sum(id, constructors) =>  id.map(_.dependencies(i)).getOrElse(Set.empty) ++ constructors.flatMap(_.dependencies(i)).toSet
     case Make(vs) => vs.flatMap(_.dependencies(i)).toSet
-    case Construct(_, vs) => vs.flatMap(_.dependencies(i)).toSet
+    case Construct(_, vs, fs) => vs.flatMap(_.dependencies(i)).toSet
     case Let(metas, definitions, in) =>
       metas.flatMap(a => a.dependencies(i + 1)).toSet  ++ definitions.flatMap(a => a.dependencies(i + 1)).toSet ++ in.dependencies(i + 1)
     case PatternLambda(_, dom, cd, cases) => dom.dependencies(i) ++ cd.dependencies(i) ++ cases.flatMap(_.body.dependencies(i)).toSet

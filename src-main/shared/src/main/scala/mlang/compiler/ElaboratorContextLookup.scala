@@ -16,7 +16,7 @@ sealed trait NameLookupResult
 object NameLookupResult {
   sealed trait Term extends NameLookupResult
   case class Typed(typ: Value, ref: Abstract) extends Term
-  case class Construct(self: Value, index: Int, closure: Value.ClosureGraph) extends Term
+  case class Construct(self: Value, index: Int, closure: Value.ClosureGraph, dim: Int) extends Term
   case class Dimension(ref: Abstract.Formula) extends NameLookupResult
 }
 
@@ -41,8 +41,9 @@ trait ElaboratorContextLookup extends ElaboratorContextBase {
     var up = 0
     var ls = layers
     var binder: NameLookupResult = null
-    def mkTyped(typ: Value, abs: Abstract.Reference): NameLookupResult.Typed = {
-      NameLookupResult.Typed(typ.restrict(getAllRestrictions(abs.up)), abs)
+    def mkTyped(gn: Value.Generic, abs: Abstract.Reference): NameLookupResult.Typed = {
+      // we use generic here because it is cached
+      NameLookupResult.Typed(getRestricted(gn, up).asInstanceOf[Value.Generic].typ, abs)
     }
     while (ls.nonEmpty && binder == null) {
       var i = 0
@@ -51,10 +52,15 @@ trait ElaboratorContextLookup extends ElaboratorContextBase {
           var ll = ly.binders
           var index = -1
           while (ll.nonEmpty && binder == null) {
-            if (ll.head.name.by(name)) {
+            val hd = ll.head
+            if (hd.name.by(name)) {
               index = i
-              binder = mkTyped(ll.head.typ,
-                  Abstract.Reference(up, index))
+              hd match {
+                case p: ParameterBinder =>
+                  binder = mkTyped(p.value, Abstract.Reference(up, ly.typedIndex(index)))
+                case d: DimensionBinder =>
+                  binder = NameLookupResult.Dimension(Abstract.Formula.Reference(up, ly.typedIndex(index)))
+              }
             }
             i += 1
             ll = ll.tail
@@ -64,7 +70,7 @@ trait ElaboratorContextLookup extends ElaboratorContextBase {
               case l: Layer.ParameterGraph =>
                 l.hit.foreach(hit => {
                   hit.branches.zipWithIndex.find(_._1.name.by(name)).foreach(f => {
-                    binder = NameLookupResult.Construct(hit.self, f._2, f._1.ps)
+                    binder = NameLookupResult.Construct(hit.self, f._2, f._1.ps, f._1.dim)
                   })
                 })
               case _ =>
@@ -76,7 +82,7 @@ trait ElaboratorContextLookup extends ElaboratorContextBase {
           while (ll.nonEmpty && binder == null) {
             if (ll.head.name.by(name)) {
               index = i
-              binder = mkTyped(ll.head.typ,
+              binder = mkTyped(ll.head.typ0.value,
                   Abstract.Reference(up, index))
             }
             i += 1
@@ -84,11 +90,11 @@ trait ElaboratorContextLookup extends ElaboratorContextBase {
           }
         case p:Layer.Parameter =>
           if (p.binder.name.by(name)) {
-            binder = mkTyped(p.binder.typ, Abstract.Reference(up, -1))
+            binder = mkTyped(p.binder.value, Abstract.Reference(up, -1))
           }
         case d: Layer.Dimension =>
-          if (d.name.by(name)) {
-            binder = NameLookupResult.Dimension(Abstract.Formula.Reference(up))
+          if (d.binder.name.by(name)) {
+            binder = NameLookupResult.Dimension(Abstract.Formula.Reference(up, -1))
           }
         case _ =>
       }

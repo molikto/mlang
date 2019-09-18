@@ -2,8 +2,8 @@ package mlang.compiler
 
 import mlang.compiler.GenLong.Negative.{dgen, gen}
 import mlang.compiler.Value.Formula.{Assignments, NormalForm}
-import mlang.compiler.Value.{AbsClosure, _}
-import mlang.utils.{Name, debug}
+import mlang.compiler.Value.{AbsClosure, ValueSystemMultiClosure, _}
+import mlang.utils.{Name, debug, warn}
 
 import scala.annotation.Annotation
 import scala.collection.mutable
@@ -118,6 +118,7 @@ object Value {
     }
     object Generic {
       val HACK = Generic(0)
+      val HACKS = (0 until 20).map(_ => HACK)
     }
     case class Generic(id: Long) extends Formula {
       def simplify(asgs: Assignments): Formula = asgs.find(_._1 == id) match {
@@ -142,13 +143,24 @@ object Value {
   }
 
 
-  implicit class MultiClosure(private val func: Seq[Value] => Value) extends AnyVal {
-    def supportShallow(): SupportShallow = func(Generic.HACKS).supportShallow()
+  implicit class MultiClosure(private val func: (Seq[Value], Seq[Value.Formula]) => Value) extends AnyVal {
+    def supportShallow(): SupportShallow = func(Generic.HACKS, Formula.Generic.HACKS).supportShallow()
     def eq(b: MultiClosure): Boolean = func.eq(b.func)
-    def apply() = func(Seq.empty)
-    def apply(seq: Seq[Value]): Value = func(seq)
-    def restrict(dav: Formula.Assignments): MultiClosure = MultiClosure(v => this(v.map(a => Derestricted(a, dav))).restrict(dav))
-    def fswap(w: Long, z: Formula): MultiClosure = MultiClosure(d => func(d).fswap(w, z))
+    // def apply() = func(Seq.empty, Seq.empty)
+    def apply(seq: Seq[Value], ds: Seq[Formula]): Value = func(seq, ds)
+    def restrict(dav: Formula.Assignments): MultiClosure = MultiClosure((v, d) => this(v.map(a => Derestricted(a, dav)), d.map(a => Formula.Derestricted(a, dav))).restrict(dav))
+    def fswap(w: Long, z: Formula): MultiClosure = MultiClosure((d, k) => func(d, k).fswap(w, z))
+  }
+
+  implicit class ValueSystemMultiClosure(private val func: (Seq[Value], Seq[Value.Formula]) => ValueSystem) extends AnyVal {
+    def supportShallow(): SupportShallow = func(Generic.HACKS, Formula.Generic.HACKS).supportShallow()
+    def eq(b: ValueSystemMultiClosure): Boolean = func.eq(b.func)
+    // def apply() = func(Seq.empty, Seq.empty)
+    def apply(seq: Seq[Value], ds: Seq[Formula]): ValueSystem = func(seq, ds)
+    def restrict(dav: Formula.Assignments): ValueSystemMultiClosure =
+      ValueSystemMultiClosure((v, d) => ValueSystem.restrict(this(v.map(a => Derestricted(a, dav)), d.map(a => Formula.Derestricted(a, dav))), dav))
+    def fswap(w: Long, z: Formula): ValueSystemMultiClosure =
+      ValueSystemMultiClosure((d, k) => ValueSystem.fswap(func(d, k), w, z))
   }
 
   implicit class Closure(private val func: Value => Value) extends AnyVal {
@@ -308,7 +320,7 @@ object Value {
   sealed trait Canonical extends Value
   sealed trait CubicalUnstableCanonical extends Value // this value can reduce more, but only when restricted
   sealed trait Redux extends Value {
-    // TODO this is not that well defined, since some term will always whnf on arguments, some not
+    // FIXME this is not that well defined, since some term will always whnf on arguments, some not
     // maybe inline in whnf
     def reduce(): Option[Value]
 
@@ -372,7 +384,7 @@ object Value {
       supportCache
     }
 
-    // LATER merge the two into one variable??? it is confusing though
+    // LATER merge the two into one variable?? it is confusing though
     // only not null for parents
     private var restrictedCache: mutable.Map[Formula.Assignments, LocalReferential] = null
     // only not null for children
@@ -611,13 +623,15 @@ object Value {
   def Apps(maker: Value, values: Seq[Value]) : Value = values.foldLeft(maker) { (m: Value, v: Value) => Value.App(m, v) }
   case class Lambda(closure: Closure) extends Canonical
   case class Case(pattern: Pattern, closure: MultiClosure) {
-    private def extract(pattern: Pattern, v: Value): Option[Seq[Value]] = {
+    private def extract(pattern: Pattern, v: Value): Option[(Seq[Value], Seq[Value.Formula])] = {
       val vs = mutable.ArrayBuffer[Value]()
+      val ds = mutable.ArrayBuffer[Value.Formula]()
       def rec(pattern: Pattern, v: Value): Boolean = {
         pattern match {
-          case Pattern.Atom =>
+          case Pattern.GenericValue =>
             vs.append(v)
             true
+          case Pattern.GenericDimension => logicError()
           case Pattern.Make(names) =>
             v.whnf match {
               case Make(values) =>
@@ -627,20 +641,25 @@ object Value {
             }
           case Pattern.Construct(name, pt) =>
             v.whnf match {
-              case Construct(n, values) if name == n =>
-                pt.zip(values).forall(pair => rec(pair._1, pair._2))
+              case Construct(n, values, dms) if name == n =>
+                assert(values.size + dms.size == pt.size)
+                val dps = pt.drop(values.size)
+                assert(dps.forall(_ == Pattern.GenericDimension))
+                val ret = pt.take(values.size).zip(values).forall(pair => rec(pair._1, pair._2))
+                ds.appendAll(dms)
+                ret
               case _ =>
                 false
             }
         }
       }
       if (rec(pattern, v)) {
-        Some(vs.toSeq)
+        Some((vs.toSeq, ds.toSeq))
       } else {
         None
       }
     }
-    def tryApp(v: Value): Option[Value] = extract(pattern, v).map(a => closure(a))
+    def tryApp(v: Value): Option[Value] = extract(pattern, v).map(a => closure(a._1, a._2))
   }
 
   // the reason we must have a domain here is because we support unordered pattern matching
@@ -696,10 +715,10 @@ object Value {
     }
   }
 
-  case class Construct(name: Int, vs: Seq[Value]) extends Canonical
-  case class Constructor(name: Name, nodes: ClosureGraph, dim: Int, res: ValueSystem) {
-    def restrict(lv: Assignments): Constructor = Constructor(name, ClosureGraph.restrict(nodes, lv), dim, ValueSystem.restrict(res, lv))
-    def fswap(w: Long, z: Formula): Constructor = Constructor(name, ClosureGraph.fswap(nodes, w, z), dim, ValueSystem.fswap(res, w, z))
+  case class Construct(name: Int, vs: Seq[Value], ds: Seq[Formula]) extends Canonical
+  case class Constructor(name: Name, nodes: ClosureGraph, dim: Int, res: ValueSystemMultiClosure) {
+    def restrict(lv: Assignments): Constructor = Constructor(name, ClosureGraph.restrict(nodes, lv), dim, res.restrict(lv))
+    def fswap(w: Long, z: Formula): Constructor = Constructor(name, ClosureGraph.fswap(nodes, w, z), dim, res.fswap(w, z))
   }
 
   case class Sum(inductively: Option[Inductively], constructors: Seq[Constructor]) extends Canonical
@@ -735,11 +754,10 @@ object Value {
   }
 
   type System[T] = Map[Formula, T]
-  type AbsClosureSystem = System[AbsClosure]
-  type ValueSystem = System[Value]
   object System {
     def phi[T](a: System[T]) = Value.Formula.phi(a.keys)
   }
+  type ValueSystem = System[Value]
   object ValueSystem {
     def supportShallow(faces: ValueSystem): SupportShallow = {
       SupportShallow.flatten(faces.toSeq.map(f => f._2.supportShallow() +- f._1.names))
@@ -767,8 +785,67 @@ object Value {
       }).toMap
     }
   }
-  object AbsClosureSystem {
+  
+  type ClosureSystem = System[Closure]
+  object ClosureSystem {
+    def supportShallow(faces: ClosureSystem): SupportShallow = {
+      SupportShallow.flatten(faces.toSeq.map(f => f._2.supportShallow() +- f._1.names))
+    }
+    def fswap(faces: ClosureSystem, w: Long, z: Formula): ClosureSystem = {
+      faces.toSeq.flatMap(n => {
+        val r = n._1.fswap(w, z)
+        // TODO can you simply remove unsatifiable faces?
+        if (r.normalForm == Formula.NormalForm.False) {
+          None
+        } else {
+          Some((r, n._2.fswap(w, z)))
+        }
+      }).toMap
+    }
+    def restrict(faces: ClosureSystem, lv: Formula.Assignments) = {
+      faces.toSeq.flatMap(n => {
+        val r = n._1.restrict(lv)
+        // TODO can you simply remove unsatifiable faces?
+        if (r.normalForm == Formula.NormalForm.False) {
+          None
+        } else {
+          Some((r, n._2.restrict(lv)))
+        }
+      }).toMap
+    }
+  }
 
+  type MultiClosureSystem = System[MultiClosure]
+  object MultiClosureSystem {
+    def supportShallow(faces: MultiClosureSystem): SupportShallow = {
+      SupportShallow.flatten(faces.toSeq.map(f => f._2.supportShallow() +- f._1.names))
+    }
+    def fswap(faces: MultiClosureSystem, w: Long, z: Formula): MultiClosureSystem = {
+      faces.toSeq.flatMap(n => {
+        val r = n._1.fswap(w, z)
+        // TODO can you simply remove unsatifiable faces?
+        if (r.normalForm == Formula.NormalForm.False) {
+          None
+        } else {
+          Some((r, n._2.fswap(w, z)))
+        }
+      }).toMap
+    }
+    def restrict(faces: MultiClosureSystem, lv: Formula.Assignments) = {
+      faces.toSeq.flatMap(n => {
+        val r = n._1.restrict(lv)
+        // TODO can you simply remove unsatifiable faces?
+        if (r.normalForm == Formula.NormalForm.False) {
+          None
+        } else {
+          Some((r, n._2.restrict(lv)))
+        }
+      }).toMap
+    }
+  }
+
+  type AbsClosureSystem = System[AbsClosure]
+  object AbsClosureSystem {
     def supportShallow(faces: AbsClosureSystem): SupportShallow = {
       SupportShallow.flatten(faces.toSeq.map(f => f._2.supportShallow() +- f._1.names))
     }
@@ -794,7 +871,6 @@ object Value {
         }
       }).toMap
     }
-
   }
 
   // create a path from base  => transp, tp is constant on phi
@@ -896,7 +972,7 @@ object Value {
             }
           case s: Sum =>
             base.whnf match {
-              case Construct(f, ns) =>
+              case Construct(f, ns, ds) =>
               case _ =>
             }
             ???
@@ -1087,6 +1163,184 @@ sealed trait Value {
     case _ => logicError()
   }
 
+  // FIXME current problems of restriction/fswap system:
+  // they have overlapping, fswap by constant is similar to restriction, but they produce
+  // referential different terms (this is not a bug, but is a dirtyness)
+  // newly produced local referenctal has the problem that they will not be compared by reference
+  // easily, (again, not a bug, only dirtyness)
+  // but I think we can currently
+  // without fswap, the first problem dispears
+  def support(): Support = {
+    val tested = mutable.Set.empty[Referential]
+    val ss = supportShallow() // in case of reference, it will just put the reference here
+    val toTest = mutable.Set.from(ss.references)
+    val names = mutable.Set.from(ss.names)
+    while (toTest.nonEmpty) {
+      val candidate = toTest.head
+      toTest.remove(candidate)
+      candidate match {
+        case GlobalReference(value) => // skip global reference
+        case Generic(id, _typ) if id == 0 => // skip hack generic
+        case r: LocalReferential =>
+          tested.add(r)
+          val cached = r.supportCached()
+          if (cached != null) {
+            names.addAll(cached.names)
+            tested.addAll(cached.openMetas)
+          } else {
+            if (candidate.referenced != null) {
+              val SupportShallow(ns, rs) = candidate.referenced.supportShallow()
+              names.addAll(ns)
+              toTest.addAll(rs.filterNot(tested))
+            } else if (!candidate.isInstanceOf[Value.Generic]) {
+              // this is because we use null generic in various cases to look into a closure
+              if (candidate.isInstanceOf[Value.Reference]) {
+                warn("seems you are defining a recursive value inside a dimension context")
+              } else {
+                logicError()
+              }
+            }
+          }
+      }
+    }
+    val spt = Support(names.toSet, tested.flatMap {
+      case m@Meta(o: MetaState.Open) => Some(m)
+      case _ => None
+    }.toSet)
+    if (spt.names.nonEmpty) debug(s"non-empty support ${spt.names}", 2)
+    spt
+  }
+
+  def supportShallow(): SupportShallow  = this match {
+    case Universe(level) => SupportShallow.empty
+    case Function(domain, impict, codomain) => domain.supportShallow() ++ codomain.supportShallow()
+    case Lambda(closure) => closure.supportShallow()
+    case PatternLambda(id, domain, typ, cases) =>
+      domain.supportShallow() ++ typ.supportShallow() ++ SupportShallow.flatten(cases.map(_.closure.supportShallow()))
+    case Record(inductively, names, nodes) =>
+      SupportShallow.orEmpty(inductively.map(_.supportShallow())) ++ ClosureGraph.supportShallow(nodes)
+    case Make(values) => SupportShallow.flatten(values.map(_.supportShallow()))
+    case Construct(name, vs, ds) =>
+      SupportShallow.flatten(vs.map(_.supportShallow()) ++ ds.map(_.supportShallow()))
+    case Sum(inductively, constructors) =>
+      SupportShallow.orEmpty(inductively.map(_.supportShallow())) ++ SupportShallow.flatten(constructors.map(a => ClosureGraph.supportShallow(a.nodes)))
+    case PathType(typ, left, right) =>
+      typ.supportShallow() ++ left.supportShallow() ++ right.supportShallow()
+    case PathLambda(body) => body.supportShallow()
+    case App(lambda, argument) => lambda.supportShallow() ++ argument.supportShallow()
+    case PatternRedux(lambda, stuck) => lambda.supportShallow() ++ stuck.supportShallow()
+    case Projection(make, field) => make.supportShallow()
+    case PathApp(left, dimension) => left.supportShallow() +- dimension.names
+    case Transp(tp, direction, base) => tp.supportShallow() ++ base.supportShallow() +- direction.names
+    case Comp(tp, base, faces) => tp.supportShallow() ++ base.supportShallow() ++ AbsClosureSystem.supportShallow(faces)
+    case Hcomp(tp, base, faces) => tp.supportShallow() ++ base.supportShallow() ++ AbsClosureSystem.supportShallow(faces)
+    case GlueType(tp, faces) => tp.supportShallow()++ ValueSystem.supportShallow(faces)
+    case Glue(base, faces) => base.supportShallow() ++ ValueSystem.supportShallow(faces)
+    case Unglue(tp, base, faces) => tp.supportShallow() ++ base.supportShallow() ++ ValueSystem.supportShallow(faces)
+    case referential: Referential => SupportShallow.empty ++ Set(referential)
+    case internal: Internal => logicError()
+  }
+
+  /**
+    * fresh swap, the id being swapped cannot be used after. this helps because no need for Deswap...
+    */
+  def fswap(w: Long, z: Formula): Value = this match {
+    case u: Universe => u
+    case Function(domain, im, codomain) => Function(domain.fswap(w, z), im, codomain.fswap(w, z))
+    case Record(inductively, ns, nodes) =>
+      Record(inductively.map(_.fswap(w, z)), ns, ClosureGraph.fswap(nodes, w, z))
+    case Make(values) => Make(values.map(_.fswap(w, z)))
+    case Construct(name, vs, ds) => Construct(name, vs.map(_.fswap(w, z)), ds.map(_.fswap(w, z)))
+    case Sum(inductively, constructors) =>
+      Sum(inductively.map(_.fswap(w, z)), constructors.map(_.fswap(w, z)))
+    case Lambda(closure) => Lambda(closure.fswap(w, z))
+    case PatternLambda(id, dom, typ, cases) =>
+      PatternLambda(id, dom.fswap(w, z), typ.fswap(w, z), cases.map(a => Case(a.pattern, a.closure.fswap(w, z))))
+    case PathType(typ, left, right) =>
+      PathType(typ.fswap(w, z), left.fswap(w, z), right.fswap(w, z))
+    case PathLambda(body) => PathLambda(body.fswap(w, z))
+    case App(lambda, argument) => App(lambda.fswap(w, z), argument.fswap(w, z))
+    case Transp(tp, direction, base) => Transp(tp.fswap(w, z), direction.fswap(w, z), base.fswap(w, z))
+    case Hcomp(tp, base, faces) => Hcomp(tp.fswap(w, z), base.fswap(w, z), AbsClosureSystem.fswap(faces, w, z))
+    case Comp(tp, base, faces) => Comp(tp.fswap(w, z), base.fswap(w, z), AbsClosureSystem.fswap(faces, w, z))
+    case Projection(make, field) => Projection(make.fswap(w, z), field)
+    case PatternRedux(lambda, stuck) =>
+      PatternRedux(lambda.fswap(w, z).asInstanceOf[PatternLambda], stuck.fswap(w, z))
+    case PathApp(left, stuck) => PathApp(left.fswap(w, z), stuck.fswap(w, z))
+    case GlueType(base, faces) => GlueType(base.fswap(w, z), ValueSystem.fswap(faces, w, z))
+    case Glue(base, faces) => Glue(base.fswap(w, z), ValueSystem.fswap(faces, w, z))
+    case Unglue(tp, base, faces) => Unglue(tp.fswap(w, z), base.fswap(w, z), ValueSystem.fswap(faces, w, z))
+    case g: Referential => g.getFswap(w, z)
+    case _: Internal => logicError()
+  }
+
+
+  def restrict(lv: Value.Formula.Assignments): Value = if (lv.isEmpty) this else this match {
+    case u: Universe => u
+    case Function(domain, im, codomain) =>
+      Function(domain.restrict(lv), im, codomain.restrict(lv))
+    case Record(inductively, ns, nodes) =>
+      Record(inductively.map(_.restrict(lv)), ns, ClosureGraph.restrict(nodes, lv))
+    case Make(values) =>
+      Make(values.map(_.restrict(lv)))
+    case Construct(name, vs, ds) =>
+      Construct(name, vs.map(_.restrict(lv)), ds.map(_.restrict(lv)))
+    case Sum(inductively, constructors) =>
+      Sum(inductively.map(_.restrict(lv)), constructors.map(_.restrict(lv)))
+    case Lambda(closure) =>
+      Lambda(closure.restrict(lv))
+    case PatternLambda(id, dom, typ, cases) =>
+      PatternLambda(id, dom.restrict(lv), typ.restrict(lv), cases.map(a => Case(a.pattern, a.closure.restrict(lv))))
+    case PathType(typ, left, right) =>
+      PathType(typ.restrict(lv), left.restrict(lv), right.restrict(lv))
+    case PathLambda(body) =>
+      PathLambda(body.restrict(lv))
+    case App(lambda, argument) =>
+      App(lambda.restrict(lv), argument.restrict(lv))
+    case Transp(tp, direction, base) =>
+      Transp(tp.restrict(lv), direction.restrict(lv), base.restrict(lv))
+    case Hcomp(tp, base, faces) =>
+      Hcomp(tp.restrict(lv), base.restrict(lv), AbsClosureSystem.restrict(faces, lv))
+    case Comp(tp, base, faces) =>
+      Comp(tp.restrict(lv), base.restrict(lv), AbsClosureSystem.restrict(faces, lv))
+    case Projection(make, field) =>
+      Projection(make.restrict(lv), field)
+    case PatternRedux(lambda, stuck) =>
+      PatternRedux(lambda.restrict(lv).asInstanceOf[PatternLambda], stuck.restrict(lv))
+    case PathApp(left, stuck) =>
+      PathApp(left.restrict(lv), stuck.restrict(lv))
+    case GlueType(base, faces) =>
+      GlueType(base.restrict(lv), ValueSystem.restrict(faces, lv))
+    case Glue(base, faces) =>
+      Glue(base.restrict(lv), ValueSystem.restrict(faces, lv))
+    case Unglue(tp, base, faces) =>
+      Unglue(tp.restrict(lv), base.restrict(lv), ValueSystem.restrict(faces, lv))
+    case Derestricted(v, lv0) =>
+      if (lv0.subsetOf(lv)) {
+        v.restrict(lv -- lv0)
+      } else {
+        logicError()
+      }
+    case g: Referential =>
+      g.getRestrict(lv)
+  }
+
+
+  /**
+    *
+    *
+    *
+    *
+    *
+    *
+    *
+    * WHNF stuff
+    *
+    *
+    *
+    *
+    *
+    */
   private[Value] var _from: Value = _
   private[Value] var _whnfCache: Object = _
 
@@ -1228,160 +1482,6 @@ sealed trait Value {
     } else {
       cached
     }
-  }
-
-
-  // FIXME current problems of restriction/fswap system:
-  // they have overlapping, fswap by constant is similar to restriction, but they produce
-  // referential different terms (this is not a bug, but is a dirtyness)
-  // newly produced local referenctal has the problem that they will not be compared by reference
-  // easily, (again, not a bug, only dirtyness)
-  // but I think we can currently
-  // without fswap, the first problem dispears
-  def support(): Support = {
-    val tested = mutable.Set.empty[Referential]
-    val ss = supportShallow() // in case of reference, it will just put the reference here
-    val toTest = mutable.Set.from(ss.references)
-    val names = mutable.Set.from(ss.names)
-    while (toTest.nonEmpty) {
-      val candidate = toTest.head
-      toTest.remove(candidate)
-      candidate match {
-        case GlobalReference(value) => // skip global reference
-        case Generic(id, _typ) if id == 0 => // skip hack generic
-        case r: LocalReferential =>
-          tested.add(r)
-          val cached = r.supportCached()
-          if (cached != null) {
-            names.addAll(cached.names)
-            tested.addAll(cached.openMetas)
-          } else {
-            val SupportShallow(ns, rs) = candidate.referenced.supportShallow()
-            names.addAll(ns)
-            toTest.addAll(rs.filterNot(tested))
-          }
-      }
-    }
-    val spt = Support(names.toSet, tested.flatMap {
-      case m@Meta(o: MetaState.Open) => Some(m)
-      case _ => None
-    }.toSet)
-    if (spt.names.nonEmpty) debug(s"non-empty support ${spt.names}", 2)
-    spt
-  }
-
-  def supportShallow(): SupportShallow  = this match {
-    case Universe(level) => SupportShallow.empty
-    case Function(domain, impict, codomain) => domain.supportShallow() ++ codomain.supportShallow()
-    case Lambda(closure) => closure.supportShallow()
-    case PatternLambda(id, domain, typ, cases) =>
-      domain.supportShallow() ++ typ.supportShallow() ++ SupportShallow.flatten(cases.map(_.closure.supportShallow()))
-    case Record(inductively, names, nodes) =>
-      SupportShallow.orEmpty(inductively.map(_.supportShallow())) ++ ClosureGraph.supportShallow(nodes)
-    case Make(values) => SupportShallow.flatten(values.map(_.supportShallow()))
-    case Construct(name, vs) =>
-      SupportShallow.flatten(vs.map(_.supportShallow()))
-    case Sum(inductively, constructors) =>
-      SupportShallow.orEmpty(inductively.map(_.supportShallow())) ++ SupportShallow.flatten(constructors.map(a => ClosureGraph.supportShallow(a.nodes)))
-    case PathType(typ, left, right) =>
-      typ.supportShallow() ++ left.supportShallow() ++ right.supportShallow()
-    case PathLambda(body) => body.supportShallow()
-    case App(lambda, argument) => lambda.supportShallow() ++ argument.supportShallow()
-    case PatternRedux(lambda, stuck) => lambda.supportShallow() ++ stuck.supportShallow()
-    case Projection(make, field) => make.supportShallow()
-    case PathApp(left, dimension) => left.supportShallow() +- dimension.names
-    case Transp(tp, direction, base) => tp.supportShallow() ++ base.supportShallow() +- direction.names
-    case Comp(tp, base, faces) => tp.supportShallow() ++ base.supportShallow() ++ AbsClosureSystem.supportShallow(faces)
-    case Hcomp(tp, base, faces) => tp.supportShallow() ++ base.supportShallow() ++ AbsClosureSystem.supportShallow(faces)
-    case GlueType(tp, faces) => tp.supportShallow()++ ValueSystem.supportShallow(faces)
-    case Glue(base, faces) => base.supportShallow() ++ ValueSystem.supportShallow(faces)
-    case Unglue(tp, base, faces) => tp.supportShallow() ++ base.supportShallow() ++ ValueSystem.supportShallow(faces)
-    case referential: Referential => SupportShallow.empty ++ Set(referential)
-    case internal: Internal => logicError()
-  }
-
-  /**
-    * fresh swap, the id being swapped cannot be used after. this helps because no need for Deswap...
-    */
-  def fswap(w: Long, z: Formula): Value = this match {
-    case u: Universe => u
-    case Function(domain, im, codomain) => Function(domain.fswap(w, z), im, codomain.fswap(w, z))
-    case Record(inductively, ns, nodes) =>
-      Record(inductively.map(_.fswap(w, z)), ns, ClosureGraph.fswap(nodes, w, z))
-    case Make(values) => Make(values.map(_.fswap(w, z)))
-    case Construct(name, vs) => Construct(name, vs.map(_.fswap(w, z)))
-    case Sum(inductively, constructors) =>
-      Sum(inductively.map(_.fswap(w, z)), constructors.map(_.fswap(w, z)))
-    case Lambda(closure) => Lambda(closure.fswap(w, z))
-    case PatternLambda(id, dom, typ, cases) =>
-      PatternLambda(id, dom.fswap(w, z), typ.fswap(w, z), cases.map(a => Case(a.pattern, a.closure.fswap(w, z))))
-    case PathType(typ, left, right) =>
-      PathType(typ.fswap(w, z), left.fswap(w, z), right.fswap(w, z))
-    case PathLambda(body) => PathLambda(body.fswap(w, z))
-    case App(lambda, argument) => App(lambda.fswap(w, z), argument.fswap(w, z))
-    case Transp(tp, direction, base) => Transp(tp.fswap(w, z), direction.fswap(w, z), base.fswap(w, z))
-    case Hcomp(tp, base, faces) => Hcomp(tp.fswap(w, z), base.fswap(w, z), AbsClosureSystem.fswap(faces, w, z))
-    case Comp(tp, base, faces) => Comp(tp.fswap(w, z), base.fswap(w, z), AbsClosureSystem.fswap(faces, w, z))
-    case Projection(make, field) => Projection(make.fswap(w, z), field)
-    case PatternRedux(lambda, stuck) =>
-      PatternRedux(lambda.fswap(w, z).asInstanceOf[PatternLambda], stuck.fswap(w, z))
-    case PathApp(left, stuck) => PathApp(left.fswap(w, z), stuck.fswap(w, z))
-    case GlueType(base, faces) => GlueType(base.fswap(w, z), ValueSystem.fswap(faces, w, z))
-    case Glue(base, faces) => Glue(base.fswap(w, z), ValueSystem.fswap(faces, w, z))
-    case Unglue(tp, base, faces) => Unglue(tp.fswap(w, z), base.fswap(w, z), ValueSystem.fswap(faces, w, z))
-    case g: Referential => g.getFswap(w, z)
-    case _: Internal => logicError()
-  }
-
-
-  def restrict(lv: Value.Formula.Assignments): Value = if (lv.isEmpty) this else this match {
-    case u: Universe => u
-    case Function(domain, im, codomain) =>
-      Function(domain.restrict(lv), im, codomain.restrict(lv))
-    case Record(inductively, ns, nodes) =>
-      Record(inductively.map(_.restrict(lv)), ns, ClosureGraph.restrict(nodes, lv))
-    case Make(values) =>
-      Make(values.map(_.restrict(lv)))
-    case Construct(name, vs) =>
-      Construct(name, vs.map(_.restrict(lv)))
-    case Sum(inductively, constructors) =>
-      Sum(inductively.map(_.restrict(lv)), constructors.map(_.restrict(lv)))
-    case Lambda(closure) =>
-      Lambda(closure.restrict(lv))
-    case PatternLambda(id, dom, typ, cases) =>
-      PatternLambda(id, dom.restrict(lv), typ.restrict(lv), cases.map(a => Case(a.pattern, a.closure.restrict(lv))))
-    case PathType(typ, left, right) =>
-      PathType(typ.restrict(lv), left.restrict(lv), right.restrict(lv))
-    case PathLambda(body) =>
-      PathLambda(body.restrict(lv))
-    case App(lambda, argument) =>
-      App(lambda.restrict(lv), argument.restrict(lv))
-    case Transp(tp, direction, base) =>
-      Transp(tp.restrict(lv), direction.restrict(lv), base.restrict(lv))
-    case Hcomp(tp, base, faces) =>
-      Hcomp(tp.restrict(lv), base.restrict(lv), AbsClosureSystem.restrict(faces, lv))
-    case Comp(tp, base, faces) =>
-      Comp(tp.restrict(lv), base.restrict(lv), AbsClosureSystem.restrict(faces, lv))
-    case Projection(make, field) =>
-      Projection(make.restrict(lv), field)
-    case PatternRedux(lambda, stuck) =>
-      PatternRedux(lambda.restrict(lv).asInstanceOf[PatternLambda], stuck.restrict(lv))
-    case PathApp(left, stuck) =>
-      PathApp(left.restrict(lv), stuck.restrict(lv))
-    case GlueType(base, faces) =>
-      GlueType(base.restrict(lv), ValueSystem.restrict(faces, lv))
-    case Glue(base, faces) =>
-      Glue(base.restrict(lv), ValueSystem.restrict(faces, lv))
-    case Unglue(tp, base, faces) =>
-      Unglue(tp.restrict(lv), base.restrict(lv), ValueSystem.restrict(faces, lv))
-    case Derestricted(v, lv0) =>
-      if (lv0.subsetOf(lv)) {
-        v.restrict(lv -- lv0)
-      } else {
-        logicError()
-      }
-    case g: Referential =>
-      g.getRestrict(lv)
   }
 
 

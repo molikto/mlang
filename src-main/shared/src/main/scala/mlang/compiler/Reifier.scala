@@ -63,12 +63,26 @@ private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorCon
     Abstract.AbsClosure(ctx.reifyMetas(), ta)
   }
 
-  def reify(size: Int, v: Value.MultiClosure): Abstract.MultiClosure = {
-    val (ctx, ns) = (0 until size).foldLeft((newParametersLayer() : ReifierContext, Seq.empty[Value])) { (ctx, _) =>
-      val (c, ns) = ctx._1.newParameter(Name.empty, null)
-      (c, ctx._2 :+ ns)
+  def mkContext(size: (Int, Int)) = {
+    var ctx = newParametersLayer().asInstanceOf[ReifierContext]
+    var vs = mutable.ArrayBuffer[Value]()
+    val ds = mutable.ArrayBuffer[Value.Formula]()
+    for (_ <- 0 until size._1) {
+      val (ctx0, v) = ctx.newParameter(Name.empty, null)
+      ctx = ctx0
+      vs.append(v)
     }
-    val ta = ctx.reify(v(ns))
+    for (_ <- 0 until size._2) {
+      val (ctx0, v) = ctx.newDimension(Name.empty)
+      ctx = ctx0
+      ds.append(v)
+    }
+    (ctx, vs, ds)
+  }
+
+  def reify(size: (Int, Int), v: Value.MultiClosure): Abstract.MultiClosure = {
+    val (ctx, vs, ds) = mkContext(size)
+    val ta = ctx.reify(v(vs.toSeq, ds.toSeq))
     Abstract.MultiClosure(ctx.reifyMetas(), ta)
   }
 
@@ -85,6 +99,17 @@ private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorCon
   def reifyEnclosedSystem(faces: Value.ValueSystem) =
     faces.toSeq.map(r => (reify(r._1), newReifierRestrictionLayer(r._1).reifyMetaEnclosed(r._2))).toMap
 
+  def reifyClosureSystem(faces: Value.ClosureSystem) =
+    faces.toSeq.map(r => (reify(r._1), newReifierRestrictionLayer(r._1).reify(r._2))).toMap
+
+  def reifyMultiClosureSystem(size: (Int, Int), faces: Value.MultiClosureSystem) =
+    faces.toSeq.map(r => (reify(r._1), newReifierRestrictionLayer(r._1).reify(size, r._2))).toMap
+
+  def reifyValueSystemMultiClosure(size: (Int, Int), faces: Value.ValueSystemMultiClosure) = {
+    val (ctx, vs, ds) = mkContext(size)
+    ctx.reifyEnclosedSystem(faces(vs.toSeq, ds.toSeq))
+  }
+
   def reify(v: Value): Abstract = {
     v match {
       case Value.Universe(level) =>
@@ -94,7 +119,7 @@ private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorCon
       case Value.Record(id, names, nodes) =>
         Record(reify(id), names, reify(nodes))
       case Value.Sum(id, constructors) =>
-        Sum(reify(id), constructors.map(c => Constructor(c.name, reify(c.nodes), c.dim, reifyEnclosedSystem(c.res))))
+        Sum(reify(id), constructors.map(c => Constructor(c.name, reify(c.nodes), c.dim, reifyValueSystemMultiClosure((c.nodes.size, c.dim), c.res))))
       case Value.PathType(ty, left, right) =>
         PathType(reify(ty), reify(left), reify(right))
       case Value.Lambda(closure) =>
@@ -129,8 +154,8 @@ private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorCon
         App(reify(lambda), reify(stuck))
       case Value.Make(vs) =>
         Make(vs.map(reify))
-      case Value.Construct(f, vs) =>
-        Construct(f, vs.map(reify))
+      case Value.Construct(f, vs, ds) =>
+        Construct(f, vs.map(reify), ds.map(reify))
       case Value.PathApp(left, stuck) =>
         PathApp(reify(left), reify(stuck))
       case Value.Transp(tp, dir, base) =>

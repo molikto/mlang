@@ -76,8 +76,18 @@ trait PlatformEvaluator extends Evaluator {
     s"Seq(${faces.toSeq.map(a => s"(${emit(a._1, depth)}, ${emitInner(a._2, d)})").mkString(", ")}).toMap"
   }
 
+//  def emitMultiClosureSystem(faces: Abstract.MultiClosureSystem, depth: Int) = {
+//    val d = depth + 2
+//    s"Seq(${faces.toSeq.map(a => s"(${emit(a._1, depth)}, MultiClosure((r$d, dm$d) => ${emitInner(a._2, d)}))").mkString(", ")}).toMap"
+//  }
+
+  def emitValueSystemMultiClosure(faces: Abstract.EnclosedSystem, depth: Int) = {
+    val d = depth + 1
+    s"ValueSystemMultiClosure((r$d, dm$d) => ${emitEnclosedSystem(faces, d)})"
+  }
+
   def emitConstructor(c: Abstract.Constructor, depth: Int) = {
-    s"Constructor(${source(c.name)}, ${emitGraph(c.params, depth)}, ${c.dim}, ${emitEnclosedSystem(c.restrictions, depth)})"
+    s"Constructor(${source(c.name)}, ${emitGraph(c.params, depth + 1)}, ${c.dim}, ${emitValueSystemMultiClosure(c.restrictions, depth + 1)})"
   }
 
   def emit(term: Abstract, depth: Int): String = {
@@ -131,11 +141,11 @@ trait PlatformEvaluator extends Evaluator {
           s"""Sum(${emit(id, depth)}, Seq(${constructors.map(c => emitConstructor(c, depth)).mkString(", ")}))"""
         case Abstract.Make(vs) =>
           s"Make(${vs.map(v => emit(v, depth))})"
-        case Abstract.Construct(name, vs) =>
-          s"Construct($name, ${vs.map(v => emit(v, depth))})"
+        case Abstract.Construct(name, vs, ds) =>
+          s"Construct($name, ${vs.map(v => emit(v, depth))}, ${ds.map(d => emit(d, depth))})"
         case Abstract.PatternLambda(id, dom, codomain, cases) =>
           val d = depth + 1
-          s"PatternLambda($id, ${emit(dom, depth)}, Closure(r$d => ${emitInner(codomain, d)}), Seq(${cases.map(c => s"Case(${tunnel(c.pattern)}, MultiClosure(r$d => ${emitInner(c.body, d)}))").mkString(", ")}))"
+          s"PatternLambda($id, ${emit(dom, depth)}, Closure(r$d => ${emitInner(codomain, d)}), Seq(${cases.map(c => s"Case(${tunnel(c.pattern)}, MultiClosure((r$d, dm$d) => ${emitInner(c.body, d)}))").mkString(", ")}))"
         case Abstract.PathApp(left, right) =>
           s"PathApp(${emit(left, depth)}, ${emit(right, depth)})"
         case Abstract.PathLambda(body) =>
@@ -187,11 +197,11 @@ trait PlatformEvaluator extends Evaluator {
 
     private def emit(dim: Abstract.Formula, depth: Int): String = {
       dim match {
-        case Abstract.Formula.Reference(up) =>
+        case Abstract.Formula.Reference(up, index) =>
           if (up > depth) {
-            tunnel(getDimension(up - depth - 1))
+            tunnel(getDimension(up - depth - 1, index))
           } else {
-            s"dm${depth - up}"
+            if (index == -1) s"dm${depth - up}" else s"dm${depth - up}($index)"
           }
         case Abstract.Formula.True =>
           s"Formula.True"

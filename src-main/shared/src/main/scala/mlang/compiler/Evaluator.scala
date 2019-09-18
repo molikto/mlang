@@ -57,7 +57,7 @@ trait Evaluator extends EvaluatorContext {
 
   protected def eval(a: Abstract.Formula): Value.Formula = {
     a match {
-      case Formula.Reference(up) => getDimension(up)
+      case Formula.Reference(up, index) => getDimension(up, index)
       case Formula.True => Value.Formula.True
       case Formula.False => Value.Formula.False
       case Formula.And(left, right) => Value.Formula.And(eval(left), eval(right))

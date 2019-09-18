@@ -31,9 +31,16 @@ class MetasState(val metas: mutable.ArrayBuffer[(Name, Value.Meta)], var frozen:
   }
 }
 
-case class ParameterBinder(name: Name, value: Value.Generic) {
+sealed trait Binder {
+  def name: Name
+}
+case class ParameterBinder(name: Name, value: Value.Generic) extends Binder {
   def id: Long = value.id
-  def typ: Value = value.typ
+  def typ: Value= value.typ
+}
+
+case class DimensionBinder(name: Name, value: Value.Formula.Generic) extends Binder {
+  def id: Long = value.id
 }
 
 // a defined term acts like a parameter when it doesn't have a body
@@ -53,26 +60,43 @@ object Layer {
   type Layers = Seq[Layer]
 
   sealed trait Parameters extends Layer {
-    def binders: Seq[ParameterBinder]
+
+    def termBinders: Seq[ParameterBinder]
+    def dimensionBinders: Seq[DimensionBinder]
+    def binders: Seq[Binder]
+    def typedIndex(index: Int): Int = {
+      binders(index) match {
+        case p: ParameterBinder => termBinders.indexWhere(_.id == p.id)
+        case d: DimensionBinder => dimensionBinders.indexWhere(_.id == d.id)
+      }
+    }
   }
   case class Parameter(binder: ParameterBinder, metas: MetasState) extends Layer // lambda expression
 
-  case class PatternParameters(binders: Seq[ParameterBinder], metas: MetasState) extends Parameters // for pattern matching
+  case class PatternParameters(
+    binders: Seq[Binder],
+    metas: MetasState
+  ) extends Parameters {
+    val termBinders = binders.filter(_.isInstanceOf[ParameterBinder]).map(_.asInstanceOf[ParameterBinder])
+    val dimensionBinders = binders.filter(_.isInstanceOf[DimensionBinder]).map(_.asInstanceOf[DimensionBinder])
+  }
+
 
   case class HitDefinition(self: Value, branches: Seq[AlternativeGraph])
   case class AlternativeGraph(name: Name, ps: Value.ClosureGraph, dim: Int)
 
   case class ParameterGraph(
     hit: Option[HitDefinition],
-    defined: Seq[ParameterBinder],
+    termBinders: Seq[ParameterBinder],
+    dimensionBinders: Seq[DimensionBinder],
     metas: MetasState
-  ) extends Parameters { // for pi and record telescope
-    def binders: Seq[ParameterBinder] = defined
+  ) extends Parameters {
+    val binders = termBinders ++ dimensionBinders
   }
 
   case class Defines(metas: MetasState, terms: Seq[DefineItem]) extends Layer // notice the metas is FIRST!!, for let expression and global
-  case class Dimension(value: Value.Formula.Generic, name: Name, metas: MetasState) extends Layer {
-    def id = value.id
+  case class Dimension(binder: DimensionBinder, metas: MetasState) extends Layer {
+    def id = binder.id
   }
 
   // no meta should be resolved here
@@ -84,36 +108,39 @@ object Layer {
 trait ElaboratorContextBase {
   protected def layers: Layers
 
-
-
-  protected def restrictionsMatchWith(up: Int, asgns: Value.Formula.Assignments) = {
-    getAllRestrictions(up) == asgns
-  }
-
   protected def lookupMatched(ref: Referential, a: Referential, up: Int) = {
     ref.lookupChildren(a) match {
-      case a@Some(asgs) if restrictionsMatchWith(up, asgs) =>
+      case a@Some(asgs) if getAllRestrictions(ref.support().names, up) == asgs =>
         a
       case _ =>
         None
     }
   }
 
-  protected def getAllRestrictions(level: Int): Value.Formula.Assignments = {
-    val ids = layers.drop(level).flatMap {
-      case d: Layer.Dimension => Seq(d.value.id)
-      case _ => Seq.empty
-    }
-    if (ids.isEmpty) {
-      Set.empty
-    } else {
-      val rs = layers.take(level).flatMap {
-        case r: Layer.Restriction =>
-          r.res.filter(a => ids.contains(a._1))
-        case _ => Set.empty[Value.Formula.Assignment]
-      }.toSet
-      debug(s"geting restrictions returns $rs")
+  protected def getRestricted(v: Value, level: Int): Value = {
+    val asg = getAllRestrictions(v.support().names, level)
+    v.restrict(asg)
+  }
+
+  protected def getRestricted(v: Value.Formula, level: Int): Value.Formula = {
+    val asg = getAllRestrictions(v.names, level)
+    v.restrict(asg)
+  }
+
+  // these are just to be sure we got correct value out when reify
+  @inline protected def getAllRestrictions(support: => Set[Long], level: Int): Value.Formula.Assignments = {
+    val rs = layers.take(level).flatMap {
+      case r: Layer.Restriction =>
+        r.res
+      case _ => Set.empty[Value.Formula.Assignment]
+    }.toSet
+    if (rs.isEmpty) {
       rs
+    } else {
+      val support0 = support
+      val res = rs.filter(a => support0.contains(a._1))
+      if (rs.nonEmpty) debug(s"geting restrictions returns $rs")
+      res
     }
   }
 }

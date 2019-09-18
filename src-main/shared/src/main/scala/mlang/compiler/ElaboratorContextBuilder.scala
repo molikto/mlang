@@ -41,14 +41,14 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
   }
 
   def newDimensionLayer(n: Name, dimension: Value.Formula.Generic): Self = {
-    val l = Layer.Dimension(dimension, n, createMetas())
+    val l = Layer.Dimension(DimensionBinder(n, dimension), createMetas())
     val ctx: Self = l +: layers
     ctx
   }
 
   def newDimensionLayer(n: Name): (Self, Value.Formula.Generic) = {
     val v = Value.Formula.Generic(dgen())
-    val l = Layer.Dimension(v, n, createMetas())
+    val l = Layer.Dimension(DimensionBinder(n, v), createMetas())
     val ctx: Self = l +: layers
     (ctx, v)
   }
@@ -130,11 +130,11 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
 
 
   def newParametersLayer(hit: Option[Value] = None): Self =
-    Layer.ParameterGraph(hit.map(a => HitDefinition(a, Seq.empty)), Seq.empty, createMetas()) +: layers
+    Layer.ParameterGraph(hit.map(a => HitDefinition(a, Seq.empty)), Seq.empty, Seq.empty, createMetas()) +: layers
 
   def newConstructor(name: Name, ps: Value.ClosureGraph, dim: Int): Self =
     layers.head match {
-      case Layer.ParameterGraph(alters, _, metas) =>
+      case Layer.ParameterGraph(alters,_, _, metas) =>
         alters match {
           case None => logicError()
           case Some(value) =>
@@ -143,7 +143,7 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
               case None =>
                 assert(metas.debug_allFrozen)
                 val n = AlternativeGraph(name, ps, dim)
-                Layer.ParameterGraph(Some(HitDefinition(value.self, value.branches :+ n)), Seq.empty, createMetas()) +: layers.tail
+                Layer.ParameterGraph(Some(HitDefinition(value.self, value.branches :+ n)),  Seq.empty, Seq.empty, createMetas()) +: layers.tail
             }
         }
       case _ => logicError()
@@ -151,15 +151,29 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
 
   def newParameter(name: Name, typ: Value) : (Self, Value) = {
     layers.head match {
-      case Layer.ParameterGraph(alters, binders, metas) =>
+      case Layer.ParameterGraph(alters, binders, ds, metas) =>
         binders.find(_.name.intersect(name)) match {
           case Some(_) => logicError()
           case _ =>
             val g = gen()
             val v = Value.Generic(g, typ)
             assert(metas.debug_allFrozen)
-            (Layer.ParameterGraph(alters,
-              binders :+ ParameterBinder(name, v), metas) +: layers.tail, v)
+            (Layer.ParameterGraph(alters, binders :+ ParameterBinder(name, v), ds, metas) +: layers.tail, v)
+        }
+      case _ => logicError()
+    }
+  }
+
+  def newDimension(name: Name): (Self, Value.Formula.Generic) = {
+    layers.head match {
+      case Layer.ParameterGraph(alters, binders, ds, metas) =>
+        binders.find(_.name.intersect(name)) match {
+          case Some(_) => logicError()
+          case _ =>
+            val v = Value.Formula.Generic(dgen())
+            assert(metas.debug_allFrozen)
+
+            (Layer.ParameterGraph(alters, binders, ds :+ DimensionBinder(name, v), metas) +: layers.tail, v)
         }
       case _ => logicError()
     }
@@ -168,7 +182,7 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
 
 
   def newPatternLayer(pattern: Concrete.Pattern, typ: Value): (Self, Value, Pattern) = {
-    val vvv = mutable.ArrayBuffer[ParameterBinder]()
+    val vvv = mutable.ArrayBuffer[Binder]()
     def recs(maps: Seq[Concrete.Pattern], nodes: Value.ClosureGraph): Seq[(Value, Pattern)] = {
       var vs =  Seq.empty[(Value, Pattern)]
       var graph = nodes
@@ -185,11 +199,11 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
         case Concrete.Pattern.Atom(name) =>
           var ret: (Value, Pattern) = null
           var index = 0
-          name.asRef match {
+          name.asRef match { // we make it as a reference here
             case Some(ref) =>
               t.whnf match {
                 case sum: Value.Sum if { index = sum.constructors.indexWhere(c => c.name.by(ref) && c.nodes.isEmpty); index >= 0 } =>
-                  ret = (Value.Construct(index, Seq.empty), Pattern.Construct(index, Seq.empty))
+                  ret = (Value.Construct(index, Seq.empty, Seq.empty), Pattern.Construct(index, Seq.empty))
                 case _ =>
               }
             case _ =>
@@ -197,7 +211,7 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
           if (ret == null) {
             val open = ParameterBinder(name, Value.Generic(gen(), t))
             vvv.append(open)
-            ret = (open.value, Pattern.Atom)
+            ret = (open.value, Pattern.GenericValue)
           }
           ret
         case Concrete.Pattern.Group(maps) =>
@@ -217,9 +231,16 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
               val index = sum.constructors.indexWhere(_.name.by(name))
               if (index >= 0) {
                 val c = sum.constructors(index)
-                if (c.nodes.size == maps.size) {
-                  val vs = recs(maps, c.nodes)
-                  (Value.Construct(index, vs.map(_._1)), Pattern.Construct(index, vs.map(_._2)))
+                if (c.nodes.size + c.dim == maps.size) {
+                  val vs = recs(maps.take(c.nodes.size), c.nodes)
+                  val dPs = maps.drop(c.nodes.size)
+                  if (!dPs.forall(_.isInstanceOf[Concrete.Pattern.Atom])) {
+                    throw PatternExtractException.NonAtomicPatternForDimension()
+                  }
+                  val names = dPs.map(_.asInstanceOf[Concrete.Pattern.Atom].id)
+                  val ds = names.map(n => DimensionBinder(n, Value.Formula.Generic(dgen())))
+                  vvv.appendAll(ds)
+                  (Value.Construct(index, vs.map(_._1), ds.map(_.value)), Pattern.Construct(index, vs.map(_._2)))
                 } else {
                   throw PatternExtractException.ConstructWrongSize()
                 }

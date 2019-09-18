@@ -4,6 +4,7 @@ import mlang.compiler.Concrete._
 import Declaration.Modifier
 import mlang.compiler.Abstract.MetaEnclosed
 import mlang.compiler.Layer.Layers
+import mlang.compiler.Value.ClosureGraph
 import mlang.utils._
 
 import scala.annotation.Annotation
@@ -123,7 +124,7 @@ class Elaborator private(protected override val layers: Layers)
         val (tv, ta) = ctx.infer(a)
         tv.whnf match {
           case j@Value.PathType(_, _, _) =>
-            (dim, Abstract.AbsClosure(ctx.finishReify(), Abstract.PathApp(ta, Abstract.Formula.Reference(0))))
+            (dim, Abstract.AbsClosure(ctx.finishReify(), Abstract.PathApp(ta, Abstract.Formula.Reference(0, -1))))
           case _ => throw ElaboratorException.ExpectingLambdaTerm()
         }
     }
@@ -142,7 +143,7 @@ class Elaborator private(protected override val layers: Layers)
         val (tv, ta) = ctx.infer(a)
         tv.whnf match {
           case j@Value.PathType(_, _, _) =>
-            val clo = Abstract.AbsClosure(ctx.finishReify(), Abstract.PathApp(ta, Abstract.Formula.Reference(0)))
+            val clo = Abstract.AbsClosure(ctx.finishReify(), Abstract.PathApp(ta, Abstract.Formula.Reference(0, -1)))
             (j.inferLevel, clo)
           case _ => throw ElaboratorException.ExpectingLambdaTerm()
         }
@@ -199,7 +200,13 @@ class Elaborator private(protected override val layers: Layers)
               (lv, Abstract.Make(inferGraph(r.nodes, arguments)))
             case r: Value.Sum if calIndex(t => r.constructors.indexWhere(_.name.by(t))) =>
               val c = r.constructors(index)
-              (lv, Abstract.Construct(index, inferGraph(c.nodes, arguments)))
+              val ns = arguments.take(c.nodes.size)
+              val res1 = inferGraph(c.nodes, ns)
+              val ds = arguments.drop(c.nodes.size)
+              if (ds.size != c.dim) throw ElaboratorException.NotFullyAppliedConstructorNotSupportedYet()
+              if (ds.exists(_._1)) throw ElaboratorException.DimensionLambdaCannotBeImplicit()
+              val res2 = ds.map(a => checkAndEvalFormula(a._2)._2)
+              (lv, Abstract.Construct(index, res1, res2))
             case _ => error()
           }
       }
@@ -244,11 +251,11 @@ class Elaborator private(protected override val layers: Layers)
         lookupTerm(name) match {
           case NameLookupResult.Typed(binder, abs) =>
             reduceMore(binder, abs)
-          case NameLookupResult.Construct(self, index, closure) =>
-            if (closure.nonEmpty) {
+          case NameLookupResult.Construct(self, index, closure, dim) =>
+            if (closure.nonEmpty || dim != 0) {
               throw ElaboratorException.NotFullyAppliedConstructorNotSupportedYet()
             } else {
-              (self, Abstract.Construct(index, Seq.empty))
+              (self, Abstract.Construct(index, Seq.empty, Seq.empty))
             }
         }
       case Concrete.Hole =>
@@ -307,7 +314,8 @@ class Elaborator private(protected override val layers: Layers)
         val ind = consumeIndState()
         // val hitFakeValue = ind.map(_._1).getOrElse(Value.Generic.HACK)
         // val ctx = newParametersLayer(Some(hitFakeValue))
-        var ctx = newParametersLayer()
+        // FIXME very limited elaboration!!! one problem is what type we check against
+        var ctx = newParametersLayer(Some(Value.Generic(0, null)))
         val fs = constructors.map(c => {
           val seq = NameType.flatten(c.term)
           val tpd = seq.takeWhile(_._3 != Concrete.I)
@@ -317,22 +325,23 @@ class Elaborator private(protected override val layers: Layers)
           val (ll, tt) = ctx.inferFlatLevel(tpd)
           // NOW: check extensions
           val (dimCtx, dims) = iss.foldLeft((ctx, Seq.empty[Long])) { (ctx, n) =>
-            val (c, l) = ctx._1.newDimensionLayer(n)
+            val (c, l) = ctx._1.newDimension(n)
             (c, ctx._2 :+ l.id)
           }
+          ctx = dimCtx
           val es = c.restrictions.map(r => {
-            val (dv, da) = checkAndEvalFormula(r.dimension)
-            // FIXME this is currently extremely limited, will make it better later
-            // one problem is what type we check against
+            val (dv, da) = ctx.checkAndEvalFormula(r.dimension)
+            // FIXME this is currently extremely limited, will make it better later, this line, bellow, and more
+            val rctx = ctx.newReifierRestrictionLayer(dv)
             val body: Abstract.MetaEnclosed = if (dv.names.forall(dims.contains)) {
               r.term match {
                 case Concrete.Reference(name) =>
-                  ctx.lookupTerm(name) match {
-                    case NameLookupResult.Construct(self, index, closure) =>
-                      if (closure.isEmpty) {
-                        Abstract.MetaEnclosed(Seq.empty, Abstract.Construct(index, Seq()))
+                  rctx.lookupTerm(name) match {
+                    case NameLookupResult.Construct(_, index, closure, dim) =>
+                      if (closure.isEmpty || dim != 0) {
+                        Abstract.MetaEnclosed(Seq.empty, Abstract.Construct(index, Seq.empty, Seq.empty))
                       } else throw FinishHitImplimentation()
-                    case NameLookupResult.Typed(typ, ref) => throw FinishHitImplimentation()
+                    case _ => throw FinishHitImplimentation()
                   }
                 case _ => throw FinishHitImplimentation()
               }
@@ -341,15 +350,15 @@ class Elaborator private(protected override val layers: Layers)
             }
             (da, body)
           })
-          ctx = ctx.newConstructor(c.name, null, dims.size)
+          ctx = ctx.newConstructor(c.name, Seq.empty /* FIXME as above */, dims.size)
           (c.name, ll, tt, iss.size, es)
         })
         val fl = fs.map(_._2).max
         (Value.Universe(fl), Abstract.Sum(ind.map(_._2(fl)), fs.map(a =>
           Abstract.Constructor(
             a._1,
-            a._3.zipWithIndex.map(kk => Abstract.ClosureGraph.Node(kk._1._2, 0 until kk._2, kk._1._3)),
-            a._4, a._5.toMap
+            a._3.zipWithIndex.map(kk => Abstract.ClosureGraph.Node(kk._1._2, 0 until kk._2, kk._1._3)), a._4,
+            a._5.toMap
           ))))
       case Concrete.Transp(tp, direction, base) =>
         // LATER does these needs finish off implicits?
@@ -429,7 +438,7 @@ class Elaborator private(protected override val layers: Layers)
           case Concrete.Reference(name) =>
             lookupTerm(name) match {
               case NameLookupResult.Typed(typ, ref) => defaultCase(typ, ref)
-              case NameLookupResult.Construct(self, index, closure) =>
+              case NameLookupResult.Construct(self, index, closure, dim) =>
                 throw FinishHitImplimentation()
             }
           case _ =>

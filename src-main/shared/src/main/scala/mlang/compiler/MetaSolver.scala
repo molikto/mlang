@@ -11,7 +11,6 @@ import GenLong.Negative.{gen, dgen}
 
 case class UnificationFailedException(msg: String) extends Exception
 
-// FIXME like cubicaltt, we should break this as conversion checking and unification
 trait MetaSolver extends ValueConversion with Reifier with ElaboratorContextRebind with Evaluator {
 
   type Self  <: MetaSolver

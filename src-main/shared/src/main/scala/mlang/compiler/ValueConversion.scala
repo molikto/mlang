@@ -73,12 +73,10 @@ trait ValueConversion {
     }
   }
 
-  private def recConstructor(c1: Constructor, c2: Constructor, mode: Int = 0): Boolean = {
-    if (c1.eq(c2)) {
-      true
-    } else {
-      c1.name == c2.name && recClosureGraph(c1.nodes, c2.nodes, mode)
-    }
+
+
+  private def recConstructor(t1: Value, t2: Value, c1: Constructor, c2: Constructor, mode: Int = 0): Boolean = {
+    c1.name == c2.name && recClosureGraph(c1.nodes, c2.nodes, mode) && c1.dim == c2.dim && recValueSystemMultiClosure(choose(t1, t2, mode), c1.nodes, c1.dim, c1.res, c2.res)
   }
 
 
@@ -185,13 +183,6 @@ trait ValueConversion {
     }
   }
 
-  def recGlueFaces(t: Value, r1: ValueSystem, r2: ValueSystem): Boolean = {
-    forCompatibleAssignments(r1, r2) { (a, b1, b2) =>
-      recTerm(
-        App(BuiltIn.equiv_of, Value.Generic(gen(), t)).restrict(a),
-        b1.restrict(a), b2.restrict(a))
-    }
-  }
 
   /**
     * mode = 1 left =<subtype< right
@@ -214,8 +205,8 @@ trait ValueConversion {
         case (Record(id1, i1, n1), Record(id2, i2, n2)) =>
           // need to check level because of up operator
           maybeNominal(id1, id2, i1 == i2 && recClosureGraph(n1, n2, mode))
-        case (Sum(id1, c1), Sum(id2, c2)) =>
-          maybeNominal(id1, id2, c1.size == c2.size && c1.zip(c2).forall(p => recConstructor(p._1, p._2, mode)))
+        case (s1@Sum(id1, c1), s2@Sum(id2, c2)) =>
+          maybeNominal(id1, id2, c1.size == c2.size && c1.zip(c2).forall(p => recConstructor(s1, s2, p._1, p._2, mode)))
         case (PathType(t1, l1, r1), PathType(t2, l2, r2)) =>
           recTypeAbsClosure(t1, t2, mode) &&
             recTerm(t1(Formula.False), l1, l2) &&
@@ -356,12 +347,33 @@ trait ValueConversion {
     }
   }
 
+  def recValueSystemMultiClosure(ty: Value, nodes: ClosureGraph, dim: Int, r1: ValueSystemMultiClosure, r2: ValueSystemMultiClosure): Boolean = {
+    if (r1.eq(r2)) {
+      true
+    } else {
+      // FIXME I think we should require all HIT has nominal equality
+      val a1 = r1(Seq.empty, Seq.empty)
+      val a2 = r2(Seq.empty, Seq.empty)
+      recValueSystem(ty, a1, a2)
+    }
+  }
+
+  def recValueSystem(t: Value, r1: ValueSystem, r2: ValueSystem): Boolean = {
+    forCompatibleAssignments(r1, r2) { (a, b1, b2) =>
+      recTerm(t.restrict(a), b1.restrict(a), b2.restrict(a))
+    }
+  }
+
+  def recGlueFaces(t: Value, r1: ValueSystem, r2: ValueSystem): Boolean = {
+    recValueSystem(App(BuiltIn.equiv_of, t), r1, r2)
+  }
+
   private def recCases(domain: Value, codomain: Closure, c1: Seq[Case], c2: Seq[Case]): Boolean = {
     c1.size == c2.size && c1.zip(c2).forall(pair => {
       pair._1.pattern == pair._2.pattern && {
         Try { extractTypes(pair._1.pattern, domain) } match {
-          case Success((ctx, itself)) =>
-            recTerm(codomain(itself), pair._1.closure(ctx), pair._2.closure(ctx))
+          case Success((vs, ds, itself)) =>
+            recTerm(codomain(itself), pair._1.closure(vs, ds), pair._2.closure(vs, ds))
           case _ => false
         }
       }
@@ -402,10 +414,10 @@ trait ValueConversion {
           recTerm(ty(c), PathApp(s1, c), PathApp(s2, c))
         case (r: Record, m1, m2) =>
           recTerms(r.nodes, i => Projection(m1, i), i => Projection(m2, i))
-        case (s: Sum, Construct(n1, v1), Construct(n2, v2)) =>
+        case (s: Sum, Construct(n1, v1, d1), Construct(n2, v2, d2)) =>
           n1 == n2 && { val c = s.constructors(n1) ;
-            assert(c.nodes.size == v1.size && v2.size == v1.size)
-            recTerms(c.nodes, v1, v2)
+            assert(c.nodes.size == v1.size && c.dim == d1.size && v2.size == v1.size && d1.size == d2.size)
+            recTerms(c.nodes, v1, v2) && d1.zip(d2).forall(p => p._1.normalForm == p._2.normalForm)
           }
         case (g: GlueType, t1, t2) =>
           def baseCase(a: Glue, b: Glue): Boolean = {
@@ -442,8 +454,9 @@ trait ValueConversion {
   private def extractTypes(
                             pattern: Pattern,
                             typ: Value
-                          ): (Seq[Generic], Value) = {
+                          ): (Seq[Generic], Seq[Formula.Generic], Value) = {
     val vs = mutable.ArrayBuffer[Generic]()
+    val ds = mutable.ArrayBuffer[Formula.Generic]()
 
     def recs(maps: Seq[Pattern], graph0: ClosureGraph): Seq[Value]  = {
       var graph = graph0
@@ -459,10 +472,11 @@ trait ValueConversion {
 
     def rec(p: Pattern, t: Value): Value = {
       p match {
-        case Pattern.Atom =>
+        case Pattern.GenericValue =>
           val ret = Generic(gen(), t)
           vs.append(ret)
           ret
+        case Pattern.GenericDimension => logicError()
         case Pattern.Make(maps) =>
           t.whnf match {
             case r: Record  =>
@@ -477,8 +491,10 @@ trait ValueConversion {
           t.whnf match {
             case sum: Sum =>
               val c = sum.constructors(name)
-              if (c.nodes.size == maps.size) {
-                Construct(name, recs(maps, c.nodes))
+              if (c.dim + c.nodes.size == maps.size) {
+                val ret = (0 until c.dim).map(_ => Formula.Generic(dgen()))
+                ds.appendAll(ret)
+                Construct(name, recs(maps.take(c.nodes.size), c.nodes), ret)
               } else {
                 logicError()
               }
@@ -487,6 +503,6 @@ trait ValueConversion {
       }
     }
     val t = rec(pattern, typ)
-    (vs.toSeq, t)
+    (vs.toSeq, ds.toSeq, t)
   }
 }

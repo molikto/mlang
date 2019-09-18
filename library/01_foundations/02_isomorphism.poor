@@ -30,4 +30,40 @@ define isomorphism_trans(#A #B #C: type):
     a → path_compose(j → g1(b2(f1(a), j)), b1(a))
   )
 
-//  define isomorphsim_fiber_prop_over
+
+define iso_is_equiv(#A #B: type, iso: isomorphism(A, B)): is_equiv(iso.f) =
+  y → run {// y: B
+    define fiber_type = fiber_at(iso.f, y)
+    define center = fiber_type.make(iso.g(y), iso.f_is_section(y))
+    define lem_iso(f0 f1: fiber_type): f0 ≡ f1 = run {
+      define fillp(fiber: fiber_type, i: I) =
+        hfill(iso.g(fiber.path(~i))
+        |i: iso.g_is_retract(fiber.from)
+        |~i: ─ → iso.g(y))
+      define fill0 = fillp(f0)
+      define fill1 = fillp(f1)
+      define fill2(i: I) = hfill(iso.g(y) |i: k → fill1(k, 1) |~i: k → fill0(k, 1))
+      define p: f0.from ≡ f1.from = i → fill2(i, 1)
+      define sq(i j: I): A =
+        hcomp(fill2(i, j)
+        | i: k → fill1(j, ~k)
+        |~i: k → fill0(j, ~k)
+        | j: k → iso.g_is_retract(fill2(i, 1), ~k)
+        |~j: k → iso.g(y)
+        )
+      define sq1(i j: I): B =
+        hcomp(iso.f(sq(i, j))
+        | i: iso.f_is_section(f1.path(~j))
+        |~i: iso.f_is_section(f0.path(~j))
+        | j: iso.f_is_section(iso.f(p(i)))
+        |~j: iso.f_is_section(y)
+        )
+      // somehow directly write it parse fails
+      define res(i: I) = fiber_type.make(p(i), j → sq1(i, ~j))
+      res
+    }
+    make(center, z → lem_iso(center, z))
+  }
+
+
+define iso_to_equiv(#A #B: type, iso: isomorphism(A, B)): equiv(A, B) = make(iso.f, iso_is_equiv(iso))
