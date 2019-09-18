@@ -1,6 +1,6 @@
 
 
-define bool = sum { case true false }
+define bool = sum { case false true }
 
 // TODO with constructor syntax
 define true = bool.true
@@ -24,7 +24,9 @@ define not_involutive
 
 define bool_path_to_neg_bool: bool ≡ bool = ua(iso_to_equiv(make(not, not, not_involutive, not_involutive)))
 
+define __debug transp_true_is_false: bool = transport(bool_path_to_neg_bool, true)
+
 define _test_bool = run {
-  // define transp_true_is_false: transport(bool_path_to_neg_bool, true) ≡ false = refl
+  define transp_true_is_false: transport(bool_path_to_neg_bool, true) ≡ false = refl
   unit.make
 }

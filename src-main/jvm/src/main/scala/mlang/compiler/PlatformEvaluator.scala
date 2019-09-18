@@ -36,7 +36,25 @@ trait PlatformEvaluator extends Evaluator {
       }
     }
 
-    def emitGraph(a: Abstract.ClosureGraph, d: Int): String = {
+  def emitClosure(c: Abstract.Closure, depth: Int): String = {
+    val d = depth + 1
+    s"Closure(r$d => ${emitInner(c, d)})"
+  }
+
+  def emitAbsClosure(c: Abstract.AbsClosure, depth: Int): String = {
+    val d = depth + 1
+    s"AbsClosure(dm$d => ${emitInner(c, d)})"
+  }
+
+  def emitMultiClosure(c: Abstract.MultiClosure, depth: Int, noDim: Boolean = false): String = {
+    val d = depth + 1
+    val dim = if (noDim) "_" else s"dm$d"
+    s"MultiClosure((r$d,$dim) => ${emitInner(c, d)})"
+  }
+
+
+    def emitGraph(a: Abstract.ClosureGraph, depth: Int): String = {
+      val d = depth + 1
       val res = a.zipWithIndex.map(pair => {
         val c = pair._1
         val index = pair._2
@@ -54,7 +72,7 @@ trait PlatformEvaluator extends Evaluator {
       s"""ClosureGraph.createMetaAnnotated(Seq($res))""".stripMargin
     }
 
-  def emit(id: Option[Abstract.Inductively], d: Int): String = {
+  def emit(id: Option[Abstract.Inductively], depth: Int): String = {
     id match {
       case None => "None"
       case Some(a) => s"Some(Inductively(${a.id}, ${a.level}))"
@@ -67,27 +85,40 @@ trait PlatformEvaluator extends Evaluator {
 
 
   def emitAbsClosureSystem(faces: Abstract.AbsClosureSystem, depth: Int) = {
-    val d = depth + 2
-    s"Seq(${faces.toSeq.map(a => s"(${emit(a._1, depth)}, AbsClosure(dm$d => ${emitInner(a._2, d)}))").mkString(", ")}).toMap"
+    s"Seq(${faces.toSeq.map(a => s"(${emit(a._1, depth)}, ${emitAbsClosure(a._2, depth + 1)})").mkString(", ")}).toMap"
+  }
+
+  def emitMultiClosureSystem(faces: Abstract.MultiClosureSystem, depth: Int, noDim: Boolean = true) = {
+    if (faces.isEmpty) {
+      "MultiClosureSystem.empty"
+    } else {
+      val d = depth + 2
+      val dim = if (noDim) "_" else s"dm$d"
+      s"Seq(${faces.toSeq.map(a => s"(${emit(a._1, depth)}, ${emitMultiClosure(a._2, depth + 1, noDim)})").mkString(", ")}).toMap"
+    }
   }
 
   def emitEnclosedSystem(faces: Abstract.EnclosedSystem, depth: Int) = {
-    val d = depth + 2
-    s"Seq(${faces.toSeq.map(a => s"(${emit(a._1, depth)}, ${emitInner(a._2, d)})").mkString(", ")}).toMap"
+    // it evals to a value system.
+    s"Seq(${faces.toSeq.map(a => s"(${emit(a._1, depth)}, ${emitInner(a._2, depth + 2)})").mkString(", ")}).toMap"
   }
 
-//  def emitMultiClosureSystem(faces: Abstract.MultiClosureSystem, depth: Int) = {
-//    val d = depth + 2
-//    s"Seq(${faces.toSeq.map(a => s"(${emit(a._1, depth)}, MultiClosure((r$d, dm$d) => ${emitInner(a._2, d)}))").mkString(", ")}).toMap"
-//  }
 
-  def emitValueSystemMultiClosure(faces: Abstract.EnclosedSystem, depth: Int) = {
-    val d = depth + 1
-    s"ValueSystemMultiClosure((r$d, dm$d) => ${emitEnclosedSystem(faces, d)})"
+  def emitAbsMultiClosureSystem(dim: Int, faces: Abstract.MultiClosureSystem, depth: Int) = {
+    if (dim == 0) {
+      s"AbsMultiClosureSystem.empty"
+    } else {
+      val d = depth + 1
+      s"AbsMultiClosureSystem(dm$d => ${emitMultiClosureSystem(faces, d, noDim = true)})"
+    }
   }
 
   def emitConstructor(c: Abstract.Constructor, depth: Int) = {
-    s"Constructor(${source(c.name)}, ${emitGraph(c.params, depth + 1)}, ${c.dim}, ${emitValueSystemMultiClosure(c.restrictions, depth + 1)})"
+    s"Constructor(" +
+      s"${source(c.name)}, " +
+      s"${emitGraph(c.params, depth)}, " +
+      s"${c.dim}, " +
+      s"${emitAbsMultiClosureSystem(c.dim, c.restrictions, depth)})"
   }
 
   def emit(term: Abstract, depth: Int): String = {
@@ -124,39 +155,31 @@ trait PlatformEvaluator extends Evaluator {
                 s"}"
           }
         case Abstract.Function(domain, impict, codomain) =>
-          val d = depth + 1
-          s"Function(${emit(domain, depth)}, $impict, Closure(r$d => ${emitInner(codomain, d)}))"
+          s"Function(${emit(domain, depth)}, $impict, ${emitClosure(codomain, depth)})"
         case Abstract.Lambda(closure) =>
-          val d = depth + 1
-          s"Lambda(Closure(r$d => ${emitInner(closure, d)}))"
+          s"Lambda(${emitClosure(closure, depth)})"
         case Abstract.App(left, right) =>
           s"App(${emit(left, depth)}, ${emit(right, depth)})"
         case Abstract.Record(id, names, nodes) =>
-          val d = depth + 1
-          s"""Record( ${emit(id, depth)}, Seq(${names.map(n => source(n)).mkString(", ")}), ${emitGraph(nodes, d)})"""
+          s"""Record( ${emit(id, depth)}, Seq(${names.map(n => source(n)).mkString(", ")}), ${emitGraph(nodes, depth)})"""
         case Abstract.Projection(left, field) =>
           s"Projection(${emit(left, depth)}, $field)"
         case Abstract.Sum(id, constructors) =>
-          val d = depth + 1 // we some how have have one layer for the constructor names
           s"""Sum(${emit(id, depth)}, Seq(${constructors.map(c => emitConstructor(c, depth)).mkString(", ")}))"""
         case Abstract.Make(vs) =>
           s"Make(${vs.map(v => emit(v, depth))})"
         case Abstract.Construct(name, vs, ds) =>
           s"Construct($name, ${vs.map(v => emit(v, depth))}, ${ds.map(d => emit(d, depth))})"
         case Abstract.PatternLambda(id, dom, codomain, cases) =>
-          val d = depth + 1
-          s"PatternLambda($id, ${emit(dom, depth)}, Closure(r$d => ${emitInner(codomain, d)}), Seq(${cases.map(c => s"Case(${tunnel(c.pattern)}, MultiClosure((r$d, dm$d) => ${emitInner(c.body, d)}))").mkString(", ")}))"
+          s"PatternLambda($id, ${emit(dom, depth)}, ${emitClosure(codomain, depth)}, Seq(${cases.map(c => s"Case(${tunnel(c.pattern)}, ${emitMultiClosure(c.body, depth)})").mkString(", ")}))"
         case Abstract.PathApp(left, right) =>
           s"PathApp(${emit(left, depth)}, ${emit(right, depth)})"
         case Abstract.PathLambda(body) =>
-          val d = depth + 1
-          s"PathLambda(AbsClosure(dm$d => ${emitInner(body, d)}))"
+          s"PathLambda(${emitAbsClosure(body, depth)})"
         case Abstract.PathType(typ, left, right) =>
-          val d = depth + 1
-          s"PathType(AbsClosure(dm$d => ${emitInner(typ, d)}), ${emit(left, depth)}, ${emit(right, depth)})"
+          s"PathType(${emitAbsClosure(typ, depth)}, ${emit(left, depth)}, ${emit(right, depth)})"
         case Abstract.Transp(tp, dir, base) =>
-          val d = depth + 1
-          s"Transp(AbsClosure(dm$d => ${emitInner(tp, d)}), ${emit(dir, depth)}, ${emit(base, depth)})"
+          s"Transp(${emitAbsClosure(tp, depth)}, ${emit(dir, depth)}, ${emit(base, depth)})"
         case Abstract.Hcomp(tp, base, faces) =>
           s"Hcomp(" +
               s"${emit(tp, depth)}, " +
@@ -165,7 +188,7 @@ trait PlatformEvaluator extends Evaluator {
               s")"
         case Abstract.Comp(tp, base, faces) =>
           s"Comp(" +
-              s"AbsClosure(dm${depth + 1} => ${emitInner(tp, depth + 1)}), " +
+              s"${emitAbsClosure(tp, depth)}, " +
               s"${emit(base, depth)}, " +
               emitAbsClosureSystem(faces, depth) +
               s")"

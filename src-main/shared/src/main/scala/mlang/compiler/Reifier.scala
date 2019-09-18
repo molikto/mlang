@@ -77,12 +77,12 @@ private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorCon
       ctx = ctx0
       ds.append(v)
     }
-    (ctx, vs, ds)
+    (ctx, vs.toSeq, ds.toSeq)
   }
 
   def reify(size: (Int, Int), v: Value.MultiClosure): Abstract.MultiClosure = {
     val (ctx, vs, ds) = mkContext(size)
-    val ta = ctx.reify(v(vs.toSeq, ds.toSeq))
+    val ta = ctx.reify(v(vs, ds))
     Abstract.MultiClosure(ctx.reifyMetas(), ta)
   }
 
@@ -105,9 +105,16 @@ private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorCon
   def reifyMultiClosureSystem(size: (Int, Int), faces: Value.MultiClosureSystem) =
     faces.toSeq.map(r => (reify(r._1), newReifierRestrictionLayer(r._1).reify(size, r._2))).toMap
 
-  def reifyValueSystemMultiClosure(size: (Int, Int), faces: Value.ValueSystemMultiClosure) = {
+  def reifyAbsInsideMultiClosureSystem(vs: Seq[Value], faces: Value.MultiClosureSystem) =
+    faces.toSeq.map(r => (reify(r._1), {
+      val ctx = newReifierRestrictionLayer(r._1)
+      val ta = ctx.reify(r._2(vs, Seq.empty))
+      Abstract.MultiClosure(ctx.reifyMetas(), ta)
+    })).toMap
+
+  def reifyAbsMultiClosureSystem(size: (Int, Int), faces: Value.AbsMultiClosureSystem) = {
     val (ctx, vs, ds) = mkContext(size)
-    ctx.reifyEnclosedSystem(faces(vs.toSeq, ds.toSeq))
+    ctx.reifyAbsInsideMultiClosureSystem(vs, faces(ds))
   }
 
   def reify(v: Value): Abstract = {
@@ -119,7 +126,7 @@ private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorCon
       case Value.Record(id, names, nodes) =>
         Record(reify(id), names, reify(nodes))
       case Value.Sum(id, constructors) =>
-        Sum(reify(id), constructors.map(c => Constructor(c.name, reify(c.nodes), c.dim, reifyValueSystemMultiClosure((c.nodes.size, c.dim), c.res))))
+        Sum(reify(id), constructors.map(c => Constructor(c.name, reify(c.nodes), c.dim, reifyAbsMultiClosureSystem((c.nodes.size, c.dim), c.res))))
       case Value.PathType(ty, left, right) =>
         PathType(reify(ty), reify(left), reify(right))
       case Value.Lambda(closure) =>

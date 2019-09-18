@@ -333,13 +333,13 @@ class Elaborator private(protected override val layers: Layers)
             val (dv, da) = ctx.checkAndEvalFormula(r.dimension)
             // FIXME this is currently extremely limited, will make it better later, this line, bellow, and more
             val rctx = ctx.newReifierRestrictionLayer(dv)
-            val body: Abstract.MetaEnclosed = if (dv.names.forall(dims.contains)) {
+            val body: Abstract.MultiClosure = if (dv.names.forall(dims.contains)) {
               r.term match {
                 case Concrete.Reference(name) =>
                   rctx.lookupTerm(name) match {
                     case NameLookupResult.Construct(_, index, closure, dim) =>
                       if (closure.isEmpty || dim != 0) {
-                        Abstract.MetaEnclosed(Seq.empty, Abstract.Construct(index, Seq.empty, Seq.empty))
+                        Abstract.MultiClosure(Seq.empty, Abstract.Construct(index, Seq.empty, Seq.empty))
                       } else throw FinishHitImplimentation()
                     case _ => throw FinishHitImplimentation()
                   }
@@ -830,7 +830,7 @@ class Elaborator private(protected override val layers: Layers)
     if (s.modifiers.contains(Declaration.Modifier.__Debug)) {
       val a = 1
     }
-    s match {
+    val ret = s match {
       case Declaration.Define(ms, name, ps, t0, v) =>
         // TODO implement with constructor
         //        if (ms.contains(Modifier.WithConstructor)) {
@@ -944,6 +944,10 @@ class Elaborator private(protected override val layers: Layers)
             ctx
         }
     }
+    if (s.modifiers.contains(Declaration.Modifier.__Debug)) {
+      ret.layers.head.asInstanceOf[Layer.Defines].terms.find(_.name == s.name).get.ref0.get.whnf
+    }
+    ret
   }
 
   private def checkDeclarations(seq0: Seq[Declaration], topLevel: Boolean): (Self, Seq[Abstract], Seq[Abstract]) = {

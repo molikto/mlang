@@ -76,7 +76,7 @@ trait ValueConversion {
 
 
   private def recConstructor(t1: Value, t2: Value, c1: Constructor, c2: Constructor, mode: Int = 0): Boolean = {
-    c1.name == c2.name && recClosureGraph(c1.nodes, c2.nodes, mode) && c1.dim == c2.dim && recValueSystemMultiClosure(choose(t1, t2, mode), c1.nodes, c1.dim, c1.res, c2.res)
+    c1.name == c2.name && recClosureGraph(c1.nodes, c2.nodes, mode) && c1.dim == c2.dim && recAbsMultiClosureSystem(choose(t1, t2, mode), c1.nodes, c1.dim, c1.res, c2.res)
   }
 
 
@@ -347,14 +347,16 @@ trait ValueConversion {
     }
   }
 
-  def recValueSystemMultiClosure(ty: Value, nodes: ClosureGraph, dim: Int, r1: ValueSystemMultiClosure, r2: ValueSystemMultiClosure): Boolean = {
+  def recAbsMultiClosureSystem(ty: Value, nodes: ClosureGraph, dim: Int, r1: AbsMultiClosureSystem, r2: AbsMultiClosureSystem): Boolean = {
     if (r1.eq(r2)) {
       true
     } else {
       // FIXME I think we should require all HIT has nominal equality
-      val a1 = r1(Seq.empty, Seq.empty)
-      val a2 = r2(Seq.empty, Seq.empty)
-      recValueSystem(ty, a1, a2)
+      val a1 = r1(Seq.empty)
+      val a2 = r2(Seq.empty)
+      forCompatibleAssignments(a1, a2) { (a, b1, b2) =>
+        recTerm(ty.restrict(a), b1(Seq.empty, Seq.empty).restrict(a), b2(Seq.empty, Seq.empty).restrict(a))
+      }
     }
   }
 

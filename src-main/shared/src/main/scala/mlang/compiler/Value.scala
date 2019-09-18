@@ -2,7 +2,7 @@ package mlang.compiler
 
 import mlang.compiler.GenLong.Negative.{dgen, gen}
 import mlang.compiler.Value.Formula.{Assignments, NormalForm}
-import mlang.compiler.Value.{AbsClosure, ValueSystemMultiClosure, _}
+import mlang.compiler.Value.{AbsClosure, AbsMultiClosureSystem, _}
 import mlang.utils.{Name, debug, warn}
 
 import scala.annotation.Annotation
@@ -152,15 +152,18 @@ object Value {
     def fswap(w: Long, z: Formula): MultiClosure = MultiClosure((d, k) => func(d, k).fswap(w, z))
   }
 
-  implicit class ValueSystemMultiClosure(private val func: (Seq[Value], Seq[Value.Formula]) => ValueSystem) extends AnyVal {
-    def supportShallow(): SupportShallow = func(Generic.HACKS, Formula.Generic.HACKS).supportShallow()
-    def eq(b: ValueSystemMultiClosure): Boolean = func.eq(b.func)
+  object AbsMultiClosureSystem {
+    val empty = AbsMultiClosureSystem(_ => Map.empty)
+  }
+  implicit class AbsMultiClosureSystem(private val func: Seq[Value.Formula] => MultiClosureSystem) extends AnyVal {
+    def supportShallow(): SupportShallow = MultiClosureSystem.supportShallow(func(Formula.Generic.HACKS))
+    def eq(b: AbsMultiClosureSystem): Boolean = func.eq(b.func)
     // def apply() = func(Seq.empty, Seq.empty)
-    def apply(seq: Seq[Value], ds: Seq[Formula]): ValueSystem = func(seq, ds)
-    def restrict(dav: Formula.Assignments): ValueSystemMultiClosure =
-      ValueSystemMultiClosure((v, d) => ValueSystem.restrict(this(v.map(a => Derestricted(a, dav)), d.map(a => Formula.Derestricted(a, dav))), dav))
-    def fswap(w: Long, z: Formula): ValueSystemMultiClosure =
-      ValueSystemMultiClosure((d, k) => ValueSystem.fswap(func(d, k), w, z))
+    def apply(ds: Seq[Formula]): MultiClosureSystem= func(ds)
+    def restrict(dav: Formula.Assignments): AbsMultiClosureSystem =
+      AbsMultiClosureSystem(d => MultiClosureSystem.restrict(this(d.map(a => Formula.Derestricted(a, dav))), dav))
+    def fswap(w: Long, z: Formula): AbsMultiClosureSystem =
+      AbsMultiClosureSystem(d => MultiClosureSystem.fswap(func(d), w, z))
   }
 
   implicit class Closure(private val func: Value => Value) extends AnyVal {
@@ -716,7 +719,7 @@ object Value {
   }
 
   case class Construct(name: Int, vs: Seq[Value], ds: Seq[Formula]) extends Canonical
-  case class Constructor(name: Name, nodes: ClosureGraph, dim: Int, res: ValueSystemMultiClosure) {
+  case class Constructor(name: Name, nodes: ClosureGraph, dim: Int, res: AbsMultiClosureSystem) {
     def restrict(lv: Assignments): Constructor = Constructor(name, ClosureGraph.restrict(nodes, lv), dim, res.restrict(lv))
     def fswap(w: Long, z: Formula): Constructor = Constructor(name, ClosureGraph.fswap(nodes, w, z), dim, res.fswap(w, z))
   }
@@ -817,6 +820,8 @@ object Value {
 
   type MultiClosureSystem = System[MultiClosure]
   object MultiClosureSystem {
+    val empty: MultiClosureSystem = Map.empty
+
     def supportShallow(faces: MultiClosureSystem): SupportShallow = {
       SupportShallow.flatten(faces.toSeq.map(f => f._2.supportShallow() +- f._1.names))
     }
@@ -906,6 +911,37 @@ object Value {
   def forward(A: AbsClosure, r: Formula, u: Value) =
     Transp(AbsClosure(i => A(Formula.Or(i, r))), r, u)
 
+  // transp(A, p, a(0)) -> a(1)   : A(1)
+  def squeeze(A: AbsClosure, a: AbsClosure, p: Formula) =
+    AbsClosure(i => Transp(AbsClosure(j => A(Formula.Or(i, j))), Formula.Or(p, i), a(i)))
+
+
+  def transpFill(graph0: ClosureGraph, graph: Formula => ClosureGraph, phi: Formula, base: Int => Value): Seq[Value.AbsClosure] = {
+    val closures = mutable.ArrayBuffer[AbsClosure]()
+    for (i <- graph0.indices) {
+      val res = graph0(i) match {
+        case _: ClosureGraph.Independent =>
+          AbsClosure(j => {
+            transpFill(j,
+              phi,
+              AbsClosure(k => graph(k)(i).independent.typ),
+              base(i)
+            )
+          })
+        case _: ClosureGraph.Dependent =>
+          AbsClosure(j => {
+            transpFill(j,
+              phi,
+              AbsClosure(k => {val tt = graph(k); ClosureGraph.get(tt, i, j => closures(j)(k))  }),
+              base(i)
+            )
+          })
+      }
+      closures.append(res)
+    }
+    closures.toSeq
+  }
+
   /**
     * whnf: tp on a generic value cannot reduce to a canonical, or base is not canonical in case sum type
     */
@@ -945,37 +981,33 @@ object Value {
             if (r.nodes.isEmpty) {
               Some(base)
             } else {
-              def tpr(i: Value.Formula) = tp(i).whnf.asInstanceOf[Record]
-              val closures = mutable.ArrayBuffer[AbsClosure]()
-              for (i <- r.nodes.indices) {
-                val res = r.nodes(i) match {
-                  case _: ClosureGraph.Independent =>
-                    AbsClosure(j => {
-                      transpFill(j,
-                        phi,
-                        AbsClosure(k => tpr(k).nodes(i).independent.typ),
-                        Projection(base, i)
-                      )
-                    })
-                  case _: ClosureGraph.Dependent =>
-                    AbsClosure(j => {
-                      transpFill(j,
-                        phi,
-                        AbsClosure(k => {val tt = tpr(k); ClosureGraph.get(tt.nodes, i, j => closures(j)(k))  }),
-                        Projection(base, i)
-                      )
-                    })
-                }
-                closures.append(res)
-              }
-              Some(Make(closures.toSeq.map(_.apply(Formula.True))))
+              def tpr(i: Value.Formula) = tp(i).whnf.asInstanceOf[Record].nodes
+              val closures = transpFill(r.nodes, tpr, phi, i => Projection(base, i))
+              Some(Make(closures.map(_.apply(Formula.True))))
             }
           case s: Sum =>
             base.whnf match {
-              case Construct(f, ns, ds) =>
+              case Construct(c, vs, rs) =>
+                def tpr(i: Value.Formula) = tp(i).whnf.asInstanceOf[Sum].constructors(c)
+                val cc = s.constructors(c)
+                val theta = transpFill(cc.nodes, i => tpr(i).nodes, phi, vs)
+                val w1p = Construct(c, theta.map(_.apply(Formula.True)), rs)
+                 // FIXME these gets cannot be reified
+                val w1 = Hcomp(tp(Formula.True), w1p, Seq(
+                  (phi, AbsClosure(_ => base)),
+                  // we can use this because we know that cc.res only depends on rs, not i
+                  (Formula.Or(cc.res(rs).keys), {
+                    def alpha(e: AbsClosure) = {
+                      squeeze(tp, e, phi)
+                    }
+                    val e = AbsClosure(i => tpr(i).res(rs).find(_._1.normalFormTrue).get._2(theta.map(_.apply(i)), Seq.empty))
+                    AbsClosure(i => alpha(e)(Formula.Neg(i)))
+                  })
+                ).toMap)
+                Some(w1)
               case _ =>
+                None
             }
-            ???
           case g: GlueType =>
             Some(transpGlue(g, dim, phi, base))
           case _: Universe =>
@@ -1023,7 +1055,7 @@ object Value {
     def pair(trueFace: Value) = {
       val w = Projection(trueFace, 1)
       val compo = App(Projection(w, 1), a1) // is_contractible(fiber_at(w(i/1).1, a1))
-      Comp(AbsClosure(i => A(i)), Projection(compo, 0),
+      Hcomp(Apps(BuiltIn.fiber_at, Seq(Projection(trueFace, 0), A1, Projection(w, 0), a1)), Projection(compo, 0),
         Seq(
           (si, AbsClosure(i => {
             val u = Make(Seq(u0, PathLambda(AbsClosure(_ => a1))))
@@ -1040,7 +1072,7 @@ object Value {
       Seq(
         (phi1, AbsClosure(j => {
           val bd = B1.faces.find(_._1.normalFormTrue).get._2
-          PathApp(Projection(pair(bd), 1), j)
+          PathApp(Projection(pair(bd), 1), Formula.Neg(j)) // alpha is of type f(t1p) == a1
         })),
         (si, AbsClosure(j => a1))).toMap)
     Glue(a1p, Seq((phi1, Projection(pair(B1.faces.find(_._1.normalFormTrue).get._2), 0))).toMap)
@@ -1069,8 +1101,29 @@ object Value {
     override def reduce(): Option[Value] =
       Some(Hcomp(
         tp(Formula.True),
-        forward(tp, Formula.False, base),
+        Transp(tp, Formula.False, base),
         faces.view.mapValues(f => AbsClosure(i => forward(tp, i, f(i)))).toMap))
+  }
+
+
+  def hcompGraph(cs: ClosureGraph, faces: AbsClosureSystem, base: Value, map: (Value, Int) => Value): Seq[Value] = {
+    val closures = mutable.ArrayBuffer[AbsClosure]()
+    for (i <- cs.indices) {
+      val res = cs(i) match {
+        case in: ClosureGraph.Independent =>
+          hfill(in.typ, map(base, i),
+            faces.view.mapValues(_.map(a => map(a, i))).toMap
+          )
+        case com: ClosureGraph.Dependent =>
+          fill(
+            AbsClosure(k => ClosureGraph.get(cs, i, j => closures(j)(k))),
+            map(base, i),
+            faces.view.mapValues(_.map(a => map(a, i))).toMap
+          )
+      }
+      closures.append(res)
+    }
+    closures.toSeq.map(_.apply(Formula.True))
   }
 
   /**
@@ -1092,27 +1145,11 @@ object Value {
                ).toMap))))
             case Function(_, _, b) =>
                Some(Lambda(Closure(v => Hcomp(b(v), App(base, v), faces.view.mapValues(_.map(j => App(j, v))).toMap))))
-            case Record(i, ns, cs) =>
+            case Record(_, _, cs) =>
               if (cs.isEmpty) {
                 Some(base)
               } else {
-                val closures = mutable.ArrayBuffer[AbsClosure]()
-                for (i <- cs.indices) {
-                  val res = cs(i) match {
-                    case in: ClosureGraph.Independent =>
-                      hfill(in.typ, Projection(base, i),
-                        faces.view.mapValues(_.map(a => Projection(a, i))).toMap
-                      )
-                    case com: ClosureGraph.Dependent =>
-                      fill(
-                        AbsClosure(k => ClosureGraph.get(cs, i, j => closures(j)(k))),
-                        Projection(base, i),
-                        faces.view.mapValues(_.map(a => Projection(a, i))).toMap
-                      )
-                  }
-                  closures.append(res)
-                }
-                Some(Make(closures.toSeq.map(_.apply(Formula.True))))
+                Some(Make(hcompGraph(cs, faces, base, (v, i) => Projection(v, i))))
               }
             case u: Universe =>
               val res = Glue(tp, faces.view.mapValues({ f =>
@@ -1121,7 +1158,27 @@ object Value {
                 Make(Seq(B, Apps(BuiltIn.path_to_equiv, Seq(B, A, PathLambda(AbsClosure(a => f(Formula.Neg(a))))))))
               }).toMap)
               Some(res)
-            case Sum(i, cs) => ???
+            case Sum(i, cs) =>
+              base.whnf match {
+                case cc@Construct(c, vs, ds) =>
+                  val cstr = cs(c)
+                  if (ds.isEmpty) {
+                    val reduciable = faces.forall(f => {
+                      f._1.normalForm.filter(Value.Formula.Assignments.satisfiable).forall(asg => {
+                        f._2(Value.Formula.Generic(dgen())).restrict(asg).whnf match {
+                          case Construct(c2, _, _) => c2 == c // all faces under a generic dimension, reduce to same 0-order constructor
+                          case _ => false
+                        }
+                      })
+                    })
+                    // it is safe to call whnf here, because 0-order constructor is cubical stable
+                    val res = Construct(c, hcompGraph(cstr.nodes, faces, cc, (b, i) => b.whnf.asInstanceOf[Construct].vs(i)), Seq.empty)
+                    Some(res)
+                  } else {
+                    None
+                  }
+                case _ => None
+              }
             case g: GlueType =>
               Some(hcompGlue(g, base, faces))
             case _: Internal => logicError()
@@ -1344,6 +1401,17 @@ sealed trait Value {
   private[Value] var _from: Value = _
   private[Value] var _whnfCache: Object = _
 
+
+  def bestValue: Value = this match {
+    case r: Reference => r
+    case g: GlobalReference => g
+    case Meta(Value.MetaState.Closed(v)) =>
+      v match {
+        case r: Referential => r.bestValue
+        case _ => this
+      }
+    case v => v.fromOrThis
+  }
   def fromOrThis: Value = if (_from == null) this else _from
 
   // it is ensured that if the value is not reducable, it will return the same reference
@@ -1447,7 +1515,7 @@ sealed trait Value {
         case Glue(base, faces) =>
           faces.find(_._1.normalFormTrue).map(_._2.whnf).getOrElse(this)
         case Unglue(ty, base, faces) =>
-          val red = faces.find(_._1.normalFormTrue).map(b => App(Projection(b._2, 1), base).whnf)
+          val red = faces.find(_._1.normalFormTrue).map(b => App(Projection(Projection(b._2, 1), 0), base).whnf)
           red match {
             case Some(a) => a
             case None =>
@@ -1464,8 +1532,12 @@ sealed trait Value {
       // is from us
       // TODO these are already defined ones, think more about this
       if (!candidate.eq(candidate._from)) {
-        if (!candidate.eq(this)) {
-          candidate._from = this
+        var from = candidate
+        while (from._from.eq(null) && from._from.eq(from)) {
+          from = from._from
+        }
+        if (!from.eq(from._from)) {
+          from._from = this
         }
       }
       val cache = candidate match {
@@ -1541,6 +1613,12 @@ sealed trait Value {
     }
   }
 
+
+  def demeta(): Value = this match {
+    case Meta(c: MetaState.Closed) => c.v.demeta()
+    case _: Internal => logicError()
+    case _ => this
+  }
 
   def deref(): Value = this match {
     case r: Reference => r.value.deref()

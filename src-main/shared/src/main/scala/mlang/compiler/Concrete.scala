@@ -109,6 +109,7 @@ object Concrete {
 
     sealed trait Single extends Declaration  {
       def modifiers: Seq[Modifier]
+      def name: Name
     }
     case class Define(modifiers: Seq[Modifier], name: Name, parameters: Seq[NameType], typ: Option[Concrete], term: Concrete) extends Single
     // depending on our algorithm, recursive ones might not need to declare first

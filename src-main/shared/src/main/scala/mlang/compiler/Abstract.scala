@@ -101,9 +101,10 @@ object Abstract {
   case class Projection(left: Abstract, field: Int) extends Abstract
   case class Make(vs: Seq[Abstract]) extends Abstract
 
-  case class Constructor(name: Name, params: ClosureGraph, dim: Int, restrictions: EnclosedSystem) {
-    def dependencies(i: Int): Set[Dependency] = params.flatMap(_.dependencies(i)).toSet ++ EnclosedSystem.dependencies(restrictions, i)
-    def diff(depth: Int, x: Int): Constructor = Constructor(name, params.map(_.diff(depth, x)), dim, EnclosedSystem.diff(restrictions, depth, x))
+  // this restriction multi closure system lives 1 level bellow
+  case class Constructor(name: Name, params: ClosureGraph, dim: Int, restrictions: MultiClosureSystem) {
+    def dependencies(i: Int): Set[Dependency] = params.flatMap(_.dependencies(i)).toSet ++ MultiClosureSystem.dependencies(restrictions, i + 1)
+    def diff(depth: Int, x: Int): Constructor = Constructor(name, params.map(_.diff(depth, x)), dim, MultiClosureSystem.diff(restrictions, depth + 1, x))
   }
   case class Sum(inductively: Option[Inductively], constructors: Seq[Constructor]) extends Abstract
   case class Case(pattern: Pattern, body: MultiClosure)
@@ -129,13 +130,13 @@ object Abstract {
     def dependencies(s: EnclosedSystem, i: Int): Set[Dependency] = s.values.flatten(_.dependencies(i)).toSet
   }
 
-//  type MultiClosureSystem = System[MultiClosure]
-//  object MultiClosureSystem {
-//    // TODO copied code, same in value
-//    def diff(s: MultiClosureSystem, depth: Int, x: Int): MultiClosureSystem =
-//      s.map(a => (a._1.diff(depth, x), a._2.diff(depth, x)))
-//    def dependencies(s: MultiClosureSystem, i: Int): Set[Dependency] = s.values.flatten(_.dependencies(i)).toSet
-//  }
+  type MultiClosureSystem = System[MultiClosure]
+  object MultiClosureSystem {
+    // TODO copied code, same in value
+    def diff(s: MultiClosureSystem, depth: Int, x: Int): MultiClosureSystem =
+      s.map(a => (a._1.diff(depth, x), a._2.diff(depth, x)))
+    def dependencies(s: MultiClosureSystem, i: Int): Set[Dependency] = s.values.flatten(_.dependencies(i)).toSet
+  }
 
   case class Transp(tp: AbsClosure, direction: Formula, base: Abstract) extends Abstract
   case class Hcomp(tp: Abstract, base: Abstract, faces: AbsClosureSystem) extends Abstract
