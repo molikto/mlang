@@ -1,6 +1,6 @@
 
 
-define join(A B: type) = sum {
+define join(A B: type): type = sum {
   case inl(a: A)
   case inr(b: B)
   case push(a: A, b: B, i: I |~i: inl(a) |i: inr(b))
@@ -8,13 +8,25 @@ define join(A B: type) = sum {
 
 
 
+// S1_join_S1 related
 
-define S1_join_S1 = join(S1, S1)
-
-define S1_join_S1_poined = pointed.make(@S1_join_S1, join.inl(S1.base))
+define join_S1 = join(S1, S1)
 
 
-define alpha: S1_join_S1 ⇒ S2 =
+define facek01(i j k: I): join_S1 =
+  hfill(join.push(S1.base, S1.base, ~k)
+  |~j: l → join.push(S1.base, S1.base, (~l)∧(~k))
+  | i: l → join.push(S1.base, S1.base, (~l)∧(~k))
+  |~k: l → join.push(S1.loop(j), base, (~l))
+  | k: l → join.inl(S1.base)
+  )(i)
+
+
+
+define join_S1_poined = pointed.make(@join_S1, join.inl(S1.base))
+
+
+define alpha: join_S1 ⇒ S2 =
 ┌ inl(s) → S2.base
 ├ inr(s) → S2.base
 └ push(x, y, i) → run {
@@ -26,13 +38,15 @@ define alpha: S1_join_S1 ⇒ S2 =
   }
 
 
+/*
 define the_problem = run {
   define test_0_to_2: loop_space_3(S3_pointed).A =
     i → j → k → S3.surf(i, j, k)
 
-  define S3_to_S1_join_S1: S3 ⇒ S1_join_S1 =
-  ┌ base → S1_join_S1.inl(S1.base)
+  define S3_to_join_S1: S3 ⇒ join_S1 =
+  ┌ base → join_S1.inl(S1.base)
   └ surf(i, j, k) →
-  define f3: loop_space_3(S3_pointed).A ⇒ loop_space_3(S1_join_S1_pointed).A =
+  define f3: loop_space_3(S3_pointed).A ⇒ loop_space_3(join_S1_pointed).A =
     p → i → j → k →
 }
+*/

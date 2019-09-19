@@ -32,6 +32,14 @@ trait ElaboratorContextWithMetaOps extends ElaboratorContextBase {
     Abstract.MetaReference(0, index)
   }
 
+  def clearMetas() = {
+    val ms = layers.head.metas
+    if (!ms.debug_allFrozen) logicError()
+    if (ms.debug_final) logicError()
+    ms.frozen = 0
+    ms.metas.clear()
+  }
+
   protected def newMeta(typ: Value): (Value.Meta, Abstract.MetaReference) = {
     val id = mgen()
     val v = Value.Meta(Value.MetaState.Open(id, typ))

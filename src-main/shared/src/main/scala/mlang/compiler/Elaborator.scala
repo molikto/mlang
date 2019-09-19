@@ -55,6 +55,7 @@ class Elaborator private(protected override val layers: Layers)
         with DebugPrettyPrinter
         with Evaluator with PlatformEvaluator with MetaSolver {
 
+
   override type Self = Elaborator
   override protected implicit def create(a: Layers): Self = new Elaborator(a)
 
@@ -176,7 +177,7 @@ class Elaborator private(protected override val layers: Layers)
       }
     }
     val ctx = newParametersLayer()
-    val (fl, fs) = ctx.inferFlatLevel(NameType.flatten(fields))
+    val (fl, fs, _) = ctx.inferFlatLevel(NameType.flatten(fields))
     (Value.Universe(fl), Abstract.Record(
       ind,
       fs.map(_._1),
@@ -202,7 +203,9 @@ class Elaborator private(protected override val layers: Layers)
       val is = seq.drop(tpd.size)
       for (i <- is) if (i._1) throw ElaboratorException.DimensionLambdaCannotBeImplicit()
       val iss = is.map(_._2)
-      val (ll, tt) = ctx.inferFlatLevel(tpd)
+      val (ll, tt, gs) = ctx.inferFlatLevel(tpd)
+      ctx.clearMetas()
+      val closureGraph = tt.zipWithIndex.map(kk => Abstract.ClosureGraph.Node(kk._1._2, 0 until kk._2, kk._1._3))
       def checkRestrictions(sv: Value): Seq[(Abstract.Formula, Abstract.MultiClosure)] = {
         // NOW: check extensions
         val (dimCtx, dims) = iss.foldLeft((ctx, Seq.empty[Long])) { (ctx, n) =>
@@ -213,6 +216,7 @@ class Elaborator private(protected override val layers: Layers)
         c.restrictions.map(r => {
           val (dv, da) = ctx.checkAndEvalFormula(r.dimension)
           val rctx = ctx.newReifierRestrictionLayer(dv)
+          val pctx = rctx.newParametersLayer()
           val bd = rctx.check(r.term, sv)
           val res = Abstract.MultiClosure(rctx.finishReify(), bd)
           (da, res)
@@ -229,8 +233,12 @@ class Elaborator private(protected override val layers: Layers)
         if (c.restrictions.nonEmpty) throw ElaboratorException.HitContainingExternalDimension()
         else Map.empty
       }
-      val closureGraph = tt.zipWithIndex.map(kk => Abstract.ClosureGraph.Node(kk._1._2, 0 until kk._2, kk._1._3))
-      ctx = ctx.newConstructor(c.name, eval(closureGraph), is.size)
+      selfValue match {
+        case Some(_) =>
+          ctx = ctx.newConstructor(c.name, eval(closureGraph), is.size)
+        case None =>
+          ctx = newParametersLayer(None) // here we don't use ctx anymore, because we are not remembering the previous constructors
+      }
       (c.name, ll, closureGraph, iss.size, es)
     })
     val fl = fs.map(_._2).max
@@ -502,8 +510,9 @@ class Elaborator private(protected override val layers: Layers)
     }
   }
 
-  private def inferFlatLevel(fs: Concrete.NameType.FlatSeq): (Int, Seq[(Name, Boolean, Abstract.MetaEnclosed)]) = {
+  private def inferFlatLevel(fs: Concrete.NameType.FlatSeq): (Int, Seq[(Name, Boolean, Abstract.MetaEnclosed)], Seq[Value.Generic]) = {
     var ctx = this
+    var gs = Seq.empty[Value.Generic]
     var l = 0
     // TODO it used be like this, but I forget what it is for
     // if (fs.map(_._2).toSet.size != fs.size) throw ElaboratorException.AlreadyDeclared()
@@ -511,10 +520,12 @@ class Elaborator private(protected override val layers: Layers)
       val (fl, fa) = ctx.inferLevel(n._3)
       l = l max fl
       val ms = ctx.freezeReify()
-      ctx = ctx.newParameter(n._2, ctx.eval(fa))._1
+      val (ctx1, g) = ctx.newParameter(n._2, ctx.eval(fa))
+      ctx = ctx1
+      gs = gs :+ g
       (n._2, n._1, Abstract.MetaEnclosed(ms, fa))
     })
-    (l, fas)
+    (l, fas, gs)
   }
 
 
