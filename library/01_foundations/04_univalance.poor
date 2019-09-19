@@ -6,6 +6,6 @@ define ua(#A #B: type, e: equiv(A, B)): A ≡ B =
   i → glue_type(B |~i: make(A, e) |i: make(B, id_equiv(B)))
 
 /*
-define univalence(B: type): is_contractible(equivs(B)) =
+define univalence(B: type): is_contr(equivs(B)) =
   make(make(B, id_equiv(B)), ???)
 */

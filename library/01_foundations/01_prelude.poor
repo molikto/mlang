@@ -1,4 +1,5 @@
 
+
 define id(#A: type, a: A): A = a
 
 define refl(#A: type, #a: A): a ≡ a = i → a
@@ -81,6 +82,16 @@ define path_map(#A: type, #B: A ⇒ type, f: (x: A) ⇒ B(x), #x #y: A, p: x ≡
 define is_prop(A: type): type = (a b: A) ⇒ a ≡ b
 
 
+define is_prop_is_contr(#A: type): is_prop(is_contr(A)) =
+  z0 → z1 → j →
+    make(
+      z0.to_center(z1.center)(j),
+      x → i → hcomp(z0.to_center(z1.to_center(x)(i))(j)
+      |~i: k → z0.to_center(z1.center)(j)
+      | i: k → z0.to_center(x)(j∨k)
+      |~j: k → z0.to_center(x)(i∧k)
+      | j: k → z1.to_center(x)(i)
+      ))
 
 /* TODO local match expression or with expression
 
@@ -91,7 +102,7 @@ define inductively h_level: type = sum {
 
 define is_h_level:
   h_level          ⇒ (type ⇒ type) =
-┌ contractible     → is_contractible
+┌ contractible     → is_contr
 └ suc(b) → match(b,
     ┌ contractible → is_prop
     └ suc(c)       → A → (x y: A) ⇒ is_h_level(b)(x ≡ y))
@@ -105,8 +116,8 @@ define singleton(#A: type, center: A) = record {
 }
 
 /* TODO incomplete
-define singleton_is_contractible(#A: type, center: A):
-   is_contractible(singleton(center)) =
+define singleton_is_contr(#A: type, center: A):
+   is_contr(singleton(center)) =
    make(make(center, refl), a → j → ???)
 */
 

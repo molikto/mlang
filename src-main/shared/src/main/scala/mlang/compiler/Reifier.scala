@@ -16,7 +16,11 @@ private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorCon
 
   val metas = mutable.ArrayBuffer.empty[Abstract]
 
-  protected def reifyMetas(): Seq[Abstract] = metas.toSeq
+  protected def reifyMetas(): Seq[Abstract] = {
+    val res = metas.toSeq.drop(layers.head.metas.freezeSize)
+    freeze()
+    res
+  }
 
   def reifyReference(r: Value.Reference): Abstract.Reference = {
     rebindReference(r) match {
@@ -110,23 +114,11 @@ private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorCon
   }
 
   def reifyAbsClosureSystem(faces: Value.AbsClosureSystem) =
-    faces.toSeq.map(r => (reify(r._1), newReifierRestrictionLayer(r._1).reify(r._2))).toMap
+    if (faces.isEmpty) Map.empty : Abstract.AbsClosureSystem else faces.toSeq.map(r => (reify(r._1), newReifierRestrictionLayer(r._1).reify(r._2))).toMap
 
   def reifyEnclosedSystem(faces: Value.ValueSystem) =
-    faces.toSeq.map(r => (reify(r._1), newReifierRestrictionLayer(r._1).reifyMetaEnclosed(r._2))).toMap
+    if (faces.isEmpty) Map.empty : Abstract.EnclosedSystem else faces.toSeq.map(r => (reify(r._1), newReifierRestrictionLayer(r._1).reifyMetaEnclosed(r._2))).toMap
 
-  def reifyClosureSystem(faces: Value.ClosureSystem) =
-    faces.toSeq.map(r => (reify(r._1), newReifierRestrictionLayer(r._1).reify(r._2))).toMap
-
-  def reifyMultiClosureSystem(size: (Int, Int), faces: Value.MultiClosureSystem) =
-    faces.toSeq.map(r => (reify(r._1), newReifierRestrictionLayer(r._1).reify(size, r._2))).toMap
-
-  def reifyAbsInsideMultiClosureSystem(vs: Seq[Value], faces: Value.MultiClosureSystem) =
-    faces.toSeq.map(r => (reify(r._1), {
-      val ctx = newReifierRestrictionLayer(r._1)
-      val ta = ctx.reify(r._2(vs, Seq.empty))
-      Abstract.MultiClosure(ctx.reifyMetas(), ta)
-    })).toMap
 
   def reify(v: Value): Abstract = {
     v match {
@@ -172,8 +164,8 @@ private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorCon
         App(reify(lambda), reify(stuck))
       case Value.Make(vs) =>
         Make(vs.map(reify))
-      case Value.Construct(f, vs, ds) =>
-        Construct(f, vs.map(reify), ds.map(reify))
+      case Value.Construct(f, vs, ds, ty) =>
+        Construct(f, vs.map(reify), ds.map(reify), reifyEnclosedSystem(ty))
       case Value.PathApp(left, stuck) =>
         PathApp(reify(left), reify(stuck))
       case Value.Transp(tp, dir, base) =>

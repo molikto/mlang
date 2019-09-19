@@ -16,6 +16,8 @@ class MetasState(val metas: mutable.ArrayBuffer[(Name, Value.Meta)], var frozen:
     vs.map(_._2).toSeq
   }
 
+  def freezeSize = frozen
+
   def apply(i: Int): Value.Meta = metas(i)._2
 
   var debug_final = false

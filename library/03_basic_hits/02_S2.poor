@@ -1,6 +1,6 @@
 
 
-define inductively S2: type = sum {
+define S2: type = sum {
   case base
   case surf(i j: I |~i: base |i: base |~j: base |j: base)
 }

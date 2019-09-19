@@ -455,9 +455,9 @@ object Value {
   }
 
   private[Value] case class SupportShallow(names: Set[Long], references: Set[Referential]) {
-    def ++(s: SupportShallow) = SupportShallow(names ++ s.names, references ++ s.references)
-    def ++(s: Set[Referential]) = SupportShallow(names, references ++ s)
-    def +-(s: Set[Long]) = SupportShallow(names ++ s, references)
+    def ++(s: SupportShallow) = if (s == SupportShallow.empty) this else SupportShallow(names ++ s.names, references ++ s.references)
+    def ++(s: Set[Referential]) = if (s.isEmpty) this else  SupportShallow(names, references ++ s)
+    def +-(s: Set[Long]) = if (s.isEmpty) this else SupportShallow(names ++ s, references)
   }
 
   object SupportShallow {
@@ -742,8 +742,10 @@ object Value {
             }
           case Pattern.Construct(name, pt) =>
             v.whnf match {
-              case Construct(n, values, dms) if name == n =>
-                assert(values.size + dms.size == pt.size)
+              case Construct(n, values, dms, _) if name == n =>
+                if (values.size + dms.size != pt.size) {
+                  logicError()
+                }
                 val dps = pt.drop(values.size)
                 assert(dps.forall(_ == Pattern.GenericDimension))
                 val ret = pt.take(values.size).zip(values).forall(pair => rec(pair._1, pair._2))
@@ -816,7 +818,8 @@ object Value {
     }
   }
 
-  case class Construct(name: Int, vs: Seq[Value], ds: Seq[Formula]) extends UnstableCanonical
+  // ty == null when ds.isEmpty
+  case class Construct(name: Int, vs: Seq[Value], ds: Seq[Formula], @type_annotation ty: ValueSystem) extends UnstableCanonical
   case class Constructor(name: Name, nodes: ClosureGraph) {
     def restrict(lv: Assignments): Constructor = Constructor(name, nodes.restrict(lv))
     def fswap(w: Long, z: Formula): Constructor = Constructor(name, nodes.fswap(w, z))
@@ -949,6 +952,7 @@ object Value {
 
   type AbsClosureSystem = System[AbsClosure]
   object AbsClosureSystem {
+    val empty: AbsClosureSystem = Map.empty
     def supportShallow(faces: AbsClosureSystem): SupportShallow = {
       SupportShallow.flatten(faces.toSeq.map(f => f._2.supportShallow() +- f._1.names))
     }
@@ -1085,11 +1089,11 @@ object Value {
             }
           case s: Sum =>
             base.whnf match {
-              case Construct(c, vs, rs) =>
+              case Construct(c, vs, rs, d) =>
                 def tpr(i: Value.Formula) = tp(i).whnf.asInstanceOf[Sum].constructors(c)
                 val cc = s.constructors(c)
                 val theta = transpFill(cc.nodes, i => tpr(i).nodes, phi, vs)
-                val w1p = Construct(c, theta.map(_.apply(Formula.True)), rs)
+                val w1p = Construct(c, theta.map(_.apply(Formula.True)), rs, d)
                  // FIXME these gets cannot be reified
                 val item1 = (phi, AbsClosure(_ => base))
                 val item2 = if (cc.nodes.dimSize != 0) Seq(
@@ -1152,7 +1156,7 @@ object Value {
     // ..., phi(i/1) |- (t1`, alpha) // true face must have (i/1)
     def pair(trueFace: Value) = {
       val w = Projection(trueFace, 1)
-      val compo = App(Projection(w, 1), a1) // is_contractible(fiber_at(w(i/1).1, a1))
+      val compo = App(Projection(w, 1), a1) // is_contr(fiber_at(w(i/1).1, a1))
       Hcomp(Apps(BuiltIn.fiber_at, Seq(Projection(trueFace, 0), A1, Projection(w, 0), a1)), Projection(compo, 0),
         Seq(
           (si, AbsClosure(i => {
@@ -1258,19 +1262,19 @@ object Value {
               Some(res)
             case Sum(i, cs) =>
               base.whnf match {
-                case cc@Construct(c, vs, ds) =>
+                case cc@Construct(c, vs, ds, ty) =>
                   val cstr = cs(c)
                   if (ds.isEmpty) {
                     val reduciable = faces.forall(f => {
                       f._1.normalForm.filter(Value.Formula.Assignments.satisfiable).forall(asg => {
                         f._2(Value.Formula.Generic(dgen())).restrict(asg).whnf match {
-                          case Construct(c2, _, _) => c2 == c // all faces under a generic dimension, reduce to same 0-order constructor
+                          case Construct(c2, _, _, _) => c2 == c // all faces under a generic dimension, reduce to same 0-order constructor
                           case _ => false
                         }
                       })
                     })
                     // it is safe to call whnf here, because 0-order constructor is cubical stable
-                    val res = Construct(c, hcompGraph(cstr.nodes, faces, cc, (b, i) => b.whnf.asInstanceOf[Construct].vs(i)), Seq.empty)
+                    val res = Construct(c, hcompGraph(cstr.nodes, faces, cc, (b, i) => b.whnf.asInstanceOf[Construct].vs(i)), Seq.empty, Map.empty)
                     Some(res)
                   } else {
                     None
@@ -1375,8 +1379,8 @@ sealed trait Value {
     case Record(inductively, names, nodes) =>
       SupportShallow.orEmpty(inductively.map(_.supportShallow())) ++ nodes.supportShallow()
     case Make(values) => SupportShallow.flatten(values.map(_.supportShallow()))
-    case Construct(name, vs, ds) =>
-      SupportShallow.flatten(vs.map(_.supportShallow()) ++ ds.map(_.supportShallow()))
+    case Construct(name, vs, ds, ty) =>
+      SupportShallow.flatten(vs.map(_.supportShallow()) ++ ds.map(_.supportShallow())) ++ ValueSystem.supportShallow(ty)
     case Sum(inductively, constructors) =>
       SupportShallow.orEmpty(inductively.map(_.supportShallow())) ++ SupportShallow.flatten(constructors.map(a => a.nodes.supportShallow()))
     case PathType(typ, left, right) =>
@@ -1405,7 +1409,7 @@ sealed trait Value {
     case Record(inductively, ns, nodes) =>
       Record(inductively.map(_.fswap(w, z)), ns, nodes.fswap(w, z))
     case Make(values) => Make(values.map(_.fswap(w, z)))
-    case Construct(name, vs, ds) => Construct(name, vs.map(_.fswap(w, z)), ds.map(_.fswap(w, z)))
+    case Construct(name, vs, ds, ty) => Construct(name, vs.map(_.fswap(w, z)), ds.map(_.fswap(w, z)), ValueSystem.fswap(ty, w, z))
     case Sum(inductively, constructors) =>
       Sum(inductively.map(_.fswap(w, z)), constructors.map(_.fswap(w, z)))
     case Lambda(closure) => Lambda(closure.fswap(w, z))
@@ -1438,8 +1442,8 @@ sealed trait Value {
       Record(inductively.map(_.restrict(lv)), ns, nodes.restrict(lv))
     case Make(values) =>
       Make(values.map(_.restrict(lv)))
-    case Construct(name, vs, ds) =>
-      Construct(name, vs.map(_.restrict(lv)), ds.map(_.restrict(lv)))
+    case Construct(name, vs, ds, ty) =>
+      Construct(name, vs.map(_.restrict(lv)), ds.map(_.restrict(lv)), ValueSystem.restrict(ty, lv))
     case Sum(inductively, constructors) =>
       Sum(inductively.map(_.restrict(lv)), constructors.map(_.restrict(lv)))
     case Lambda(closure) =>
@@ -1510,7 +1514,7 @@ sealed trait Value {
     case v =>
       // we just retrace to the "literal" value, which is best for us?
       var i = v
-      while (i._from.eq(null) && i._from.eq(i)) i = i._from
+      while (!i._from.eq(null) && !i._from.eq(i)) i = i._from
       i
   }
 
@@ -1588,8 +1592,15 @@ sealed trait Value {
             case Projection(m2, f2) if make.eq(m2) && field == f2 => this
             case a => a
           }
-        case Construct(f, vs, ds) =>
-          ???
+        case c@Construct(f, vs, ds, ty) =>
+          if (ds.isEmpty) {
+            c
+          } else {
+            ty.find(_._1.normalFormTrue) match {
+              case Some(value) => value._2.whnf
+              case None => c
+            }
+          }
         case PathApp(left, dimension) =>
           // we MUST perform this, because this doesn't care
           PathApp(left.whnf, dimension).reduceThenWhnfOrSelf() match {

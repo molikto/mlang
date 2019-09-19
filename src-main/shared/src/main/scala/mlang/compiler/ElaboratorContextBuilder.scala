@@ -157,7 +157,9 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
           case _ =>
             val g = gen()
             val v = Value.Generic(g, typ)
-            assert(metas.debug_allFrozen)
+            if (!metas.debug_allFrozen) {
+              logicError()
+            }
             (Layer.ParameterGraph(alters, binders :+ ParameterBinder(name, v), ds, metas) +: layers.tail, v)
         }
       case _ => logicError()
@@ -205,7 +207,7 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
                 case sum: Value.Sum if { index = sum.constructors.indexWhere(c => c.name.by(ref)); index >= 0 } =>
                   val c = sum.constructors(index)
                   if (c.nodes.isEmpty && c.nodes.dimSize == 0) {
-                    ret = (Value.Construct(index, Seq.empty, Seq.empty), Pattern.Construct(index, Seq.empty))
+                    ret = (Value.Construct(index, Seq.empty, Seq.empty, Map.empty), Pattern.Construct(index, Seq.empty))
                   } else {
                     throw PatternExtractException.ConstructWrongSize()
                   }
@@ -245,7 +247,10 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
                   val names = dPs.map(_.asInstanceOf[Concrete.Pattern.Atom].id)
                   val ds = names.map(n => DimensionBinder(n, Value.Formula.Generic(dgen())))
                   vvv.appendAll(ds)
-                  (Value.Construct(index, vs.map(_._1), ds.map(_.value)), Pattern.Construct(index, vs.map(_._2)))
+                  val vvs = vs.map(_._1)
+                   val dds = ds.map(_.value)
+                  (Value.Construct(index, vvs, dds, if (dds.isEmpty) Map.empty else c.nodes.reduceAll(vvs).reduce(dds).restrictions()),
+                    Pattern.Construct(index, vs.map(_._2) ++ ds.map(_ => Pattern.GenericDimension)))
                 } else {
                   throw PatternExtractException.ConstructWrongSize()
                 }

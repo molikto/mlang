@@ -423,7 +423,7 @@ trait ValueConversion {
           recTerm(ty(c), PathApp(s1, c), PathApp(s2, c))
         case (r: Record, m1, m2) =>
           recGraphValuePart(r.nodes, i => Projection(m1, i), i => Projection(m2, i))
-        case (s: Sum, Construct(n1, v1, d1), Construct(n2, v2, d2)) =>
+        case (s: Sum, Construct(n1, v1, d1, _), Construct(n2, v2, d2, _)) =>
           n1 == n2 && { val c = s.constructors(n1) ;
             assert(c.nodes.size == v1.size && c.nodes.dimSize == d1.size && v2.size == v1.size && d1.size == d2.size)
             recGraphValuePart(c.nodes, v1, v2) && d1.zip(d2).forall(p => p._1.normalForm == p._2.normalForm)
@@ -467,7 +467,7 @@ trait ValueConversion {
     val vs = mutable.ArrayBuffer[Generic]()
     val ds = mutable.ArrayBuffer[Formula.Generic]()
 
-    def recs(maps: Seq[Pattern], graph0: ClosureGraph): Seq[Value]  = {
+    def recs(maps: Seq[Pattern], graph0: ClosureGraph): (Seq[Value], ClosureGraph)  = {
       var graph = graph0
       var vs =  Seq.empty[Value]
       for (i  <- maps.indices) {
@@ -476,7 +476,7 @@ trait ValueConversion {
         graph = graph.reduce(i, tv)
         vs = vs :+ tv
       }
-      vs
+      (vs, graph)
     }
 
     def rec(p: Pattern, t: Value): Value = {
@@ -490,7 +490,7 @@ trait ValueConversion {
           t.whnf match {
             case r: Record  =>
               if (maps.size == r.nodes.size) {
-                Make(recs(maps, r.nodes))
+                Make(recs(maps, r.nodes)._1)
               } else {
                 logicError()
               }
@@ -503,7 +503,8 @@ trait ValueConversion {
               if (c.nodes.dimSize + c.nodes.size == maps.size) {
                 val ret = (0 until c.nodes.dimSize).map(_ => Formula.Generic(dgen()))
                 ds.appendAll(ret)
-                Construct(name, recs(maps.take(c.nodes.size), c.nodes), ret)
+                val (vs, cl) = recs(maps.take(c.nodes.size), c.nodes)
+                Construct(name, vs, ret, if (ret.size == 0) Map.empty else cl.reduce(ret).restrictions())
               } else {
                 logicError()
               }

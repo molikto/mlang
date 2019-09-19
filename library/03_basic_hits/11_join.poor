@@ -1,0 +1,78 @@
+
+
+define join(A B: type): type = sum {
+  case inl(a: A)
+  case inr(b: B)
+  case push(a: A, b: B, i: I |~i: inl(a) |i: inr(b))
+}
+
+
+
+// S1_join_S1 related
+
+define join_S1 = join(S1, S1)
+
+
+
+define facek01(i j k: I): join_S1 =
+  hfill(join_S1.push(S1.base, S1.base, ~k)
+  |~j: l → join_S1.push(S1.base, S1.base, (~l)∧(~k))
+  | j: l → join_S1.push(S1.base, S1.base, (~l)∧(~k))
+  |~k: l → join_S1.push(S1.loop(j), S1.base, (~l))
+  | k: l → join_S1.inl(S1.base)
+  )(i)
+
+// TODO support border k or, or expressions in partial elements
+define border_contraction(i j k m: I): join_S1 =
+  hfill(join_S1.push(S1.loop(j), S1.loop(k), i)
+  |~i: l → facek01(1, j, l)
+  | i: l → join_S1.push(S1.base, S1.loop(k), ~l)
+  |~j: l → join_S1.push(S1.base, S1.loop(k), (i)∧(~l))
+  | j: l → join_S1.push(S1.base, S1.loop(k), (i)∧(~l))
+  |~k: l → facek01(~i, j, l)
+  | k: l → facek01(~i, j, l)
+  )(m)
+
+
+define S3_to_join_S1
+: S3 ⇒ join_S1 =
+┌ base → join_S1.inl(S1.base)
+└ surf(j, k, i) → border_contraction(i, j, k, 1)
+
+
+define join_S1_pointed = pointed.make(@join_S1, join_S1.inl(S1.base))
+
+
+define alpha: join_S1 ⇒ S2 =
+┌ inl(s) → S2.base
+├ inr(s) → S2.base
+└ push(x, y, i) → run {
+    define merid:
+    S1 ⇒ S2.base ≡ S2.base =
+    ┌ base → refl
+    └ loop(i) → j → S2.surf(i, j)
+    path_compose(merid(y), merid(x))(i)
+  }
+
+define test_0_to_2: loop_space_3(S3_pointed).A =
+  i → j → k → S3.surf(i, j, k)
+
+define f3: loop_space_3(S3_pointed).A ⇒ loop_space_3(join_S1_pointed).A =
+  p → i → j → k → S3_to_join_S1(p(i, j, k))
+
+define test_0_to_3: loop_space_3(join_S1_pointed).A =
+  f3(test_0_to_2)
+
+define f4: loop_space_3(join_S1_pointed).A ⇒ loop_space_3(S2_pointed).A =
+  p → i → j → k → alpha(p(i, j, k))
+
+define test_0_to_4: loop_space_3(S2_pointed).A =
+  f4(test_0_to_3)
+
+define interpath(i j: I): hopf_S2(test_0_to_4(i, j, 1)) =
+  transp(k → hopf_S2(test_0_to_4(i, j, k)), 0, S1.base)
+
+define problem: int.pos(zero) ≡ int.pos(zero) =
+  i → transp(j → S1_helix(interpath(i ,j)), 0, int.pos(zero))
+
+

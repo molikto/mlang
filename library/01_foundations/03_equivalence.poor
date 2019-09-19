@@ -1,10 +1,13 @@
-
+define id_is_equiv(A: type): is_equiv(id(@A)) =
+  a → make(
+    make(a, refl),
+    z → i → make(z.path(~i), j → z.path((~i) ∨ j))
+  )
 
 
 define id_equiv(A: type): equiv(A, A) =
-  make(
-    a → a,
-    a → make(
-      make(a, refl),
-      z → i → make(z.path(~i), j → z.path((~i) ∨ j))
-    ))
+  make(id(@A), id_is_equiv(A))
+
+
+define is_prop_is_equiv(#A #B: type, f: A ⇒ B): is_prop(is_equiv(f)) =
+  u0 → u1 → i → y → is_prop_is_contr(u0(y), u1(y), i)

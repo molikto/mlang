@@ -264,8 +264,8 @@ class Elaborator private(protected override val layers: Layers)
       val ds = arguments.drop(nodes.size)
       if (ds.size != nodes.dimSize) throw ElaboratorException.NotFullyAppliedConstructorNotSupportedYet()
       if (ds.exists(_._1)) throw ElaboratorException.DimensionLambdaCannotBeImplicit()
-      val res2 = ds.map(a => checkAndEvalFormula(a._2)._2)
-      (sumValue, Abstract.Construct(index, res1, res2))
+      val res2 = ds.map(a => checkAndEvalFormula(a._2))
+      (sumValue, Abstract.Construct(index, res1.map(_._1), res2.map(_._2), if (nodes.dimSize == 0) Map.empty else reifyEnclosedSystem(nodes.reduceAll(res1.map(_._2)).reduce(res2.map(_._1)).restrictions())))
     }
     def inferProjectionApp(left: Concrete, right: Concrete, arguments: Seq[(Boolean, Concrete)]): (Value, Abstract) = {
       val (lt, la) = infer(left)
@@ -289,7 +289,7 @@ class Elaborator private(protected override val layers: Layers)
             // TODO user defined projections for a type, i.e.
             // TODO [issue 7] implement const_projections syntax
             case r: Value.Record if right == Concrete.Make =>
-              (lv, Abstract.Make(inferGraphValuesPart(r.nodes, arguments)))
+              (lv, Abstract.Make(inferGraphValuesPart(r.nodes, arguments).map(_._1)))
             case r: Value.Sum if calIndex(t => r.constructors.indexWhere(_.name.by(t))) =>
               val c = r.constructors(index)
               inferConstructApp(r, index, c.nodes, arguments)
@@ -331,7 +331,7 @@ class Elaborator private(protected override val layers: Layers)
             if (closure.size != 0 || closure.dimSize != 0) {
               throw ElaboratorException.NotFullyAppliedConstructorNotSupportedYet()
             } else {
-              (self, Abstract.Construct(index, Seq.empty, Seq.empty))
+              (self, Abstract.Construct(index, Seq.empty, Seq.empty, Abstract.EnclosedSystem.empty))
             }
         }
       case Concrete.Hole =>
@@ -581,12 +581,12 @@ class Elaborator private(protected override val layers: Layers)
     }
   }
 
-  private def inferGraphValuesPart(nodes: Value.ClosureGraph, arguments: Seq[(Boolean, Concrete)], accumulator: Seq[Abstract] = Seq.empty): Seq[Abstract] = {
+  private def inferGraphValuesPart(nodes: Value.ClosureGraph, arguments: Seq[(Boolean, Concrete)], accumulator: Seq[(Abstract, Value)] = Seq.empty): Seq[(Abstract, Value)] = {
     val i = accumulator.size
     def implicitCase() = {
       val (mv, ma) = newMeta(nodes(i).independent.typ)
       val ns = nodes.reduce(i, mv)
-      inferGraphValuesPart(ns, arguments, accumulator :+ ma)
+      inferGraphValuesPart(ns, arguments, accumulator.:+((ma, mv)))
     }
     arguments match {
       case head +: tail => // more arguments
@@ -598,7 +598,7 @@ class Elaborator private(protected override val layers: Layers)
             val aa = check(head._2, nodes(i).independent.typ)
             val av = eval(aa)
             val ns = nodes.reduce(i, av)
-            inferGraphValuesPart(ns, tail, accumulator :+ aa)
+            inferGraphValuesPart(ns, tail, accumulator.:+((aa, av)))
           } else if (imp) { // this is a implicit argument not given
             implicitCase()
           } else {
@@ -781,7 +781,7 @@ class Elaborator private(protected override val layers: Layers)
           case r: Value.Record =>
             term match {
               case Concrete.App(Concrete.Make, vs) =>
-                Abstract.Make(inferGraphValuesPart(r.nodes, vs))
+                Abstract.Make(inferGraphValuesPart(r.nodes, vs).map(_._1))
               case _ =>
                 fallback()
             }

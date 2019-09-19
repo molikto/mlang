@@ -86,7 +86,7 @@ trait PlatformEvaluator extends Evaluator {
 
 
   def emitAbsClosureSystem(faces: Abstract.AbsClosureSystem, depth: Int) = {
-    s"Seq(${faces.toSeq.map(a => s"(${emit(a._1, depth)}, ${emitAbsClosure(a._2, depth + 1)})").mkString(", ")}).toMap"
+    if (faces.isEmpty) "AbsClosureSystem.empty" else s"Seq(${faces.toSeq.map(a => s"(${emit(a._1, depth)}, ${emitAbsClosure(a._2, depth + 1)})").mkString(", ")}).toMap"
   }
 
   def emitMultiClosureSystem(faces: Abstract.MultiClosureSystem, depth: Int, noDim: Boolean = true) = {
@@ -101,7 +101,7 @@ trait PlatformEvaluator extends Evaluator {
 
   def emitEnclosedSystem(faces: Abstract.EnclosedSystem, depth: Int) = {
     // it evals to a value system.
-    s"Seq(${faces.toSeq.map(a => s"(${emit(a._1, depth)}, ${emitInner(a._2, depth + 2)})").mkString(", ")}).toMap"
+    if (faces.isEmpty) "Map.empty" else s"Seq(${faces.toSeq.map(a => s"(${emit(a._1, depth)}, ${emitInner(a._2, depth + 2)})").mkString(", ")}).toMap"
   }
 
   def emitConstructor(c: Abstract.Constructor, depth: Int) = {
@@ -157,8 +157,8 @@ trait PlatformEvaluator extends Evaluator {
           s"""Sum(${emit(id, depth)}, Seq(${constructors.map(c => emitConstructor(c, depth)).mkString(", ")}))"""
         case Abstract.Make(vs) =>
           s"Make(${vs.map(v => emit(v, depth))})"
-        case Abstract.Construct(name, vs, ds) =>
-          s"Construct($name, ${vs.map(v => emit(v, depth))}, ${ds.map(d => emit(d, depth))})"
+        case Abstract.Construct(name, vs, ds, ty) =>
+          s"Construct($name, ${vs.map(v => emit(v, depth))}, ${ds.map(d => emit(d, depth))}, ${emitEnclosedSystem(ty, depth)})"
         case Abstract.PatternLambda(id, dom, codomain, cases) =>
           s"PatternLambda($id, ${emit(dom, depth)}, ${emitClosure(codomain, depth)}, Seq(${cases.map(c => s"Case(${tunnel(c.pattern)}, ${emitMultiClosure(c.body, depth)})").mkString(", ")}))"
         case Abstract.PathApp(left, right) =>

@@ -2,7 +2,7 @@
 
 
 
-define inductively S3: type = sum {
+define S3: type = sum {
   case base
   case surf(i j k: I
    |~i: base

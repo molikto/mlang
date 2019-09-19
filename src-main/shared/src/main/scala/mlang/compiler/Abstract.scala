@@ -1,5 +1,6 @@
 package mlang.compiler
 
+import mlang.compiler.Value.ValueSystem
 import mlang.utils.Name
 
 case class Dependency(i: Int, meta: Boolean)
@@ -111,7 +112,7 @@ object Abstract {
   }
   case class Sum(inductively: Option[Inductively], constructors: Seq[Constructor]) extends Abstract
   case class Case(pattern: Pattern, body: MultiClosure)
-  case class Construct(f: Int, vs: Seq[Abstract], ds: Seq[Abstract.Formula]) extends Abstract
+  case class Construct(f: Int, vs: Seq[Abstract], ds: Seq[Abstract.Formula], ty: EnclosedSystem) extends Abstract
 
   case class PathLambda(body: AbsClosure) extends Abstract
   case class PathType(typ: AbsClosure, left: Abstract, right: Abstract) extends Abstract
@@ -131,6 +132,9 @@ object Abstract {
     def diff(s: EnclosedSystem, depth: Int, x: Int): EnclosedSystem =
       s.map(a => (a._1.diff(depth, x), a._2.diff(depth, x)))
     def dependencies(s: EnclosedSystem, i: Int): Set[Dependency] = s.values.flatten(_.dependencies(i)).toSet
+
+    val empty: EnclosedSystem = Map.empty
+
   }
 
   type MultiClosureSystem = System[MultiClosure]
@@ -184,7 +188,7 @@ sealed trait Abstract {
     case Projection(left, field) => Projection(left.diff(depth, x), field)
     case Sum(id, constructors) => Sum(id.map(_.diff(depth, x)), constructors.map(_.diff(depth, x)))
     case Make(vs) => Make(vs.map(_.diff(depth, x)))
-    case Construct(f, vs, fs) => Construct(f, vs.map(_.diff(depth, x)), fs.map(_.diff(depth, x)))
+    case Construct(f, vs, fs, ty) => Construct(f, vs.map(_.diff(depth, x)), fs.map(_.diff(depth, x)), EnclosedSystem.diff(ty, depth, x))
     case Let(metas, definitions, in) => Let(metas.map(_.diff(depth + 1, x)), definitions.map(_.diff(depth + 1, x)), in.diff(depth + 1, x))
     case PatternLambda(id, dom, typ, cases) => PatternLambda(id, dom.diff(depth, x), typ.diff(depth, x), cases.map(a => Case(a.pattern, a.body.diff(depth, x))))
     case PathLambda(body) => PathLambda(body.diff(depth, x))
@@ -211,7 +215,7 @@ sealed trait Abstract {
     case Projection(left, _) => left.dependencies(i)
     case Sum(id, constructors) =>  id.map(_.dependencies(i)).getOrElse(Set.empty) ++ constructors.flatMap(_.dependencies(i)).toSet
     case Make(vs) => vs.flatMap(_.dependencies(i)).toSet
-    case Construct(_, vs, fs) => vs.flatMap(_.dependencies(i)).toSet
+    case Construct(_, vs, fs, ty) => vs.flatMap(_.dependencies(i)).toSet ++ EnclosedSystem.dependencies(ty, i)
     case Let(metas, definitions, in) =>
       metas.flatMap(a => a.dependencies(i + 1)).toSet  ++ definitions.flatMap(a => a.dependencies(i + 1)).toSet ++ in.dependencies(i + 1)
     case PatternLambda(_, dom, cd, cases) => dom.dependencies(i) ++ cd.dependencies(i) ++ cases.flatMap(_.body.dependencies(i)).toSet
