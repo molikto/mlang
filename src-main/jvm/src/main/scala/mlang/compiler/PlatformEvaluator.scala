@@ -55,21 +55,22 @@ trait PlatformEvaluator extends Evaluator {
 
     def emitGraph(a: Abstract.ClosureGraph, depth: Int): String = {
       val d = depth + 1
-      val res = a.zipWithIndex.map(pair => {
+      val res = a.nodes.zipWithIndex.map(pair => {
         val c = pair._1
         val index = pair._2
-        val metasBefore = a.take(index).map(_.typ.metas.size).sum
+        val metasBefore = a.nodes.take(index).map(_.typ.metas.size).sum
         val metaBody = if (c.typ.metas.isEmpty) {
           s"(Seq.empty[Value.Meta], ${emit(c.typ.term, d)})"
         } else {
-          s"{ val m$d = m${d}_.toBuffer; " +
+          s"{ val m$d = m${d}_.asInstanceOf[Seq[Meta]].toBuffer; " +
             s"for (k <- 0 until ${c.typ.metas.size}) { assert(m$d(k + ${metasBefore}) == null); m$d(k + $metasBefore) = Meta(null)}; " +
             s"${c.typ.metas.zipWithIndex.map(k => (k._1, k._2 + metasBefore)).map(a => s"m$d(${a._2}).state = MetaState.Closed(${emit(a._1, d)}); ").mkString("")}" +
             s"(m$d.slice($metasBefore, ${metasBefore + c.typ.metas.size}).toSeq, ${emit(c.typ.term, d)})}"
         }
         s"(${c.implicitt}, Seq[Int](${c.deps.mkString(", ")}), ${c.typ.metas.size}, (m${d}_, r$d) => $metaBody)"
       }).mkString(", ")
-      s"""ClosureGraph.createMetaAnnotated(Seq($res))""".stripMargin
+      val kkk = s"Seq(${a.restrictions.toSeq.map(a => s"(${emit(a._1, d)}, (r$d: Seq[Value], m$d: Seq[Value]) => ${emitInner(a._2, d + 1)})").mkString(", ")}).toMap"
+      s"""ClosureGraph.createMetaAnnotated(Seq($res), ${a.dims}, (dm$d: Seq[Formula]) => $kkk)""".stripMargin
     }
 
   def emit(id: Option[Abstract.Inductively], depth: Int): String = {
@@ -103,22 +104,10 @@ trait PlatformEvaluator extends Evaluator {
     s"Seq(${faces.toSeq.map(a => s"(${emit(a._1, depth)}, ${emitInner(a._2, depth + 2)})").mkString(", ")}).toMap"
   }
 
-
-  def emitAbsMultiClosureSystem(dim: Int, faces: Abstract.MultiClosureSystem, depth: Int) = {
-    if (dim == 0) {
-      s"AbsMultiClosureSystem.empty"
-    } else {
-      val d = depth + 1
-      s"AbsMultiClosureSystem(dm$d => ${emitMultiClosureSystem(faces, d, noDim = true)})"
-    }
-  }
-
   def emitConstructor(c: Abstract.Constructor, depth: Int) = {
     s"Constructor(" +
       s"${source(c.name)}, " +
-      s"${emitGraph(c.params, depth)}, " +
-      s"${c.dim}, " +
-      s"${emitAbsMultiClosureSystem(c.dim, c.restrictions, depth)})"
+      s"${emitGraph(c.params, depth)})"
   }
 
   def emit(term: Abstract, depth: Int): String = {

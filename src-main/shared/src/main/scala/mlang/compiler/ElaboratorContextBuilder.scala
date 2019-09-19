@@ -132,7 +132,7 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
   def newParametersLayer(hit: Option[Value] = None): Self =
     Layer.ParameterGraph(hit.map(a => HitDefinition(a, Seq.empty)), Seq.empty, Seq.empty, createMetas()) +: layers
 
-  def newConstructor(name: Name, ps: Value.ClosureGraph, dim: Int): Self =
+  def newConstructor(name: Name, ps: Value.ClosureGraph): Self =
     layers.head match {
       case Layer.ParameterGraph(alters,_, _, metas) =>
         alters match {
@@ -142,7 +142,7 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
               case Some(_) => logicError()
               case None =>
                 assert(metas.debug_allFrozen)
-                val n = AlternativeGraph(name, ps, dim)
+                val n = AlternativeGraph(name, ps)
                 Layer.ParameterGraph(Some(HitDefinition(value.self, value.branches :+ n)),  Seq.empty, Seq.empty, createMetas()) +: layers.tail
             }
         }
@@ -188,7 +188,7 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
       var graph = nodes
       for (i <- maps.indices) {
         val tv = rec(maps(i), graph(i).independent.typ)
-        graph = Value.ClosureGraph.reduce(graph, vs.size, tv._1)
+        graph = graph.reduce(vs.size, tv._1)
         vs = vs :+ tv
       }
       vs
@@ -204,7 +204,7 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
               t.whnf match {
                 case sum: Value.Sum if { index = sum.constructors.indexWhere(c => c.name.by(ref)); index >= 0 } =>
                   val c = sum.constructors(index)
-                  if (c.nodes.isEmpty && c.dim == 0) {
+                  if (c.nodes.isEmpty && c.nodes.dimSize == 0) {
                     ret = (Value.Construct(index, Seq.empty, Seq.empty), Pattern.Construct(index, Seq.empty))
                   } else {
                     throw PatternExtractException.ConstructWrongSize()
@@ -236,7 +236,7 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
               val index = sum.constructors.indexWhere(_.name.by(name))
               if (index >= 0) {
                 val c = sum.constructors(index)
-                if (c.nodes.size + c.dim == maps.size) {
+                if (c.nodes.size + c.nodes.dimSize == maps.size) {
                   val vs = recs(maps.take(c.nodes.size), c.nodes)
                   val dPs = maps.drop(c.nodes.size)
                   if (!dPs.forall(_.isInstanceOf[Concrete.Pattern.Atom])) {

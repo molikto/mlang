@@ -32,7 +32,7 @@ private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorCon
     var ctx: ReifierContext = newParametersLayer()
     var graph = graph0
     var as =  Seq.empty[Abstract.ClosureGraph.Node]
-    for (i  <- graph0.indices) {
+    for (i  <- graph0.graph.indices) {
       val n = graph(i)
       val it = n.independent.typ
       val ttt = ctx.reify(it)
@@ -40,9 +40,25 @@ private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorCon
       as = as :+ pair
       val (ctx0, tm) = ctx.newParameter(Name.empty, null)
       ctx = ctx0
-      graph = ClosureGraph.reduce(graph, i, tm)
+      graph = graph.reduce(i, tm)
     }
-    as
+    if (graph0.dimSize == 0) {
+      Abstract.ClosureGraph(as, 0, Map.empty)
+    } else {
+      val ds = (0 until graph0.dimSize).map(_ => {
+        val (ctx0, d) = ctx.newDimension(Name.empty)
+        ctx = ctx0
+        d
+      })
+      val ms = graph.reduce(ds).restrictions().toSeq.map(r => {
+        (ctx.reify(r._1), {
+          val ctx0 = ctx.newReifierRestrictionLayer(r._1)
+          val vv = ctx0.reify(r._2)
+          Abstract.MetaEnclosed(ctx0.reifyMetas(), vv)
+        })
+      }).toMap
+      Abstract.ClosureGraph(as, graph0.dimSize, ms)
+    }
   }
 
   def reify(v: Value.Closure): Abstract.Closure = {
@@ -112,11 +128,6 @@ private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorCon
       Abstract.MultiClosure(ctx.reifyMetas(), ta)
     })).toMap
 
-  def reifyAbsMultiClosureSystem(size: (Int, Int), faces: Value.AbsMultiClosureSystem) = {
-    val (ctx, vs, ds) = mkContext(size)
-    ctx.reifyAbsInsideMultiClosureSystem(vs, faces(ds))
-  }
-
   def reify(v: Value): Abstract = {
     v match {
       case Value.Universe(level) =>
@@ -126,7 +137,7 @@ private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorCon
       case Value.Record(id, names, nodes) =>
         Record(reify(id), names, reify(nodes))
       case Value.Sum(id, constructors) =>
-        Sum(reify(id), constructors.map(c => Constructor(c.name, reify(c.nodes), c.dim, reifyAbsMultiClosureSystem((c.nodes.size, c.dim), c.res))))
+        Sum(reify(id), constructors.map(c => Constructor(c.name, reify(c.nodes))))
       case Value.PathType(ty, left, right) =>
         PathType(reify(ty), reify(left), reify(right))
       case Value.Lambda(closure) =>

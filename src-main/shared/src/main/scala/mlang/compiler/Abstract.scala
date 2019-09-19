@@ -64,7 +64,10 @@ object Abstract {
     def diff(depth: Int, x: Int): MetaEnclosed = MetaEnclosed(metas.map(_.diff(depth + 1, x)), term.diff(depth + 1, x))
   }
 
-  type ClosureGraph = Seq[ClosureGraph.Node]
+  case class ClosureGraph(nodes:Seq[ClosureGraph.Node], dims: Int = 0, restrictions: EnclosedSystem = Map.empty) {
+    def dependencies(i: Int) = nodes.flatMap(_.dependencies(i)).toSet ++ EnclosedSystem.dependencies(restrictions, i)
+    def diff(depth: Int, x: Int): ClosureGraph = ClosureGraph(nodes.map(_.diff(depth, x)), dims, EnclosedSystem.diff(restrictions, depth, x))
+  }
   object ClosureGraph {
     case class Node(implicitt: Boolean, deps: Seq[Int], typ: MetaEnclosed) {
       def diff(depth: Int, x: Int) = Node(implicitt, deps, typ.diff(depth, x))
@@ -102,9 +105,9 @@ object Abstract {
   case class Make(vs: Seq[Abstract]) extends Abstract
 
   // this restriction multi closure system lives 1 level bellow
-  case class Constructor(name: Name, params: ClosureGraph, dim: Int, restrictions: MultiClosureSystem) {
-    def dependencies(i: Int): Set[Dependency] = params.flatMap(_.dependencies(i)).toSet ++ MultiClosureSystem.dependencies(restrictions, i + 1)
-    def diff(depth: Int, x: Int): Constructor = Constructor(name, params.map(_.diff(depth, x)), dim, MultiClosureSystem.diff(restrictions, depth + 1, x))
+  case class Constructor(name: Name, params: ClosureGraph) {
+    def dependencies(i: Int): Set[Dependency] = params.dependencies(i)
+    def diff(depth: Int, x: Int): Constructor = Constructor(name, params.diff(depth, x))
   }
   case class Sum(inductively: Option[Inductively], constructors: Seq[Constructor]) extends Abstract
   case class Case(pattern: Pattern, body: MultiClosure)
@@ -177,7 +180,7 @@ sealed trait Abstract {
       Function(domain.diff(depth, x), impict, codomain.diff(depth, x))
     case Lambda(closure) => Lambda(closure.diff(depth, x))
     case App(left, right) => App(left.diff(depth, x), right.diff(depth, x))
-    case Record(id, names, graph) => Record(id.map(_.diff(depth, x)), names, graph.map(_.diff(depth, x)))
+    case Record(id, names, graph) => Record(id.map(_.diff(depth, x)), names, graph.diff(depth, x))
     case Projection(left, field) => Projection(left.diff(depth, x), field)
     case Sum(id, constructors) => Sum(id.map(_.diff(depth, x)), constructors.map(_.diff(depth, x)))
     case Make(vs) => Make(vs.map(_.diff(depth, x)))
@@ -204,7 +207,7 @@ sealed trait Abstract {
     case Function(domain, _, codomain) => domain.dependencies(i) ++ codomain.dependencies(i)
     case Lambda(closure) => closure.dependencies(i)
     case App(left, right) => left.dependencies(i) ++ right.dependencies(i)
-    case Record(id, _, nodes) => id.map(_.dependencies(i)).getOrElse(Set.empty) ++ nodes.flatMap(_.dependencies(i)).toSet
+    case Record(id, _, nodes) => id.map(_.dependencies(i)).getOrElse(Set.empty) ++ nodes.dependencies(i)
     case Projection(left, _) => left.dependencies(i)
     case Sum(id, constructors) =>  id.map(_.dependencies(i)).getOrElse(Set.empty) ++ constructors.flatMap(_.dependencies(i)).toSet
     case Make(vs) => vs.flatMap(_.dependencies(i)).toSet

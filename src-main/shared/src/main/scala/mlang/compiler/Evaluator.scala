@@ -57,7 +57,7 @@ trait Evaluator extends EvaluatorContext {
 
   protected def eval(a: Abstract.ClosureGraph): Value.ClosureGraph = {
     // TOOD this is ugly
-    eval(Abstract.Record(None, a.map(_ => Name.empty), a)).asInstanceOf[Value.Record].nodes
+    eval(Abstract.Record(None, a.nodes.map(_ => Name.empty), a)).asInstanceOf[Value.Record].nodes
   }
 
   protected def eval(a: Abstract.Formula): Value.Formula = {

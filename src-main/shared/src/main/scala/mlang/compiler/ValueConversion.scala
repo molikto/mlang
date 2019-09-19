@@ -49,8 +49,8 @@ trait ValueConversion {
   private implicit def optToBool[T](opt: Option[T]): Boolean = opt.isDefined
 
 
-  private def recClosureGraph(n1: ClosureGraph, n2: ClosureGraph, mode: Int = 0): Option[Seq[Value.Generic]] = {
-    if (n1.size == n2.size) {
+  private def recClosureGraph(selfValue: Value, n1: ClosureGraph, n2: ClosureGraph, mode: Int = 0): Boolean = {
+    if (n1.size == n2.size && n1.dimSize == n2.dimSize) {
       var gs = Seq.empty[Value.Generic]
       var g1 = n1
       var g2 = n2
@@ -66,27 +66,37 @@ trait ValueConversion {
           eq = recType(t1, t2, mode)
           val g = Generic(gen(), choose(t1, t2, mode))
           gs = gs :+ g
-          g1 = ClosureGraph.reduce(g1, i, g)
-          g2 = ClosureGraph.reduce(g2, i, g)
+          g1 = g1.reduce(i, g)
+          g2 = g2.reduce(i, g)
           i += 1
         }
       }
       if (eq) {
-        Some(gs)
+        if (n1.dimSize == 0) {
+          true
+        } else {
+          val ds = (0 until n1.dimSize).map(_ => Value.Formula.Generic(dgen()))
+          g1 = g1.reduce(ds)
+          g2 = g2.reduce(ds)
+          val phiEq = g1.phi().normalForm == g2.phi().normalForm
+          if (phiEq) {
+            recValueSystem(selfValue, g1.restrictions(), g2.restrictions())
+          } else {
+            false
+          }
+        }
       } else {
-        None
+        false
       }
     } else {
-      None
+      false
     }
   }
 
 
 
-  private def recConstructor(t1: Value, t2: Value, c1: Constructor, c2: Constructor, mode: Int = 0): Boolean = {
-    c1.name == c2.name && recClosureGraph(c1.nodes, c2.nodes, mode).map(gs => {
-       c1.dim == c2.dim && recAbsMultiClosureSystem(choose(t1, t2, mode), gs, c1.dim, c1.res, c2.res)
-    })
+  private def recConstructor(t: Value, c1: Constructor, c2: Constructor, mode: Int = 0): Boolean = {
+    c1.name == c2.name && recClosureGraph(t, c1.nodes, c2.nodes, mode)
   }
 
 
@@ -214,9 +224,9 @@ trait ValueConversion {
           }
         case (Record(id1, i1, n1), Record(id2, i2, n2)) =>
           // need to check level because of up operator
-          maybeNominal(id1, id2, i1 == i2 && recClosureGraph(n1, n2, mode))
+          maybeNominal(id1, id2, i1 == i2 && recClosureGraph(null, n1, n2, mode))
         case (s1@Sum(id1, c1), s2@Sum(id2, c2)) =>
-          maybeNominal(id1, id2, c1.size == c2.size && c1.zip(c2).forall(p => recConstructor(s1, s2, p._1, p._2, mode)))
+          maybeNominal(id1, id2, c1.size == c2.size && c1.zip(c2).forall(p => recConstructor(choose(s1, s2, mode), p._1, p._2, mode)))
         case (PathType(t1, l1, r1), PathType(t2, l2, r2)) =>
           recTypeAbsClosure(t1, t2, mode) &&
             recTerm(t1(Formula.False), l1, l2) &&
@@ -357,20 +367,6 @@ trait ValueConversion {
     }
   }
 
-  def recAbsMultiClosureSystem(ty: Value, gs: Seq[Value.Generic], dim: Int, r1: AbsMultiClosureSystem, r2: AbsMultiClosureSystem): Boolean = {
-    if (r1.eq(r2)) {
-      true
-    } else {
-      val dms = (0 until dim).map(_ => Formula.Generic(dgen()))
-      val a1 = r1(dms)
-      val a2 = r2(dms)
-      forCompatibleAssignments(a1, a2) { (a, b1, b2) =>
-        // notice we don't use the dimension parameters in this multi closure
-        recTerm(ty.restrict(a), b1(gs, Seq.empty).restrict(a), b2(gs, Seq.empty).restrict(a))
-      }
-    }
-  }
-
   def recValueSystem(t: Value, r1: ValueSystem, r2: ValueSystem): Boolean = {
     forCompatibleAssignments(r1, r2) { (a, b1, b2) =>
       recTerm(t.restrict(a), b1.restrict(a), b2.restrict(a))
@@ -394,13 +390,13 @@ trait ValueConversion {
   }
 
 
-  @inline def recTerms(ns: ClosureGraph, t1: Int => Value, t2: Int => Value): Boolean = {
-    ns.indices.foldLeft(Some(ns) : Option[ClosureGraph]) { (as0, i) =>
+  @inline def recGraphValuePart(ns: ClosureGraph, t1: Int => Value, t2: Int => Value): Boolean = {
+    ns.graph.indices.foldLeft(Some(ns) : Option[ClosureGraph]) { (as0, i) =>
       as0 match {
         case Some(as) =>
           val m1 = t1(i)
           if (recTerm(as(i).independent.typ, m1, t2(i))) {
-            Some(ClosureGraph.reduce(as, i, m1))
+            Some(as.reduce(i, m1))
           } else {
             None
           }
@@ -426,11 +422,11 @@ trait ValueConversion {
           val c = Formula.Generic(dgen())
           recTerm(ty(c), PathApp(s1, c), PathApp(s2, c))
         case (r: Record, m1, m2) =>
-          recTerms(r.nodes, i => Projection(m1, i), i => Projection(m2, i))
+          recGraphValuePart(r.nodes, i => Projection(m1, i), i => Projection(m2, i))
         case (s: Sum, Construct(n1, v1, d1), Construct(n2, v2, d2)) =>
           n1 == n2 && { val c = s.constructors(n1) ;
-            assert(c.nodes.size == v1.size && c.dim == d1.size && v2.size == v1.size && d1.size == d2.size)
-            recTerms(c.nodes, v1, v2) && d1.zip(d2).forall(p => p._1.normalForm == p._2.normalForm)
+            assert(c.nodes.size == v1.size && c.nodes.dimSize == d1.size && v2.size == v1.size && d1.size == d2.size)
+            recGraphValuePart(c.nodes, v1, v2) && d1.zip(d2).forall(p => p._1.normalForm == p._2.normalForm)
           }
         case (g: GlueType, t1, t2) =>
           def baseCase(a: Glue, b: Glue): Boolean = {
@@ -477,7 +473,7 @@ trait ValueConversion {
       for (i  <- maps.indices) {
         val it = graph(i).independent.typ
         val tv = rec(maps(i), it)
-        graph = ClosureGraph.reduce(graph, i, tv)
+        graph = graph.reduce(i, tv)
         vs = vs :+ tv
       }
       vs
@@ -504,8 +500,8 @@ trait ValueConversion {
           t.whnf match {
             case sum: Sum =>
               val c = sum.constructors(name)
-              if (c.dim + c.nodes.size == maps.size) {
-                val ret = (0 until c.dim).map(_ => Formula.Generic(dgen()))
+              if (c.nodes.dimSize + c.nodes.size == maps.size) {
+                val ret = (0 until c.nodes.dimSize).map(_ => Formula.Generic(dgen()))
                 ds.appendAll(ret)
                 Construct(name, recs(maps.take(c.nodes.size), c.nodes), ret)
               } else {

@@ -83,7 +83,7 @@ object Layer {
 
 
   case class HitDefinition(self: Value, branches: Seq[AlternativeGraph])
-  case class AlternativeGraph(name: Name, ps: Value.ClosureGraph, dim: Int)
+  case class AlternativeGraph(name: Name, ps: Value.ClosureGraph)
 
   case class ParameterGraph(
     hit: Option[HitDefinition],

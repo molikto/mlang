@@ -26,7 +26,7 @@ object Value {
 
     def names: Set[Long] = {
       this match {
-        case Formula.Generic(id) => Set(id)
+        case Formula.Generic(id) => if (id != 0) Set(id) else Set.empty // 0 is only used as a hack
         case Formula.True => Set.empty
         case Formula.False => Set.empty
         case And(left, right) => left.names ++ right.names
@@ -194,44 +194,32 @@ object Value {
   }
 
 
-  type ClosureGraph = Seq[ClosureGraph.Node]
+  trait ClosureGraph {
+    def apply(i: Int) = graph(i)
+    def graph: Seq[ClosureGraph.Node]
+    def size : Int = graph.size
+    def isEmpty: Boolean = size == 0
+
+    def dimSize: Int
+    def restrictions(): System[Value] // only in a fully reduced
+    def phi(): Formula
+
+    def reduce(ds: Seq[Formula]): ClosureGraph
+    def reduceAll(vs: Seq[Value]): ClosureGraph = {
+      assert(vs.size == graph.size)
+      vs.zipWithIndex.foldLeft(this) { (g, v) => g.reduce(v._2, v._1) }
+    }
+    def reduce(i: Int, a: Value): ClosureGraph
+    def get(name: Int, values: Int => Value): Value
+
+    def supportShallow(): SupportShallow
+    def restrict(dav: Formula.Assignments): ClosureGraph
+    def fswap(w: Long, z: Formula): ClosureGraph
+    def inferLevel(): Int
+  }
+
+
   object ClosureGraph {
-    def supportShallow(graph: ClosureGraph): SupportShallow = {
-      val mss = mutable.ArrayBuffer[Meta]()
-      val res = graph.map {
-        case IndependentWithMeta(ims, ds, ms, typ) =>
-          mss.appendAll(ms)
-          typ.supportShallow() ++ (ms.toSet: Set[Referential])
-        case DependentWithMeta(ims, ds, mc, c) =>
-          val res = c(mss.toSeq, Generic.HACKS)
-          mss.appendAll(res._1)
-          res._2.supportShallow() ++ (res._1.toSet: Set[Referential])
-        case _ => logicError()
-      }
-      SupportShallow.flatten(res)
-    }
-
-    def fswap(graph: ClosureGraph, w: Long, z: Formula): ClosureGraph = {
-      graph.map {
-        case IndependentWithMeta(ims, ds, ms, typ) =>
-          IndependentWithMeta(ims, ds, ms, typ.fswap(w, z))
-        case DependentWithMeta(ims, ds, mc, c) =>
-          DependentWithMeta(ims, ds, mc, (a, b) => {
-            val t = c(a, b); (t._1.map(_.fswap(w, z).asInstanceOf[Value.Meta]), t._2.fswap(w, z)) })
-        case _ => logicError()
-      }
-    }
-    def restrict(graph: ClosureGraph, lv: Formula.Assignments): ClosureGraph =  {
-      graph.map {
-        case IndependentWithMeta(ims, ds, ms, typ) =>
-          IndependentWithMeta(ims, ds, ms, typ.restrict(lv))
-        case DependentWithMeta(ims, ds, mc, c) =>
-        DependentWithMeta(ims, ds, mc, (a, b) => {
-          val t = c(a, b.map(k => Derestricted(k, lv))); (t._1.map(_.restrict(lv).asInstanceOf[Value.Meta]), t._2.restrict(lv)) })
-        case _ => logicError()
-      }
-    }
-
     sealed trait Node {
       def implicitt: Boolean
       def dependencies: Seq[Int]
@@ -249,69 +237,175 @@ object Value {
       val value: Value
     }
 
-    private case class DependentWithMeta(implicitt: Boolean, dependencies: Seq[Int], metaCount: Int, closure: (Seq[Value.Meta], Seq[Value]) => (Seq[Value.Meta], Value)) extends Dependent
+    private case class DependentWithMeta(implicitt: Boolean, dependencies: Seq[Int], metaCount: Int, closure: (Seq[Value], Seq[Value]) => (Seq[Value.Meta], Value)) extends Dependent
+    private case class IndependentWithMeta(implicitt: Boolean, dependencies: Seq[Int], metas: Seq[Value.Meta], typ: Value) extends Independent
+    private case class ValuedWithMeta(implicitt: Boolean, dependencies: Seq[Int], metas: Seq[Value.Meta], typ: Value, value: Value) extends Valued
 
-    private case class IndependentWithMeta(implicitt: Boolean, dependencies: Seq[Int], metas: Seq[Value.Meta], typ: Value) extends Independent {
+    sealed trait RestrictionsState
+    object RestrictionsState {
+      case class Abstract(tm: Seq[Formula] => System[(Seq[Value], Seq[Value]) => Value]) extends RestrictionsState
+      case class Concrete(tm: System[(Seq[Value], Seq[Value]) => Value]) extends RestrictionsState
+      case class Valued(tm: System[Value]) extends RestrictionsState
+      val empty = Valued(Map.empty)
     }
 
-    private case class ValuedWithMeta(implicitt: Boolean, dependencies: Seq[Int], metas: Seq[Value.Meta], typ: Value, value: Value) extends Valued {
-    }
-
-    def createMetaAnnotated(nodes: Seq[(Boolean, Seq[Int], Int, (Seq[Value.Meta], Seq[Value]) => (Seq[Value.Meta], Value))]): ClosureGraph = {
-      nodes.map(a => if (a._2.isEmpty) {
+    def createMetaAnnotated(nodes: Seq[(Boolean, Seq[Int], Int, (Seq[Value], Seq[Value]) => (Seq[Value.Meta], Value))],
+                            dim: Int,
+                            tm: Seq[Formula] => System[(Seq[Value], Seq[Value]) => Value]): ClosureGraph = {
+      val gs = nodes.map(a => if (a._2.isEmpty) {
         val t = a._4(Seq.empty, Seq.empty)
         IndependentWithMeta(a._1, a._2, t._1, t._2)
       } else {
         DependentWithMeta(a._1, a._2, a._3, a._4)
       })
+      ClosureGraph.Impl(gs, dim, if (dim == 0) RestrictionsState.empty else RestrictionsState.Abstract(tm))
     }
 
-    def get(nodes: ClosureGraph, name: Int, values: Int => Value): Value = {
-      var i = 0
-      var g = nodes
-      while (i < name) {
-        g = ClosureGraph.reduce(g, i, values(i))
-        i += 1
-      }
-      g(name).independent.typ
-    }
+    private case class Impl(graph: Seq[ClosureGraph.Node], dimSize: Int, tm: RestrictionsState) extends ClosureGraph {
 
 
-    def inferLevel(nodes: ClosureGraph): Int = {
-      var level = 0
-      var i = 0
-      var g = nodes
-      while (i < g.size) {
-        val t = g(i).independent.typ
-        level = t.inferLevel max level
-        val ge = Generic(gen(), t)
-        g = ClosureGraph.reduce(g, i, ge)
-        i += 1
-      }
-      level
-    }
 
-    def reduce(from: ClosureGraph, i: Int, a: Value): ClosureGraph = {
-      from(i) match {
-        case IndependentWithMeta(ims, ds, mss, typ) =>
-          val ns = ValuedWithMeta(ims, ds, mss, typ, a)
-          val mms: Seq[Value.Meta] = from.flatMap {
-            case DependentWithMeta(_, _, ms, _) => (0 until ms).map(_ => null)
-            case IndependentWithMeta(_, _, ms, _) => ms
-            case ValuedWithMeta(_, _, ms, _, _) => ms
-          }
-          val vs = from.indices.map(j => if (j == i) a else from(j) match {
-            case ValuedWithMeta(_, _, _, _, v) => v
-            case _ => null
+      def supportShallow(): SupportShallow = {
+        val mss = mutable.ArrayBuffer[Meta]()
+        val res = graph.map {
+          case IndependentWithMeta(ims, ds, ms, typ) =>
+            mss.appendAll(ms)
+            typ.supportShallow() ++ (ms.toSet: Set[Referential])
+          case DependentWithMeta(ims, ds, mc, c) =>
+            val res = c(mss.toSeq, Generic.HACKS)
+            mss.appendAll(res._1)
+            res._2.supportShallow() ++ (res._1.toSet: Set[Referential])
+          case _ => logicError()
+        }
+        SupportShallow.flatten(res) ++
+          (if (dimSize == 0) SupportShallow.empty
+          else {
+            val faces = tm.asInstanceOf[RestrictionsState.Abstract].tm(Formula.Generic.HACKS)
+            SupportShallow.flatten(faces.toSeq.map(f => f._2(mss.toSeq, Value.Generic.HACKS).supportShallow() +- f._1.names))
           })
-          from.map {
-            case DependentWithMeta(ims, dss, _, c) if dss.forall(j => vs(j) != null) =>
-              val t = c(mms, vs)
-              IndependentWithMeta(ims, dss, t._1, t._2)
-            case i =>
-              i
-          }.updated(i, ns)
+      }
+
+      def fswap(w: Long, z: Formula): ClosureGraph.Impl = {
+        val gs = graph.map {
+          case IndependentWithMeta(ims, ds, ms, typ) =>
+            IndependentWithMeta(ims, ds, ms, typ.fswap(w, z))
+          case DependentWithMeta(ims, ds, mc, c) =>
+            DependentWithMeta(ims, ds, mc, (a, b) => {
+              val t = c(a, b); (t._1.map(_.fswap(w, z).asInstanceOf[Value.Meta]), t._2.fswap(w, z)) })
+          case _ => logicError()
+        }
+        val zz = if (dimSize == 0) tm else {
+          val clo = tm.asInstanceOf[RestrictionsState.Abstract].tm
+          RestrictionsState.Abstract(fs => clo(fs).map(pair => (pair._1.fswap(w, z), (v1, v2) => pair._2(v1, v2).fswap(w, z))))
+        }
+        ClosureGraph.Impl(gs, dimSize, zz)
+      }
+
+      def restrict(lv: Formula.Assignments): ClosureGraph.Impl = {
+        val gs = graph.map {
+          case IndependentWithMeta(ims, ds, ms, typ) =>
+            IndependentWithMeta(ims, ds, ms, typ.restrict(lv))
+          case DependentWithMeta(ims, ds, mc, c) =>
+            DependentWithMeta(ims, ds, mc, (a, b) => {
+              val t = c(a.map(k => Derestricted(k, lv)), b.map(k => Derestricted(k, lv))); (t._1.map(_.restrict(lv).asInstanceOf[Value.Meta]), t._2.restrict(lv)) })
+          case _ => logicError()
+        }
+        val zz = if (dimSize == 0) tm else {
+          val clo = tm.asInstanceOf[RestrictionsState.Abstract].tm
+          RestrictionsState.Abstract(fs => clo(fs.map(f => Formula.Derestricted(f, lv))).map(pair =>
+            (pair._1.restrict(lv), (v1, v2) => pair._2(v1.map(v => Value.Derestricted(v, lv)), v2.map(v => Value.Derestricted(v, lv))).restrict(lv))))
+        }
+        ClosureGraph.Impl(gs, dimSize, zz)
+      }
+
+
+
+      def inferLevel(): Int = {
+        var level = 0
+        var i = 0
+        var g = this
+        while (i < g.graph.size) {
+          val t = g.graph(i).independent.typ
+          level = t.inferLevel max level
+          val ge = Generic(gen(), t)
+          g = g.reduce(i, ge)
+          i += 1
+        }
+        level
+      }
+
+      override def phi(): Formula = tm match {
+        case RestrictionsState.Abstract(tm) => logicError()
+        case RestrictionsState.Concrete(tm) => Formula.Or(tm.keys)
+        case RestrictionsState.Valued(tm) => Formula.Or(tm.keys)
+      }
+
+      override def restrictions(): System[Value] = tm match {
+        case RestrictionsState.Valued(tm) => tm
         case _ => logicError()
+      }
+
+      override def reduce(ds: Seq[Formula]): ClosureGraph = {
+        tm match {
+          case RestrictionsState.Abstract(tm) =>
+            assert(ds.size == dimSize)
+            val rs = RestrictionsState.Concrete(tm(ds))
+            Impl(graph, dimSize, tryReduceRestrictions(graph, rs))
+          case _ => logicError()
+        }
+      }
+
+      def tryReduceRestrictions(grapht: Seq[Node], rs: RestrictionsState): RestrictionsState = {
+        rs match {
+          case RestrictionsState.Abstract(_) => rs
+          case RestrictionsState.Concrete(tm) =>
+            if (grapht.forall(_.isInstanceOf[ValuedWithMeta])) {
+              val gs = grapht.map(_.asInstanceOf[ValuedWithMeta])
+              RestrictionsState.Valued(tm.view.mapValues(_.apply(gs.flatMap(_.metas), gs.map(_.value))).toMap)
+            } else {
+              rs
+            }
+          case RestrictionsState.Valued(_) => rs
+        }
+      }
+
+      def reduce(i: Int, a: Value): ClosureGraph.Impl = {
+        val from = graph
+        from(i) match {
+          case IndependentWithMeta(ims, ds, mss, typ) =>
+            val ns = ValuedWithMeta(ims, ds, mss, typ, a)
+            val mms: Seq[Value.Meta] = from.flatMap {
+              case DependentWithMeta(_, _, ms, _) => (0 until ms).map(_ => null)
+              case IndependentWithMeta(_, _, ms, _) => ms
+              case ValuedWithMeta(_, _, ms, _, _) => ms
+            }
+            val vs = from.indices.map(j => if (j == i) a else from(j) match {
+              case ValuedWithMeta(_, _, _, _, v) => v
+              case _ => null
+            })
+            val grapht = from.map {
+              case DependentWithMeta(ims, dss, _, c) if dss.forall(j => vs(j) != null) =>
+                val t = c(mms, vs)
+                IndependentWithMeta(ims, dss, t._1, t._2)
+              case i =>
+                i
+            }.updated(i, ns)
+            ClosureGraph.Impl(grapht, dimSize, tryReduceRestrictions(grapht, tm))
+          case _ => logicError()
+        }
+      }
+
+
+
+      // helper
+      def get(name: Int, values: Int => Value): Value = {
+        var i = 0
+        var g = this
+        while (i < name) {
+          g = g.reduce(i, values(i))
+          i += 1
+        }
+        g.graph(name).independent.typ
       }
     }
   }
@@ -701,7 +795,7 @@ object Value {
       nodes: ClosureGraph) extends Canonical {
     assert(names.size == nodes.size)
     def projectedType(values: Value, name: Int): Value = {
-      ClosureGraph.get(nodes, name, i => Projection(values, i))
+      nodes.get(name, i => Projection(values, i))
     }
   }
   case class Make(values: Seq[Value]) extends Canonical
@@ -719,9 +813,9 @@ object Value {
   }
 
   case class Construct(name: Int, vs: Seq[Value], ds: Seq[Formula]) extends Canonical
-  case class Constructor(name: Name, nodes: ClosureGraph, dim: Int, res: AbsMultiClosureSystem) {
-    def restrict(lv: Assignments): Constructor = Constructor(name, ClosureGraph.restrict(nodes, lv), dim, res.restrict(lv))
-    def fswap(w: Long, z: Formula): Constructor = Constructor(name, ClosureGraph.fswap(nodes, w, z), dim, res.fswap(w, z))
+  case class Constructor(name: Name, nodes: ClosureGraph) {
+    def restrict(lv: Assignments): Constructor = Constructor(name, nodes.restrict(lv))
+    def fswap(w: Long, z: Formula): Constructor = Constructor(name, nodes.fswap(w, z))
   }
 
   case class Sum(inductively: Option[Inductively], constructors: Seq[Constructor]) extends Canonical
@@ -918,13 +1012,13 @@ object Value {
 
   def transpFill(graph0: ClosureGraph, graph: Formula => ClosureGraph, phi: Formula, base: Int => Value): Seq[Value.AbsClosure] = {
     val closures = mutable.ArrayBuffer[AbsClosure]()
-    for (i <- graph0.indices) {
+    for (i <- graph0.graph.indices) {
       val res = graph0(i) match {
         case _: ClosureGraph.Independent =>
           AbsClosure(j => {
             transpFill(j,
               phi,
-              AbsClosure(k => graph(k)(i).independent.typ),
+              AbsClosure(k => graph(k).graph(i).independent.typ),
               base(i)
             )
           })
@@ -932,7 +1026,7 @@ object Value {
           AbsClosure(j => {
             transpFill(j,
               phi,
-              AbsClosure(k => {val tt = graph(k); ClosureGraph.get(tt, i, j => closures(j)(k))  }),
+              AbsClosure(k => {val tt = graph(k); tt.get(i, j => closures(j)(k))  }),
               base(i)
             )
           })
@@ -993,17 +1087,17 @@ object Value {
                 val theta = transpFill(cc.nodes, i => tpr(i).nodes, phi, vs)
                 val w1p = Construct(c, theta.map(_.apply(Formula.True)), rs)
                  // FIXME these gets cannot be reified
-                val w1 = Hcomp(tp(Formula.True), w1p, Seq(
-                  (phi, AbsClosure(_ => base)),
-                  // we can use this because we know that cc.res only depends on rs, not i
-                  (Formula.Or(cc.res(rs).keys), {
+                val item1 = (phi, AbsClosure(_ => base))
+                val item2 = if (cc.nodes.dimSize != 0) Seq(
+                  (cc.nodes.reduce(rs).phi(), {
                     def alpha(e: AbsClosure) = {
                       squeeze(tp, e, phi)
                     }
-                    val e = AbsClosure(i => tpr(i).res(rs).find(_._1.normalFormTrue).get._2(theta.map(_.apply(i)), Seq.empty))
+                    val e = AbsClosure(i => tpr(i).nodes.reduceAll(theta.map(_.apply(i))).reduce(rs).restrictions().find(_._1.normalFormTrue).get._2)
                     AbsClosure(i => alpha(e)(Formula.Neg(i)))
                   })
-                ).toMap)
+                ) else Seq.empty
+                val w1 = Hcomp(tp(Formula.True), w1p, (item2 :+ item1).toMap)
                 Some(w1)
               case _ =>
                 None
@@ -1108,7 +1202,7 @@ object Value {
 
   def hcompGraph(cs: ClosureGraph, faces: AbsClosureSystem, base: Value, map: (Value, Int) => Value): Seq[Value] = {
     val closures = mutable.ArrayBuffer[AbsClosure]()
-    for (i <- cs.indices) {
+    for (i <- cs.graph.indices) {
       val res = cs(i) match {
         case in: ClosureGraph.Independent =>
           hfill(in.typ, map(base, i),
@@ -1116,7 +1210,7 @@ object Value {
           )
         case com: ClosureGraph.Dependent =>
           fill(
-            AbsClosure(k => ClosureGraph.get(cs, i, j => closures(j)(k))),
+            AbsClosure(k => cs.get(i, j => closures(j)(k))),
             map(base, i),
             faces.view.mapValues(_.map(a => map(a, i))).toMap
           )
@@ -1275,12 +1369,12 @@ sealed trait Value {
     case PatternLambda(id, domain, typ, cases) =>
       domain.supportShallow() ++ typ.supportShallow() ++ SupportShallow.flatten(cases.map(_.closure.supportShallow()))
     case Record(inductively, names, nodes) =>
-      SupportShallow.orEmpty(inductively.map(_.supportShallow())) ++ ClosureGraph.supportShallow(nodes)
+      SupportShallow.orEmpty(inductively.map(_.supportShallow())) ++ nodes.supportShallow()
     case Make(values) => SupportShallow.flatten(values.map(_.supportShallow()))
     case Construct(name, vs, ds) =>
       SupportShallow.flatten(vs.map(_.supportShallow()) ++ ds.map(_.supportShallow()))
     case Sum(inductively, constructors) =>
-      SupportShallow.orEmpty(inductively.map(_.supportShallow())) ++ SupportShallow.flatten(constructors.map(a => ClosureGraph.supportShallow(a.nodes)))
+      SupportShallow.orEmpty(inductively.map(_.supportShallow())) ++ SupportShallow.flatten(constructors.map(a => a.nodes.supportShallow()))
     case PathType(typ, left, right) =>
       typ.supportShallow() ++ left.supportShallow() ++ right.supportShallow()
     case PathLambda(body) => body.supportShallow()
@@ -1305,7 +1399,7 @@ sealed trait Value {
     case u: Universe => u
     case Function(domain, im, codomain) => Function(domain.fswap(w, z), im, codomain.fswap(w, z))
     case Record(inductively, ns, nodes) =>
-      Record(inductively.map(_.fswap(w, z)), ns, ClosureGraph.fswap(nodes, w, z))
+      Record(inductively.map(_.fswap(w, z)), ns, nodes.fswap(w, z))
     case Make(values) => Make(values.map(_.fswap(w, z)))
     case Construct(name, vs, ds) => Construct(name, vs.map(_.fswap(w, z)), ds.map(_.fswap(w, z)))
     case Sum(inductively, constructors) =>
@@ -1337,7 +1431,7 @@ sealed trait Value {
     case Function(domain, im, codomain) =>
       Function(domain.restrict(lv), im, codomain.restrict(lv))
     case Record(inductively, ns, nodes) =>
-      Record(inductively.map(_.restrict(lv)), ns, ClosureGraph.restrict(nodes, lv))
+      Record(inductively.map(_.restrict(lv)), ns, nodes.restrict(lv))
     case Make(values) =>
       Make(values.map(_.restrict(lv)))
     case Construct(name, vs, ds) =>
@@ -1404,7 +1498,6 @@ sealed trait Value {
 
   def bestValue: Value = this match {
     case r: Reference => r
-    case g: GlobalReference => g
     case Meta(Value.MetaState.Closed(v)) =>
       v match {
         case r: Referential => r.bestValue
@@ -1578,10 +1671,10 @@ sealed trait Value {
           case _ => logicError()
         }
       case r: Record =>
-        r.inductively.map(a => Universe(a.level)).getOrElse(Universe(ClosureGraph.inferLevel(r.nodes)))
+        r.inductively.map(a => Universe(a.level)).getOrElse(Universe(r.nodes.inferLevel()))
       case s: Sum =>
         s.inductively.map(a => Universe(a.level)).getOrElse(
-          Universe(if (s.constructors.isEmpty) 0 else s.constructors.map(c => ClosureGraph.inferLevel(c.nodes)).max))
+          Universe(if (s.constructors.isEmpty) 0 else s.constructors.map(c => c.nodes.inferLevel()).max))
       case PathType(typ, _, _) =>
         typ.apply(Formula.Generic(dgen())).infer
       case App(l1, a1) =>

@@ -181,7 +181,7 @@ class Elaborator private(protected override val layers: Layers)
     (Value.Universe(fl), Abstract.Record(
       ind,
       fs.map(_._1),
-      fs.map(a => Abstract.ClosureGraph.Node(a._2, a._3.term.termDependencies(0).toSeq.sorted, a._3))))
+      Abstract.ClosureGraph(fs.map(a => Abstract.ClosureGraph.Node(a._2, a._3.term.termDependencies(0).toSeq.sorted, a._3)))))
   }
 
   def checkSum(tps: Option[(Value, Option[(Value, Abstract.Inductively)])], sum: Concrete.Sum): (Value, Abstract) = {
@@ -203,12 +203,12 @@ class Elaborator private(protected override val layers: Layers)
       val is = seq.drop(tpd.size)
       for (i <- is) if (i._1) throw ElaboratorException.DimensionLambdaCannotBeImplicit()
       val iss = is.map(_._2)
-      val (ll, tt, gs) = ctx.inferFlatLevel(tpd)
-      ctx.clearMetas()
-      val closureGraph = tt.zipWithIndex.map(kk => Abstract.ClosureGraph.Node(kk._1._2, 0 until kk._2, kk._1._3))
-      def checkRestrictions(sv: Value): Seq[(Abstract.Formula, Abstract.MultiClosure)] = {
+      val (ll, tt, ctx0) = ctx.inferFlatLevel(tpd)
+      ctx = ctx0
+      val valueGraph = tt.zipWithIndex.map(kk => Abstract.ClosureGraph.Node(kk._1._2, 0 until kk._2, kk._1._3))
+      def checkRestrictions(sv: Value): Seq[(Abstract.Formula, Abstract.MetaEnclosed)] = {
         // NOW: check extensions
-        val (dimCtx, dims) = iss.foldLeft((ctx, Seq.empty[Long])) { (ctx, n) =>
+        val (dimCtx, dims) = iss.foldLeft((ctx0, Seq.empty[Long])) { (ctx, n) =>
           val (c, l) = ctx._1.newDimension(n)
           (c, ctx._2 :+ l.id)
         }
@@ -216,13 +216,12 @@ class Elaborator private(protected override val layers: Layers)
         c.restrictions.map(r => {
           val (dv, da) = ctx.checkAndEvalFormula(r.dimension)
           val rctx = ctx.newReifierRestrictionLayer(dv)
-          val pctx = rctx.newParametersLayer()
           val bd = rctx.check(r.term, sv)
-          val res = Abstract.MultiClosure(rctx.finishReify(), bd)
+          val res = Abstract.MetaEnclosed(rctx.finishReify(), bd)
           (da, res)
         })
       }
-      val es: Abstract.MultiClosureSystem = if (is.nonEmpty) {
+      val es: Abstract.EnclosedSystem = if (is.nonEmpty) {
         selfValue match {
           case Some(sv) =>
             checkRestrictions(sv).toMap
@@ -233,17 +232,18 @@ class Elaborator private(protected override val layers: Layers)
         if (c.restrictions.nonEmpty) throw ElaboratorException.HitContainingExternalDimension()
         else Map.empty
       }
+      val closureGraph = Abstract.ClosureGraph(valueGraph, iss.size, es)
       selfValue match {
         case Some(_) =>
-          ctx = ctx.newConstructor(c.name, eval(closureGraph), is.size)
+          ctx = ctx.newConstructor(c.name, eval(closureGraph))
         case None =>
           ctx = newParametersLayer(None) // here we don't use ctx anymore, because we are not remembering the previous constructors
       }
-      (c.name, ll, closureGraph, iss.size, es)
+      (c.name, ll, closureGraph)
     })
     val fl = fs.map(_._2).max
     (Value.Universe(fl), Abstract.Sum(tps.flatMap(_._2.map(_._2)), fs.map(a =>
-      Abstract.Constructor(a._1, a._3, a._4, a._5))))
+      Abstract.Constructor(a._1, a._3))))
   }
 
   private def infer(
@@ -258,11 +258,11 @@ class Elaborator private(protected override val layers: Layers)
       }
     }
 
-    def inferConstructApp(sumValue: Value, index: Int, nodes: Value.ClosureGraph, dim: Int, arguments: Seq[(Boolean, Concrete)]): (Value, Abstract) = {
+    def inferConstructApp(sumValue: Value, index: Int, nodes: Value.ClosureGraph, arguments: Seq[(Boolean, Concrete)]): (Value, Abstract) = {
       val ns = arguments.take(nodes.size)
-      val res1 = inferGraph(nodes, ns)
+      val res1 = inferGraphValuesPart(nodes, ns)
       val ds = arguments.drop(nodes.size)
-      if (ds.size != dim) throw ElaboratorException.NotFullyAppliedConstructorNotSupportedYet()
+      if (ds.size != nodes.dimSize) throw ElaboratorException.NotFullyAppliedConstructorNotSupportedYet()
       if (ds.exists(_._1)) throw ElaboratorException.DimensionLambdaCannotBeImplicit()
       val res2 = ds.map(a => checkAndEvalFormula(a._2)._2)
       (sumValue, Abstract.Construct(index, res1, res2))
@@ -289,10 +289,10 @@ class Elaborator private(protected override val layers: Layers)
             // TODO user defined projections for a type, i.e.
             // TODO [issue 7] implement const_projections syntax
             case r: Value.Record if right == Concrete.Make =>
-              (lv, Abstract.Make(inferGraph(r.nodes, arguments)))
+              (lv, Abstract.Make(inferGraphValuesPart(r.nodes, arguments)))
             case r: Value.Sum if calIndex(t => r.constructors.indexWhere(_.name.by(t))) =>
               val c = r.constructors(index)
-              inferConstructApp(r, index, c.nodes, c.dim, arguments)
+              inferConstructApp(r, index, c.nodes, arguments)
             case _ => error()
           }
       }
@@ -326,8 +326,8 @@ class Elaborator private(protected override val layers: Layers)
         lookupTerm(name) match {
           case NameLookupResult.Typed(binder, abs) =>
             reduceMore(binder, abs)
-          case NameLookupResult.Construct(self, index, closure, dim) =>
-            if (closure.nonEmpty || dim != 0) {
+          case NameLookupResult.Construct(self, index, closure) =>
+            if (closure.size != 0 || closure.dimSize != 0) {
               throw ElaboratorException.NotFullyAppliedConstructorNotSupportedYet()
             } else {
               (self, Abstract.Construct(index, Seq.empty, Seq.empty))
@@ -442,8 +442,8 @@ class Elaborator private(protected override val layers: Layers)
           case Concrete.Reference(name) =>
             lookupTerm(name) match {
               case NameLookupResult.Typed(typ, ref) => defaultCase(typ, ref)
-              case NameLookupResult.Construct(self, index, closure, dim) =>
-                inferConstructApp(self, index, closure, dim, arguments)
+              case NameLookupResult.Construct(self, index, closure) =>
+                inferConstructApp(self, index, closure, arguments)
             }
           case _ =>
             val (lt, la) = infer(lambda, true)
@@ -510,9 +510,8 @@ class Elaborator private(protected override val layers: Layers)
     }
   }
 
-  private def inferFlatLevel(fs: Concrete.NameType.FlatSeq): (Int, Seq[(Name, Boolean, Abstract.MetaEnclosed)], Seq[Value.Generic]) = {
+  private def inferFlatLevel(fs: Concrete.NameType.FlatSeq): (Int, Seq[(Name, Boolean, Abstract.MetaEnclosed)], Self) = {
     var ctx = this
-    var gs = Seq.empty[Value.Generic]
     var l = 0
     // TODO it used be like this, but I forget what it is for
     // if (fs.map(_._2).toSet.size != fs.size) throw ElaboratorException.AlreadyDeclared()
@@ -522,10 +521,9 @@ class Elaborator private(protected override val layers: Layers)
       val ms = ctx.freezeReify()
       val (ctx1, g) = ctx.newParameter(n._2, ctx.eval(fa))
       ctx = ctx1
-      gs = gs :+ g
       (n._2, n._1, Abstract.MetaEnclosed(ms, fa))
     })
-    (l, fas, gs)
+    (l, fas, ctx)
   }
 
 
@@ -582,12 +580,12 @@ class Elaborator private(protected override val layers: Layers)
     }
   }
 
-  private def inferGraph(nodes: Value.ClosureGraph, arguments: Seq[(Boolean, Concrete)], accumulator: Seq[Abstract] = Seq.empty): Seq[Abstract] = {
+  private def inferGraphValuesPart(nodes: Value.ClosureGraph, arguments: Seq[(Boolean, Concrete)], accumulator: Seq[Abstract] = Seq.empty): Seq[Abstract] = {
     val i = accumulator.size
     def implicitCase() = {
       val (mv, ma) = newMeta(nodes(i).independent.typ)
-      val ns = Value.ClosureGraph.reduce(nodes, i, mv)
-      inferGraph(ns, arguments, accumulator :+ ma)
+      val ns = nodes.reduce(i, mv)
+      inferGraphValuesPart(ns, arguments, accumulator :+ ma)
     }
     arguments match {
       case head +: tail => // more arguments
@@ -598,8 +596,8 @@ class Elaborator private(protected override val layers: Layers)
           if (imp == head._1) { // this is a given argument
             val aa = check(head._2, nodes(i).independent.typ)
             val av = eval(aa)
-            val ns = Value.ClosureGraph.reduce(nodes, i, av)
-            inferGraph(ns, tail, accumulator :+ aa)
+            val ns = nodes.reduce(i, av)
+            inferGraphValuesPart(ns, tail, accumulator :+ aa)
           } else if (imp) { // this is a implicit argument not given
             implicitCase()
           } else {
@@ -782,7 +780,7 @@ class Elaborator private(protected override val layers: Layers)
           case r: Value.Record =>
             term match {
               case Concrete.App(Concrete.Make, vs) =>
-                Abstract.Make(inferGraph(r.nodes, vs))
+                Abstract.Make(inferGraphValuesPart(r.nodes, vs))
               case _ =>
                 fallback()
             }
