@@ -220,6 +220,9 @@ object Value {
 
 
   object ClosureGraph {
+
+    val empty = Impl(Seq.empty, 0, RestrictionsState.empty)
+
     sealed trait Node {
       def implicitt: Boolean
       def dependencies: Seq[Int]
@@ -1496,16 +1499,19 @@ sealed trait Value {
   private[Value] var _whnfCache: Object = _
 
 
-  def bestValue: Value = this match {
+  def bestReifyValue: Value = this match {
     case r: Reference => r
     case Meta(Value.MetaState.Closed(v)) =>
       v match {
-        case r: Referential => r.bestValue
+        case r: Referential => r.bestReifyValue
         case _ => this
       }
-    case v => v.fromOrThis
+    case v =>
+      // we just retrace to the "literal" value, which is best for us?
+      var i = v
+      while (i._from.eq(null) && i._from.eq(i)) i = i._from
+      i
   }
-  def fromOrThis: Value = if (_from == null) this else _from
 
   // it is ensured that if the value is not reducable, it will return the same reference
   def whnf: Value = {
@@ -1624,13 +1630,14 @@ sealed trait Value {
       // because some values is shared, it means the solved ones is not created for this whnf, we don't say this
       // is from us
       // TODO these are already defined ones, think more about this
-      if (!candidate.eq(candidate._from)) {
-        var from = candidate
-        while (from._from.eq(null) && from._from.eq(from)) {
-          from = from._from
+      if (candidate.eq(this)) { // this is a terminal form, it has no from now
+      } else {
+        var c = candidate
+        while (!c._from.eq(null) && !c._from.eq(c)) {
+          c = c._from
         }
-        if (!from.eq(from._from)) {
-          from._from = this
+        if (c._from.eq(null)) {
+          c._from = this
         }
       }
       val cache = candidate match {

@@ -50,7 +50,7 @@ trait MetaSolver extends ValueConversion with Reifier with ElaboratorContextRebi
       if (ctx.containsGeneric(o)) error("Spine is not linear")
       ctx = ctx.newParameterLayerProvided(Name.empty, o).asInstanceOf[Self]
     }
-    val t2 = t20.bestValue // FIXME is this sound??
+    val t2 = t20.bestReifyValue // FIXME is this sound??
     if (t2.support().openMetas.contains(m)) {
       error("Meta solution contains self")
     }

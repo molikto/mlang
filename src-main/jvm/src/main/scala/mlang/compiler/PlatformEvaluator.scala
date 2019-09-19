@@ -69,7 +69,7 @@ trait PlatformEvaluator extends Evaluator {
         }
         s"(${c.implicitt}, Seq[Int](${c.deps.mkString(", ")}), ${c.typ.metas.size}, (m${d}_, r$d) => $metaBody)"
       }).mkString(", ")
-      val kkk = s"Seq(${a.restrictions.toSeq.map(a => s"(${emit(a._1, d)}, (r$d: Seq[Value], m$d: Seq[Value]) => ${emitInner(a._2, d + 1)})").mkString(", ")}).toMap"
+      val kkk = s"Seq(${a.restrictions.toSeq.map(a => s"(${emit(a._1, d)}, (m$d: Seq[Value], r$d: Seq[Value]) => ${emitInner(a._2, d + 1)})").mkString(", ")}).toMap"
       s"""ClosureGraph.createMetaAnnotated(Seq($res), ${a.dims}, (dm$d: Seq[Formula]) => $kkk)""".stripMargin
     }
 

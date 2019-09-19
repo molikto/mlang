@@ -14,16 +14,16 @@ define join_S1 = join(S1, S1)
 
 
 define facek01(i j k: I): join_S1 =
-  hfill(join.push(S1.base, S1.base, ~k)
-  |~j: l → join.push(S1.base, S1.base, (~l)∧(~k))
-  | i: l → join.push(S1.base, S1.base, (~l)∧(~k))
-  |~k: l → join.push(S1.loop(j), base, (~l))
-  | k: l → join.inl(S1.base)
+  hfill(join_S1.push(S1.base, S1.base, ~k)
+  |~j: l → join_S1.push(S1.base, S1.base, (~l)∧(~k))
+  | i: l → join_S1.push(S1.base, S1.base, (~l)∧(~k))
+  |~k: l → join_S1.push(S1.loop(j), S1.base, (~l))
+  | k: l → join_S1.inl(S1.base)
   )(i)
 
 
 
-define join_S1_poined = pointed.make(@join_S1, join.inl(S1.base))
+define join_S1_poined = pointed.make(@join_S1, join_S1.inl(S1.base))
 
 
 define alpha: join_S1 ⇒ S2 =

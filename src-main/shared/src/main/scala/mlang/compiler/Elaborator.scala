@@ -293,7 +293,8 @@ class Elaborator private(protected override val layers: Layers)
             case r: Value.Sum if calIndex(t => r.constructors.indexWhere(_.name.by(t))) =>
               val c = r.constructors(index)
               inferConstructApp(r, index, c.nodes, arguments)
-            case _ => error()
+            case _ =>
+              error()
           }
       }
     }
@@ -388,7 +389,7 @@ class Elaborator private(protected override val layers: Layers)
         val (bt, ba) = infer(base)
         val bv = eval(ba)
         val rs = checkCompatibleCapAndFaces(faces, Value.AbsClosure(bt), bv)
-        val btr = reify(bt)
+        val btr = reify(bt.bestReifyValue)
         debug(s"infer hcom type $btr", 1)
         (bt, Abstract.Hcomp(btr, ba, rs))
       case Concrete.PathType(typ, left, right) =>
@@ -410,7 +411,7 @@ class Elaborator private(protected override val layers: Layers)
             } else None
             ttt match {
               case Some(t) =>
-                val ta = newDimensionLayer(Name.empty)._1.reify(t)
+                val ta = newDimensionLayer(Name.empty)._1.reify(t.bestReifyValue)
                 debug(s"infer path type $ta", 0)
                 (Value.Universe(t.inferLevel), Abstract.PathType(Abstract.AbsClosure(Seq.empty, ta), la, ra))
               case None =>
@@ -555,7 +556,7 @@ class Elaborator private(protected override val layers: Layers)
             (a, check(body, eval(a)))
           case None =>
             val (bt, ba) = infer(body)
-            val btr = reify(bt)
+            val btr = reify(bt.bestReifyValue)
             debug(s"infer domain $btr", 1)
             (btr, ba)
         }
@@ -961,7 +962,9 @@ class Elaborator private(protected override val layers: Layers)
         }
     }
     if (s.modifiers.contains(Declaration.Modifier.__Debug)) {
-      ret.layers.head.asInstanceOf[Layer.Defines].terms.find(_.name == s.name).get.ref0.get.whnf
+      val a = ret.layers.head.asInstanceOf[Layer.Defines].terms.find(_.name == s.name).get
+      val k = a.ref0.get.value
+      println(reify(k))
     }
     ret
   }
