@@ -8,38 +8,40 @@ import mlang.utils.{Benchmark, debug, info}
 object Main extends Parser {
 
   def test(a: File, shouldFails: Boolean) = {
-    a.listFiles(_.getName.endsWith(".poor")).sortBy(_.getName).foreach(f => {
-      info(s"testing ${a.getName}/${f.getName}")
-      val s = src(f)
-      val module = parseOrThrow(s)
-      var fails = ""
-      val exp = if (shouldFails) {
-        assert(s.startsWith("// "))
-        s.takeWhile(_ != '\n').drop(3)
-      } else {
-        ""
-      }
-      var cause: Exception = null
-      try {
-        Elaborator.topLevel().check(module)
-      } catch {
-        case e: Exception =>
-          cause = e
-          fails = e.getClass.getSimpleName
-      }
-      if (fails != exp) {
-        val msg = if (shouldFails) {
-          if (fails == "") {
-            "expecting to fail"
-          } else {
-            s"expecting $exp"
-          }
+    if (a.exists()) {
+      a.listFiles(_.getName.endsWith(".poor")).sortBy(_.getName).foreach(f => {
+        info(s"testing ${a.getName}/${f.getName}")
+        val s = src(f)
+        val module = parseOrThrow(s)
+        var fails = ""
+        val exp = if (shouldFails) {
+          assert(s.startsWith("// "))
+          s.takeWhile(_ != '\n').drop(3)
         } else {
-          "not expecting it to fail"
+          ""
         }
-        throw new Exception(s"Test failure with in ${a.getName}/${f.getName}, $msg", cause)
-      }
-    })
+        var cause: Exception = null
+        try {
+          Elaborator.topLevel().check(module)
+        } catch {
+          case e: Exception =>
+            cause = e
+            fails = e.getClass.getSimpleName
+        }
+        if (fails != exp) {
+          val msg = if (shouldFails) {
+            if (fails == "") {
+              "expecting to fail"
+            } else {
+              s"expecting $exp"
+            }
+          } else {
+            "not expecting it to fail"
+          }
+          throw new Exception(s"Test failure with in ${a.getName}/${f.getName}, $msg", cause)
+        }
+      })
+    }
   }
 
   def library(file: File): Unit = {
