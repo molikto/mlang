@@ -17,7 +17,9 @@ to compile use `sbt mainJVM/compile`
 
 the project can be imported into IntelliJ IDEA, and to run/debug, just setup a profile to run `mlang.poorparser.Main` with classpath of module `jvm-main` (or something like this)
 
-we currently have a `.poor` syntax (because we want a better syntax: a structural editor). it uses some wired unicode characters, so to write library code, import `settings.jar` to IntelliJ IDEA, it defines some "Live Templates", or key shortcuts to input certain characters
+we currently have a `.poor` syntax (because we want a better syntax: a structural editor). it uses some wired unicode characters, so to write library code, import `settings.zip` to IntelliJ IDEA, it defines some "Live Templates", or key shortcuts to input certain characters
+
+thanks to @ice1000, we have syntax highlighting in IntellIJ IDEA, install this plugin: https://github.com/owo-lang/intellij-dtlc
 
 ## help wanted
 
