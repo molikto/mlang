@@ -221,7 +221,7 @@ object Value {
 
   object ClosureGraph {
 
-    val empty = Impl(Seq.empty, 0, RestrictionsState.empty)
+    val empty: ClosureGraph = Impl(Seq.empty, 0, RestrictionsState.empty)
 
     sealed trait Node {
       def implicitt: Boolean

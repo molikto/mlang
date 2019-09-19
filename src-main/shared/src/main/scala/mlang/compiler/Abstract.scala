@@ -65,8 +65,8 @@ object Abstract {
   }
 
   case class ClosureGraph(nodes:Seq[ClosureGraph.Node], dims: Int = 0, restrictions: EnclosedSystem = Map.empty) {
-    def dependencies(i: Int) = nodes.flatMap(_.dependencies(i)).toSet ++ EnclosedSystem.dependencies(restrictions, i)
-    def diff(depth: Int, x: Int): ClosureGraph = ClosureGraph(nodes.map(_.diff(depth, x)), dims, EnclosedSystem.diff(restrictions, depth, x))
+    def dependencies(i: Int) = nodes.flatMap(_.dependencies(i)).toSet ++ EnclosedSystem.dependencies(restrictions, i + 1)
+    def diff(depth: Int, x: Int): ClosureGraph = ClosureGraph(nodes.map(_.diff(depth, x)), dims, EnclosedSystem.diff(restrictions, depth + 1, x))
   }
   object ClosureGraph {
     case class Node(implicitt: Boolean, deps: Seq[Int], typ: MetaEnclosed) {
