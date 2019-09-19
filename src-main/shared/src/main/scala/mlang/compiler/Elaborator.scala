@@ -470,7 +470,7 @@ class Elaborator private(protected override val layers: Layers)
         val (mt, ma) = infer(m)
         mt.whnf match {
           case Value.GlueType(ty, faces) =>
-            (ty, Abstract.Unglue(reify(ty), ma, reifyEnclosedSystem(faces)))
+            (ty, Abstract.Unglue(reify(ty.bestReifyValue), ma, reifyEnclosedSystem(faces.view.mapValues(_.bestReifyValue).toMap)))
           case _ => throw ElaboratorException.UnglueCannotInfer()
         }
       case Concrete.Let(declarations, in) =>
@@ -541,7 +541,7 @@ class Elaborator private(protected override val layers: Layers)
             val clov = eval(cloa)
             val left = clov(Value.Formula.False)
             val right = clov(Value.Formula.True)
-            (Abstract.PathType(Abstract.AbsClosure(ms, ta), reify(left), reify(right)), Abstract.PathLambda(cloa))
+            (Abstract.PathType(Abstract.AbsClosure(ms, ta), reify(left.bestReifyValue), reify(right.bestReifyValue)), Abstract.PathLambda(cloa))
           case _ =>
             val (_, da) = inferLevel(head._3)
             val ctx = newParameterLayer(head._2, eval(da))._1
@@ -696,7 +696,7 @@ class Elaborator private(protected override val layers: Layers)
                   val ba = ctx.check(c.body, codomain(v), tail)
                   Abstract.Case(pat, Abstract.MultiClosure(ctx.finishReify(), ba))
                 })
-                Abstract.PatternLambda(Elaborator.pgen(), reify(domain), reify(codomain), res)
+                Abstract.PatternLambda(Elaborator.pgen(), reify(domain.bestReifyValue), reify(codomain), res)
               case _ =>
                 if (fimp) {
                   val (ctx, v) = newParameterLayer(Name.empty, domain)
@@ -962,9 +962,9 @@ class Elaborator private(protected override val layers: Layers)
         }
     }
     if (s.modifiers.contains(Declaration.Modifier.__Debug)) {
-      val a = ret.layers.head.asInstanceOf[Layer.Defines].terms.find(_.name == s.name).get
-      val k = a.ref0.get.value
-      println(reify(k))
+//      val a = ret.layers.head.asInstanceOf[Layer.Defines].terms.find(_.name == s.name).get
+//      val k = a.ref0.get.value
+//      println(reify(k))
     }
     ret
   }

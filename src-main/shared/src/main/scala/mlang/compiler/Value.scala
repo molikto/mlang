@@ -417,8 +417,8 @@ object Value {
 
   // these serve the purpose of recovering syntax
   sealed trait Internal extends Value
-  sealed trait Canonical extends Value
-  sealed trait CubicalUnstableCanonical extends Value // this value can reduce more, but only when restricted
+  sealed trait StableCanonical extends Value
+  sealed trait UnstableCanonical extends Value // this value can reduce more, but only when restricted
   sealed trait Redux extends Value {
     // FIXME this is not that well defined, since some term will always whnf on arguments, some not
     // maybe inline in whnf
@@ -648,15 +648,16 @@ object Value {
 
     def unapply(value: Value): Option[Value] = {
       value match {
-        case _: Canonical => None
-        case _: CubicalUnstableCanonical => None
+        case _: StableCanonical => None
+        case _: UnstableCanonical => None
         case _: Generic => None
         case o: Meta => Some(o)
         case App(lambda, _) => unapply(lambda)
         case Projection(make, _) => unapply(make)
         case a@PatternRedux(_, stuck) =>
           stuck match {
-            case c: Canonical => Some(a) // can only be make or construct
+            case c: StableCanonical => Some(a) // this might get unstuck when a meta is solved
+            case c: UnstableCanonical => Some(a)
             case _ => unapply(stuck)
           }
         case PathApp(left, _) => unapply(left)
@@ -693,7 +694,7 @@ object Value {
   }
 
 
-  case class Universe(level: Int) extends Canonical
+  case class Universe(level: Int) extends StableCanonical
 
   object Universe {
     val TypeInType = true
@@ -702,7 +703,7 @@ object Value {
     def level1 = Universe(if (TypeInType) 0 else 1)
   }
 
-  case class Function(domain: Value, impict: Boolean, codomain: Closure) extends Canonical
+  case class Function(domain: Value, impict: Boolean, codomain: Closure) extends StableCanonical
 
   /**
     * whnf: lambda is whnf and is not a canonical
@@ -721,7 +722,7 @@ object Value {
     }
   }
   def Apps(maker: Value, values: Seq[Value]) : Value = values.foldLeft(maker) { (m: Value, v: Value) => Value.App(m, v) }
-  case class Lambda(closure: Closure) extends Canonical
+  case class Lambda(closure: Closure) extends StableCanonical
   case class Case(pattern: Pattern, closure: MultiClosure) {
     private def extract(pattern: Pattern, v: Value): Option[(Seq[Value], Seq[Value.Formula])] = {
       val vs = mutable.ArrayBuffer[Value]()
@@ -765,7 +766,7 @@ object Value {
   // the reason we must have a domain here is because we support unordered pattern matching
   // so pattern redux can be stuck value when non of their arguments is stuck
   // LATER is unordered pattern matching really a good thing? but I don't want case trees!
-  case class PatternLambda(@nominal_equality id: Long, @type_annotation domain: Value, @type_annotation typ: Closure, cases: Seq[Case]) extends Canonical
+  case class PatternLambda(@nominal_equality id: Long, @type_annotation domain: Value, @type_annotation typ: Closure, cases: Seq[Case]) extends StableCanonical
 
   /**
     * whnf: stuck is whnf AND pattern redux cannot continue
@@ -795,13 +796,13 @@ object Value {
   case class Record(
       inductively: Option[Inductively],
       names: Seq[Name],
-      nodes: ClosureGraph) extends Canonical {
+      nodes: ClosureGraph) extends StableCanonical {
     assert(names.size == nodes.size)
     def projectedType(values: Value, name: Int): Value = {
       nodes.get(name, i => Projection(values, i))
     }
   }
-  case class Make(values: Seq[Value]) extends Canonical
+  case class Make(values: Seq[Value]) extends StableCanonical
 
   /**
     * whnf: make is whnf and is not canonical
@@ -815,16 +816,16 @@ object Value {
     }
   }
 
-  case class Construct(name: Int, vs: Seq[Value], ds: Seq[Formula]) extends Canonical
+  case class Construct(name: Int, vs: Seq[Value], ds: Seq[Formula]) extends UnstableCanonical
   case class Constructor(name: Name, nodes: ClosureGraph) {
     def restrict(lv: Assignments): Constructor = Constructor(name, nodes.restrict(lv))
     def fswap(w: Long, z: Formula): Constructor = Constructor(name, nodes.fswap(w, z))
   }
 
-  case class Sum(inductively: Option[Inductively], constructors: Seq[Constructor]) extends Canonical
+  case class Sum(inductively: Option[Inductively], constructors: Seq[Constructor]) extends StableCanonical
 
-  case class PathType(typ: AbsClosure, left: Value, right: Value) extends Canonical
-  case class PathLambda(body: AbsClosure) extends Canonical
+  case class PathType(typ: AbsClosure, left: Value, right: Value) extends StableCanonical
+  case class PathLambda(body: AbsClosure) extends StableCanonical
 
   /**
     * whnf: left is whnf but not canonical, and dimension is not constant
@@ -885,7 +886,7 @@ object Value {
       }).toMap
     }
   }
-  
+
   type ClosureSystem = System[Closure]
   object ClosureSystem {
     def supportShallow(faces: ClosureSystem): SupportShallow = {
@@ -1193,7 +1194,7 @@ object Value {
   }
 
 
-  // TODO when we have a syntax for partial values, these should be removed
+  // FIXME when we have a syntax for partial values, these should be removed
   case class Comp(@stuck_pos tp: AbsClosure, base: Value, faces: AbsClosureSystem) extends Redux {
     override def reduce(): Option[Value] =
       Some(Hcomp(
@@ -1288,11 +1289,11 @@ object Value {
   /**
     * whnf: faces is not constant
     */
-  case class GlueType(ty: Value, @stuck_pos faces: ValueSystem) extends CubicalUnstableCanonical
+  case class GlueType(ty: Value, @stuck_pos faces: ValueSystem) extends UnstableCanonical
   /**
     * whnf: faces is not constant
     */
-  case class Glue(m: Value, @stuck_pos faces: ValueSystem) extends CubicalUnstableCanonical
+  case class Glue(m: Value, @stuck_pos faces: ValueSystem) extends UnstableCanonical
   /**
     * whnf: faces is not constant, base is whnf, and base's whnf is not glue
     * LATER this is how the whnf is defined, so glue is considered canonical
@@ -1550,7 +1551,7 @@ sealed trait Value {
       }
     if (cached == null) {
       val candidate = this match {
-        case a: Canonical =>
+        case a: StableCanonical =>
           a
         case r: Reference =>
           r.value.whnf
@@ -1587,6 +1588,8 @@ sealed trait Value {
             case Projection(m2, f2) if make.eq(m2) && field == f2 => this
             case a => a
           }
+        case Construct(f, vs, ds) =>
+          ???
         case PathApp(left, dimension) =>
           // we MUST perform this, because this doesn't care
           PathApp(left.whnf, dimension).reduceThenWhnfOrSelf() match {
