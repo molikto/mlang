@@ -1,6 +1,5 @@
 
-
-define is_contractible(A: type): type = record {
+define is_contr(A: type): type = record {
   field center: A
   field to_center: (a: A) ⇒ center ≡ a
 }
@@ -12,7 +11,7 @@ define fiber_at(#A #B: type, f: A ⇒ B, b: B): type = record {
 }
 
 define is_equiv(#T #A: type, f: T ⇒ A): type =
-  (a: A) ⇒ is_contractible(fiber_at(f, a))
+  (a: A) ⇒ is_contr(fiber_at(f, a))
 
 define equiv(T A: type): type = record {
   field f: T ⇒ A
@@ -42,7 +41,7 @@ define path_to_equiv(#A #B: type, E: A ≡ B): equiv(A, B) = run {
   }
   define yy(y: B): y ≡ f(g(y)) = j → comp(E, g(y) |~j: v(y) |j: u(g(y)))
 
-  define equ(y: B): is_contractible(fiber_at(f, y)) = run {
+  define equ(y: B): is_contr(fiber_at(f, y)) = run {
     define center: fiber_at(f, y) = make(g(y), k → yy(y, ~k))
     make(center, fiber_path(y, center))
   }
