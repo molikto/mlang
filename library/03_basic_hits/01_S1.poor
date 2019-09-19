@@ -28,5 +28,11 @@ define S1_moebius
 └ loop(i) → bool_path_to_neg_bool(i)
 
 
+define S1_helix:
+S1        ⇒ type =
+┌ base    → int
+└ loop(i) → int_suc_path(i)
+
+
 define S1_pointed: pointed = make(S1.base)
 

@@ -1,0 +1,38 @@
+
+
+
+define int: type = sum {
+  case pos(n: nat)
+  case negsuc(n: nat)
+}
+
+define int_suc
+: int            ⇒ int =
+┌ pos(n)         → int.pos(suc(n))
+├ negsuc(zero)   → int.pos(zero)
+└ negsuc(suc(n)) → int.negsuc(n)
+
+
+define int_pred
+: int ⇒ int =
+┌ pos(zero) → int.negsuc(zero)
+├ pos(suc(n)) → int.pos(n)
+└ negsuc(n) → int.negsuc(suc(n))
+
+
+
+define int_suc_pred:
+(i: int) ⇒ int_suc(int_pred(i)) ≡ i =
+┌ pos(zero) → refl
+├ pos(suc(n)) → refl
+└ negsuc(n) → refl
+
+define int_pred_suc:
+(i: int) ⇒ int_pred(int_suc(i)) ≡ i =
+┌ pos(n)         → refl
+├ negsuc(zero)   → refl
+└ negsuc(suc(n)) → refl
+
+
+define int_suc_path: int ≡ int =
+  ua(iso_to_equiv(make(int_suc, int_pred, int_suc_pred, int_pred_suc)))

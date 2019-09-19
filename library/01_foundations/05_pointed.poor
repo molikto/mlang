@@ -5,4 +5,10 @@ define pointed: ^type = record {
 }
 
 
+define loop_space(A: pointed): pointed =
+  make(@(A.center ≡ A.center), refl)
 
+
+define loop_space_2(A: pointed): pointed = loop_space(loop_space(A))
+
+define loop_space_3(A: pointed): pointed = loop_space_2(loop_space(A))

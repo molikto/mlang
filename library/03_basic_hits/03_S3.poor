@@ -1,0 +1,18 @@
+
+
+
+
+define inductively S3: type = sum {
+  case base
+  case surf(i j k: I
+   |~i: base
+   |i: base
+   |~j: base
+   |j: base
+   |~k: base
+   |k: base
+  )
+}
+
+
+define S3_pointed = pointed.make(S3.base)
