@@ -49,8 +49,9 @@ trait ValueConversion {
   private implicit def optToBool[T](opt: Option[T]): Boolean = opt.isDefined
 
 
-  private def recClosureGraph(n1: ClosureGraph, n2: ClosureGraph, mode: Int = 0): Boolean = {
-    n1.size == n2.size  && {
+  private def recClosureGraph(n1: ClosureGraph, n2: ClosureGraph, mode: Int = 0): Option[Seq[Value.Generic]] = {
+    if (n1.size == n2.size) {
+      var gs = Seq.empty[Value.Generic]
       var g1 = n1
       var g2 = n2
       var eq = true
@@ -64,19 +65,28 @@ trait ValueConversion {
           val t2 = g2(i).independent.typ
           eq = recType(t1, t2, mode)
           val g = Generic(gen(), choose(t1, t2, mode))
+          gs = gs :+ g
           g1 = ClosureGraph.reduce(g1, i, g)
           g2 = ClosureGraph.reduce(g2, i, g)
           i += 1
         }
       }
-      eq
+      if (eq) {
+        Some(gs)
+      } else {
+        None
+      }
+    } else {
+      None
     }
   }
 
 
 
   private def recConstructor(t1: Value, t2: Value, c1: Constructor, c2: Constructor, mode: Int = 0): Boolean = {
-    c1.name == c2.name && recClosureGraph(c1.nodes, c2.nodes, mode) && c1.dim == c2.dim && recAbsMultiClosureSystem(choose(t1, t2, mode), c1.nodes, c1.dim, c1.res, c2.res)
+    c1.name == c2.name && recClosureGraph(c1.nodes, c2.nodes, mode).map(gs => {
+       c1.dim == c2.dim && recAbsMultiClosureSystem(choose(t1, t2, mode), gs, c1.dim, c1.res, c2.res)
+    })
   }
 
 
@@ -347,15 +357,16 @@ trait ValueConversion {
     }
   }
 
-  def recAbsMultiClosureSystem(ty: Value, nodes: ClosureGraph, dim: Int, r1: AbsMultiClosureSystem, r2: AbsMultiClosureSystem): Boolean = {
+  def recAbsMultiClosureSystem(ty: Value, gs: Seq[Value.Generic], dim: Int, r1: AbsMultiClosureSystem, r2: AbsMultiClosureSystem): Boolean = {
     if (r1.eq(r2)) {
       true
     } else {
-      // FIXME I think we should require all HIT has nominal equality
-      val a1 = r1(Seq.empty)
-      val a2 = r2(Seq.empty)
+      val dms = (0 until dim).map(_ => Formula.Generic(dgen()))
+      val a1 = r1(dms)
+      val a2 = r2(dms)
       forCompatibleAssignments(a1, a2) { (a, b1, b2) =>
-        recTerm(ty.restrict(a), b1(Seq.empty, Seq.empty).restrict(a), b2(Seq.empty, Seq.empty).restrict(a))
+        // notice we don't use the dimension parameters in this multi closure
+        recTerm(ty.restrict(a), b1(gs, Seq.empty).restrict(a), b2(gs, Seq.empty).restrict(a))
       }
     }
   }

@@ -2,7 +2,7 @@ package mlang.compiler
 
 import mlang.compiler.Concrete._
 import Declaration.Modifier
-import mlang.compiler.Abstract.MetaEnclosed
+import mlang.compiler.Abstract.{Inductively, MetaEnclosed}
 import mlang.compiler.Layer.Layers
 import mlang.compiler.Value.ClosureGraph
 import mlang.utils._
@@ -11,16 +11,18 @@ import scala.annotation.Annotation
 import scala.collection.mutable
 import scala.language.implicitConversions
 
-case class FinishHitImplimentation() extends Exception
-
 class syntax_creation extends Annotation
 
 private class IndState(val id: Long, var stop: Boolean, var top: Value, var apps: Seq[Value] = Seq.empty) {
-  def consume(level: Int): Abstract.Inductively = {
-    assert(!stop)
-    val ret = Abstract.Inductively(id, level)
-    stop = true
-    ret
+  // returns a value is self
+  def consume(level: Int): Option[(Value, Abstract.Inductively)] = {
+    if (stop) {
+      None
+    } else {
+      val ret = Abstract.Inductively(id, level)
+      stop = true
+      Some((Value.Apps(top, apps), ret))
+    }
   }
 
 
@@ -161,11 +163,84 @@ class Elaborator private(protected override val layers: Layers)
   }
 
 
+  def checkRecord(ind: Option[Abstract.Inductively], r: Concrete.Record): (Value, Abstract) = {
+    val Concrete.Record(fields) = r
+    for (f <- fields) {
+      if (f.names.isEmpty) throw ElaboratorException.MustBeNamed()
+    }
+    for (i <- r.names.indices) {
+      for (j <- (i + 1) until r.names.size) {
+        if (r.names(i)._2 intersect r.names(j)._2) {
+          throw ElaboratorException.FieldsDuplicated()
+        }
+      }
+    }
+    val ctx = newParametersLayer()
+    val (fl, fs) = ctx.inferFlatLevel(NameType.flatten(fields))
+    (Value.Universe(fl), Abstract.Record(
+      ind,
+      fs.map(_._1),
+      fs.map(a => Abstract.ClosureGraph.Node(a._2, a._3.term.termDependencies(0).toSeq.sorted, a._3))))
+  }
+
+  def checkSum(tps: Option[(Value, Option[(Value, Abstract.Inductively)])], sum: Concrete.Sum): (Value, Abstract) = {
+    val Concrete.Sum(constructors) = sum
+    for (i <- constructors.indices) {
+      for (j <- (i + 1) until constructors.size) {
+        if (constructors(i).name.intersect(constructors(j).name)) {
+          throw ElaboratorException.TagsDuplicated()
+        }
+      }
+    }
+    val selfValue = tps.map(pair => {
+      pair._2.map(_._1).getOrElse(Value.Generic(ElaboratorContextBuilder.gen(), pair._1))
+    })
+    var ctx = newParametersLayer(selfValue)
+    val fs = constructors.map(c => {
+      val seq = NameType.flatten(c.term)
+      val tpd = seq.takeWhile(_._3 != Concrete.I)
+      val is = seq.drop(tpd.size)
+      for (i <- is) if (i._1) throw ElaboratorException.DimensionLambdaCannotBeImplicit()
+      val iss = is.map(_._2)
+      val (ll, tt) = ctx.inferFlatLevel(tpd)
+      def checkRestrictions(sv: Value): Seq[(Abstract.Formula, Abstract.MultiClosure)] = {
+        // NOW: check extensions
+        val (dimCtx, dims) = iss.foldLeft((ctx, Seq.empty[Long])) { (ctx, n) =>
+          val (c, l) = ctx._1.newDimension(n)
+          (c, ctx._2 :+ l.id)
+        }
+        ctx = dimCtx
+        c.restrictions.map(r => {
+          val (dv, da) = ctx.checkAndEvalFormula(r.dimension)
+          val rctx = ctx.newReifierRestrictionLayer(dv)
+          val bd = rctx.check(r.term, sv)
+          val res = Abstract.MultiClosure(rctx.finishReify(), bd)
+          (da, res)
+        })
+      }
+      val es: Abstract.MultiClosureSystem = if (is.nonEmpty) {
+        selfValue match {
+          case Some(sv) =>
+            checkRestrictions(sv).toMap
+          case None =>
+            throw ElaboratorException.CannotInferTypeOfHit()
+        }
+      } else {
+        if (c.restrictions.nonEmpty) throw ElaboratorException.HitContainingExternalDimension()
+        else Map.empty
+      }
+      val closureGraph = tt.zipWithIndex.map(kk => Abstract.ClosureGraph.Node(kk._1._2, 0 until kk._2, kk._1._3))
+      ctx = ctx.newConstructor(c.name, eval(closureGraph), is.size)
+      (c.name, ll, closureGraph, iss.size, es)
+    })
+    val fl = fs.map(_._2).max
+    (Value.Universe(fl), Abstract.Sum(tps.flatMap(_._2.map(_._2)), fs.map(a =>
+      Abstract.Constructor(a._1, a._3, a._4, a._5))))
+  }
+
   private def infer(
                      term: Concrete,
-                     noReduceMore: Boolean = false,
-                     indState: IndState = IndState.stop
-                   ): (Value, Abstract) = {
+                     noReduceMore: Boolean = false): (Value, Abstract) = {
     debug(s"infer $term")
     def reduceMore(v: Value, abs: Abstract): (Value, Abstract) = {
       if (noReduceMore) {
@@ -175,6 +250,15 @@ class Elaborator private(protected override val layers: Layers)
       }
     }
 
+    def inferConstructApp(sumValue: Value, index: Int, nodes: Value.ClosureGraph, dim: Int, arguments: Seq[(Boolean, Concrete)]): (Value, Abstract) = {
+      val ns = arguments.take(nodes.size)
+      val res1 = inferGraph(nodes, ns)
+      val ds = arguments.drop(nodes.size)
+      if (ds.size != dim) throw ElaboratorException.NotFullyAppliedConstructorNotSupportedYet()
+      if (ds.exists(_._1)) throw ElaboratorException.DimensionLambdaCannotBeImplicit()
+      val res2 = ds.map(a => checkAndEvalFormula(a._2)._2)
+      (sumValue, Abstract.Construct(index, res1, res2))
+    }
     def inferProjectionApp(left: Concrete, right: Concrete, arguments: Seq[(Boolean, Concrete)]): (Value, Abstract) = {
       val (lt, la) = infer(left)
       val lv = eval(la)
@@ -200,26 +284,9 @@ class Elaborator private(protected override val layers: Layers)
               (lv, Abstract.Make(inferGraph(r.nodes, arguments)))
             case r: Value.Sum if calIndex(t => r.constructors.indexWhere(_.name.by(t))) =>
               val c = r.constructors(index)
-              val ns = arguments.take(c.nodes.size)
-              val res1 = inferGraph(c.nodes, ns)
-              val ds = arguments.drop(c.nodes.size)
-              if (ds.size != c.dim) throw ElaboratorException.NotFullyAppliedConstructorNotSupportedYet()
-              if (ds.exists(_._1)) throw ElaboratorException.DimensionLambdaCannotBeImplicit()
-              val res2 = ds.map(a => checkAndEvalFormula(a._2)._2)
-              (lv, Abstract.Construct(index, res1, res2))
+              inferConstructApp(r, index, c.nodes, c.dim, arguments)
             case _ => error()
           }
-      }
-    }
-    def consumeIndState(): Option[(Value, Int => Abstract.Inductively)] = {
-      if (!indState.stop) {
-        if (indState.apps.nonEmpty) {
-          throw new Exception("parameterized inductively defined data type is currently not supported")
-        } else {
-          Some((indState.top, indState.consume))
-        }
-      } else {
-        None
       }
     }
     val res = term match {
@@ -285,81 +352,10 @@ class Elaborator private(protected override val layers: Layers)
         if (domain.isEmpty) throw ElaboratorException.EmptyTelescope()
         val (l, v) = inferTelescope(NameType.flatten(domain), codomain)
         (Value.Universe(l), v)
-      case r@Concrete.Record(fields) =>
-        for (f <- fields) {
-          if (f.names.isEmpty) throw ElaboratorException.MustBeNamed()
-        }
-        for (i <- r.names.indices) {
-          for (j <- (i + 1) until r.names.size) {
-            if (r.names(i)._2 intersect r.names(j)._2) {
-              throw ElaboratorException.FieldsDuplicated()
-            }
-          }
-        }
-        val ind = consumeIndState()
-        val ctx = newParametersLayer()
-        val (fl, fs) = ctx.inferFlatLevel(NameType.flatten(fields))
-        (Value.Universe(fl), Abstract.Record(
-          ind.map(_._2(fl)),
-          fs.map(_._1),
-          fs.map(a => Abstract.ClosureGraph.Node(a._2, a._3.term.termDependencies(0).toSeq.sorted, a._3))))
-      case Concrete.Sum(constructors) =>
-        for (i <- constructors.indices) {
-          for (j <- (i + 1) until constructors.size) {
-            if (constructors(i).name.intersect(constructors(j).name)) {
-              throw ElaboratorException.TagsDuplicated()
-            }
-          }
-        }
-        val ind = consumeIndState()
-        // val hitFakeValue = ind.map(_._1).getOrElse(Value.Generic.HACK)
-        // val ctx = newParametersLayer(Some(hitFakeValue))
-        // FIXME very limited elaboration!!! one problem is what type we check against
-        var ctx = newParametersLayer(Some(Value.Generic(0, null)))
-        val fs = constructors.map(c => {
-          val seq = NameType.flatten(c.term)
-          val tpd = seq.takeWhile(_._3 != Concrete.I)
-          val is = seq.drop(tpd.size)
-          for (i <- is) if (i._1) throw ElaboratorException.DimensionLambdaCannotBeImplicit()
-          val iss = is.map(_._2)
-          val (ll, tt) = ctx.inferFlatLevel(tpd)
-          // NOW: check extensions
-          val (dimCtx, dims) = iss.foldLeft((ctx, Seq.empty[Long])) { (ctx, n) =>
-            val (c, l) = ctx._1.newDimension(n)
-            (c, ctx._2 :+ l.id)
-          }
-          ctx = dimCtx
-          val es = c.restrictions.map(r => {
-            val (dv, da) = ctx.checkAndEvalFormula(r.dimension)
-            // FIXME this is currently extremely limited, will make it better later, this line, bellow, and more
-            val rctx = ctx.newReifierRestrictionLayer(dv)
-            val body: Abstract.MultiClosure = if (dv.names.forall(dims.contains)) {
-              r.term match {
-                case Concrete.Reference(name) =>
-                  rctx.lookupTerm(name) match {
-                    case NameLookupResult.Construct(_, index, closure, dim) =>
-                      if (closure.isEmpty || dim != 0) {
-                        Abstract.MultiClosure(Seq.empty, Abstract.Construct(index, Seq.empty, Seq.empty))
-                      } else throw FinishHitImplimentation()
-                    case _ => throw FinishHitImplimentation()
-                  }
-                case _ => throw FinishHitImplimentation()
-              }
-            } else {
-              throw ElaboratorException.HitContainingExternalDimension()
-            }
-            (da, body)
-          })
-          ctx = ctx.newConstructor(c.name, Seq.empty /* FIXME as above */, dims.size)
-          (c.name, ll, tt, iss.size, es)
-        })
-        val fl = fs.map(_._2).max
-        (Value.Universe(fl), Abstract.Sum(ind.map(_._2(fl)), fs.map(a =>
-          Abstract.Constructor(
-            a._1,
-            a._3.zipWithIndex.map(kk => Abstract.ClosureGraph.Node(kk._1._2, 0 until kk._2, kk._1._3)), a._4,
-            a._5.toMap
-          ))))
+      case r: Concrete.Record =>
+        checkRecord(None, r)
+      case s: Concrete.Sum =>
+        checkSum(None, s)
       case Concrete.Transp(tp, direction, base) =>
         // LATER does these needs finish off implicits?
         val (dv, da) = checkAndEvalFormula(direction)
@@ -439,7 +435,7 @@ class Elaborator private(protected override val layers: Layers)
             lookupTerm(name) match {
               case NameLookupResult.Typed(typ, ref) => defaultCase(typ, ref)
               case NameLookupResult.Construct(self, index, closure, dim) =>
-                throw FinishHitImplimentation()
+                inferConstructApp(self, index, closure, dim, arguments)
             }
           case _ =>
             val (lt, la) = infer(lambda, true)
@@ -656,7 +652,7 @@ class Elaborator private(protected override val layers: Layers)
       case _ => (Name.empty, Seq.empty)
     }
     def fallback(): Abstract = {
-      val (tt, ta) = infer(term, indState = indState)
+      val (tt, ta) = infer(term)
       if (subTypeOf(tt, cp)) ta
       else {
         info(s"${reify(tt.whnf)}")
@@ -699,6 +695,17 @@ class Elaborator private(protected override val layers: Layers)
                 } else {
                   fallback()
                 }
+            }
+          case v@Value.Universe(l) =>
+            term match {
+              case s: Concrete.Sum =>
+                val ind = indState.consume(l)
+                checkSum(Some((v, ind)), s)._2
+              case r: Concrete.Record =>
+                val ind = indState.consume(l)
+                checkRecord(ind.map(_._2), r)._2
+              case _ =>
+                fallback()
             }
           case Value.GlueType(ty, faces) =>
             term match {

@@ -1,7 +1,7 @@
 package mlang.compiler
 
 import mlang.compiler.Abstract.Formula
-import mlang.utils.{Benchmark, debug}
+import mlang.utils.{Benchmark, Name, debug}
 
 import scala.collection.mutable
 
@@ -53,6 +53,11 @@ trait Evaluator extends EvaluatorContext {
 
   protected def eval(a: Abstract.AbsClosure): Value.AbsClosure = {
     eval(Abstract.PathLambda(a)).asInstanceOf[Value.PathLambda].body
+  }
+
+  protected def eval(a: Abstract.ClosureGraph): Value.ClosureGraph = {
+    // TOOD this is ugly
+    eval(Abstract.Record(None, a.map(_ => Name.empty), a)).asInstanceOf[Value.Record].nodes
   }
 
   protected def eval(a: Abstract.Formula): Value.Formula = {

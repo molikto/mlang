@@ -82,5 +82,6 @@ object ElaboratorException {
   case class ConstantSortWrong() extends ElaboratorException
 
   case class HitContainingExternalDimension() extends ElaboratorException
+  case class CannotInferTypeOfHit() extends ElaboratorException
 }
 
