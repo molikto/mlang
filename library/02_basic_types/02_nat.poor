@@ -35,18 +35,19 @@ define plus(a b: nat): nat = run {
   rec(make(a, b))
 }
 
+define one = suc(zero)
+define two = suc(one)
+define three = suc(two)
+define four = suc(three)
+define five = suc(four)
+define six = suc(five)
+define seven = suc(six)
+define eight = suc(seven)
+define nine = suc(eight)
+define ten = suc(nine)
+
 // currently we use `_test_xxx` to write test codes
 define _test_plus = run {
-  define one = suc(zero)
-  define two = suc(one)
-  define three = suc(two)
-  define four = suc(three)
-  define five = suc(four)
-  define six = suc(five)
-  define seven = suc(six)
-  define eight = suc(seven)
-  define nine = suc(eight)
-  define ten = suc(nine)
   define left_zero(a: nat): plus(a, zero) ≡ a = refl
   define right_zero(a: nat): plus(zero, a) ≡ a = refl
   define ttt1(a: nat): nat = plus(two, four)
