@@ -42,7 +42,7 @@ trait ValueConversion {
     false
   }
 
-  def unifyFailed(): Option[Value] = {
+  def unifyFailed[T](): Option[T] = {
     None
   }
 
@@ -82,14 +82,14 @@ trait ValueConversion {
           if (phiEq) {
             recValueSystem(selfValue, g1.restrictions(), g2.restrictions())
           } else {
-            false
+            unifyFailedFalse()
           }
         }
       } else {
-        false
+        unifyFailedFalse()
       }
     } else {
-      false
+      unifyFailedFalse()
     }
   }
 
@@ -129,7 +129,7 @@ trait ValueConversion {
           if (recTerm(d, ds._1, ds._2)) {
             Some(func.codomain(ds._1))
           } else {
-            None
+            unifyFailed()
           }
         case _ => tp
       }
@@ -142,7 +142,7 @@ trait ValueConversion {
         // structural
         el
       case (Some(dd1), Some(dd2)) => recInd(dd1, dd2) // nominal
-      case _ => false
+      case _ => unifyFailedFalse()
     }
 
   }
@@ -182,7 +182,7 @@ trait ValueConversion {
       }
       true
     } catch {
-      case _: BreakException => false
+      case _: BreakException => unifyFailedFalse()
     }
   }
 
@@ -215,7 +215,7 @@ trait ValueConversion {
         unifyFailedFalse()
       }
     } catch {
-      case _: BreakException => false
+      case _: BreakException => unifyFailedFalse()
     }
   }
 
@@ -350,7 +350,7 @@ trait ValueConversion {
         val res = forCompatibleAssignments(r1, r2) { (a, b1, b2) =>
           recAbsClosure(t1.restrict(a), b1.restrict(a), b2.restrict(a))
         }
-        if (res) Some(t1) else None
+        if (res) Some(t1) else unifyFailed()
       case (Transp(t1, d1, b1), Transp(t2, d2, b2)) =>
         if (d1.normalForm == d2.normalForm && recTypeAbsClosure(t1, t2) && recTerm(t1(Value.Formula.False), b1, b2)) {
           Some(t1(Value.Formula.True))
@@ -399,7 +399,7 @@ trait ValueConversion {
         Try { extractTypes(pair._1.pattern, domain) } match {
           case Success((vs, ds, itself)) =>
             recTerm(codomain(itself), pair._1.closure(vs, ds), pair._2.closure(vs, ds))
-          case _ => false
+          case _ => unifyFailedFalse()
         }
       }
     })
@@ -414,10 +414,10 @@ trait ValueConversion {
           if (recTerm(as(i).independent.typ, m1, t2(i))) {
             Some(as.reduce(i, m1))
           } else {
-            None
+            unifyFailed()
           }
         case None =>
-          None
+          unifyFailed()
       }
     }
   }

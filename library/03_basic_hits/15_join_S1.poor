@@ -23,3 +23,40 @@ define join_S1_border_contraction(i j k m: I): join_S1 =
   |~k: l → join_S1_facek01(~i, j, l)
   | k: l → join_S1_facek01(~i, j, l)
   )(m)
+
+
+define inductively post_total_hopf: type = sum {
+  case base(: S1)
+  case loop(x: S1, i j: I
+  |i: base(x)
+  |~i: base(x)
+  |~j: base(x)
+  |j: base(rot_loop(x, ~i))
+  )
+}
+define tee12:
+ (x: S2, y: S2_hopf(x)) ⇒ post_total_hopf =
+┌ base → y → post_total_hopf.base(y)
+└ surf(i, j) → y →
+    hcomp(post_total_hopf.loop(unglue(y), i, j)
+    |~i: k → post_total_hopf.base(y)
+    |i: k → post_total_hopf.base(y)
+    |~j: k → post_total_hopf.base(y)
+    |j: k → post_total_hopf.base(rot_loop_inv(y, ~i, k))
+    )
+
+define tee34: post_total_hopf ⇒ join_S1 =
+┌ base(x) → join_S1.inl(x)
+└ loop(x, i, j) → hcomp(join_S1.push(x, x, j)
+                  |~i: k → join_S1.push(x, x, j∧(~k))
+                  |i: k → join_S1.push(x, x, j∧(~k))
+                  |~j: k → join_S1.inl(x)
+                  |j: k → join_S1.push(rot_loop(x, ~i), x, ~k)
+                  )
+
+define tee(x: S2, y: S2_hopf(x)): join_S1 = tee34(tee12(x, y))
+
+
+/**
+
+**/

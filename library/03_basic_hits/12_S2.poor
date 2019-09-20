@@ -23,3 +23,10 @@ define S2_hopf: S2 ⇒ type =
                |i: make(S1, id_equiv(S1))
                |~j: make(S1, id_equiv(S1))
                |j: make(S1, make(rot(S1.loop(i)), rot_is_equiv(S1.loop(i)))))
+
+
+
+/*
+define loop_space_3_hopf: loop_space_3(S2_pointed).A ⇒ type =
+  fib_loop_space_3(S2_hopf, S2.base)
+*/

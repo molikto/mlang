@@ -44,6 +44,16 @@ define rot_loop:
 ┌ base    → j → S1.loop(j)
 └ loop(i) → j → hcomp(S1.base |~i: k → S1.loop(j∨(~k)) |i: k → S1.loop(j∧k) |~j: k → S1.loop(i∨(~k)) |j: k → S1.loop(i∧k) )
 
+
+define rot_loop_inv(a: S1): (refl ≡[i → (rot_loop(rot_loop(a, ~i), i) ≡ a)] refl) =
+  i → j → hcomp(rot_loop(rot_loop(a, (~i)∨j), i)
+          |~i: k → a
+          |i: k → rot_loop(a, j∧(~k))
+          |~j: k → rot_loop(rot_loop(a, ~i), i)
+          |j: k → rot_loop(a, i∧(~k))
+          )
+
+
 define rot: S1 ⇒ S1 ⇒ S1 =
 ┌ base → x → x
 └ loop(i) → x → rot_loop(x, i)
@@ -56,17 +66,6 @@ define rot_is_equiv:
  (a: S1) ⇒ is_equiv(rot(a)) =
 ┌ base → id_is_equiv(S1)
 └ loop(i) → is_prop_fam_S1(x → is_equiv(rot(x)), x → is_prop_is_equiv(rot(x)), id_is_equiv(_))(i)
-
-
-
-// define inductively post_total_hopf: type = sum {
-//   case base(: S1)
-//   case loop(x: S1, base(x) ≡[] rot_loop(x, ))
-// }
-
-
-
-
 
 
 

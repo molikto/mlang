@@ -30,7 +30,7 @@ define test_0_to_4: loop_space_3(S2_pointed).A =
 define interpath(i j: I): S2_hopf(test_0_to_4(i, j, 1)) =
   transp(k → S2_hopf(test_0_to_4(i, j, k)), 0, S1.base)
 
-define problem: int.pos(zero) ≡ int.pos(zero) =
+define __debug problem: int.pos(zero) ≡ int.pos(zero) =
   i → transp(j → S1_helix(interpath(i ,j)), 0, int.pos(zero))
 
 

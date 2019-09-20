@@ -206,6 +206,7 @@ class Elaborator private(protected override val layers: Layers)
       val (ll, tt, ctx0) = ctx.inferFlatLevel(tpd)
       ctx = ctx0
       val valueGraph = tt.zipWithIndex.map(kk => Abstract.ClosureGraph.Node(kk._1._2, 0 until kk._2, kk._1._3))
+      // FIXME check restrictions is compatible
       def checkRestrictions(sv: Value): Seq[(Abstract.Formula, Abstract.MetaEnclosed)] = {
         // NOW: check extensions
         val (dimCtx, dims) = iss.foldLeft((ctx0, Seq.empty[Long])) { (ctx, n) =>
@@ -964,9 +965,8 @@ class Elaborator private(protected override val layers: Layers)
         }
     }
     if (s.modifiers.contains(Declaration.Modifier.__Debug)) {
-//      val a = ret.layers.head.asInstanceOf[Layer.Defines].terms.find(_.name == s.name).get
-//      val k = a.ref0.get.value
-//      println(reify(k))
+      val a = ret.layers.head.asInstanceOf[Layer.Defines].terms.find(_.name == s.name).get
+      val k = a.ref0.get.value
     }
     ret
   }
