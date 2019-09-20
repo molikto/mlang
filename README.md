@@ -5,7 +5,7 @@
 
 A cubical type theory implementation with implicit arguments, structural record and sum types and more. see roadmap section for details.
 
-see `tests` and `library` folder for sample code
+see `library` and `tests` folder for sample code
 
 ## build & run & debug & editor setup
 
