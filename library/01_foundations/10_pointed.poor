@@ -28,15 +28,17 @@ define map_loop_space_3_refl(#A: pointed, #B: type, f: A.A ⇒ B, p: loop_space_
 define fib_loop_space(#B: pointed, P: B.A ⇒ type, f: P(B.center), p: loop_space(B).A): type =
   f ≡[i → P(p(i))] f
 
-/*
 define fib_loop_space_2(#B: pointed, P: B.A ⇒ type, f: P(B.center)): loop_space_2(B).A ⇒ type =
-  fib_loop_space(@_, fib_loop_space(P, f), refl)
+  fib_loop_space(@loop_space(B), fib_loop_space(P, f),  ─ → f)
 
 define fib_loop_space_3(#B: pointed, P: B.A ⇒ type, f: P(B.center)): loop_space_3(B).A ⇒ type =
-  fib_loop_space_2(@_, fib_loop_space(P, f), refl)
+  fib_loop_space_2(@loop_space(B), fib_loop_space(P, f),  ─ → f)
 
-*/
 
 // FIXME this will result in unsloved meta
 //define fib_loop_space_2(#B: pointed, P: B.A ⇒ type, f: P(B.center)): loop_space_2(B).A ⇒ type =
 //  fib_loop_space(fib_loop_space(P, f), refl)
+
+// FIXME this will result in meta solution reify error, no value in scope???
+//define fib_loop_space_2(#B: pointed, P: B.A ⇒ type, f: P(B.center)): loop_space_2(B).A ⇒ type =
+//  fib_loop_space(@loop_space(B), fib_loop_space(P, f), refl)

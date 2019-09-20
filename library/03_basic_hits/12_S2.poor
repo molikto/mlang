@@ -26,7 +26,18 @@ define S2_hopf: S2 ⇒ type =
 
 
 
-/*
+// FIXME again, this fib thing doesn't solves at all
 define loop_space_3_hopf: loop_space_3(S2_pointed).A ⇒ type =
-  fib_loop_space_3(S2_hopf, S2.base)
-*/
+  fib_loop_space_3(@S2_pointed, S2_hopf, S1.base)
+
+
+define fib_contr_loop_space_3_hopf(p: loop_space_3(S2_pointed).A): loop_space_3_hopf(p) =
+  i → j → k →
+    hcomp(transp(n → S2_hopf(p(i, j, k∧n)), i∨(~i)∨j∨(~j)∨(~k), S1.base)
+    |~i: m → S1.base
+    | i: m → S1.base
+    |~j: m → S1.base
+    | j: m → S1.base
+    |~k: m → S1.base
+    | k: m → ???
+    )

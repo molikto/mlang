@@ -27,6 +27,7 @@ trait MetaSolver extends ValueConversion with Reifier with ElaboratorContextRebi
           case _: UnificationFailedException =>
             unifyFailed()
           case _: RebindNotFoundException =>
+            warn("solve meta rebind not found!")
             unifyFailed()
           case e => throw e
         }
