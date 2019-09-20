@@ -59,7 +59,7 @@ so some improvements:
     * basic `.poor` syntax and parser
     * concrete syntax, core syntax, core semantics and reification
         * function types, path types
-        * inductive(nominal)/structural record type/sum type
+        * inductive(nominal)/structural record/sum type
         * mutually recursive definitions
     * bidirectional elaborating type checker
     * conversion check and whnf with eta and recursive references
