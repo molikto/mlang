@@ -1,31 +1,11 @@
 
 
-define facek01(i j k: I): join_S1 =
-  hfill(join_S1.push(S1.base, S1.base, ~k)
-  |~j: l → join_S1.push(S1.base, S1.base, (~l)∧(~k))
-  | j: l → join_S1.push(S1.base, S1.base, (~l)∧(~k))
-  |~k: l → join_S1.push(S1.loop(j), S1.base, (~l))
-  | k: l → join_S1.inl(S1.base)
-  )(i)
-
-// TODO support border k or, or expressions in partial elements
-define border_contraction(i j k m: I): join_S1 =
-  hfill(join_S1.push(S1.loop(j), S1.loop(k), i)
-  |~i: l → facek01(1, j, l)
-  | i: l → join_S1.push(S1.base, S1.loop(k), ~l)
-  |~j: l → join_S1.push(S1.base, S1.loop(k), (i)∧(~l))
-  | j: l → join_S1.push(S1.base, S1.loop(k), (i)∧(~l))
-  |~k: l → facek01(~i, j, l)
-  | k: l → facek01(~i, j, l)
-  )(m)
 
 
 define S3_to_join_S1
 : S3 ⇒ join_S1 =
 ┌ base → join_S1.inl(S1.base)
-└ surf(j, k, i) → border_contraction(i, j, k, 1)
-
-
+└ surf(j, k, i) → join_S1_border_contraction(i, j, k, 1)
 
 define alpha: join_S1 ⇒ S2 =
 ┌ inl(s) → S2.base

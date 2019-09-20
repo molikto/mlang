@@ -1,0 +1,25 @@
+
+
+
+define join_S1 = join(S1, S1)
+
+define join_S1_pointed = pointed.make(@join_S1, join_S1.inl(S1.base))
+
+define join_S1_facek01(i j k: I): join_S1 =
+  hfill(join_S1.push(S1.base, S1.base, ~k)
+  |~j: l → join_S1.push(S1.base, S1.base, (~l)∧(~k))
+  | j: l → join_S1.push(S1.base, S1.base, (~l)∧(~k))
+  |~k: l → join_S1.push(S1.loop(j), S1.base, (~l))
+  | k: l → join_S1.inl(S1.base)
+  )(i)
+
+// TODO support border k or, or expressions in partial elements
+define join_S1_border_contraction(i j k m: I): join_S1 =
+  hfill(join_S1.push(S1.loop(j), S1.loop(k), i)
+  |~i: l → join_S1_facek01(1, j, l)
+  | i: l → join_S1.push(S1.base, S1.loop(k), ~l)
+  |~j: l → join_S1.push(S1.base, S1.loop(k), (i)∧(~l))
+  | j: l → join_S1.push(S1.base, S1.loop(k), (i)∧(~l))
+  |~k: l → join_S1_facek01(~i, j, l)
+  | k: l → join_S1_facek01(~i, j, l)
+  )(m)
