@@ -93,11 +93,11 @@ object Abstract {
 
   // LATER this is just a marker, we might have Record(recursive: Option[RecursiveType], ...) later
   sealed trait RecursiveType
-  case class Inductively(id: Long, level: Int
+  case class Inductively(id: Long, typ: Abstract, ps: Seq[Abstract]
                        /*  , parameters: Seq[Abstract], parameterTypes: ClosureGraph */
                         ) extends RecursiveType {
-    def dependencies(i: Int): Set[Dependency] = Set.empty
-    def diff(depth: Int, x: Int): Inductively = this
+    def dependencies(i: Int): Set[Dependency] = typ.dependencies(i) ++ ps.flatMap(_.dependencies(i))
+    def diff(depth: Int, x: Int): Inductively = Inductively(id, typ.diff(depth, x), ps.map(_.diff(depth, x)))
     override def toString: String = "inductively"
   }
 

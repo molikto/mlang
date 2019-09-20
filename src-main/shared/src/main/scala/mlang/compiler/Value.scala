@@ -789,10 +789,11 @@ object Value {
 
 
   sealed trait RecursiveType
-  case class Inductively(@nominal_equality id: Long, @type_annotation level: Int) extends RecursiveType {
-    def restrict(lv: Formula.Assignments): Inductively = this
-    def fswap(w: Long, z: Formula): Inductively = this
-    def supportShallow(): SupportShallow =  SupportShallow.empty
+  case class Inductively(@nominal_equality id: Long, @type_annotation typ: Value, ps: Seq[Value]) extends RecursiveType {
+    def typFinal: Value = ps.foldLeft(typ) { (t, p) => t.whnf.asInstanceOf[Function].codomain(p) }
+    def restrict(lv: Formula.Assignments): Inductively = Inductively(id, typ.restrict(lv), ps.map(_.restrict(lv)))
+    def fswap(w: Long, z: Formula): Inductively = Inductively(id, typ.fswap(w, z), ps.map(_.fswap(w, z)))
+    def supportShallow(): SupportShallow =  typ.supportShallow() ++ SupportShallow.flatten(ps.map(_.supportShallow()))
   }
 
   case class Record(
@@ -1692,9 +1693,9 @@ sealed trait Value {
           case _ => logicError()
         }
       case r: Record =>
-        r.inductively.map(a => Universe(a.level)).getOrElse(Universe(r.nodes.inferLevel()))
+        r.inductively.map(_.typFinal).getOrElse(Universe(r.nodes.inferLevel()))
       case s: Sum =>
-        s.inductively.map(a => Universe(a.level)).getOrElse(
+        s.inductively.map(_.typFinal).getOrElse(
           Universe(if (s.constructors.isEmpty) 0 else s.constructors.map(c => c.nodes.inferLevel()).max))
       case PathType(typ, _, _) =>
         typ.apply(Formula.Generic(dgen())).infer

@@ -76,7 +76,7 @@ trait PlatformEvaluator extends Evaluator {
   def emit(id: Option[Abstract.Inductively], depth: Int): String = {
     id match {
       case None => "None"
-      case Some(a) => s"Some(Inductively(${a.id}, ${a.level}))"
+      case Some(a) => s"Some(Inductively(${a.id}, ${emit(a.typ, depth)}, Seq[Value](${a.ps.map(k => emit(k, depth)).mkString(", ")})))"
     }
   }
 

@@ -76,3 +76,43 @@ define problem: int.pos(zero) ≡ int.pos(zero) =
   i → transp(j → S1_helix(interpath(i ,j)), 0, int.pos(zero))
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

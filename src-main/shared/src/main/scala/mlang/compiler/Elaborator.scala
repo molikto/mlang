@@ -13,13 +13,13 @@ import scala.language.implicitConversions
 
 class syntax_creation extends Annotation
 
-private class IndState(val id: Long, var stop: Boolean, var top: Value, var apps: Seq[Value] = Seq.empty) {
+private class IndState(val id: Long, typ: Abstract, var stop: Boolean, var top: Value, var apps: Seq[Value] = Seq.empty) {
   // returns a value is self
   def consume(level: Int): Option[(Value, Abstract.Inductively)] = {
     if (stop) {
       None
     } else {
-      val ret = Abstract.Inductively(id, level)
+      val ret = Abstract.Inductively(id, typ, (0 until apps.size).map(i => Abstract.Reference(i, -1)).reverse)
       stop = true
       Some((Value.Apps(top, apps), ret))
     }
@@ -36,7 +36,7 @@ private class IndState(val id: Long, var stop: Boolean, var top: Value, var apps
 }
 
 private object IndState {
-  val stop = new IndState(0, true, null)
+  val stop = new IndState(0, null, true, null)
 }
 
 object Elaborator {
@@ -241,6 +241,7 @@ class Elaborator private(protected override val layers: Layers)
       }
       (c.name, ll, closureGraph)
     })
+    // FIXME currently crash on empty type
     val fl = fs.map(_._2).max
     (Value.Universe(fl), Abstract.Sum(tps.flatMap(_._2.map(_._2)), fs.map(a =>
       Abstract.Constructor(a._1, a._3))))
@@ -854,10 +855,10 @@ class Elaborator private(protected override val layers: Layers)
         //        }
         // a inductive type definition
         var inductively: IndState = IndState.stop
-        def rememberInductivelyBy(self: Value) = {
+        def rememberInductivelyBy(ty: Abstract, self: Value) = {
           inductively = if (ms.contains(Modifier.Inductively)) {
             if (topLevel) {
-              new IndState(Elaborator.igen(), false, self)
+              new IndState(Elaborator.igen(),ty,  false, self)
             } else {
               throw ElaboratorException.RecursiveTypesMustBeDefinedAtTopLevel()
             }
@@ -871,7 +872,8 @@ class Elaborator private(protected override val layers: Layers)
             }
             info(s"check defined $name")
             if (ps.nonEmpty || t0.nonEmpty) throw ElaboratorException.SeparateDefinitionCannotHaveTypesNow()
-            val va = check(v, item.typ, Seq.empty, rememberInductivelyBy(item.ref))
+            // FIXME it is an example why define layers should also save all code, this way the reify bellow is not necessary
+            val va = check(v, item.typ, Seq.empty, rememberInductivelyBy(reify(item.typ), item.ref))
             info("body:"); print(va)
             appendMetas(freeze())
             val ref = newReference()
@@ -898,7 +900,7 @@ class Elaborator private(protected override val layers: Layers)
                   NameType.flatten(d).map(_._2)
                 case _ => Seq.empty
               })
-              val va = ctx.check(wrapBody(v, pps.map(_._1)), tv, lambdaNameHints, rememberInductivelyBy(generic))
+              val va = ctx.check(wrapBody(v, pps.map(_._1)), tv, lambdaNameHints, rememberInductivelyBy(ta, generic))
               info("body:"); print(va)
               appendMetas(ctx.freeze())
               val ref = newReference()

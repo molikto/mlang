@@ -12,6 +12,8 @@ define not:
 └ false → true
 
 
+define bool_pointed: pointed = make(true)
+
 define not_not(b: bool) = not(not(b))
 
 

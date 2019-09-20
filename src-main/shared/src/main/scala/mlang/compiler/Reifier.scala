@@ -108,7 +108,7 @@ private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorCon
 
   def reify(id: Option[Value.Inductively]): Option[Inductively] = {
     id match {
-      case Some(value) => Some(Inductively(value.id, value.level))
+      case Some(value) => Some(Inductively(value.id, reify(value.typ), value.ps.map(reify)))
       case None => None
     }
   }

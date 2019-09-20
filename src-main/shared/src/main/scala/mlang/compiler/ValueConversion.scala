@@ -118,7 +118,23 @@ trait ValueConversion {
   }
 
 
-  def recInd(dd1: Inductively, dd2: Inductively): Boolean = dd1.id == dd2.id && dd1.level == dd2.level
+  def recInd(dd1: Inductively, dd2: Inductively): Boolean = dd1.id == dd2.id && {
+     // if id is equal, then type is equal
+    assert(dd1.ps.size == dd2.ps.size)
+    dd1.ps.zip(dd2.ps).foldLeft(Some(dd1.typ): Option[Value]) { (tp, ds) =>
+      tp match {
+        case Some(v) =>
+          val func = v.whnf.asInstanceOf[Value.Function]
+          val d = func.domain
+          if (recTerm(d, ds._1, ds._2)) {
+            Some(func.codomain(ds._1))
+          } else {
+            None
+          }
+        case _ => tp
+      }
+    }
+  }
 
   @inline def maybeNominal(id1: Option[Inductively], id2: Option[Inductively], el: => Boolean): Boolean = {
     (id1, id2) match {
