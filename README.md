@@ -58,19 +58,19 @@ so some improvements:
 * **DONE** totally unsafe MLTT basics
     * basic `.poor` syntax and parser
     * concrete syntax, core syntax, core semantics and reification
-        * function types, record types, sum types, path types
+        * function types, path types
+        * inductive(nominal)/structural record type/sum type
         * mutually recursive definitions
-        * *problem: should you use type directed conversion checking*
     * bidirectional elaborating type checker
     * conversion check and whnf with eta and recursive references
 * **DONE** overlapping and order independent patterns, see `plus_tests` in library for detail
 * **DONE** locally scoped meta; very simple unification; implicit arguments syntax
     * *problem: the meta solution is not type checked, and other cases metas is not solved see FIXMEs in code*
-* cubical features
-    * **DONE** path type
-    * **DONE** composition structure (hcomp, transp)
-    * **DONE** glue type and univalence, fibrant universe
-    * **WIP** sum type's composition structure, higher inductive types
+* **DONE** cubical features
+    * path type
+    * composition structure (hcomp, transp)
+    * glue type and univalence, fibrant universe
+    * sum type's composition structure, higher inductive types
 * cumulative universe with "lift" operator for global definitions (see [here](https://mazzo.li/epilogue/index.html%3Fp=857&cpage=1.html))
 * think how we can have a syntax for partial elements and dimension
 * think how we can incorporate XTT or/and two level system
