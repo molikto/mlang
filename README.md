@@ -58,7 +58,7 @@ so some improvements:
 * **DONE** totally unsafe MLTT basics
     * basic `.poor` syntax and parser
     * concrete syntax, core syntax, core semantics and reification
-        * function types, path types
+        * function type
         * inductive(nominal)/structural record/sum type
         * mutually recursive definitions
     * bidirectional elaborating type checker
