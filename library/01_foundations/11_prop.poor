@@ -1,0 +1,8 @@
+
+
+
+
+define prop: ^type = record {
+  field ty: type
+  field ty_is_prop: is_prop(ty)
+}

@@ -1,0 +1,11 @@
+
+
+define inductively set_trunc(A: type): type = sum {
+  case in(a: A)
+  case squash(x y: set_trunc(A), p q: x ≡ y, j i: I
+       |~j: p(i)
+       | j: q(i)
+       |~i: x
+       | i: y
+       )
+}

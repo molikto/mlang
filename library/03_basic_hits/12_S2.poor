@@ -1,0 +1,25 @@
+
+
+define S2: type = sum {
+  case base
+  case surf(i j: I |~i: base |i: base |~j: base |j: base)
+}
+
+
+define S2_pointed = pointed.make(S2.base)
+
+
+define S2_merid:
+S1 ⇒ S2.base ≡ S2.base =
+┌ base → refl
+└ loop(i) → j → S2.surf(i, j)
+
+
+
+define S2_hopf: S2 ⇒ type =
+┌ base → S1
+└ surf(i, j) → glue_type(S1
+               |~i: make(S1, id_equiv(S1))
+               |i: make(S1, id_equiv(S1))
+               |~j: make(S1, id_equiv(S1))
+               |j: make(S1, make(rot(S1.loop(i)), rot_is_equiv(S1.loop(i)))))

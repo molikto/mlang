@@ -81,6 +81,11 @@ define path_map(#A: type, #B: A ⇒ type, f: (x: A) ⇒ B(x), #x #y: A, p: x ≡
 
 define is_prop(A: type): type = (a b: A) ⇒ a ≡ b
 
+define is_set(A: type): type = (x y: A) ⇒ is_prop(x ≡ y)
+
+define is_groupoid(A: type): type = (a b: A) ⇒ is_set(a ≡ b)
+
+define is_groupoid2(A: type): type = (a b: A) ⇒ is_groupoid(a ≡ b)
 
 define is_prop_is_contr(#A: type): is_prop(is_contr(A)) =
   z0 → z1 → j →
@@ -92,6 +97,11 @@ define is_prop_is_contr(#A: type): is_prop(is_contr(A)) =
       |~j: k → z0.to_center(x)(i∧k)
       | j: k → z1.to_center(x)(i)
       ))
+
+
+
+define connection_both(#A: type, #a: A, p: a ≡ a): p ≡[i → p(i) ≡ p(i)] p =
+  i → j → hcomp(a |~i: k → p(j∨(~k)) |i: k → p(j∧k) |~j: k → p(i∨(~k)) |j: k → p(i∧k))
 
 /* TODO local match expression or with expression
 

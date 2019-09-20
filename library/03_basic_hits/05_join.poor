@@ -1,0 +1,29 @@
+
+
+define join(A B: type): type = sum {
+  case inl(a: A)
+  case inr(b: B)
+  case push(a: A, b: B, i: I |~i: inl(a) |i: inr(b))
+}
+
+
+
+
+define join_pointed(a: pointed, b: type): pointed = pointed.make(join(a.A, b).inl(a.center))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -14,7 +14,7 @@ object ElaboratorException {
 
   // elimination mismatch
   case class UnknownAsType() extends ElaboratorException
-  case class UnknownProjection() extends Exception(s"Unknown projection") with ElaboratorException
+  case class UnknownProjection(str: String) extends Exception(s"Unknown projection $str") with ElaboratorException
   case class UnknownAsFunction() extends ElaboratorException
 
 

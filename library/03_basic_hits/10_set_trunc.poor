@@ -1,6 +1,0 @@
-
-
-define inductively set_trunc(A: type): type = sum {
-  case in(a: A)
-  case squash(x y: set_trunc(A), i: I |~i: x |i: y)
-}

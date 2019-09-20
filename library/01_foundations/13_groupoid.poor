@@ -1,0 +1,9 @@
+
+
+
+
+
+define groupoid: ^type = record {
+  field ty: type
+  field ty_is_groupoid: is_groupoid(ty)
+}

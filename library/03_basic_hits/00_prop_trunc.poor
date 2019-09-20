@@ -1,0 +1,6 @@
+
+
+define inductively prop_trunc(A: type): type = sum {
+  case in(a: A)
+  case squash(x y: prop_trunc(A), i: I |~i: x |i: y)
+}

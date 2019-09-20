@@ -1,0 +1,8 @@
+
+
+
+
+define set: ^type = record {
+  field ty: type
+  field ty_is_set: is_set(ty)
+}

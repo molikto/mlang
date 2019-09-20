@@ -1,0 +1,17 @@
+
+
+define inductively groupoid2_trunc(A: type): type = sum {
+  case in(a: A)
+  case squash(x y: groupoid2_trunc(A), p q: x ≡ y, r s: p ≡ q, t u: r ≡ s, v k j i: I
+       |~v: t(k, j, i)
+       | v: u(k, j, i)
+       |~k: r(j, i)
+       | k: s(j, i)
+       |~j: p(i)
+       | j: q(i)
+       |~i: x
+       | i: y
+       )
+}
+
+define pointed_groupoid2_trunc(p: pointed): pointed = make(groupoid2_trunc(p.A).in(p.center))

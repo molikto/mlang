@@ -272,7 +272,7 @@ class Elaborator private(protected override val layers: Layers)
       val (lt, la) = infer(left)
       val lv = eval(la)
       lazy val ltr = lt.whnf.asInstanceOf[Value.Record]
-      def error() = throw ElaboratorException.UnknownProjection()
+      def error() = throw ElaboratorException.UnknownProjection(right.toString)
       var index = -1
       def calIndex(a: Text => Int) = {
         index = right match {

@@ -99,6 +99,7 @@ so some improvements:
     * better error reporting
 * structural editor
     * modules and compile unit
+    * editor diractives and name sortcuts
 * testing
     * translate to Agda to do correctness checking
     * core type checker and core type check 
