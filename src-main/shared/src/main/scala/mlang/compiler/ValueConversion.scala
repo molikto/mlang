@@ -253,8 +253,8 @@ trait ValueConversion {
         case (Record(id1, i1, n1), Record(id2, i2, n2)) =>
           // need to check level because of up operator
           maybeNominal(id1, id2, i1 == i2 && recClosureGraph(null, n1, n2, mode))
-        case (s1@Sum(id1, c1), s2@Sum(id2, c2)) =>
-          maybeNominal(id1, id2, c1.size == c2.size && c1.zip(c2).forall(p => recConstructor(choose(s1, s2, mode), p._1, p._2, mode)))
+        case (s1@Sum(id1, h1, c1), s2@Sum(id2, h2, c2)) =>
+          maybeNominal(id1, id2, h1 == h2 && c1.size == c2.size && c1.zip(c2).forall(p => recConstructor(choose(s1, s2, mode), p._1, p._2, mode)))
         case (PathType(t1, l1, r1), PathType(t2, l2, r2)) =>
           recTypeAbsClosure(t1, t2, mode) &&
             recTerm(t1(Formula.False), l1, l2) &&

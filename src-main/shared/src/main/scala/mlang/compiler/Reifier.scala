@@ -128,8 +128,9 @@ private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorCon
         Function(reify(domain), i, reify(codomain))
       case Value.Record(id, names, nodes) =>
         Record(reify(id), names, reify(nodes))
-      case Value.Sum(id, constructors) =>
-        Sum(reify(id), constructors.map(c => Constructor(c.name, reify(c.nodes))))
+      case Value.Sum(id, hit, constructors) =>
+        // TODO, you should be able to read the code directly from context
+        Sum(reify(id), hit, constructors.map(c => Constructor(c.name, reify(c.nodes))))
       case Value.PathType(ty, left, right) =>
         PathType(reify(ty), reify(left), reify(right))
       case Value.Lambda(closure) =>

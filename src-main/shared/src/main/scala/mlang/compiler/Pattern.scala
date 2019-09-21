@@ -11,6 +11,7 @@ object PatternExtractException {
   case class ConstructWrongSize() extends PatternExtractException
   case class ConstructNotSumType() extends PatternExtractException
   case class NonAtomicPatternForDimension() extends PatternExtractException
+  case class HitPatternMatchingShouldBeAtRoot() extends PatternExtractException
 }
 
 

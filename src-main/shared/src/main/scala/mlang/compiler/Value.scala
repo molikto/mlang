@@ -419,6 +419,7 @@ object Value {
   // these serve the purpose of recovering syntax
   sealed trait Internal extends Value
   sealed trait StableCanonical extends Value
+  // FIXME hcomp is either unstable canonical or redux, depending on the type
   sealed trait UnstableCanonical extends Value // this value can reduce more, but only when restricted
   sealed trait Redux extends Value {
     // FIXME this is not that well defined, since some term will always whnf on arguments, some not
@@ -779,6 +780,15 @@ object Value {
     def reduce(): Option[Value] = {
       // using first match is even ok for overlapping ones
       var res: Value = null
+      lambda.domain.whnf match {
+        case s: Sum if s.hit =>
+          stuck.whnf match {
+            case Hcomp(ty, base, faces) =>
+              res = Comp(AbsClosure(i => lambda.typ(hfill(ty, base, faces)(i))), PatternRedux(lambda, base), faces.view.mapValues(_.map(v => PatternRedux(lambda, v))).toMap)
+            case _ =>
+          }
+        case _ =>
+      }
       var cs = lambda.cases
       while (cs.nonEmpty && res == null) {
         res = cs.head.tryApp(stuck).orNull
@@ -827,7 +837,7 @@ object Value {
     def fswap(w: Long, z: Formula): Constructor = Constructor(name, nodes.fswap(w, z))
   }
 
-  case class Sum(inductively: Option[Inductively], constructors: Seq[Constructor]) extends StableCanonical
+  case class Sum(inductively: Option[Inductively], hit: Boolean, constructors: Seq[Constructor]) extends StableCanonical
 
   case class PathType(typ: AbsClosure, left: Value, right: Value) extends StableCanonical
   case class PathLambda(body: AbsClosure) extends StableCanonical
@@ -1049,6 +1059,9 @@ object Value {
                 ) else Seq.empty
                 val w1 = Hcomp(tp(Formula.True), w1p, (item2 :+ item1).toMap)
                 Some(w1)
+              case Hcomp(hty, hbase, faces) =>
+                val res = Hcomp(tp(Value.Formula.True), Transp(tp, phi, hbase), faces.map(pr => (pr._1, pr._2.map(v => Transp(tp, phi, v)))))
+                Some(res)
               case _ =>
                 None
             }
@@ -1171,7 +1184,7 @@ object Value {
   }
 
   /**
-    * whnf: tp is whnf and not canonical
+    * whnf: tp is whnf and not canonical, or tp is sum
     */
   case class Hcomp(@type_annotation @stuck_pos tp: Value, base: Value, faces: AbsClosureSystem) extends Redux {
 
@@ -1202,26 +1215,17 @@ object Value {
                 Make(Seq(B, Apps(BuiltIn.path_to_equiv, Seq(B, A, PathLambda(AbsClosure(a => f(Formula.Neg(a))))))))
               }).toMap)
               Some(res)
-            case Sum(i, cs) =>
-              base.whnf match {
-                case cc@Construct(c, vs, ds, ty) =>
-                  val cstr = cs(c)
-                  if (ds.isEmpty) {
-                    val reduciable = faces.forall(f => {
-                      f._1.normalForm.filter(Value.Formula.Assignments.satisfiable).forall(asg => {
-                        f._2(Value.Formula.Generic(dgen())).restrict(asg).whnf match {
-                          case Construct(c2, _, _, _) => c2 == c // all faces under a generic dimension, reduce to same 0-order constructor
-                          case _ => false
-                        }
-                      })
-                    })
-                    // it is safe to call whnf here, because 0-order constructor is cubical stable
-                    val res = Construct(c, hcompGraph(cstr.nodes, faces, cc, (b, i) => b.whnf.asInstanceOf[Construct].vs(i)), Seq.empty, Map.empty)
+            case s@Sum(i, hit, cs) =>
+              if (!hit) {
+                base.whnf match {
+                  case cc@Construct(c, vs, ds, ty) =>
+                    assert(ds.isEmpty)
+                    val res = Construct(c, hcompGraph(cs(c).nodes, faces, cc, (b, i) => b.whnf.asInstanceOf[Construct].vs(i)), Seq.empty, Map.empty)
                     Some(res)
-                  } else {
-                    None
-                  }
-                case _ => None
+                  case _ => None
+                }
+              } else {
+                None
               }
             case g: GlueType =>
               Some(hcompGlue(g, base, faces))
@@ -1323,7 +1327,7 @@ sealed trait Value {
     case Make(values) => SupportShallow.flatten(values.map(_.supportShallow()))
     case Construct(name, vs, ds, ty) =>
       SupportShallow.flatten(vs.map(_.supportShallow()) ++ ds.map(_.supportShallow())) ++ ValueSystem.supportShallow(ty)
-    case Sum(inductively, constructors) =>
+    case Sum(inductively, _, constructors) =>
       SupportShallow.orEmpty(inductively.map(_.supportShallow())) ++ SupportShallow.flatten(constructors.map(a => a.nodes.supportShallow()))
     case PathType(typ, left, right) =>
       typ.supportShallow() ++ left.supportShallow() ++ right.supportShallow()
@@ -1352,8 +1356,8 @@ sealed trait Value {
       Record(inductively.map(_.fswap(w, z)), ns, nodes.fswap(w, z))
     case Make(values) => Make(values.map(_.fswap(w, z)))
     case Construct(name, vs, ds, ty) => Construct(name, vs.map(_.fswap(w, z)), ds.map(_.fswap(w, z)), ValueSystem.fswap(ty, w, z))
-    case Sum(inductively, constructors) =>
-      Sum(inductively.map(_.fswap(w, z)), constructors.map(_.fswap(w, z)))
+    case Sum(inductively, hit, constructors) =>
+      Sum(inductively.map(_.fswap(w, z)), hit, constructors.map(_.fswap(w, z)))
     case Lambda(closure) => Lambda(closure.fswap(w, z))
     case PatternLambda(id, dom, typ, cases) =>
       PatternLambda(id, dom.fswap(w, z), typ.fswap(w, z), cases.map(a => Case(a.pattern, a.closure.fswap(w, z))))
@@ -1386,8 +1390,8 @@ sealed trait Value {
       Make(values.map(_.restrict(lv)))
     case Construct(name, vs, ds, ty) =>
       Construct(name, vs.map(_.restrict(lv)), ds.map(_.restrict(lv)), ValueSystem.restrict(ty, lv))
-    case Sum(inductively, constructors) =>
-      Sum(inductively.map(_.restrict(lv)), constructors.map(_.restrict(lv)))
+    case Sum(inductively, hit, constructors) =>
+      Sum(inductively.map(_.restrict(lv)), hit, constructors.map(_.restrict(lv)))
     case Lambda(closure) =>
       Lambda(closure.restrict(lv))
     case PatternLambda(id, dom, typ, cases) =>
@@ -1687,7 +1691,6 @@ sealed trait Value {
 object BuiltIn {
   var equiv: Value = null
   var fiber_at: Value = null
-  var fiber_at_ty: Value = null
   var equiv_of: Value = null
   var path_to_equiv: Value = null
 }

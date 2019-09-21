@@ -197,6 +197,7 @@ class Elaborator private(protected override val layers: Layers)
       pair._2.map(_._1).getOrElse(Value.Generic(ElaboratorContextBuilder.gen(), pair._1))
     })
     var ctx = newParametersLayer(selfValue)
+    var isHit = false
     val fs = constructors.map(c => {
       val seq = NameType.flatten(c.term)
       val tpd = seq.takeWhile(_._3 != Concrete.I)
@@ -211,6 +212,7 @@ class Elaborator private(protected override val layers: Layers)
         // NOW: check extensions
         val (dimCtx, dims) = iss.foldLeft((ctx0, Seq.empty[Long])) { (ctx, n) =>
           val (c, l) = ctx._1.newDimension(n)
+          isHit = true
           (c, ctx._2 :+ l.id)
         }
         ctx = dimCtx
@@ -244,7 +246,7 @@ class Elaborator private(protected override val layers: Layers)
     })
     // FIXME currently crash on empty type
     val fl = fs.map(_._2).max
-    (Value.Universe(fl), Abstract.Sum(tps.flatMap(_._2.map(_._2)), fs.map(a =>
+    (Value.Universe(fl), Abstract.Sum(tps.flatMap(_._2.map(_._2)), isHit, fs.map(a =>
       Abstract.Constructor(a._1, a._3))))
   }
 
@@ -916,7 +918,6 @@ class Elaborator private(protected override val layers: Layers)
               if (name == Name(Text("fiber_at"))) {
                 assert(BuiltIn.fiber_at == null)
                 BuiltIn.fiber_at = ref.value
-                BuiltIn.fiber_at_ty = tv
               } else if (name == Name(Text("equiv"))) {
                 assert(BuiltIn.equiv == null)
                 BuiltIn.equiv = ref.value

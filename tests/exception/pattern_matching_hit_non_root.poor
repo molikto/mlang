@@ -1,0 +1,18 @@
+// HitPatternMatchingShouldBeAtRoot
+
+define S1: type = sum {
+  case base
+  case loop(i: I | ~i: base | i: base)
+}
+
+
+
+define pair(A B: type) = record {
+  field a: A
+  field b: B
+}
+
+define not_supported: pair(S1, S1) ⇒ S1 =
+┌ (base, base) → S1.base
+├ (base, loop(i)) → S1.base
+└ (a, b) → S1.base

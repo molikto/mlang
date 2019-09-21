@@ -189,14 +189,14 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
       var vs =  Seq.empty[(Value, Pattern)]
       var graph = nodes
       for (i <- maps.indices) {
-        val tv = rec(maps(i), graph(i).independent.typ)
+        val tv = rec(maps(i), graph(i).independent.typ, false)
         graph = graph.reduce(vs.size, tv._1)
         vs = vs :+ tv
       }
       vs
     }
 
-    def rec(p: Concrete.Pattern, t: Value): (Value, Pattern) = {
+    def rec(p: Concrete.Pattern, t: Value, isRoot: Boolean): (Value, Pattern) = {
       p match {
         case Concrete.Pattern.Atom(name) =>
           var ret: (Value, Pattern) = null
@@ -235,6 +235,7 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
         case Concrete.Pattern.NamedGroup(name, maps) =>
           t.whnf match {
             case sum: Value.Sum =>
+              if (!isRoot && sum.hit) throw PatternExtractException.HitPatternMatchingShouldBeAtRoot()
               val index = sum.constructors.indexWhere(_.name.by(name))
               if (index >= 0) {
                 val c = sum.constructors(index)
@@ -261,7 +262,7 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
           }
       }
     }
-    val (os, p) = rec(pattern, typ)
+    val (os, p) = rec(pattern, typ, true)
     val ctx: Self = Layer.PatternParameters(vvv.toSeq, createMetas()) +: layers
     (ctx, os, p)
   }

@@ -153,8 +153,8 @@ trait PlatformEvaluator extends Evaluator {
           s"""Record( ${emit(id, depth)}, Seq(${names.map(n => source(n)).mkString(", ")}), ${emitGraph(nodes, depth)})"""
         case Abstract.Projection(left, field) =>
           s"Projection(${emit(left, depth)}, $field)"
-        case Abstract.Sum(id, constructors) =>
-          s"""Sum(${emit(id, depth)}, Seq(${constructors.map(c => emitConstructor(c, depth)).mkString(", ")}))"""
+        case Abstract.Sum(id, hit, constructors) =>
+          s"""Sum(${emit(id, depth)}, $hit, Seq(${constructors.map(c => emitConstructor(c, depth)).mkString(", ")}))"""
         case Abstract.Make(vs) =>
           s"Make(${vs.map(v => emit(v, depth))})"
         case Abstract.Construct(name, vs, ds, ty) =>

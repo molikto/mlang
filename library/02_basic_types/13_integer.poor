@@ -1,7 +1,7 @@
 
 
 
-define int: type = sum {
+define inductively int: type = sum {
   case pos(n: nat)
   case negsuc(n: nat)
 }

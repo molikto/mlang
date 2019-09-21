@@ -31,6 +31,41 @@ define S3_to_join_S1
 ┌ base → join_S1.inl(S1.base)
 └ surf(j, k, i) → join_S1_border_contraction(i, j, k, 1)
 
+// JUST pasting here for now, delete when it works
+
+define alpha: join_S1 ⇒ S2 =
+┌ inl(s) → S2.base
+├ inr(s) → S2.base
+└ push(x, y, i) → path_compose(S2_merid(y), S2_merid(x))(i)
+
+define test_0_to_2: loop_space_3(S3_pointed).A =
+  i → j → k → S3.surf(i, j, k)
+
+define f3: loop_space_3(S3_pointed).A ⇒ loop_space_3(join_S1_pointed).A =
+  p → i → j → k → S3_to_join_S1(p(i, j, k))
+
+define test_0_to_3: loop_space_3(join_S1_pointed).A =
+  f3(test_0_to_2)
+
+define f4: loop_space_3(join_S1_pointed).A ⇒ loop_space_3(S2_pointed).A =
+  p → i → j → k → alpha(p(i, j, k))
+
+define test_0_to_4: loop_space_3(S2_pointed).A =
+  f4(test_0_to_3)
+
+define interpath(i j: I): S2_hopf(test_0_to_4(i, j, 1)) =
+  transp(k → S2_hopf(test_0_to_4(i, j, k)), 0, S1.base)
+
+define __debug problem: int.pos(zero) ≡ int.pos(zero) =
+  i → transp(j → S1_helix(interpath(i ,j)), 0, int.pos(zero))
+
+
+
+
+
+
+
+
 
 define inductively post_total_hopf: type = sum {
   case base(: S1)
