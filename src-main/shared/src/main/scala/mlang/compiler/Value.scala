@@ -60,7 +60,8 @@ object Value {
             case Neg(u2) => u2
             case True => False
             case False => True
-            case _: Formula.Internal => logicError()
+            case _: Formula.Internal =>
+              logicError()
           }
           unit match {
             case Formula.Generic(id) => Set(Set((id, false)))
@@ -868,26 +869,11 @@ object Value {
       SupportShallow.flatten(faces.toSeq.map(f => f._2.supportShallow() +- f._1.names))
     }
     def fswap(faces: ValueSystem, w: Long, z: Formula): ValueSystem = {
-      faces.toSeq.flatMap(n => {
-        val r = n._1.fswap(w, z)
-        // TODO can you simply remove unsatifiable faces?
-        if (r.normalForm == Formula.NormalForm.False) {
-          None
-        } else {
-          Some((r, n._2.fswap(w, z)))
-        }
-      }).toMap
+      faces.toSeq.map(n => (n._1.fswap(w, z), n._2.fswap(w, z))).toMap
     }
     def restrict(faces: ValueSystem, lv: Formula.Assignments) = {
-      faces.toSeq.flatMap(n => {
-        val r = n._1.restrict(lv)
-        // TODO can you simply remove unsatifiable faces?
-        if (r.normalForm == Formula.NormalForm.False) {
-          None
-        } else {
-          Some((r, n._2.restrict(lv)))
-        }
-      }).toMap
+      // you cannot remove faces here! it has bugs with derestricted!!
+      faces.toSeq.map(n => (n._1.restrict(lv), n._2.restrict(lv))).toMap
     }
   }
 
@@ -897,26 +883,11 @@ object Value {
       SupportShallow.flatten(faces.toSeq.map(f => f._2.supportShallow() +- f._1.names))
     }
     def fswap(faces: ClosureSystem, w: Long, z: Formula): ClosureSystem = {
-      faces.toSeq.flatMap(n => {
-        val r = n._1.fswap(w, z)
-        // TODO can you simply remove unsatifiable faces?
-        if (r.normalForm == Formula.NormalForm.False) {
-          None
-        } else {
-          Some((r, n._2.fswap(w, z)))
-        }
-      }).toMap
+      faces.toSeq.map(n => (n._1.fswap(w, z), n._2.fswap(w, z))).toMap
     }
     def restrict(faces: ClosureSystem, lv: Formula.Assignments) = {
-      faces.toSeq.flatMap(n => {
-        val r = n._1.restrict(lv)
-        // TODO can you simply remove unsatifiable faces?
-        if (r.normalForm == Formula.NormalForm.False) {
-          None
-        } else {
-          Some((r, n._2.restrict(lv)))
-        }
-      }).toMap
+      // you cannot remove faces here! it has bugs with derestricted!!
+      faces.toSeq.map(n => (n._1.restrict(lv), n._2.restrict(lv))).toMap
     }
   }
 
@@ -928,26 +899,11 @@ object Value {
       SupportShallow.flatten(faces.toSeq.map(f => f._2.supportShallow() +- f._1.names))
     }
     def fswap(faces: MultiClosureSystem, w: Long, z: Formula): MultiClosureSystem = {
-      faces.toSeq.flatMap(n => {
-        val r = n._1.fswap(w, z)
-        // TODO can you simply remove unsatifiable faces?
-        if (r.normalForm == Formula.NormalForm.False) {
-          None
-        } else {
-          Some((r, n._2.fswap(w, z)))
-        }
-      }).toMap
+      faces.toSeq.map(n => (n._1.fswap(w, z), n._2.fswap(w, z))).toMap
     }
     def restrict(faces: MultiClosureSystem, lv: Formula.Assignments) = {
-      faces.toSeq.flatMap(n => {
-        val r = n._1.restrict(lv)
-        // TODO can you simply remove unsatifiable faces?
-        if (r.normalForm == Formula.NormalForm.False) {
-          None
-        } else {
-          Some((r, n._2.restrict(lv)))
-        }
-      }).toMap
+      // you cannot remove faces here! it has bugs with derestricted!!
+      faces.toSeq.map(n => (n._1.restrict(lv), n._2.restrict(lv))).toMap
     }
   }
 
@@ -958,26 +914,11 @@ object Value {
       SupportShallow.flatten(faces.toSeq.map(f => f._2.supportShallow() +- f._1.names))
     }
     def fswap(faces: AbsClosureSystem, w: Long, z: Formula): AbsClosureSystem = {
-      faces.toSeq.flatMap(n => {
-        val r = n._1.fswap(w, z)
-        // TODO can you simply remove unsatifiable faces?
-        if (r.normalForm == Formula.NormalForm.False) {
-          None
-        } else {
-          Some((r, n._2.fswap(w, z)))
-        }
-      }).toMap
+      faces.toSeq.map(n => (n._1.fswap(w, z), n._2.fswap(w, z))).toMap
     }
     def restrict(faces: AbsClosureSystem, lv: Formula.Assignments) = {
-      faces.toSeq.flatMap(n => {
-        val r = n._1.restrict(lv)
-        // TODO can you simply remove unsatifiable faces?
-        if (r.normalForm == Formula.NormalForm.False) {
-          None
-        } else {
-          Some((r, n._2.restrict(lv)))
-        }
-      }).toMap
+      // you cannot remove faces here! it has bugs with derestricted!!
+      faces.toSeq.map(n => (n._1.restrict(lv), n._2.restrict(lv))).toMap
     }
   }
 

@@ -2,7 +2,7 @@
 
 define inductively groupoid2_trunc(A: type): type = sum {
   case in(a: A)
-  case squash(x y: groupoid2_trunc(A), p q: x ≡ y, r s: p ≡ q, t u: r ≡ s, v k j i: I
+  case squash(#x #y: groupoid2_trunc(A), #p #q: x ≡ y, #r #s: p ≡ q, t u: r ≡ s, v k j i: I
        |~v: t(k, j, i)
        | v: u(k, j, i)
        |~k: r(j, i)

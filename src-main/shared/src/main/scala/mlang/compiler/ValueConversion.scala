@@ -12,11 +12,20 @@ private case class Assumption(left: Long, right: Long, domain: Value, codomain: 
 private case class BreakException() extends Exception()
 
 object SolvableMetaForm {
-  def unapply(a: Value): Option[(Value.Meta, Value.MetaState.Open, Seq[Value])] = {
-    def rec(a: Value): Option[(Value.Meta, Value.MetaState.Open, Seq[Value])] = {
+  def unapply(a: Value): Option[(Value.Meta, ValueConversion.MetaSpine)] = {
+    def rec(a: Value): Option[(Value.Meta, ValueConversion.MetaSpine)] = {
       a match {
-        case App(l, as) => rec(l).map(pair => (pair._1, pair._2, pair._3 :+ as))
-        case m@Meta(o: MetaState.Open) => Some((m, o, Seq.empty))
+        case App(l, as) =>
+          as match {
+            case g: Value.Generic => rec(l).map(pair => (pair._1, pair._2 :+ Left(g)))
+            case _ => None
+          }
+        case PathApp(l, as) =>
+          as match {
+            case g: Formula.Generic => rec(l).map(pair => (pair._1, pair._2 :+ Right(g)))
+            case _ => None
+          }
+        case m@Meta(o: MetaState.Open) => Some((m, Seq.empty))
         case _ => None
       }
     }
@@ -25,6 +34,9 @@ object SolvableMetaForm {
 }
 
 
+object ValueConversion {
+  type MetaSpine = Seq[Either[Value.Generic, Value.Formula.Generic]]
+}
 trait ValueConversion {
   protected def unifyTerm(typ: Value, t1: Value, t2: Value): Boolean = {
     Benchmark.Unify {
@@ -293,7 +305,7 @@ trait ValueConversion {
   }
 
 
-  protected def trySolve(m: Meta, vs: Seq[Value], t20: Value): Option[Value]
+  protected def trySolve(m: Meta, vs: ValueConversion.MetaSpine, t20: Value): Option[Value]
 
   private def recNeutral(tmm1: Value, tmm2: Value): Option[Value] = {
     (tmm1.whnf, tmm2.whnf) match {
@@ -375,9 +387,9 @@ trait ValueConversion {
       //        } else {
       //          None
       //        }
-      case (SolvableMetaForm(m, _, gs), t2) =>
+      case (SolvableMetaForm(m, gs), t2) =>
         trySolve(m, gs, t2)
-      case (t1, SolvableMetaForm(m, _, gs)) =>
+      case (t1, SolvableMetaForm(m, gs)) =>
         trySolve(m, gs, t1)
       case _ => unifyFailed()
     }

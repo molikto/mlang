@@ -25,6 +25,13 @@ define join_S1_border_contraction(i j k m: I): join_S1 =
   )(m)
 
 
+
+define S3_to_join_S1
+: S3 ⇒ join_S1 =
+┌ base → join_S1.inl(S1.base)
+└ surf(j, k, i) → join_S1_border_contraction(i, j, k, 1)
+
+
 define inductively post_total_hopf: type = sum {
   case base(: S1)
   case loop(x: S1, i j: I
@@ -55,7 +62,6 @@ define tee34: post_total_hopf ⇒ join_S1 =
                   )
 
 define tee(x: S2, y: S2_hopf(x)): join_S1 = tee34(tee12(x, y))
-
 
 /**
 

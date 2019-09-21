@@ -82,6 +82,10 @@ trait ElaboratorContextRebind extends ElaboratorContextBase {
     rebindGeneric0(o) != null
   }
 
+  def containsGeneric(o: Value.Formula.Generic): Boolean = {
+    rebindDimension(o.id) != null
+  }
+
   def rebindGeneric(g: Value.Generic): Abstract.Reference = {
     val binder = rebindGeneric0(g)
     if (binder == null) {

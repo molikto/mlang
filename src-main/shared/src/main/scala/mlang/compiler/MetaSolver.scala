@@ -15,9 +15,11 @@ trait MetaSolver extends ValueConversion with Reifier with ElaboratorContextRebi
 
   type Self  <: MetaSolver
 
+  import ValueConversion.MetaSpine
+
   private def error(s: String) = throw UnificationFailedException(s)
 
-  protected def trySolve(m: Meta, vs: Seq[Value], t20: Value): Option[Value] = {
+  protected def trySolve(m: Meta, vs: MetaSpine, t20: Value): Option[Value] = {
     Try(solve(m, vs, t20)) match {
       case Failure(exception) =>
         if (debug.enabled) {
@@ -36,20 +38,20 @@ trait MetaSolver extends ValueConversion with Reifier with ElaboratorContextRebi
     }
   }
 
-  private def solve(m: Meta, vs: Seq[Value], t20: Value): Value = Benchmark.Solve {
+  private def solve(m: Meta, vs: MetaSpine, t20: Value): Value = Benchmark.Solve {
     var MetaState.Open(_, typ) = m.state.asInstanceOf[MetaState.Open]
     val ref = rebindMeta(m)
     var ctx = drop(ref.up) // back to the layer where the meta is introduced
     val index = ref.index
-    val os = vs.map {
-      case o: Generic => o
-      case _ => error("Spine is not generic")
-    }
-    val gs = os.map(_.id)
-    for (i <- gs.indices) {
-      val o = os(i)
-      if (ctx.containsGeneric(o)) error("Spine is not linear")
-      ctx = ctx.newParameterLayerProvided(Name.empty, o).asInstanceOf[Self]
+    for (i <- vs) {
+      i match {
+        case Left(value) =>
+          if (ctx.containsGeneric(value)) error("Spine is not linear")
+          ctx = ctx.newParameterLayerProvided(Name.empty, value).asInstanceOf[Self]
+        case Right(value) =>
+          if (ctx.containsGeneric(value)) error("Spine is not linear")
+          ctx = ctx.newDimensionLayer(Name.empty, value).asInstanceOf[Self]
+      }
     }
     val t2 = t20.bestReifyValue // FIXME is this sound??
     if (t2.support().openMetas.contains(m)) {
@@ -57,11 +59,20 @@ trait MetaSolver extends ValueConversion with Reifier with ElaboratorContextRebi
     }
     // this might throw error if scope checking fails
     var abs = ctx.reify(t2)
-    for (g <- os) {
-      abs = Abstract.Lambda(Abstract.Closure(Seq.empty, abs))
-      typ = typ.whnf match {
-        case f: Value.Function => f.codomain(g)
-        case _ => logicError()
+    for (g <- vs) {
+      g match {
+        case Left(v) =>
+          abs = Abstract.Lambda(Abstract.Closure(Seq.empty, abs))
+          typ = typ.whnf match {
+            case f: Value.Function => f.codomain(v)
+            case _ => logicError()
+          }
+        case Right(v) =>
+          abs = Abstract.PathLambda(Abstract.AbsClosure(Seq.empty, abs))
+          typ = typ.whnf match {
+            case f: Value.PathType => f.typ(v)
+            case _ => logicError()
+          }
       }
     }
     // FIXME type checking??

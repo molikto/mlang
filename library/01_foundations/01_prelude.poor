@@ -7,6 +7,8 @@ define refl(#A: type, #a: A): a ≡ a = i → a
 // ideal syntax: x.refl
 define x_refl(#A: type, a: A): a ≡ a = i → a
 
+define x_refl_type(#A: type, a: A) = a ≡ a
+
 // p.reverse
 define path_reverse(#A: type, #x #y: A, p: x ≡ y): y ≡ x =
   i → p(~i)

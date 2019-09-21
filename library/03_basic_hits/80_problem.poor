@@ -1,11 +1,63 @@
 
 
 
+define S2_groupoid2_trunc = groupoid2_trunc(S2)
 
-define S3_to_join_S1
-: S3 ⇒ join_S1 =
-┌ base → join_S1.inl(S1.base)
-└ surf(j, k, i) → join_S1_border_contraction(i, j, k, 1)
+define mult_two_aux: (x: S2) ⇒ x_refl_type(x_refl(S2_groupoid2_trunc.in(x))) =
+┌ base → i → j → S2_groupoid2_trunc.in(S2.surf(i, j))
+└ surf(k, l) → i → j → run {
+  define step1(k i j: I): S2_groupoid2_trunc =
+    hcomp(S2_groupoid2_trunc.in(S2.surf(i, j))
+    |~i: m → S2_groupoid2_trunc.in(S2.surf(k, l∧m))
+    | i: m → S2_groupoid2_trunc.in(S2.surf(k, l∧m))
+    |~j: m → S2_groupoid2_trunc.in(S2.surf(k, l∧m))
+    | j: m → S2_groupoid2_trunc.in(S2.surf(k, l∧m))
+    |~k: m → S2_groupoid2_trunc.in(S2.surf(i, j))
+    | k: m → S2_groupoid2_trunc.in(S2.surf(i, j))
+    |~l: m → S2_groupoid2_trunc.in(S2.surf(i, j))
+    )
+  hcomp(step1(k, i, j)
+  |~i: m → S2_groupoid2_trunc.in(S2.surf(k, l))
+  | i: m → S2_groupoid2_trunc.in(S2.surf(k, l))
+  |~j: m → S2_groupoid2_trunc.in(S2.surf(k, l))
+  | j: m → S2_groupoid2_trunc.in(S2.surf(k, l))
+  |~k: m → S2_groupoid2_trunc.in(S2.surf(i, j))
+  | k: m → S2_groupoid2_trunc.in(S2.surf(i, j))
+  |~l: m → S2_groupoid2_trunc.in(S2.surf(i, j))
+  | l: m → S2_groupoid2_trunc.squash(
+  // FIXME these metas is not currenlty solvable
+  // when it is run (without given meta values), it first creates 6 metas, then try to check the
+  // inner most j → step1(k, i, j) has same end points, then it try to check
+  // step1(k, i, 0) has value of first meta, which will result in rebinding error because k, i is
+  // not in scope
+  // I guess this is when more complex meta solving is needed
+    @ S2_groupoid2_trunc.in(S2.base),
+    @ S2_groupoid2_trunc.in(S2.base),
+    @ j → S2_groupoid2_trunc.in(S2.base),
+    @ j → S2_groupoid2_trunc.in(S2.base),
+    @ i → j → step1(0, i, j),
+    @ i → j → step1(1, i, j),
+    k → i → j → step1(k, i, j),
+    k → i → j → step1(0, i, j),
+    m, k, i, j)
+  )
+}
+
+
+define mult_two_tilde_aux: (t: S2_groupoid2_trunc) ⇒ x_refl_type(x_refl(t)) =
+┌ in(x) → mult_two_aux(x)
+└ squash(x, y, p, q, r, s, t, u, k, l, m, n) → i → j →
+   S2_groupoid2_trunc.squash(
+     @ mult_two_tilde_aux(x, i, j),
+     @ mult_two_tilde_aux(y, i, j),
+     @ m → mult_two_tilde_aux(p(m), i, j),
+     @ m → mult_two_tilde_aux(q(m), i, j),
+     @ l → m → mult_two_tilde_aux(t(0, l, m), i, j),
+     @ l → m → mult_two_tilde_aux(t(1, l, m), i, j),
+     k → l → m → mult_two_tilde_aux(t(k, l, m), i, j),
+     k → l → m → mult_two_tilde_aux(u(k, l, m), i, j),
+     k, l, m, n
+   )
 
 define alpha: join_S1 ⇒ S2 =
 ┌ inl(s) → S2.base

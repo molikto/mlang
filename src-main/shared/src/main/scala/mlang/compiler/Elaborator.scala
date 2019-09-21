@@ -1012,7 +1012,8 @@ class Elaborator private(protected override val layers: Layers)
     tt.whnf match {
       case Value.Universe(l) => (l, ta)
       // TODO user defined type coercion
-      case _ => throw ElaboratorException.UnknownAsType()
+      case _ =>
+        throw ElaboratorException.UnknownAsType()
     }
   }
 
