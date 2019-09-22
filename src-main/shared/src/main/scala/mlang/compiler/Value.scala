@@ -95,6 +95,8 @@ object Value {
         case Neg(unit) => Neg(unit.restrict(lv))
       }
     }
+
+    def elim(i: Long): Formula = Formula(NormalForm.elim(normalForm, i))
   }
 
   object Formula {
@@ -102,7 +104,6 @@ object Value {
       nf.foldLeft(Formula.False : Formula) {(f, z) =>
         Formula.Or(f, z.foldLeft(Formula.True : Formula) { (t, y) => Formula.And(t, if (y._2) Formula.Generic(y._1) else Formula.Neg(Formula.Generic(y._1)))})}
 
-    def elim(f: Formula, i: Long): Formula = Formula(NormalForm.elim(f.normalForm, i))
 
 
     def phi(se: Iterable[Formula]) = se.flatMap(_.normalForm).toSet
@@ -721,6 +722,7 @@ object Value {
           Some(closure(argument))
         case p : PatternLambda =>
           Some(PatternRedux(p, argument))
+        case _: StableCanonical => logicError()
         case _ =>
           None
       }
@@ -828,6 +830,7 @@ object Value {
     def reduce(): Option[Value] = {
       make match {
         case Make(vs) => Some(vs(field))
+        case _: StableCanonical => logicError()
         case _ => None
       }
     }
@@ -867,7 +870,10 @@ object Value {
           case NormalForm.False =>
             constantCase(false)
           case _ =>
-            None
+            left match {
+              case canonical: StableCanonical => logicError()
+              case _ => None
+            }
         }
     }
   }
@@ -1052,13 +1058,13 @@ object Value {
                 if (rs.isEmpty) {
                   w1p
                 } else {
-                  // FIXME these gets cannot be reified
                   val item1 = (phi, AbsClosure(_ => base))
                   val item2 = if (cc.nodes.dimSize != 0) Seq(
                     (cc.nodes.reduce(rs).phi(), {
                       def alpha(e: AbsClosure) = {
                         squeeze(tp, e, phi)
                       }
+                      // FIXME this get cannot be reified
                       val e = AbsClosure(i => tpr(i).nodes.reduceAll(theta.map(_.apply(i))).reduce(rs).restrictions().find(_._1.normalFormTrue).get._2)
                       AbsClosure(i => alpha(e)(Formula.Neg(i)))
                     })
@@ -1087,58 +1093,53 @@ object Value {
     val B0 = B_swap(Formula.False)
     def A(i: Formula) = B.ty.fswap(dim, i)
     val B1 = B_swap(Formula.True)
-    val phi1 = Formula.Or(B1.faces.keys)
     val A1 = B1.ty
     val A0 = B0.ty
     // a0: A(i/0)
     val a0 = LocalReference(Unglue(A0, u0, B0.faces))
-    val phi_elim_i = Formula.elim(Formula.Or(B.faces.keys), dim)
     // defined in phi_elim_i
     def t_tide(trueFace: Value, i: Formula) = {
       transpFill(i, si, AbsClosure(i => {
       Projection(trueFace.fswap(dim, i), 0)
       }), u0)
     }
-    def trueElimFace() = B.faces.find(b => Formula.elim(b._1, dim).normalFormTrue).get._2
+    val faces_elim_dim = B.faces.filter(_._1.elim(dim).normalForm != Formula.NormalForm.False)
+    val B1_faces = B1.faces.filter(_._1.normalForm != Formula.NormalForm.False)
     def t1(trueFace: Value) = t_tide(trueFace, Formula.True)
     // a1: A(i/1) and is defined on both si and elim(i, phi)
     val a1 = LocalReference(gcomp(
       AbsClosure(i => A(i)),
       a0,
-      Seq(
-        (si, AbsClosure(_ => a0)),
-        (phi_elim_i, AbsClosure(i => {
-          val tf = trueElimFace()
+      faces_elim_dim.view.mapValues(tf => {
+        AbsClosure(i => {
           val EQi  = tf.fswap(dim, i)
           val w = Projection(EQi, 1)
           App(Projection(w, 0), t_tide(tf, i))
-        })),
-      ).toMap))
+        })
+      }).toMap.updated(si, AbsClosure(_ => a0))
+    ))
     // ..., phi(i/1) |- (t1`, alpha) // true face must have (i/1)
     def pair(trueFace: Value) = {
       val w = Projection(trueFace, 1)
       val compo = App(Projection(w, 1), a1) // is_contr(fiber_at(w(i/1).1, a1))
       ghcomp(Apps(BuiltIn.fiber_at, Seq(Projection(trueFace, 0), A1, Projection(w, 0), a1)), Projection(compo, 0),
-        Seq(
-          (si, AbsClosure(i => {
+        faces_elim_dim.view.mapValues(tf => {
+          AbsClosure(i => {
+            val u = Make(Seq(t1(tf), PathLambda(AbsClosure(_ => a1))))
+            PathApp(App(Projection(compo, 1), u), i)
+          })
+        }).toMap.updated(si, AbsClosure(i => {
             val u = Make(Seq(u0, PathLambda(AbsClosure(_ => a1))))
             PathApp(App(Projection(compo, 1), u), i)
-          })),
-          (phi_elim_i, AbsClosure(i => {
-            val u = Make(Seq(t1(trueElimFace()), PathLambda(AbsClosure(_ => a1))))
-            PathApp(App(Projection(compo, 1), u), i)
           }))
-        ).toMap
       )
     }
-    val a1p = ghcomp(A1, a1,
-      Seq(
-        (phi1, AbsClosure(j => {
-          val bd = B1.faces.find(_._1.normalFormTrue).get._2
-          PathApp(Projection(pair(bd), 1), Formula.Neg(j)) // alpha is of type f(t1p) == a1
-        })),
-        (si, AbsClosure(j => a1))).toMap)
-    Glue(a1p, Seq((phi1, Projection(pair(B1.faces.find(_._1.normalFormTrue).get._2), 0))).toMap)
+    val a1p = Hcomp(A1, a1,
+        B1_faces.view.mapValues(bd => {
+          // alpha is of type f(t1p) == a1
+          AbsClosure(j => PathApp(Projection(pair(bd), 1), Formula.Neg(j)) )
+        }).toMap.updated(si, AbsClosure(_ => a1)))
+      Glue(a1p, B1_faces.view.mapValues(bd => Projection(pair(bd), 0)).toMap)
   }
 
   def hcompGlue(B: GlueType, u0: Value, faces: AbsClosureSystem): Value = {
@@ -1542,6 +1543,7 @@ sealed trait Value {
                 closure(argument).whnf
               case p : PatternLambda =>
                 PatternRedux(p, argument.whnf).reduceThenWhnfOrSelf()
+              case _: StableCanonical => logicError()
               case _ =>
                 App(lambda, argument)
             }
