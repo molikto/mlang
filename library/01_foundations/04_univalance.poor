@@ -5,6 +5,9 @@
 define ua(#A #B: type, e: equiv(A, B)): A ≡ B =
   i → glue_type(B |~i: make(A, e) |i: make(B, id_equiv(B)))
 
+
+define ua_beta(#A #B: type, e: equiv(A, B), x: A): transport(ua(e), x) ≡ e.f(x) =
+  i → transp(─ → B, i, e.f(x))
 /*
 define univalence(B: type): is_contr(equivs(B)) =
   make(make(B, id_equiv(B)), ???)

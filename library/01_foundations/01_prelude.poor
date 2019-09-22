@@ -55,8 +55,8 @@ define dependent_path_compose(
 // TODO what syntax and name should this be? a.transp(p), p.transp(a), a^p, a|P, transp(a, p)???
 define transport(#A #B: type, P: A ≡ B, a: A): B = transp(P, 0, a)
 
-define transport_refl(#A: type, a: A): a ≡ transport(─ → A, a) =
-  i → transp(─ → A, ~i, a)
+define transport_refl(#A: type, a: A): transport(─ → A, a) ≡ a =
+  i → transp(─ → A, i, a)
 
 
 define subst(#A: type, B: A ⇒ type, #x #y: A, p: x ≡ y, bx: B(x)): B(y) =

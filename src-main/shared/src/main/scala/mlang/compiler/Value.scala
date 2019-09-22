@@ -20,6 +20,7 @@ object Value {
 
   sealed trait Formula {
 
+
     import Formula.{And, Assignments, False, Neg, NormalForm, Or, True}
 
     def supportShallow(): SupportShallow = SupportShallow(names, Set.empty)
@@ -37,6 +38,8 @@ object Value {
     }
 
     def normalFormTrue = normalForm == NormalForm.True
+
+    def satisfiable: Boolean = NormalForm.satisfiable(normalForm)
 
     def normalForm: NormalForm  = {
       def merge(a: NormalForm, b: NormalForm): NormalForm = {
@@ -1011,17 +1014,17 @@ object Value {
         Some(base)
       } else {
         val dim = dgen()
-        tp.apply(Value.Formula.Generic(dim)).whnf match {
+        val res: Value = tp.apply(Value.Formula.Generic(dim)).whnf match {
           case _: Function =>
             def tpr(i: Value.Formula) = tp(i).whnf.asInstanceOf[Function]
-            Some(Lambda(Closure(v => {
+            Lambda(Closure(v => {
               def w(i: Formula) = transpFill_inv(i, phi, AbsClosure(a => tpr(a).domain), v)
               val w0 = transp_inv(phi, AbsClosure(a => tpr(a).domain), base)
               Transp(AbsClosure(i => tpr(i).codomain(w(i))), phi, App(base, w0))
-            })))
+            }))
           case _: PathType =>
             def tpr(i: Value.Formula) = tp(i).whnf.asInstanceOf[PathType]
-            Some(PathLambda(AbsClosure(dim => {
+            PathLambda(AbsClosure(dim => {
               Comp(
                 AbsClosure(i => tpr(i).typ(dim)),
                 PathApp(base, dim),
@@ -1030,14 +1033,14 @@ object Value {
                   (Formula.Neg(dim), AbsClosure(a => tpr(a).left)),
                   (dim, AbsClosure(a => tpr(a).right))
                 ).toMap)
-            })))
+            }))
           case r: Record =>
             if (r.nodes.isEmpty) {
-              Some(base)
+              base
             } else {
               def tpr(i: Value.Formula) = tp(i).whnf.asInstanceOf[Record].nodes
               val closures = transpFill(r.nodes, tpr, phi, i => Projection(base, i))
-              Some(Make(closures.map(_.apply(Formula.True))))
+              Make(closures.map(_.apply(Formula.True)))
             }
           case s: Sum =>
             base.whnf match {
@@ -1046,32 +1049,35 @@ object Value {
                 val cc = s.constructors(c)
                 val theta = transpFill(cc.nodes, i => tpr(i).nodes, phi, vs)
                 val w1p = Construct(c, theta.map(_.apply(Formula.True)), rs, d)
-                 // FIXME these gets cannot be reified
-                val item1 = (phi, AbsClosure(_ => base))
-                val item2 = if (cc.nodes.dimSize != 0) Seq(
-                  (cc.nodes.reduce(rs).phi(), {
-                    def alpha(e: AbsClosure) = {
-                      squeeze(tp, e, phi)
-                    }
-                    val e = AbsClosure(i => tpr(i).nodes.reduceAll(theta.map(_.apply(i))).reduce(rs).restrictions().find(_._1.normalFormTrue).get._2)
-                    AbsClosure(i => alpha(e)(Formula.Neg(i)))
-                  })
-                ) else Seq.empty
-                val w1 = Hcomp(tp(Formula.True), w1p, (item2 :+ item1).toMap)
-                Some(w1)
+                if (rs.isEmpty) {
+                  w1p
+                } else {
+                  // FIXME these gets cannot be reified
+                  val item1 = (phi, AbsClosure(_ => base))
+                  val item2 = if (cc.nodes.dimSize != 0) Seq(
+                    (cc.nodes.reduce(rs).phi(), {
+                      def alpha(e: AbsClosure) = {
+                        squeeze(tp, e, phi)
+                      }
+                      val e = AbsClosure(i => tpr(i).nodes.reduceAll(theta.map(_.apply(i))).reduce(rs).restrictions().find(_._1.normalFormTrue).get._2)
+                      AbsClosure(i => alpha(e)(Formula.Neg(i)))
+                    })
+                  ) else Seq.empty
+                  Hcomp(tp(Formula.True), w1p, (item2 :+ item1).toMap)
+                }
               case Hcomp(hty, hbase, faces) =>
-                val res = Hcomp(tp(Value.Formula.True), Transp(tp, phi, hbase), faces.map(pr => (pr._1, pr._2.map(v => Transp(tp, phi, v)))))
-                Some(res)
+                Hcomp(tp(Value.Formula.True), Transp(tp, phi, hbase), faces.map(pr => (pr._1, pr._2.map(v => Transp(tp, phi, v)))))
               case _ =>
-                None
+                null
             }
           case g: GlueType =>
-            Some(transpGlue(g, dim, phi, base))
+            transpGlue(g, dim, phi, base)
           case _: Universe =>
-            Some(base)
+            base
           case _: Internal => logicError()
-          case _ => None
+          case _ => null
         }
+        Option(res)
       }
     }
   }
@@ -1096,7 +1102,7 @@ object Value {
     def trueElimFace() = B.faces.find(b => Formula.elim(b._1, dim).normalFormTrue).get._2
     def t1(trueFace: Value) = t_tide(trueFace, Formula.True)
     // a1: A(i/1) and is defined on both si and elim(i, phi)
-    val a1 = LocalReference(Comp(
+    val a1 = LocalReference(gcomp(
       AbsClosure(i => A(i)),
       a0,
       Seq(
@@ -1106,13 +1112,13 @@ object Value {
           val EQi  = tf.fswap(dim, i)
           val w = Projection(EQi, 1)
           App(Projection(w, 0), t_tide(tf, i))
-        }))
+        })),
       ).toMap))
     // ..., phi(i/1) |- (t1`, alpha) // true face must have (i/1)
     def pair(trueFace: Value) = {
       val w = Projection(trueFace, 1)
       val compo = App(Projection(w, 1), a1) // is_contr(fiber_at(w(i/1).1, a1))
-      Hcomp(Apps(BuiltIn.fiber_at, Seq(Projection(trueFace, 0), A1, Projection(w, 0), a1)), Projection(compo, 0),
+      ghcomp(Apps(BuiltIn.fiber_at, Seq(Projection(trueFace, 0), A1, Projection(w, 0), a1)), Projection(compo, 0),
         Seq(
           (si, AbsClosure(i => {
             val u = Make(Seq(u0, PathLambda(AbsClosure(_ => a1))))
@@ -1125,7 +1131,7 @@ object Value {
         ).toMap
       )
     }
-    val a1p = Hcomp(A1, a1,
+    val a1p = ghcomp(A1, a1,
       Seq(
         (phi1, AbsClosure(j => {
           val bd = B1.faces.find(_._1.normalFormTrue).get._2
@@ -1153,13 +1159,27 @@ object Value {
   }
 
 
+
+  def ghcomp(@stuck_pos tp: Value, base: Value, faces: AbsClosureSystem) = {
+    Hcomp(tp, base, faces.updated(Formula.Neg(Formula.Or(faces.keys)), AbsClosure(base)))
+  }
+
+  def comp(@stuck_pos tp: AbsClosure, base: Value, faces: AbsClosureSystem) = {
+    Hcomp(
+      tp(Formula.True),
+      Transp(tp, Formula.False, base),
+      faces.view.mapValues(f => AbsClosure(i => forward(tp, i, f(i)))).toMap)
+  }
+  def gcomp(@stuck_pos tp: AbsClosure, base: Value, faces: AbsClosureSystem) = {
+    ghcomp(
+      tp(Formula.True),
+      Transp(tp, Formula.False, base),
+      faces.view.mapValues(f => AbsClosure(i => forward(tp, i, f(i)))).toMap)
+  }
+
   // FIXME when we have a syntax for partial values, these should be removed
   case class Comp(@stuck_pos tp: AbsClosure, base: Value, faces: AbsClosureSystem) extends Redux {
-    override def reduce(): Option[Value] =
-      Some(Hcomp(
-        tp(Formula.True),
-        Transp(tp, Formula.False, base),
-        faces.view.mapValues(f => AbsClosure(i => forward(tp, i, f(i)))).toMap))
+    override def reduce(): Option[Value] = Some(comp(tp, base, faces))
   }
 
 
@@ -1189,50 +1209,52 @@ object Value {
   case class Hcomp(@type_annotation @stuck_pos tp: Value, base: Value, faces: AbsClosureSystem) extends Redux {
 
 
+
     override def reduce(): Option[Value] = {
-      faces.find(_._1.normalFormTrue) match {
-        case Some(t) => Some(t._2(Formula.True))
+      if (!Formula.Or(faces.keySet).satisfiable) {
+        val a = 0
+      }
+      val res = faces.find(_._1.normalFormTrue) match {
+        case Some(t) => t._2(Formula.True)
         case None =>
           val tp0 = tp.whnf
            tp0 match {
             case PathType(a, u, w) =>
-               Some(PathLambda(AbsClosure(j => Hcomp(a(j), PathApp(base, j), Seq(
-                 (Formula.Neg(j), AbsClosure(_ => u)),
-                 (j, AbsClosure(_ => w))
-               ).toMap))))
+               PathLambda(AbsClosure(j => Hcomp(
+                 a(j),
+                 PathApp(base, j),
+                 faces.view.mapValues(_.map(v => PathApp(v, j))).toMap
+                   .updated(Formula.Neg(j), AbsClosure(_ => u))
+                   .updated(j, AbsClosure(_ => w))
+               )))
             case Function(_, _, b) =>
-               Some(Lambda(Closure(v => Hcomp(b(v), App(base, v), faces.view.mapValues(_.map(j => App(j, v))).toMap))))
+               Lambda(Closure(v => Hcomp(b(v), App(base, v), faces.view.mapValues(_.map(j => App(j, v))).toMap)))
             case Record(_, _, cs) =>
-              if (cs.isEmpty) {
-                Some(base)
-              } else {
-                Some(Make(hcompGraph(cs, faces, base, (v, i) => Projection(v, i))))
-              }
+              Make(hcompGraph(cs, faces, base, (v, i) => Projection(v, i)))
             case u: Universe =>
-              val res = Glue(tp, faces.view.mapValues({ f =>
+              GlueType(base, faces.view.mapValues({ f =>
                 val A = f(Formula.False)
                 val B = f(Formula.True)
                 Make(Seq(B, Apps(BuiltIn.path_to_equiv, Seq(B, A, PathLambda(AbsClosure(a => f(Formula.Neg(a))))))))
               }).toMap)
-              Some(res)
             case s@Sum(i, hit, cs) =>
               if (!hit) {
                 base.whnf match {
                   case cc@Construct(c, vs, ds, ty) =>
                     assert(ds.isEmpty)
-                    val res = Construct(c, hcompGraph(cs(c).nodes, faces, cc, (b, i) => b.whnf.asInstanceOf[Construct].vs(i)), Seq.empty, Map.empty)
-                    Some(res)
-                  case _ => None
+                    Construct(c, hcompGraph(cs(c).nodes, faces, cc, (b, i) => b.whnf.asInstanceOf[Construct].vs(i)), Seq.empty, Map.empty)
+                  case _ => null
                 }
               } else {
-                None
+                null
               }
             case g: GlueType =>
-              Some(hcompGlue(g, base, faces))
+              hcompGlue(g, base, faces)
             case _: Internal => logicError()
-            case _ => None
+            case _ => null
           }
       }
+      Option(res)
     }
   }
 
