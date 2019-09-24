@@ -53,12 +53,23 @@ trait MetaSolver extends ValueConversion with Reifier with ElaboratorContextRebi
           ctx = ctx.newDimensionLayer(Name.empty, value).asInstanceOf[Self]
       }
     }
-    val t2 = t20.bestReifyValue // FIXME is this sound??
-    if (t2.support().openMetas.contains(m)) {
-      error("Meta solution contains self")
+    var abs: Abstract = null
+    try {
+      val t2 = t20.bestReifyValue // FIXME is this sound??
+      if (!t2.support().openMetas.contains(m)) {
+        abs = ctx.reify(t2)
+      }
+      // this might throw error if scope checking fails
+    } catch {
+      case e: RebindNotFoundException =>
     }
-    // this might throw error if scope checking fails
-    var abs = ctx.reify(t2)
+    // the "more compact version" contains generics, the whnf should contains less, try it again
+    if (abs == null) {
+      if (t20.support().openMetas.contains(m)) {
+        error("metas contains itself")
+      }
+      abs = ctx.reify(t20)
+    }
     for (g <- vs) {
       g match {
         case Left(v) =>

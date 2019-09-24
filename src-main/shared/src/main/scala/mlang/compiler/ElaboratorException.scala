@@ -83,5 +83,6 @@ object ElaboratorException {
 
   case class HitContainingExternalDimension() extends ElaboratorException
   case class CannotInferTypeOfHit() extends ElaboratorException
+  case class EmptySumMustHaveTypeAnnotation() extends ElaboratorException
 }
 

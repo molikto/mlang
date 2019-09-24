@@ -63,8 +63,7 @@ object Value {
             case Neg(u2) => u2
             case True => False
             case False => True
-            case _: Formula.Internal =>
-              logicError()
+            case _: Formula.Internal => logicError()
           }
           unit match {
             case Formula.Generic(id) => Set(Set((id, false)))
@@ -149,34 +148,38 @@ object Value {
 
 
   implicit class MultiClosure(private val func: (Seq[Value], Seq[Value.Formula]) => Value) extends AnyVal {
-    def supportShallow(): SupportShallow = func(Generic.HACKS, Formula.Generic.HACKS).supportShallow()
     def eq(b: MultiClosure): Boolean = func.eq(b.func)
+    def supportShallow(): SupportShallow = func(Generic.HACKS, Formula.Generic.HACKS).supportShallow()
     // def apply() = func(Seq.empty, Seq.empty)
-    def apply(seq: Seq[Value], ds: Seq[Formula]): Value = func(seq, ds)
     def restrict(dav: Formula.Assignments): MultiClosure = MultiClosure((v, d) => this(v.map(a => Derestricted(a, dav)), d.map(a => Formula.Derestricted(a, dav))).restrict(dav))
     def fswap(w: Long, z: Formula): MultiClosure = MultiClosure((d, k) => func(d, k).fswap(w, z))
+
+    def apply(seq: Seq[Value], ds: Seq[Formula]): Value = func(seq, ds)
+
   }
 
   object AbsMultiClosureSystem {
     val empty = AbsMultiClosureSystem(_ => Map.empty)
   }
   implicit class AbsMultiClosureSystem(private val func: Seq[Value.Formula] => MultiClosureSystem) extends AnyVal {
-    def supportShallow(): SupportShallow = MultiClosureSystem.supportShallow(func(Formula.Generic.HACKS))
     def eq(b: AbsMultiClosureSystem): Boolean = func.eq(b.func)
+    def supportShallow(): SupportShallow = MultiClosureSystem.supportShallow(func(Formula.Generic.HACKS))
     // def apply() = func(Seq.empty, Seq.empty)
-    def apply(ds: Seq[Formula]): MultiClosureSystem= func(ds)
     def restrict(dav: Formula.Assignments): AbsMultiClosureSystem =
       AbsMultiClosureSystem(d => MultiClosureSystem.restrict(this(d.map(a => Formula.Derestricted(a, dav))), dav))
     def fswap(w: Long, z: Formula): AbsMultiClosureSystem =
       AbsMultiClosureSystem(d => MultiClosureSystem.fswap(func(d), w, z))
+
+    def apply(ds: Seq[Formula]): MultiClosureSystem= func(ds)
   }
 
   implicit class Closure(private val func: Value => Value) extends AnyVal {
-    def supportShallow(): SupportShallow = func(Generic.HACK).supportShallow()
     def eq(b: Closure): Boolean = func.eq(b.func)
-    def apply(seq: Value): Value = func(seq)
+    def supportShallow(): SupportShallow = func(Generic.HACK).supportShallow()
     def restrict(dav: Formula.Assignments): Closure = Closure(d => func(Derestricted(d, dav)).restrict(dav))
     def fswap(w: Long, z: Formula): Closure = Closure(d => func(d).fswap(w, z))
+
+    def apply(seq: Value): Value = func(seq)
   }
 
   object Closure {
@@ -189,13 +192,14 @@ object Value {
 
   // LATER make sure AnyVal classes is eliminated in bytecode
   implicit class AbsClosure(private val func: Formula => Value) extends AnyVal {
-    def supportShallow(): SupportShallow = func(Formula.Generic.HACK).supportShallow()
     def eq(b: AbsClosure): Boolean = func.eq(b.func)
-    def apply(seq: Formula): Value = func(seq)
+    def supportShallow(): SupportShallow = func(Formula.Generic.HACK).supportShallow()
     def mapd(a: (Value, Formula) => Value): AbsClosure = AbsClosure(d => a(this(d), d))
     def map(a: Value => Value): AbsClosure = AbsClosure(d => a(this(d)))
     def restrict(dav: Formula.Assignments): AbsClosure = AbsClosure(d => func(Formula.Derestricted(d, dav)).restrict(dav))
     def fswap(w: Long, z: Formula): AbsClosure = AbsClosure(d => func(d).fswap(w, z))
+
+    def apply(seq: Formula): Value = func(seq)
   }
 
 
@@ -207,7 +211,7 @@ object Value {
 
     def dimSize: Int
     def restrictions(): System[Value] // only in a fully reduced
-    def phi(): Formula
+    def phi(): Set[Formula]
 
     def reduce(ds: Seq[Formula]): ClosureGraph
     def reduceAll(vs: Seq[Value]): ClosureGraph = {
@@ -221,6 +225,8 @@ object Value {
     def restrict(dav: Formula.Assignments): ClosureGraph
     def fswap(w: Long, z: Formula): ClosureGraph
     def inferLevel(): Int
+
+
   }
 
 
@@ -296,7 +302,7 @@ object Value {
       def fswap(w: Long, z: Formula): ClosureGraph.Impl = {
         val gs = graph.map {
           case IndependentWithMeta(ims, ds, ms, typ) =>
-            IndependentWithMeta(ims, ds, ms, typ.fswap(w, z))
+            IndependentWithMeta(ims, ds, ms.map(_.fswap(w, z).asInstanceOf[Value.Meta]), typ.fswap(w, z))
           case DependentWithMeta(ims, ds, mc, c) =>
             DependentWithMeta(ims, ds, mc, (a, b) => {
               val t = c(a, b); (t._1.map(_.fswap(w, z).asInstanceOf[Value.Meta]), t._2.fswap(w, z)) })
@@ -312,7 +318,7 @@ object Value {
       def restrict(lv: Formula.Assignments): ClosureGraph.Impl = {
         val gs = graph.map {
           case IndependentWithMeta(ims, ds, ms, typ) =>
-            IndependentWithMeta(ims, ds, ms, typ.restrict(lv))
+            IndependentWithMeta(ims, ds, ms.map(_.restrict(lv).asInstanceOf[Value.Meta]), typ.restrict(lv))
           case DependentWithMeta(ims, ds, mc, c) =>
             DependentWithMeta(ims, ds, mc, (a, b) => {
               val t = c(a.map(k => Derestricted(k, lv)), b.map(k => Derestricted(k, lv))); (t._1.map(_.restrict(lv).asInstanceOf[Value.Meta]), t._2.restrict(lv)) })
@@ -325,6 +331,7 @@ object Value {
         }
         ClosureGraph.Impl(gs, dimSize, zz)
       }
+
 
 
 
@@ -342,10 +349,10 @@ object Value {
         level
       }
 
-      override def phi(): Formula = tm match {
+      override def phi(): Set[Formula] = tm match {
         case RestrictionsState.Abstract(tm) => logicError()
-        case RestrictionsState.Concrete(tm) => Formula.Or(tm.keys)
-        case RestrictionsState.Valued(tm) => Formula.Or(tm.keys)
+        case RestrictionsState.Concrete(tm) => tm.keySet
+        case RestrictionsState.Valued(tm) => tm.keySet
       }
 
       override def restrictions(): System[Value] = tm match {
@@ -455,9 +462,9 @@ object Value {
 
   }
 
-  case class Support(names: Set[Long], openMetas: Set[Meta])
+  case class Support(generic: Set[Generic], names: Set[Long], openMetas: Set[Meta])
   object Support {
-    val empty: Support = Support(Set.empty, Set.empty)
+    val empty: Support = Support(Set.empty, Set.empty, Set.empty)
   }
 
   private[Value] case class SupportShallow(names: Set[Long], references: Set[Referential]) {
@@ -521,7 +528,7 @@ object Value {
           case Some(r) => r.asInstanceOf[Self]
           case None =>
             val n = createNewEmpty()
-            n.supportCache = Support(spt.names -- Set(w) ++ z.names, spt.openMetas)
+            n.supportCache = Support(spt.generic, spt.names -- Set(w) ++ z.names, spt.openMetas)
             fswapCache.put(key, n)
             fswapAndInitContent(n, w, z)
             n
@@ -548,7 +555,7 @@ object Value {
             case None =>
               val n = createNewEmpty()
               n.childRestricted = (this, asgg)
-              n.supportCache = Support(spt.names -- asgg.map(_._1), spt.openMetas)
+              n.supportCache = Support(spt.generic, spt.names -- asgg.map(_._1), spt.openMetas)
               restrictedCache.put(asgg, n)
               restrictAndInitContent(n, asgg)
               n
@@ -722,7 +729,6 @@ object Value {
           Some(closure(argument))
         case p : PatternLambda =>
           Some(PatternRedux(p, argument))
-        case _: StableCanonical => logicError()
         case _ =>
           None
       }
@@ -750,9 +756,7 @@ object Value {
           case Pattern.Construct(name, pt) =>
             v.whnf match {
               case Construct(n, values, dms, _) if name == n =>
-                if (values.size + dms.size != pt.size) {
-                  logicError()
-                }
+                if (values.size + dms.size != pt.size) logicError()
                 val dps = pt.drop(values.size)
                 assert(dps.forall(_ == Pattern.GenericDimension))
                 val ret = pt.take(values.size).zip(values).forall(pair => rec(pair._1, pair._2))
@@ -789,7 +793,9 @@ object Value {
         case s: Sum if s.hit =>
           stuck.whnf match {
             case Hcomp(ty, base, faces) =>
-              res = Comp(AbsClosure(i => lambda.typ(hfill(ty, base, faces)(i))), PatternRedux(lambda, base), faces.view.mapValues(_.map(v => PatternRedux(lambda, v))).toMap)
+              res = Comp(
+                AbsClosure(i => lambda.typ(hfill(ty, base, faces)(i))),
+                PatternRedux(lambda, base), faces.view.mapValues(_.map(v => PatternRedux(lambda, v))).toMap)
             case _ =>
           }
         case _ =>
@@ -806,10 +812,11 @@ object Value {
 
   sealed trait RecursiveType
   case class Inductively(@nominal_equality id: Long, @type_annotation typ: Value, ps: Seq[Value]) extends RecursiveType {
-    def typFinal: Value = ps.foldLeft(typ) { (t, p) => t.whnf.asInstanceOf[Function].codomain(p) }
     def restrict(lv: Formula.Assignments): Inductively = Inductively(id, typ.restrict(lv), ps.map(_.restrict(lv)))
     def fswap(w: Long, z: Formula): Inductively = Inductively(id, typ.fswap(w, z), ps.map(_.fswap(w, z)))
     def supportShallow(): SupportShallow =  typ.supportShallow() ++ SupportShallow.flatten(ps.map(_.supportShallow()))
+
+    def typFinal: Value = ps.foldLeft(typ) { (t, p) => t.whnf.asInstanceOf[Function].codomain(p) }
   }
 
   case class Record(
@@ -830,7 +837,8 @@ object Value {
     def reduce(): Option[Value] = {
       make match {
         case Make(vs) => Some(vs(field))
-        case _: StableCanonical => logicError()
+        case a: StableCanonical =>
+          logicError()
         case _ => None
       }
     }
@@ -1059,20 +1067,17 @@ object Value {
                   w1p
                 } else {
                   val item1 = (phi, AbsClosure(_ => base))
-                  val item2 = if (cc.nodes.dimSize != 0) Seq(
-                    (cc.nodes.reduce(rs).phi(), {
-                      def alpha(e: AbsClosure) = {
-                        squeeze(tp, e, phi)
-                      }
-                      // FIXME this get cannot be reified
-                      val e = AbsClosure(i => tpr(i).nodes.reduceAll(theta.map(_.apply(i))).reduce(rs).restrictions().find(_._1.normalFormTrue).get._2)
-                      AbsClosure(i => alpha(e)(Formula.Neg(i)))
-                    })
-                  ) else Seq.empty
-                  Hcomp(tp(Formula.True), w1p, (item2 :+ item1).toMap)
+                  def alpha(e: AbsClosure) = squeeze(tp, e, phi)
+                  val items = cc.nodes.reduce(rs).phi().toSeq.map(f => {
+                    val e = AbsClosure(i => tpr(i).nodes.reduceAll(theta.map(_.apply(i))).reduce(rs).restrictions().find(_._1 == f).get._2)
+                    val abs = AbsClosure(i => alpha(e)(Formula.Neg(i)))
+                    (f, abs)
+                  }).toMap.updated(item1._1, item1._2)
+                  Hcomp(tp(Formula.True), w1p, items)
                 }
               case Hcomp(hty, hbase, faces) =>
                 Hcomp(tp(Value.Formula.True), Transp(tp, phi, hbase), faces.map(pr => (pr._1, pr._2.map(v => Transp(tp, phi, v)))))
+              case _: StableCanonical => logicError()
               case _ =>
                 null
             }
@@ -1149,7 +1154,7 @@ object Value {
     }
     def t1(trueFace: Value) = t_tide(trueFace)(Formula.True)
     val a1 = Hcomp(B.ty, Unglue(B.ty, u0, B.faces),
-      faces.view.mapValues(f => f.map(u => Unglue(B.ty, u, B.faces))).toMap ++
+      faces.view.mapValues(_.map(u => Unglue(B.ty, u, B.faces))).toMap ++
       B.faces.view.mapValues(pair => AbsClosure(i => {
         val w = Projection(pair, 1)
         val f = Projection(w, 0)
@@ -1244,6 +1249,7 @@ object Value {
                   case cc@Construct(c, vs, ds, ty) =>
                     assert(ds.isEmpty)
                     Construct(c, hcompGraph(cs(c).nodes, faces, cc, (b, i) => b.whnf.asInstanceOf[Construct].vs(i)), Seq.empty, Map.empty)
+                  case _: StableCanonical => logicError()
                   case _ => null
                 }
               } else {
@@ -1331,8 +1337,11 @@ sealed trait Value {
           }
       }
     }
-    val spt = Support(names.toSet, tested.flatMap {
-      case m@Meta(o: MetaState.Open) => Some(m)
+    val spt = Support(tested.flatMap {
+      case g: Generic => Some(g)
+      case _ => None
+    }.toSet, names.toSet, tested.flatMap {
+      case m@Meta(_: MetaState.Open) => Some(m)
       case _ => None
     }.toSet)
     if (spt.names.nonEmpty) debug(s"non-empty support ${spt.names}", 2)
@@ -1401,6 +1410,7 @@ sealed trait Value {
     case g: Referential => g.getFswap(w, z)
     case _: Internal => logicError()
   }
+
 
 
   def restrict(lv: Value.Formula.Assignments): Value = if (lv.isEmpty) this else this match {
@@ -1486,6 +1496,7 @@ sealed trait Value {
       while (!i._from.eq(null) && !i._from.eq(i)) i = i._from
       i
   }
+
 
   // it is ensured that if the value is not reducable, it will return the same reference
   def whnf: Value = {
@@ -1596,7 +1607,11 @@ sealed trait Value {
         case GlueType(tm, faces) =>
           faces.find(_._1.normalFormTrue).map(b => Projection(b._2, 0).whnf).getOrElse(this)
         case Glue(base, faces) =>
-          faces.find(_._1.normalFormTrue).map(_._2.whnf).getOrElse(this)
+          faces.find(_._1.normalFormTrue).map(_._2.whnf) match {
+            case Some(a) => a
+            case None =>
+              this
+          }
         case Unglue(ty, base, faces) =>
           val red = faces.find(_._1.normalFormTrue).map(b => App(Projection(Projection(b._2, 1), 0), base).whnf)
           red match {
@@ -1604,9 +1619,9 @@ sealed trait Value {
             case None =>
               val bf = base.whnf
               bf match {
-              case Glue(b, _) => b.whnf
-              case _ => if (bf.eq(base)) this else Unglue(ty, bf, faces)
-            }
+                case Glue(b, _) => b.whnf
+                case _ => if (bf.eq(base)) this else Unglue(ty, bf, faces)
+              }
           }
         case _: Internal =>
           logicError()

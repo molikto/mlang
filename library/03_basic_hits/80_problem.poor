@@ -1,4 +1,41 @@
 
+define alpha: join_S1 ⇒ S2 =
+┌ inl(s) → S2.base
+├ inr(s) → S2.base
+└ push(x, y, i) → path_compose(S2_merid(y), S2_merid(x))(i)
+
+define test_0_to_2: loop_space_3(S3_pointed).A =
+  i → j → k → S3.surf(i, j, k)
+
+define f3: loop_space_3(S3_pointed).A ⇒ loop_space_3(join_S1_pointed).A =
+  p → i → j → k → S3_to_join_S1(p(i, j, k))
+
+define test_0_to_3: loop_space_3(join_S1_pointed).A =
+  f3(test_0_to_2)
+
+define f4: loop_space_3(join_S1_pointed).A ⇒ loop_space_3(S2_pointed).A =
+  p → i → j → k → alpha(p(i, j, k))
+
+define test_0_to_4: loop_space_3(S2_pointed).A =
+  f4(test_0_to_3)
+
+define innerpath(i j: I): S2_hopf(test_0_to_4(i, j, 1)) =
+  transp(k → S2_hopf(test_0_to_4(i, j, k)), 0, S1.base)
+
+define __debug problem: int.pos(zero) ≡ int.pos(zero) =
+  i → transp(j → S1_helix(innerpath(i ,j)), 0, int.pos(zero))
+
+// a.ref0.get.value.whnf.asInstanceOf[Value.PathLambda].body(Value.Formula.Generic(991)).whnf.asInstanceOf[Value.Transp].tp(Value.Formula.Generic(992)).whnf.asInstanceOf[Value.PatternRedux].stuck.asInstanceOf[Value.Transp].tp(Value.Formula.Generic(993)).whnf
+
+// a.ref0.get.value.whnf.asInstanceOf[Value.PathLambda].body(Value.Formula.Generic(991)).whnf.asInstanceOf[Value.Transp].tp(Value.Formula.Generic(992)).whnf.asInstanceOf[Value.PatternRedux].stuck.asInstanceOf[Value.Transp].tp(Value.Formula.Generic(993)).asInstanceOf[Value.App].argument.asInstanceOf[Value.PathApp].left.asInstanceOf[Value.PathApp].left.asInstanceOf[Value.PathApp].left.asInstanceOf[Value.PathApp].asInstanceOf[Value.Reference]
+
+
+
+
+
+
+
+
 
 
 define S2_groupoid2_trunc = groupoid2_trunc(S2)
@@ -58,46 +95,6 @@ define mult_two_tilde_aux: (t: S2_groupoid2_trunc) ⇒ x_refl_type(x_refl(t)) =
      k → l → m → mult_two_tilde_aux(u(k, l, m), i, j),
      k, l, m, n
    )
-
-define alpha: join_S1 ⇒ S2 =
-┌ inl(s) → S2.base
-├ inr(s) → S2.base
-└ push(x, y, i) → path_compose(S2_merid(y), S2_merid(x))(i)
-
-define test_0_to_2: loop_space_3(S3_pointed).A =
-  i → j → k → S3.surf(i, j, k)
-
-define f3: loop_space_3(S3_pointed).A ⇒ loop_space_3(join_S1_pointed).A =
-  p → i → j → k → S3_to_join_S1(p(i, j, k))
-
-define test_0_to_3: loop_space_3(join_S1_pointed).A =
-  f3(test_0_to_2)
-
-define f4: loop_space_3(join_S1_pointed).A ⇒ loop_space_3(S2_pointed).A =
-  p → i → j → k → alpha(p(i, j, k))
-
-define test_0_to_4: loop_space_3(S2_pointed).A =
-  f4(test_0_to_3)
-
-define interpath(i j: I): S2_hopf(test_0_to_4(i, j, 1)) =
-  transp(k → S2_hopf(test_0_to_4(i, j, k)), 0, S1.base)
-
-define __debug problem: int.pos(zero) ≡ int.pos(zero) =
-  i → transp(j → S1_helix(interpath(i ,j)), 0, int.pos(zero))
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

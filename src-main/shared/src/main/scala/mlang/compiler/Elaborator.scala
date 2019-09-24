@@ -4,7 +4,7 @@ import mlang.compiler.Concrete._
 import Declaration.Modifier
 import mlang.compiler.Abstract.{Inductively, MetaEnclosed}
 import mlang.compiler.Layer.Layers
-import mlang.compiler.Value.ClosureGraph
+import mlang.compiler.Value.{ClosureGraph, PathLambda}
 import mlang.utils._
 
 import scala.annotation.Annotation
@@ -184,7 +184,7 @@ class Elaborator private(protected override val layers: Layers)
       Abstract.ClosureGraph(fs.map(a => Abstract.ClosureGraph.Node(a._2, a._3.term.termDependencies(0).toSeq.sorted, a._3)))))
   }
 
-  def checkSum(tps: Option[(Value, Option[(Value, Abstract.Inductively)])], sum: Concrete.Sum): (Value, Abstract) = {
+  def checkSum(tps: Option[(Value, Option[(Value, Abstract.Inductively)], Int)], sum: Concrete.Sum): (Value, Abstract) = {
     val Concrete.Sum(constructors) = sum
     for (i <- constructors.indices) {
       for (j <- (i + 1) until constructors.size) {
@@ -245,7 +245,8 @@ class Elaborator private(protected override val layers: Layers)
       (c.name, ll, closureGraph)
     })
     // FIXME currently crash on empty type
-    val fl = fs.map(_._2).max
+    val fl = tps.map(_._3).getOrElse(
+      if (fs.isEmpty) throw ElaboratorException.EmptySumMustHaveTypeAnnotation() else fs.map(_._2).max)
     (Value.Universe(fl), Abstract.Sum(tps.flatMap(_._2.map(_._2)), isHit, fs.map(a =>
       Abstract.Constructor(a._1, a._3))))
   }
@@ -714,7 +715,7 @@ class Elaborator private(protected override val layers: Layers)
             term match {
               case s: Concrete.Sum =>
                 val ind = indState.consume(l)
-                checkSum(Some((v, ind)), s)._2
+                checkSum(Some((v, ind, l)), s)._2
               case r: Concrete.Record =>
                 val ind = indState.consume(l)
                 checkRecord(ind.map(_._2), r)._2
@@ -967,7 +968,37 @@ class Elaborator private(protected override val layers: Layers)
     }
     if (s.modifiers.contains(Declaration.Modifier.__Debug)) {
       val a = ret.layers.head.asInstanceOf[Layer.Defines].terms.find(_.name == s.name).get
-      val k = a.ref0.get.value
+      val kkk = a.ref0.get.value.asInstanceOf[PathLambda].body(Value.Formula.Generic(1))
+      val k = kkk.whnf
+      var base = k
+      var change = true
+      var count = 0
+      def test() = {
+        while (change) {
+          change = false
+          count += 1
+          if (base.isInstanceOf[Value.Hcomp]) {
+            change = true
+            base = base.asInstanceOf[Value.Hcomp].base
+          }
+          if (base.isInstanceOf[Value.Transp]) {
+            change = true
+            base = base.asInstanceOf[Value.Transp].base
+          }
+          if (base.isInstanceOf[Value.Glue]) {
+            change = true
+            base = base.asInstanceOf[Value.Glue].m
+          }
+          if (base.isInstanceOf[Value.Unglue]) {
+            change = true
+            base = base.asInstanceOf[Value.Unglue].base
+          }
+          base = base.whnf
+          println(s"we are deep in $change")
+        }
+      }
+      scala.util.Try(test())
+      val j = 0
     }
     ret
   }

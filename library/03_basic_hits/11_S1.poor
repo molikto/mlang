@@ -22,6 +22,8 @@ define S1: type = sum {
 }
 
 
+define test_transp_base: x_refl_type(transp(i → S1, 0, S1.base)) = x_refl(S1.base)
+
 // S1_join_S1 related
 
 define S1_moebius
@@ -35,6 +37,23 @@ S1        ⇒ type =
 ┌ base    → int
 └ loop(i) → int_suc_path(i)
 
+define S1_loop_space = S1.base ≡ S1.base
+define S1_loop(i: I) = S1.loop(i)
+define S1_loop_inv(i: I) = S1.loop(~i)
+
+define winding(p: S1_loop_space): int = transp(i → S1_helix(p(i)), 0, int_zero)
+
+define S1_loop2: S1_loop_space = path_compose(S1_loop, S1_loop)
+
+define test_loop1: x_refl_type(int_one) = x_refl(winding(S1_loop))
+
+define test_loop2: x_refl_type(int_two) = x_refl(winding(S1_loop2))
+
+define test_loop3: x_refl_type(int_three) = x_refl(winding(path_compose(S1_loop, S1_loop2)))
+
+define test_loopn1: x_refl_type(int_n_one) = x_refl(winding(S1_loop_inv))
+
+define test_loop_zero: x_refl_type(int_zero) = x_refl(winding(path_compose(S1_loop, S1_loop_inv)))
 
 define S1_pointed: pointed = make(S1.base)
 

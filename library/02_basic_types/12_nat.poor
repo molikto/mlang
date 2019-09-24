@@ -91,6 +91,8 @@ define _test_multi = run {
   unit.make
 }
 
+define test_hcomp_nat: x_refl_type(hcomp(zero)) = x_refl(zero)
+
 define fib:
 (: nat) ⇒ nat =
 ┌ zero → nat.zero
@@ -102,6 +104,7 @@ define _test_fib = run {
   define fib_ten_eq: thirty_four ≡ fib(nine) = refl
   unit.make
 }
+
 
 
 // TODO wish we have `projection` syntax

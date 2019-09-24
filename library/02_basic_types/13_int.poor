@@ -6,6 +6,14 @@ define inductively int: type = sum {
   case negsuc(n: nat)
 }
 
+define int_zero = int.pos(nat.zero)
+
+define int_one = int.pos(one)
+define int_two = int.pos(two)
+define int_three = int.pos(three)
+
+define int_n_one = int.negsuc(zero)
+
 define int_suc
 : int            ⇒ int =
 ┌ pos(n)         → int.pos(suc(n))

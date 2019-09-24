@@ -90,7 +90,7 @@ trait ValueConversion {
           val ds = (0 until n1.dimSize).map(_ => Value.Formula.Generic(dgen()))
           g1 = g1.reduce(ds)
           g2 = g2.reduce(ds)
-          val phiEq = g1.phi().normalForm == g2.phi().normalForm
+          val phiEq = Value.Formula.Or(g1.phi()).normalForm == Value.Formula.Or(g2.phi()).normalForm
           if (phiEq) {
             recValueSystem(selfValue, g1.restrictions(), g2.restrictions())
           } else {
@@ -532,7 +532,7 @@ trait ValueConversion {
                 val ret = (0 until c.nodes.dimSize).map(_ => Formula.Generic(dgen()))
                 ds.appendAll(ret)
                 val (vs, cl) = recs(maps.take(c.nodes.size), c.nodes)
-                Construct(name, vs, ret, if (ret.size == 0) Map.empty else cl.reduce(ret).restrictions())
+                Construct(name, vs, ret, if (ret.isEmpty) Map.empty else cl.reduce(ret).restrictions())
               } else {
                 logicError()
               }
