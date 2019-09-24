@@ -609,6 +609,7 @@ object Value {
 
 
   case class GlobalReference(@lateinit var value: Value) extends Reference {
+    var name: Name = null
     override type Self = GlobalReference
     override private[Value] def getRestrict(asgs: Assignments): GlobalReference = this
     private[Value] def getFswap(w: Long, z: Formula): Self = this
@@ -1210,7 +1211,7 @@ object Value {
   }
 
   /**
-    * whnf: tp is whnf and not canonical, or tp is sum
+    * whnf: tp is whnf and not canonical, or tp is sum, base is whnf
     */
   case class Hcomp(@type_annotation @stuck_pos tp: Value, base: Value, faces: AbsClosureSystem) extends Redux {
 
@@ -1250,7 +1251,7 @@ object Value {
                     assert(ds.isEmpty)
                     Construct(c, hcompGraph(cs(c).nodes, faces, cc, (b, i) => b.whnf.asInstanceOf[Construct].vs(i)), Seq.empty, Map.empty)
                   case _: StableCanonical => logicError()
-                  case _ => null
+                  case a => null
                 }
               } else {
                 null

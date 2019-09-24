@@ -10,6 +10,7 @@ import mlang.utils._
 import scala.annotation.Annotation
 import scala.collection.mutable
 import scala.language.implicitConversions
+import scala.util.Random
 
 class syntax_creation extends Annotation
 
@@ -795,7 +796,13 @@ class Elaborator private(protected override val layers: Layers)
     }
   }
 
-  private def newReference(v: Value = null): Value.Reference = if (layers.size == 1) Value.GlobalReference(v) else Value.LocalReference(v)
+  private def newReference(v: Value = null, name: Name = null): Value.Reference =
+    if (layers.size == 1) {
+      val g = Value.GlobalReference(v)
+      g.name = name
+      g
+    }
+    else Value.LocalReference(v)
 
   // should we make sure type annotation is the minimal type?
   // ANS: we don't and we actually cannot
@@ -880,7 +887,7 @@ class Elaborator private(protected override val layers: Layers)
             val va = check(v, item.typ, Seq.empty, rememberInductivelyBy(reify(item.typ), item.ref))
             info("body:"); print(va)
             appendMetas(freeze())
-            val ref = newReference()
+            val ref = newReference(name = name)
             val ctx = newDefinitionChecked(index, name, ref)
             ref.value = ctx.eval(va)
             vis(index).code = Some(CodeInfo(va, ref))
@@ -907,7 +914,7 @@ class Elaborator private(protected override val layers: Layers)
               val va = ctx.check(wrapBody(v, pps.map(_._1)), tv, lambdaNameHints, rememberInductivelyBy(ta, generic))
               info("body:"); print(va)
               appendMetas(ctx.freeze())
-              val ref = newReference()
+              val ref = newReference(name = name)
               val ctx2 = ctx.newDefinitionChecked(index, name, ref)
               ref.value = ctx2.eval(va) // we want to eval it under the context with reference to itself
               vis(index).code = Some(CodeInfo(va, ref))
@@ -938,7 +945,7 @@ class Elaborator private(protected override val layers: Layers)
               info("type:"); print(ta)
               info("body:"); print(va)
               appendMetas(freeze())
-              val ref = newReference(eval(va))
+              val ref = newReference(eval(va), name = name)
               val (ctx, index, generic) = newDefinition(name, eval(ta), ref)
               fillTo(vis, index); assert(vis(index) == null)
               vis.update(index, DefinitionInfo(Some(CodeInfo(va, ref)), CodeInfo(ta, generic)))
@@ -966,39 +973,40 @@ class Elaborator private(protected override val layers: Layers)
             ctx
         }
     }
-    if (s.modifiers.contains(Declaration.Modifier.__Debug)) {
-//      val a = ret.layers.head.asInstanceOf[Layer.Defines].terms.find(_.name == s.name).get
-//      val kkk = a.ref0.get.value.asInstanceOf[PathLambda].body(Value.Formula.Generic(1))
-//      val k = kkk.whnf
-//      var base = k
-//      var change = true
-//      var count = 0
-//      def test() = {
-//        while (change) {
-//          change = false
-//          count += 1
-//          if (base.isInstanceOf[Value.Hcomp]) {
-//            change = true
-//            base = base.asInstanceOf[Value.Hcomp].base
-//          }
-//          if (base.isInstanceOf[Value.Transp]) {
-//            change = true
-//            base = base.asInstanceOf[Value.Transp].base
-//          }
-//          if (base.isInstanceOf[Value.Glue]) {
-//            change = true
-//            base = base.asInstanceOf[Value.Glue].m
-//          }
-//          if (base.isInstanceOf[Value.Unglue]) {
-//            change = true
-//            base = base.asInstanceOf[Value.Unglue].base
-//          }
-//          base = base.whnf
-//          println(s"we are deep in $change")
-//        }
-//      }
-//      scala.util.Try(test())
-//      val j = 0
+    if (s.modifiers.contains(Declaration.Modifier.__Debug) || true) {
+      val a = ret.layers.head.asInstanceOf[Layer.Defines].terms.find(_.name == s.name).get
+      val kkk = a.ref0 match {
+        case Some(v) =>
+          val k = v.value.whnf
+          def loopType(a: Value.AbsClosure) = loopBase(a(Value.Formula.Generic(-Random.nextLong())))
+          def loopBase(k: Value): Unit = {
+            k.whnf match {
+              case h: Value.Hcomp =>
+                loopBase(h.tp)
+                loopBase(h.base)
+              case t: Value.Transp =>
+                loopType(t.tp)
+                loopBase(t.base)
+              case t: Value.Glue =>
+                loopBase(t.m)
+              case v: Value.Unglue =>
+                loopBase(v.base)
+              case Value.PathType(typ, left, right) =>
+                loopType(typ)
+                loopBase(left)
+                loopBase(right)
+              case c: Value.Construct =>
+                c.vs.foreach(loopBase)
+              case Value.Make(values) =>
+                values.foreach(loopBase)
+              case PathLambda(body) =>
+                loopType(body)
+              case _ =>
+            }
+          }
+          loopBase(k)
+        case _ =>
+      }
     }
     ret
   }

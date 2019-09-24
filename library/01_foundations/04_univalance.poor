@@ -6,6 +6,12 @@ define ua(#A #B: type, e: equiv(A, B)): A ≡ B =
   i → glue_type(B |~i: make(A, e) |i: make(B, id_equiv(B)))
 
 
+define ua_id_equiv(#A: type): ua(id_equiv(A)) ≡ x_refl(A) =
+  i → j → glue_type(A | i: make(A, id_equiv(A))
+                      | j: make(A, id_equiv(A))
+                      |~j: make(A, id_equiv(A))
+                   )
+
 define ua_beta(#A #B: type, e: equiv(A, B), x: A): transport(ua(e), x) ≡ e.f(x) =
   i → transp(─ → B, i, e.f(x))
 /*

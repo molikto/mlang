@@ -111,7 +111,7 @@ define is_prop_fam_S1(P: S1 ⇒ type, pP: (x: S1) ⇒ is_prop(P(x)), b0: P(S1.ba
 define rot_is_equiv:
  (a: S1) ⇒ is_equiv(rot(a)) =
 ┌ base → id_is_equiv(S1)
-└ loop(i) → is_prop_fam_S1(x → is_equiv(rot(x)), x → is_prop_is_equiv(rot(x)), id_is_equiv(_))(i)
+└ loop(i) → is_prop_fam_S1(x → is_equiv(rot(x)), x → is_prop_is_equiv(rot(x)), id_is_equiv(S1))(i)
 
 
 
