@@ -967,38 +967,38 @@ class Elaborator private(protected override val layers: Layers)
         }
     }
     if (s.modifiers.contains(Declaration.Modifier.__Debug)) {
-      val a = ret.layers.head.asInstanceOf[Layer.Defines].terms.find(_.name == s.name).get
-      val kkk = a.ref0.get.value.asInstanceOf[PathLambda].body(Value.Formula.Generic(1))
-      val k = kkk.whnf
-      var base = k
-      var change = true
-      var count = 0
-      def test() = {
-        while (change) {
-          change = false
-          count += 1
-          if (base.isInstanceOf[Value.Hcomp]) {
-            change = true
-            base = base.asInstanceOf[Value.Hcomp].base
-          }
-          if (base.isInstanceOf[Value.Transp]) {
-            change = true
-            base = base.asInstanceOf[Value.Transp].base
-          }
-          if (base.isInstanceOf[Value.Glue]) {
-            change = true
-            base = base.asInstanceOf[Value.Glue].m
-          }
-          if (base.isInstanceOf[Value.Unglue]) {
-            change = true
-            base = base.asInstanceOf[Value.Unglue].base
-          }
-          base = base.whnf
-          println(s"we are deep in $change")
-        }
-      }
-      scala.util.Try(test())
-      val j = 0
+//      val a = ret.layers.head.asInstanceOf[Layer.Defines].terms.find(_.name == s.name).get
+//      val kkk = a.ref0.get.value.asInstanceOf[PathLambda].body(Value.Formula.Generic(1))
+//      val k = kkk.whnf
+//      var base = k
+//      var change = true
+//      var count = 0
+//      def test() = {
+//        while (change) {
+//          change = false
+//          count += 1
+//          if (base.isInstanceOf[Value.Hcomp]) {
+//            change = true
+//            base = base.asInstanceOf[Value.Hcomp].base
+//          }
+//          if (base.isInstanceOf[Value.Transp]) {
+//            change = true
+//            base = base.asInstanceOf[Value.Transp].base
+//          }
+//          if (base.isInstanceOf[Value.Glue]) {
+//            change = true
+//            base = base.asInstanceOf[Value.Glue].m
+//          }
+//          if (base.isInstanceOf[Value.Unglue]) {
+//            change = true
+//            base = base.asInstanceOf[Value.Unglue].base
+//          }
+//          base = base.whnf
+//          println(s"we are deep in $change")
+//        }
+//      }
+//      scala.util.Try(test())
+//      val j = 0
     }
     ret
   }
