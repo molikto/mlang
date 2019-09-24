@@ -2,7 +2,7 @@
 
 
 // if we have termination checking, nat defined without "inductively" will fails to check, but now we don't
-// so just pretend we have...
+// so just pren10d we have...
 define inductively nat: type = sum {
   case zero
   case suc(: nat)
@@ -35,26 +35,28 @@ define plus(a b: nat): nat = run {
   rec(make(a, b))
 }
 
-define one = suc(zero)
-define two = suc(one)
-define three = suc(two)
-define four = suc(three)
-define five = suc(four)
-define six = suc(five)
-define seven = suc(six)
-define eight = suc(seven)
-define nine = suc(eight)
-define ten = suc(nine)
+
+define n0 = nat.zero
+define n1 = suc(n0)
+define n2 = suc(n1)
+define n3 = suc(n2)
+define n4 = suc(n3)
+define n5 = suc(n4)
+define n6 = suc(n5)
+define n7 = suc(n6)
+define n8 = suc(n7)
+define n9 = suc(n8)
+define n10 = suc(n9)
 
 // currently we use `_test_xxx` to write test codes
 define _test_plus = run {
   define left_zero(a: nat): plus(a, zero) ≡ a = refl
   define right_zero(a: nat): plus(zero, a) ≡ a = refl
-  define ttt1(a: nat): nat = plus(two, four)
-  define ttt2(a: nat): nat = plus(four, two)
+  define ttt1(a: nat): nat = plus(n2, n4)
+  define ttt2(a: nat): nat = plus(n4, n2)
   define assert_tt2_eq_holder(b: (nat ⇒ nat) ⇒ type, c: (i: nat ⇒ nat) ⇒ b(i)): b(ttt1) = c(ttt2)
   define assert_nat_eq_holder2(x y: nat, b: (nat ⇒ nat) ⇒ type, c: (i: nat ⇒ nat) ⇒ b(i)): b(─ → plus(x, y)) = c(─ → plus(x, y))
-  define ttt3(a: nat): nat = plus_alt_2(four, two)
+  define ttt3(a: nat): nat = plus_alt_2(n4, n2)
   define assert_tt2_eq_holder3(b: (nat ⇒ nat) ⇒ type, c: (i: nat ⇒ nat) ⇒ b(i)): b(ttt1) = c(ttt3)
   define ttt(a b: nat, c: nat ⇒ type, d: type ⇒ type): type = d(c(plus(a, b)))
   unit.make
@@ -85,9 +87,9 @@ define multi:
         └ suc(m)  → plus(a, multi(a, m))
 
 define _test_multi = run {
-  define sixteen1 = plus(eight, eight)
-  define sixteen2 = multi(four, four)
-  define sixteen_eq: sixteen1 ≡ sixteen2 = refl
+  define n6teen1 = plus(n8, n8)
+  define n6teen2 = multi(n4, n4)
+  define n6teen_eq: n6teen1 ≡ n6teen2 = refl
   unit.make
 }
 
@@ -96,12 +98,12 @@ define test_hcomp_nat: x_refl_type(hcomp(zero)) = x_refl(zero)
 define fib:
 (: nat) ⇒ nat =
 ┌ zero → nat.zero
-├ suc(zero) → one
+├ suc(zero) → n1
 └ suc(suc(b)) → plus(fib(nat.suc(b)), fib(b))
 
 define _test_fib = run {
-  define thirty_four = plus(ten, plus(ten, plus(ten, four)))
-  define fib_ten_eq: thirty_four ≡ fib(nine) = refl
+  define n34 = plus(n10, plus(n10, plus(n10, n4)))
+  define fib_n10_eq: n34 ≡ fib(n9) = refl
   unit.make
 }
 

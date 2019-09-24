@@ -22,7 +22,10 @@ define S1: type = sum {
 }
 
 
-define test_transp_base: x_refl_type(transp(i → S1, 0, S1.base)) = x_refl(S1.base)
+define S1_basic_tests = run {
+  define transp_base: x_refl_type(transp(i → S1, 0, S1.base)) = x_refl(S1.base)
+  unit.make
+}
 
 // S1_join_S1 related
 
@@ -45,15 +48,39 @@ define winding(p: S1_loop_space): int = transp(i → S1_helix(p(i)), 0, int_zero
 
 define S1_loop2: S1_loop_space = path_compose(S1_loop, S1_loop)
 
-define test_loop1: x_refl_type(int_one) = x_refl(winding(S1_loop))
+define S1_winding_tests = run {
 
-define test_loop2: x_refl_type(int_two) = x_refl(winding(S1_loop2))
+  define test_loop1: x_refl_type(i1) = x_refl(winding(S1_loop))
 
-define test_loop3: x_refl_type(int_three) = x_refl(winding(path_compose(S1_loop, S1_loop2)))
+  define test_loop2: x_refl_type(i2) = x_refl(winding(S1_loop2))
 
-define test_loopn1: x_refl_type(int_n_one) = x_refl(winding(S1_loop_inv))
+  define test_loop3: x_refl_type(i3) = x_refl(winding(path_compose(S1_loop, S1_loop2)))
 
-define test_loop_zero: x_refl_type(int_zero) = x_refl(winding(path_compose(S1_loop, S1_loop_inv)))
+  define test_loopn1: x_refl_type(i1n) = x_refl(winding(S1_loop_inv))
+
+  define test_loop_zero: x_refl_type(i0) = x_refl(winding(path_compose(S1_loop, S1_loop_inv)))
+
+  define m_loop: (x: S1) ⇒ x ≡ x =
+  ┌ base → S1_loop
+  └ loop(i) → square_constant(S1_loop)(i)
+
+  define mult(x: S1): S1 ⇒ S1 =
+  ┌ base → x
+  └ loop(i) → m_loop(x, i)
+
+  define square(x: S1) = mult(x, x)
+
+  define double_loop(l: S1_loop_space): S1_loop_space = i → square(l(i))
+
+  define triple_loop(l: S1_loop_space): S1_loop_space = i → mult(l(i), square(l(i)))
+
+  define test_i4: x_refl_type(i4) = x_refl(winding(double_loop(S1_loop2)))
+  define test_i8: x_refl_type(i8) = x_refl(winding(double_loop(double_loop(S1_loop2))))
+  unit.make
+}
+
+
+
 
 define S1_pointed: pointed = make(S1.base)
 

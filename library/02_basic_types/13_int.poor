@@ -8,11 +8,17 @@ define inductively int: type = sum {
 
 define int_zero = int.pos(nat.zero)
 
-define int_one = int.pos(one)
-define int_two = int.pos(two)
-define int_three = int.pos(three)
+define i0 = int.pos(n0)
+define i1 = int.pos(n1)
+define i2 = int.pos(n2)
+define i3 = int.pos(n3)
+define i4 = int.pos(n4)
+define i5 = int.pos(n5)
+define i6 = int.pos(n6)
+define i7 = int.pos(n7)
+define i8 = int.pos(n8)
 
-define int_n_one = int.negsuc(zero)
+define i1n = int.negsuc(zero)
 
 define int_suc
 : int            ⇒ int =
