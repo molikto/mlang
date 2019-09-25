@@ -658,38 +658,6 @@ object Value {
     override def referenced: Value = _typ
 }
 
-  object WhnfStuckReason {
-
-    def unapply(value: Value): Option[Value] = {
-      value match {
-        case _: StableCanonical => None
-        case _: UnstableCanonical => None
-        case _: Generic => None
-        case o: Meta => Some(o)
-        case App(lambda, _) => unapply(lambda)
-        case Projection(make, _) => unapply(make)
-        case a@PatternRedux(_, stuck) =>
-          stuck match {
-            case c: StableCanonical => Some(a) // this might get unstuck when a meta is solved
-            case c: UnstableCanonical => Some(a)
-            case _ => unapply(stuck)
-          }
-        case PathApp(left, _) => unapply(left)
-        case t@Transp(typ, _, _) =>
-          // TODO this rule is really wired...
-          unapply(typ(Formula.Generic(dgen())).whnf).map {
-            case m: Meta => m
-            case _ => t
-          }
-        case Hcomp(tp, _, _) => unapply(tp)
-        case u@Unglue(_, m, _) => Some(u)
-        case _: Comp => logicError()
-        case _: Reference => logicError()
-        case _: Internal => logicError()
-      }
-    }
-  }
-
   object ReferenceTail {
     def rec(a: Value, ref: Option[Reference]): Option[(Value, Option[Reference])] = a match {
       case Meta(MetaState.Closed(v)) => rec(v, ref)
@@ -1282,6 +1250,8 @@ object Value {
   case class Unglue(ty: Value, base: Value, @stuck_pos faces: ValueSystem) extends Redux {
     override def reduce(): Option[Value] = logicError() // in whnf
   }
+
+  var NORMAL_FORM_MODEL = false
 }
 
 
@@ -1479,7 +1449,7 @@ sealed trait Value {
     *
     */
   private[Value] var _from: Value = _
-  private[Value] var _whnfCache: Object = _
+  private[Value] var _whnfCache: Value = _
 
 
   def bestReifyValue: Value = this match {
@@ -1501,37 +1471,7 @@ sealed trait Value {
   def whnf: Value = {
     def eqFaces(f1: AbsClosureSystem, f2: AbsClosureSystem): Boolean =
       f1.eq(f2) || (f1.keys == f2.keys && f1.forall(p => p._2.eq(f2(p._1))))
-    val cached =
-      if (_whnfCache == null) {
-        null
-      } else {
-        _whnfCache match {
-          case (v: Value, m: Value) =>
-            m match {
-              case m: Meta =>
-                if (m.isSolved) {
-                  _whnfCache = null
-                  null
-                } else {
-                  v
-                }
-              case o =>
-                if (o.eq(this)) {
-                  _whnfCache = null
-                  null
-                } else {
-                  if (!o.whnf.eq(o)) {
-                    _whnfCache = null
-                    null
-                  } else {
-                    v
-                  }
-                }
-            }
-          case v: Value =>
-            v
-        }
-      }
+    val cached = _whnfCache
     if (cached == null) {
       val candidate = this match {
         case a: StableCanonical =>
@@ -1629,30 +1569,25 @@ sealed trait Value {
         case _: Internal =>
           logicError()
       }
-      // because some values is shared, it means the solved ones is not created for this whnf, we don't say this
-      // is from us
-      // TODO these are already defined ones, think more about this
-      if (candidate.eq(this)) { // this is a terminal form, it has no from now
+      if (Value.NORMAL_FORM_MODEL) {
+        _whnfCache = candidate
+        candidate
       } else {
-        var c = candidate
-        while (!c._from.eq(null) && !c._from.eq(c)) {
-          c = c._from
+        // because some values is shared, it means the solved ones is not created for this whnf, we don't say this
+        // is from us
+        // TODO these are already defined ones, think more about this
+        if (candidate.eq(this)) { // this is a terminal form, it has no from now
+        } else {
+          var c = candidate
+          while (!c._from.eq(null) && !c._from.eq(c)) {
+            c = c._from
+          }
+          if (c._from.eq(null)) {
+            c._from = this
+          }
         }
-        if (c._from.eq(null)) {
-          c._from = this
-        }
+        candidate
       }
-      val cache = candidate match {
-        // LATER I'm surprised that this thing is so tricky. maybe remove this (and the equals stuff)
-        case Value.WhnfStuckReason(m) =>
-          (candidate, m)
-        case _ =>
-          candidate
-          // remember for stable values
-      }
-      _whnfCache = cache
-      candidate._whnfCache = cache
-      candidate
     } else {
       cached
     }

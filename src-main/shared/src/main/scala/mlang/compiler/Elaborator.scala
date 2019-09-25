@@ -974,14 +974,16 @@ class Elaborator private(protected override val layers: Layers)
         }
     }
     if (s.modifiers.contains(Declaration.Modifier.__Debug)) {
-      val a = ret.layers.head.asInstanceOf[Layer.Defines].terms.find(_.name == s.name).get
-      val kkk = a.ref0 match {
-        case Some(v) =>
-          val k = v.value.whnf
-          val j = k.asInstanceOf[Value.PathLambda].body(Value.Formula.Generic(2131)).whnf
-          val a = 1
-        case _ =>
-      }
+//      val a = ret.layers.head.asInstanceOf[Layer.Defines].terms.find(_.name == s.name).get
+//      val kkk = a.ref0 match {
+//        case Some(v) =>
+//          Value.NORMAL_FORM_MODEL = true
+//          val k = v.value.whnf
+//          val j = k.asInstanceOf[Value.PathLambda].body(Value.Formula.Generic(2131)).whnf
+//          Value.NORMAL_FORM_MODEL = false
+//          val a = 1
+//        case _ =>
+//      }
     }
     ret
   }
