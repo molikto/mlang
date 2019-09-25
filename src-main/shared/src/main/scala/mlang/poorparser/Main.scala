@@ -2,8 +2,9 @@ package mlang.poorparser
 
 import java.io.File
 
+import mlang.compiler.Concrete
 import mlang.compiler.Elaborator
-import mlang.utils.{Benchmark, debug, info}
+import mlang.utils.{Benchmark, debug, info, warn}
 
 object Main extends Parser {
 
@@ -45,20 +46,28 @@ object Main extends Parser {
   }
 
   def library(file: File): Unit = {
-    var checker = Elaborator.topLevel()
-    def rec(prefix: String, file: File): Unit = {
-      file.listFiles().sortBy(_.getName).foreach(f => {
+    val checker = Elaborator.topLevel()
+    def rec(prefix: String, file: File): Seq[(String, Concrete.Module)] = {
+      file.listFiles().sortBy(_.getName).toSeq.flatMap(f => {
         val name = prefix + f.getName
         if (f.isDirectory) {
-          info(s"entering folder $name")
           rec(name + "/", f)
         } else if (f.getName.endsWith(".poor")) {
-          info(s"checking file $name")
-          checker = checker.check(parseOrThrow(src(f)))
+          try {
+            Seq((name, parseOrThrow(src(f))))
+          } catch {
+            case e: Exception =>
+              e.printStackTrace()
+              warn(s"Parsing error, ignoring file $name")
+              Seq.empty
+          }
+        } else {
+          Seq.empty
         }
       })
     }
-    rec("", file)
+    val modules = rec("", file)
+    checker.check(Concrete.Module(modules.flatMap(_._2.declarations)))
     Benchmark.reportAndReset()
   }
 

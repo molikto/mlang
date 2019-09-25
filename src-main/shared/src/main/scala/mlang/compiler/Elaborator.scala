@@ -974,16 +974,16 @@ class Elaborator private(protected override val layers: Layers)
         }
     }
     if (s.modifiers.contains(Declaration.Modifier.__Debug)) {
-//      val a = ret.layers.head.asInstanceOf[Layer.Defines].terms.find(_.name == s.name).get
-//      val kkk = a.ref0 match {
-//        case Some(v) =>
-//          Value.NORMAL_FORM_MODEL = true
-//          val k = v.value.whnf
-//          val j = k.asInstanceOf[Value.PathLambda].body(Value.Formula.Generic(2131)).whnf
-//          Value.NORMAL_FORM_MODEL = false
-//          val a = 1
-//        case _ =>
-//      }
+      val a = ret.layers.head.asInstanceOf[Layer.Defines].terms.find(_.name == s.name).get
+      val kkk = a.ref0 match {
+        case Some(v) =>
+          Value.NORMAL_FORM_MODEL = true
+          val k = v.value.whnf
+          val j = k.asInstanceOf[Value.PathLambda].body(Value.Formula.Generic(2131)).whnf
+          Value.NORMAL_FORM_MODEL = false
+          val a = 1
+        case _ =>
+      }
     }
     ret
   }
@@ -1004,16 +1004,6 @@ class Elaborator private(protected override val layers: Layers)
     var ctx = this
     val ms = mutable.ArrayBuffer.empty[CodeInfo[Value.Meta]]
     val vs = mutable.ArrayBuffer.empty[DefinitionInfo]
-
-    // this is a TOTAL hack because we don't have modules yet
-    val __t = Abstract.Universe(0)
-    for (_ <- 0 until layers.head.metas.size) {
-      ms.append(CodeInfo(__t, null))
-    }
-    for (_ <- layers.head.asInstanceOf[Layer.Defines].terms) {
-      vs.append(DefinitionInfo(Some(CodeInfo(__t, null)), CodeInfo(__t, null)))
-    }
-
     for (s <- seq) {
       val ctx0 = ctx.checkDeclaration(s, ms, vs, topLevel)
       ctx = ctx0
