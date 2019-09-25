@@ -13,6 +13,17 @@ trait ElaboratorContextForEvaluator extends EvaluatorContext with ElaboratorCont
     getRestricted(layers(depth).metas(index), depth)
   }
 
+  def getMetaReferenceType(depth: Int, index: Int): Value = {
+    getRestricted(layers(depth).metas(index), depth)
+  }
+
+  def getReferenceType(depth: Int, index: Int): Value = getRestricted(layers(depth) match {
+    case Layer.Parameter(binder, _) if index == -1 => binder.typ
+    case ps: Layer.Parameters if index >= 0  => ps.termBinders(index).typ
+    case Layer.Defines(_, terms) => terms(index).typ
+    case _ => logicError()
+  }, depth)
+
   // get value directly without resolving faces
   def getReference(depth: Int, index: Int): Value = getRestricted(layers(depth) match {
     case Layer.Parameter(binder, _) if index == -1 => binder.value

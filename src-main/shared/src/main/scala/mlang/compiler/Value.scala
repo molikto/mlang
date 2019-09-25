@@ -437,7 +437,7 @@ object Value {
     // maybe inline in whnf
     def reduce(): Option[Value]
 
-    def reduceThenWhnfOrSelf() = reduce() match {
+    @inline def reduceThenWhnfOrSelf() = reduce() match {
       case Some(r) => r.whnf
       case _ => this
     }
@@ -522,7 +522,7 @@ object Value {
         this.asInstanceOf[Self]
       } else {
         if (fswapCache == null) fswapCache = mutable.Map()
-        debug(s"getting fswap value by $w, $z", 2)
+        // debug(s"getting fswap value by $w, $z", 2)
         val key = (w, z)
         fswapCache.get(key) match {
           case Some(r) => r.asInstanceOf[Self]
@@ -549,7 +549,7 @@ object Value {
           this.asInstanceOf[Self]
         } else {
           if (restrictedCache == null) restrictedCache = mutable.Map()
-          debug(s"getting restricted value by $asgg", 2)
+          // debug(s"getting restricted value by $asgg", 2)
           restrictedCache.get(asgg) match {
             case Some(r) => r.asInstanceOf[Self]
             case None =>
@@ -1023,7 +1023,6 @@ object Value {
       @stuck_pos base: Value // it stuck here on sum type sometimes
   ) extends Redux {
 
-
     override def reduce(): Option[Value] = {
       if (phi.normalFormTrue) {
         Some(base)
@@ -1034,7 +1033,7 @@ object Value {
             def tpr(i: Value.Formula) = tp(i).whnf.asInstanceOf[Function]
             Lambda(Closure(v => {
               def w(i: Formula) = transpFill_inv(i, phi, AbsClosure(a => tpr(a).domain), v)
-              val w0 = transp_inv(phi, AbsClosure(a => tpr(a).domain), base)
+              val w0 = transp_inv(phi, AbsClosure(a => tpr(a).domain), v)
               Transp(AbsClosure(i => tpr(i).codomain(w(i))), phi, App(base, w0))
             }))
           case _: PathType =>
@@ -1135,9 +1134,9 @@ object Value {
             PathApp(App(Projection(compo, 1), u), i)
           })
         }).toMap.updated(si, AbsClosure(i => {
-            val u = Make(Seq(u0, PathLambda(AbsClosure(_ => a1))))
-            PathApp(App(Projection(compo, 1), u), i)
-          }))
+          val u = Make(Seq(u0, PathLambda(AbsClosure(_ => a1))))
+          PathApp(App(Projection(compo, 1), u), i)
+        }))
       )
     }
     val a1p = Hcomp(A1, a1,
@@ -1345,7 +1344,6 @@ sealed trait Value {
       case m@Meta(_: MetaState.Open) => Some(m)
       case _ => None
     }.toSet)
-    if (spt.names.nonEmpty) debug(s"non-empty support ${spt.names}", 2)
     spt
   }
 
@@ -1398,10 +1396,10 @@ sealed trait Value {
       PathType(typ.fswap(w, z), left.fswap(w, z), right.fswap(w, z))
     case PathLambda(body) => PathLambda(body.fswap(w, z))
     case App(lambda, argument) => App(lambda.fswap(w, z), argument.fswap(w, z))
-    case Transp(tp, direction, base) => Transp(tp.fswap(w, z), direction.fswap(w, z), base.fswap(w, z))
+    case t@Transp(tp, direction, base) => Transp(tp.fswap(w, z), direction.fswap(w, z), base.fswap(w, z))
     case Hcomp(tp, base, faces) => Hcomp(tp.fswap(w, z), base.fswap(w, z), AbsClosureSystem.fswap(faces, w, z))
     case Comp(tp, base, faces) => Comp(tp.fswap(w, z), base.fswap(w, z), AbsClosureSystem.fswap(faces, w, z))
-    case Projection(make, field) => Projection(make.fswap(w, z), field)
+    case p@Projection(make, field) => Projection(make.fswap(w, z), field)
     case PatternRedux(lambda, stuck) =>
       PatternRedux(lambda.fswap(w, z).asInstanceOf[PatternLambda], stuck.fswap(w, z))
     case PathApp(left, stuck) => PathApp(left.fswap(w, z), stuck.fswap(w, z))
@@ -1436,13 +1434,13 @@ sealed trait Value {
       PathLambda(body.restrict(lv))
     case App(lambda, argument) =>
       App(lambda.restrict(lv), argument.restrict(lv))
-    case Transp(tp, direction, base) =>
+    case t@Transp(tp, direction, base) =>
       Transp(tp.restrict(lv), direction.restrict(lv), base.restrict(lv))
     case Hcomp(tp, base, faces) =>
       Hcomp(tp.restrict(lv), base.restrict(lv), AbsClosureSystem.restrict(faces, lv))
     case Comp(tp, base, faces) =>
       Comp(tp.restrict(lv), base.restrict(lv), AbsClosureSystem.restrict(faces, lv))
-    case Projection(make, field) =>
+    case p@Projection(make, field) =>
       Projection(make.restrict(lv), field)
     case PatternRedux(lambda, stuck) =>
       PatternRedux(lambda.restrict(lv).asInstanceOf[PatternLambda], stuck.restrict(lv))
@@ -1549,7 +1547,7 @@ sealed trait Value {
           }
         case app@App(lambda, argument) =>
           // TODO don't do this equals stuff!!!
-          def app2(lambda: Value, argument: Value): Value = {
+          @inline def app2(lambda: Value, argument: Value): Value = {
             lambda match {
               case Lambda(closure) =>
                 closure(argument).whnf
@@ -1611,7 +1609,11 @@ sealed trait Value {
           faces.find(_._1.normalFormTrue).map(_._2.whnf) match {
             case Some(a) => a
             case None =>
-              this
+              val bf = base.whnf
+              bf match {
+                case Unglue(b, _, _) => b.whnf
+                case _ => if (bf.eq(base)) this else Glue(bf, faces)
+              }
           }
         case Unglue(ty, base, faces) =>
           val red = faces.find(_._1.normalFormTrue).map(b => App(Projection(Projection(b._2, 1), 0), base).whnf)

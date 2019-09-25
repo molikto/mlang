@@ -973,43 +973,20 @@ class Elaborator private(protected override val layers: Layers)
             ctx
         }
     }
-    if (s.modifiers.contains(Declaration.Modifier.__Debug) || true) {
+    if (s.modifiers.contains(Declaration.Modifier.__Debug)) {
       val a = ret.layers.head.asInstanceOf[Layer.Defines].terms.find(_.name == s.name).get
       val kkk = a.ref0 match {
         case Some(v) =>
           val k = v.value.whnf
-          def loopType(a: Value.AbsClosure) = loopBase(a(Value.Formula.Generic(-Random.nextLong())))
-          def loopBase(k: Value): Unit = {
-            k.whnf match {
-              case h: Value.Hcomp =>
-                loopBase(h.tp)
-                loopBase(h.base)
-              case t: Value.Transp =>
-                loopType(t.tp)
-                loopBase(t.base)
-              case t: Value.Glue =>
-                loopBase(t.m)
-              case v: Value.Unglue =>
-                loopBase(v.base)
-              case Value.PathType(typ, left, right) =>
-                loopType(typ)
-                loopBase(left)
-                loopBase(right)
-              case c: Value.Construct =>
-                c.vs.foreach(loopBase)
-              case Value.Make(values) =>
-                values.foreach(loopBase)
-              case PathLambda(body) =>
-                loopType(body)
-              case _ =>
-            }
-          }
-          loopBase(k)
+          val j = k.asInstanceOf[Value.PathLambda].body(Value.Formula.Generic(2131)).whnf
+          val a = 1
         case _ =>
       }
     }
     ret
   }
+
+
 
   private def checkDeclarations(seq0: Seq[Declaration], topLevel: Boolean): (Self, Seq[Abstract], Seq[Abstract]) = {
     // how to handle mutual recursive definitions, calculate strong components
@@ -1063,6 +1040,33 @@ class Elaborator private(protected override val layers: Layers)
   }
 
 
+  // debug metthods
+  def loopType(a: Value.AbsClosure) = loopBase(a(Value.Formula.Generic(-Random.nextLong())))
+  def loopBase(k: Value): Unit = {
+    k.whnf match {
+      case h: Value.Hcomp =>
+        loopBase(h.tp)
+        loopBase(h.base)
+      case t: Value.Transp =>
+        loopType(t.tp)
+        loopBase(t.base)
+      case t: Value.Glue =>
+        loopBase(t.m)
+      case v: Value.Unglue =>
+        loopBase(v.base)
+      case Value.PathType(typ, left, right) =>
+        loopType(typ)
+        loopBase(left)
+        loopBase(right)
+      case c: Value.Construct =>
+        c.vs.foreach(loopBase)
+      case Value.Make(values) =>
+        values.foreach(loopBase)
+      case PathLambda(body) =>
+        loopType(body)
+      case _ =>
+    }
+  }
 }
 
 

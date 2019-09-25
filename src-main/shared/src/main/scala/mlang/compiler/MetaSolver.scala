@@ -38,6 +38,7 @@ trait MetaSolver extends ValueConversion with Reifier with ElaboratorContextRebi
     }
   }
 
+
   private def solve(m: Meta, vs: MetaSpine, t20: Value): Value = Benchmark.Solve {
     var MetaState.Open(_, typ) = m.state.asInstanceOf[MetaState.Open]
     val ref = rebindMeta(m)
