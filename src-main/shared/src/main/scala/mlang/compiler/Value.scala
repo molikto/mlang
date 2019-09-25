@@ -1069,7 +1069,7 @@ object Value {
     val A1 = B1.ty
     val A0 = B0.ty
     // a0: A(i/0)
-    val a0 = LocalReference(Unglue(A0, u0, B0.faces))
+    val a0 = Unglue(A0, u0, B0.faces)
     // defined in phi_elim_i
     def t_tide(trueFace: Value, i: Formula) = {
       transpFill(i, si, AbsClosure(i => {
@@ -1080,7 +1080,7 @@ object Value {
     val B1_faces = B1.faces.filter(_._1.normalForm != Formula.NormalForm.False)
     def t1(trueFace: Value) = t_tide(trueFace, Formula.True)
     // a1: A(i/1) and is defined on both si and elim(i, phi)
-    val a1 = LocalReference(gcomp(
+    val a1 = gcomp(
       AbsClosure(i => A(i)),
       a0,
       faces_elim_dim.view.mapValues(tf => {
@@ -1090,7 +1090,7 @@ object Value {
           App(Projection(w, 0), t_tide(tf, i))
         })
       }).toMap.updated(si, AbsClosure(_ => a0))
-    ))
+    )
     // ..., phi(i/1) |- (t1`, alpha) // true face must have (i/1)
     def pair(trueFace: Value) = {
       val w = Projection(trueFace, 1)

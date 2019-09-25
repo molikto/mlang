@@ -87,9 +87,9 @@ define multi:
         └ suc(m)  → plus(a, multi(a, m))
 
 define _test_multi = run {
-  define n6teen1 = plus(n8, n8)
-  define n6teen2 = multi(n4, n4)
-  define n6teen_eq: n6teen1 ≡ n6teen2 = refl
+  define n16 = plus(n8, n8)
+  define n16_2 = multi(n4, n4)
+  define n16_eq: n16 ≡ n16_2 = refl
   unit.make
 }
 
