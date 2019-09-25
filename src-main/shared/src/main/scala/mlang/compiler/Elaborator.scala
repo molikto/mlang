@@ -980,6 +980,8 @@ class Elaborator private(protected override val layers: Layers)
           Value.NORMAL_FORM_MODEL = true
           val k = v.value.whnf
           val j = k.asInstanceOf[Value.PathLambda].body(Value.Formula.Generic(2131)).whnf
+          val kk = reify(j)
+          println(kk)
           Value.NORMAL_FORM_MODEL = false
           val a = 1
         case _ =>
