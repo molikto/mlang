@@ -854,7 +854,9 @@ object Value {
     def fswap(w: Long, z: Formula): Constructor = Constructor(name, nodes.fswap(w, z))
   }
 
-  case class Sum(inductively: Option[Inductively], hit: Boolean, constructors: Seq[Constructor]) extends StableCanonical
+  case class Sum(inductively: Option[Inductively], hit: Boolean, constructors: Seq[Constructor]) extends StableCanonical {
+    def noArgs = inductively.forall(_.ps.isEmpty)
+  }
 
   case class PathType(typ: AbsClosure, left: Value, right: Value) extends StableCanonical
   case class PathLambda(body: AbsClosure) extends StableCanonical
@@ -1059,29 +1061,33 @@ object Value {
               Make(closures.map(_.apply(Formula.True)))
             }
           case s: Sum =>
-            base.whnf match {
-              case Construct(c, vs, rs, d) =>
-                def tpr(i: Value.Formula) = tp(i).whnf.asInstanceOf[Sum].constructors(c)
-                val cc = s.constructors(c)
-                val theta = transpFill(cc.nodes, i => tpr(i).nodes, phi, vs)
-                val w1p = Construct(c, theta.map(_.apply(Formula.True)), rs, d)
-                if (rs.isEmpty) {
-                  w1p
-                } else {
-                  val item1 = (phi, AbsClosure(_ => base))
-                  def alpha(e: AbsClosure) = squeeze(tp, e, phi)
-                  val items = cc.nodes.reduce(rs).phi().toSeq.map(f => {
-                    val e = AbsClosure(i => tpr(i).nodes.reduceAll(theta.map(_.apply(i))).reduce(rs).restrictions().find(_._1 == f).get._2)
-                    val abs = AbsClosure(i => alpha(e)(Formula.Neg(i)))
-                    (f, abs)
-                  }).toMap.updated(item1._1, item1._2)
-                  Hcomp(1, tp(Formula.True), w1p, items)
-                }
-              case Hcomp(hty, hbase, faces) =>
-                Hcomp(2, tp(Value.Formula.True), Transp(tp, phi, hbase), faces.map(pr => (pr._1, pr._2.map(v => Transp(tp, phi, v)))))
-              case _: StableCanonical => logicError()
-              case _ =>
-                null
+            if (s.noArgs && Value.NORMAL_FORM_MODEL) {
+              base
+            } else {
+              base.whnf match {
+                case Construct(c, vs, rs, d) =>
+                  def tpr(i: Value.Formula) = tp(i).whnf.asInstanceOf[Sum].constructors(c)
+                  val cc = s.constructors(c)
+                  val theta = transpFill(cc.nodes, i => tpr(i).nodes, phi, vs)
+                  val w1p = Construct(c, theta.map(_.apply(Formula.True)), rs, d)
+                  if (rs.isEmpty) {
+                    w1p
+                  } else {
+                    val item1 = (phi, AbsClosure(_ => base))
+                    def alpha(e: AbsClosure) = squeeze(tp, e, phi)
+                    val items = cc.nodes.reduce(rs).phi().toSeq.map(f => {
+                      val e = AbsClosure(i => tpr(i).nodes.reduceAll(theta.map(_.apply(i))).reduce(rs).restrictions().find(_._1 == f).get._2)
+                      val abs = AbsClosure(i => alpha(e)(Formula.Neg(i)))
+                      (f, abs)
+                    }).toMap.updated(item1._1, item1._2)
+                    Hcomp(1, tp(Formula.True), w1p, items)
+                  }
+                case Hcomp(hty, hbase, faces) =>
+                  Hcomp(2, tp(Value.Formula.True), Transp(tp, phi, hbase), faces.map(pr => (pr._1, pr._2.map(v => Transp(tp, phi, v)))))
+                case _: StableCanonical => logicError()
+                case _ =>
+                  null
+              }
             }
           case g: GlueType =>
             transpGlue(g, dim, phi, base)
@@ -1252,16 +1258,20 @@ object Value {
                 Make(Seq(B, Apps(BuiltIn.path_to_equiv, Seq(B, A, PathLambda(AbsClosure(a => f(Formula.Neg(a))))))))
               }).toMap)
             case s@Sum(i, hit, cs) =>
-              if (!hit) {
-                base.whnf match {
-                  case cc@Construct(c, vs, ds, ty) =>
-                    assert(ds.isEmpty)
-                    Construct(c, hcompGraph(37, cs(c).nodes, faces, cc, (b, i) => b.whnf.asInstanceOf[Construct].vs(i)), Seq.empty, Map.empty)
-                  case _: StableCanonical => logicError()
-                  case a => null
-                }
+              if (s.noArgs && Value.NORMAL_FORM_MODEL) {
+                base
               } else {
-                null
+                if (!hit) {
+                  base.whnf match {
+                    case cc@Construct(c, vs, ds, ty) =>
+                      assert(ds.isEmpty)
+                      Construct(c, hcompGraph(37, cs(c).nodes, faces, cc, (b, i) => b.whnf.asInstanceOf[Construct].vs(i)), Seq.empty, Map.empty)
+                    case _: StableCanonical => logicError()
+                    case a => null
+                  }
+                } else {
+                  null
+                }
               }
             case g: GlueType =>
               hcompGlue(g, base, faces)

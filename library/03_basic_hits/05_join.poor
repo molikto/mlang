@@ -1,6 +1,7 @@
 
 
-define join(A B: type): type = sum {
+// FIXME noArgs in sum type has wrong logic, but now it works for our library
+define inductively join(A B: type): type = sum {
   case inl(a: A)
   case inr(b: B)
   case push(a: A, b: B, i: I |~i: inl(a) |i: inr(b))
