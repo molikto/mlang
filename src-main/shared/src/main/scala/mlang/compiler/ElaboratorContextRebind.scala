@@ -49,6 +49,7 @@ trait ElaboratorContextRebind extends ElaboratorContextBase {
     }
   }
 
+
   def rebindDimension(id: Long): Abstract.Formula.Reference = {
     var up = 0
     var ls = layers

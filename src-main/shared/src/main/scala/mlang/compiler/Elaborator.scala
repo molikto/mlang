@@ -4,7 +4,7 @@ import mlang.compiler.Concrete._
 import Declaration.Modifier
 import mlang.compiler.Abstract.{Inductively, MetaEnclosed}
 import mlang.compiler.Layer.Layers
-import mlang.compiler.Value.{ClosureGraph, PathLambda}
+import mlang.compiler.Value.{ClosureGraph, PathLambda, PatternRedux}
 import mlang.utils._
 
 import scala.annotation.Annotation
@@ -979,9 +979,12 @@ class Elaborator private(protected override val layers: Layers)
         case Some(v) =>
           Value.NORMAL_FORM_MODEL = true
           val k = v.value.whnf
-          val j = k.asInstanceOf[Value.PathLambda].body(Value.Formula.Generic(2131)).whnf
-          val kk = reify(j)
-          println(kk)
+          var j = k.asInstanceOf[Value.PathLambda].body(Value.Formula.Generic(2131)).whnf
+          val js = new mutable.ArrayBuffer[Value]()
+          while (true) {
+            js.append(j)
+            j = loopBase(j)
+          }
           Value.NORMAL_FORM_MODEL = false
           val a = 1
         case _ =>
@@ -1035,30 +1038,29 @@ class Elaborator private(protected override val layers: Layers)
 
 
   // debug metthods
-  def loopType(a: Value.AbsClosure) = loopBase(a(Value.Formula.Generic(-Random.nextLong())))
-  def loopBase(k: Value): Unit = {
+  def loopType(a: Value.AbsClosure) = loopBase(a(Value.Formula.Generic(-Random.nextLong(Long.MaxValue / 2))))
+  def loopBase(k: Value): Value = {
     k.whnf match {
       case h: Value.Hcomp =>
-        loopBase(h.tp)
-        loopBase(h.base)
+        h.tp.whnf match {
+          case s: Value.Sum =>
+            h.base
+          case _ =>
+            loopBase(h.tp)
+        }
       case t: Value.Transp =>
-        loopType(t.tp)
-        loopBase(t.base)
+        loopType(t.tp) match {
+          case _: Value.Sum =>
+            loopBase(t.base)
+          case a => a
+        }
       case t: Value.Glue =>
         loopBase(t.m)
       case v: Value.Unglue =>
         loopBase(v.base)
-      case Value.PathType(typ, left, right) =>
-        loopType(typ)
-        loopBase(left)
-        loopBase(right)
-      case c: Value.Construct =>
-        c.vs.foreach(loopBase)
-      case Value.Make(values) =>
-        values.foreach(loopBase)
-      case PathLambda(body) =>
-        loopType(body)
-      case _ =>
+      case p: PatternRedux =>
+        loopBase(p.stuck)
+      case a => a
     }
   }
 }
