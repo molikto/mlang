@@ -797,7 +797,7 @@ object Value {
           stuck.whnf match {
             case Hcomp(ty, base, faces) =>
               res = Comp(
-                AbsClosure(i => lambda.typ(hfill(21, ty, base, faces)(i))),
+                AbsClosure(i => lambda.typ(hfill(ty, base, faces)(i))),
                 PatternRedux(lambda, base), faces.view.mapValues(_.map(v => PatternRedux(lambda, v))).toMap)
             case _ =>
           }
@@ -959,9 +959,9 @@ object Value {
     Transp(AbsClosure(j => tp(Formula.And(i, j))), Formula.Or(Formula.Neg(i), phi), base)
 
   // from base => hcomp
-  def hfill(x: Int, tp: Value, base: Value, faces: AbsClosureSystem) = {
+  def hfill(tp: Value, base: Value, faces: AbsClosureSystem) = {
     AbsClosure(i =>
-      Hcomp(x, tp, base,
+      Hcomp(tp, base,
         faces.view.mapValues(f => AbsClosure(j => f(Formula.And(i, j)))).toMap.updated(Formula.Neg(i), AbsClosure(_ => base)))
     )
   }
@@ -1080,10 +1080,10 @@ object Value {
                       val abs = AbsClosure(i => alpha(e)(Formula.Neg(i)))
                       (f, abs)
                     }).toMap.updated(item1._1, item1._2)
-                    Hcomp(1, tp(Formula.True), w1p, items)
+                    Hcomp(tp(Formula.True), w1p, items)
                   }
                 case Hcomp(hty, hbase, faces) =>
-                  Hcomp(2, tp(Value.Formula.True), Transp(tp, phi, hbase), faces.map(pr => (pr._1, pr._2.map(v => Transp(tp, phi, v)))))
+                  Hcomp(tp(Value.Formula.True), Transp(tp, phi, hbase), faces.map(pr => (pr._1, pr._2.map(v => Transp(tp, phi, v)))))
                 case _: StableCanonical => logicError()
                 case _ =>
                   null
@@ -1120,7 +1120,7 @@ object Value {
     val B1_faces = B1.faces.filter(_._1.normalForm != Formula.NormalForm.False)
     def t1(trueFace: Value) = t_tide(trueFace, Formula.True)
     // a1: A(i/1) and is defined on both si and elim(i, phi)
-    val a1 = gcomp(31,
+    val a1 = gcomp(
       AbsClosure(i => A_swap(i)),
       a0,
       faces_elim_dim.view.mapValues(tf => {
@@ -1135,7 +1135,7 @@ object Value {
     def pair(trueFace: Value) = {
       val w = Projection(trueFace, 1)
       val compo = App(Projection(w, 1), a1) // is_contr(fiber_at(w(i/1).1, a1))
-      ghcomp(22, Apps(BuiltIn.fiber_at, Seq(Projection(trueFace, 0), A1, Projection(w, 0), a1)), Projection(compo, 0),
+      ghcomp(Apps(BuiltIn.fiber_at, Seq(Projection(trueFace, 0), A1, Projection(w, 0), a1)), Projection(compo, 0),
         faces_elim_dim.view.mapValues(tf => {
           AbsClosure(i => {
             val u = Make(Seq(t1(tf), PathLambda(AbsClosure(_ => a1))))
@@ -1147,7 +1147,7 @@ object Value {
         }))
       )
     }
-    val a1p = Hcomp(3, A1, a1,
+    val a1p = Hcomp(A1, a1,
         B1_faces.view.mapValues(bd => {
           // alpha is of type f(t1p) == a1
           AbsClosure(j => PathApp(Projection(pair(bd), 1), Formula.Neg(j)) )
@@ -1157,10 +1157,10 @@ object Value {
 
   def hcompGlue(B: GlueType, u0: Value, faces: AbsClosureSystem): Value = {
     def t_tide(trueFace: Value) = {
-      hfill(23, Projection(trueFace, 0), u0, faces)
+      hfill(Projection(trueFace, 0), u0, faces)
     }
     def t1(trueFace: Value) = t_tide(trueFace)(Formula.True)
-    val a1 = Hcomp(4, B.ty, Unglue(B.ty, u0, B.faces),
+    val a1 = Hcomp(B.ty, Unglue(B.ty, u0, B.faces),
       faces.view.mapValues(_.map(u => Unglue(B.ty, u, B.faces))).toMap ++
       B.faces.view.mapValues(pair => AbsClosure(i => {
         val w = Projection(pair, 1)
@@ -1173,18 +1173,18 @@ object Value {
 
 
 
-  def ghcomp(x: Int, @stuck_pos tp: Value, base: Value, faces: AbsClosureSystem) = {
-    Hcomp(x, tp, base, faces.updated(Formula.Neg(Formula.Or(faces.keys)), AbsClosure(base)))
+  def ghcomp(@stuck_pos tp: Value, base: Value, faces: AbsClosureSystem) = {
+    Hcomp(tp, base, faces.updated(Formula.Neg(Formula.Or(faces.keys)), AbsClosure(base)))
   }
 
   def comp(z: Int, @stuck_pos tp: AbsClosure, base: Value, faces: AbsClosureSystem) = {
-    Hcomp(z,
+    Hcomp(
       tp(Formula.True),
       Transp(tp, Formula.False, base),
       faces.view.mapValues(f => AbsClosure(i => forward(tp, i, f(i)))).toMap)
   }
-  def gcomp(z: Int, @stuck_pos tp: AbsClosure, base: Value, faces: AbsClosureSystem) = {
-    ghcomp(z,
+  def gcomp(@stuck_pos tp: AbsClosure, base: Value, faces: AbsClosureSystem) = {
+    ghcomp(
       tp(Formula.True),
       Transp(tp, Formula.False, base),
       faces.view.mapValues(f => AbsClosure(i => forward(tp, i, f(i)))).toMap)
@@ -1196,12 +1196,12 @@ object Value {
   }
 
 
-  def hcompGraph(z: Int, cs: ClosureGraph, faces: AbsClosureSystem, base: Value, map: (Value, Int) => Value): Seq[Value] = {
+  def hcompGraph(cs: ClosureGraph, faces: AbsClosureSystem, base: Value, map: (Value, Int) => Value): Seq[Value] = {
     val closures = mutable.ArrayBuffer[AbsClosure]()
     for (i <- cs.graph.indices) {
       val res = cs(i) match {
         case in: ClosureGraph.Independent =>
-          hfill(z, in.typ, map(base, i),
+          hfill(in.typ, map(base, i),
             faces.view.mapValues(_.map(a => map(a, i))).toMap
           )
         case com: ClosureGraph.Dependent =>
@@ -1216,19 +1216,11 @@ object Value {
     closures.toSeq.map(_.apply(Formula.True))
   }
 
-  object Hcomp {
-    def apply(i: Int, @type_annotation @stuck_pos tp: Value, base: Value, faces: AbsClosureSystem): Hcomp = {
-      val h = Hcomp(tp, base, faces)
-      h.debug = i
-      h
-    }
-  }
   /**
     * whnf: tp is whnf and not canonical, or tp is sum, base is whnf
     */
   case class Hcomp(@type_annotation @stuck_pos tp: Value, base: Value, faces: AbsClosureSystem) extends Redux {
 
-    var debug: Int = 0
 
     override def reduce(): Option[Value] = {
       if (!Formula.Or(faces.keySet).satisfiable) {
@@ -1240,7 +1232,7 @@ object Value {
           val tp0 = tp.whnf
            tp0 match {
             case PathType(a, u, w) =>
-               PathLambda(AbsClosure(j => Hcomp(11,
+               PathLambda(AbsClosure(j => Hcomp(
                  a(j),
                  PathApp(base, j),
                  faces.view.mapValues(_.map(v => PathApp(v, j))).toMap
@@ -1248,9 +1240,9 @@ object Value {
                    .updated(j, AbsClosure(_ => w))
                )))
             case Function(_, _, b) =>
-               Lambda(Closure(v => Hcomp(12, b(v), App(base, v), faces.view.mapValues(_.map(j => App(j, v))).toMap)))
+               Lambda(Closure(v => Hcomp( b(v), App(base, v), faces.view.mapValues(_.map(j => App(j, v))).toMap)))
             case Record(_, _, cs) =>
-              Make(hcompGraph(14, cs, faces, base, (v, i) => Projection(v, i)))
+              Make(hcompGraph(cs, faces, base, (v, i) => Projection(v, i)))
             case u: Universe =>
               GlueType(base, faces.view.mapValues({ f =>
                 val A = f(Formula.False)
@@ -1265,7 +1257,7 @@ object Value {
                   base.whnf match {
                     case cc@Construct(c, vs, ds, ty) =>
                       assert(ds.isEmpty)
-                      Construct(c, hcompGraph(37, cs(c).nodes, faces, cc, (b, i) => b.whnf.asInstanceOf[Construct].vs(i)), Seq.empty, Map.empty)
+                      Construct(c, hcompGraph(cs(c).nodes, faces, cc, (b, i) => b.whnf.asInstanceOf[Construct].vs(i)), Seq.empty, Map.empty)
                     case _: StableCanonical => logicError()
                     case a => null
                   }
@@ -1417,7 +1409,7 @@ sealed trait Value {
     case PathLambda(body) => PathLambda(body.fswap(w, z))
     case App(lambda, argument) => App(lambda.fswap(w, z), argument.fswap(w, z))
     case t@Transp(tp, direction, base) => Transp(tp.fswap(w, z), direction.fswap(w, z), base.fswap(w, z))
-    case h@Hcomp(tp, base, faces) => Hcomp(h.debug, tp.fswap(w, z), base.fswap(w, z), AbsClosureSystem.fswap(faces, w, z))
+    case h@Hcomp(tp, base, faces) => Hcomp(tp.fswap(w, z), base.fswap(w, z), AbsClosureSystem.fswap(faces, w, z))
     case Comp(tp, base, faces) => Comp(tp.fswap(w, z), base.fswap(w, z), AbsClosureSystem.fswap(faces, w, z))
     case p@Projection(make, field) => Projection(make.fswap(w, z), field)
     case PatternRedux(lambda, stuck) =>
@@ -1457,7 +1449,7 @@ sealed trait Value {
     case t@Transp(tp, direction, base) =>
       Transp(tp.restrict(lv), direction.restrict(lv), base.restrict(lv))
     case h@Hcomp(tp, base, faces) =>
-      Hcomp(h.debug, tp.restrict(lv), base.restrict(lv), AbsClosureSystem.restrict(faces, lv))
+      Hcomp(tp.restrict(lv), base.restrict(lv), AbsClosureSystem.restrict(faces, lv))
     case Comp(tp, base, faces) =>
       Comp(tp.restrict(lv), base.restrict(lv), AbsClosureSystem.restrict(faces, lv))
     case p@Projection(make, field) =>
@@ -1589,7 +1581,7 @@ sealed trait Value {
             case a => a
           }
         case hcom@Hcomp(tp, base, faces) =>
-          Hcomp(hcom.debug, tp.whnf, base, faces).reduceThenWhnfOrSelf() match {
+          Hcomp(tp.whnf, base, faces).reduceThenWhnfOrSelf() match {
             case Hcomp(t2, b2, f2) if tp.eq(t2) && base.eq(b2) && eqFaces(faces, f2) => this
             case a => a
           }
