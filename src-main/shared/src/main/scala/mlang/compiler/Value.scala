@@ -1061,7 +1061,7 @@ object Value {
               Make(closures.map(_.apply(Formula.True)))
             }
           case s: Sum =>
-            if (s.noArgs && Value.NORMAL_FORM_MODEL) {
+            if (s.noArgs) {
               base
             } else {
               base.whnf match {
@@ -1247,20 +1247,20 @@ object Value {
                 Make(Seq(B, Apps(BuiltIn.path_to_equiv, Seq(B, A, PathLambda(AbsClosure(a => f(Formula.Neg(a))))))))
               }).toMap)
             case s@Sum(i, hit, cs) =>
-              if (s.noArgs && Value.NORMAL_FORM_MODEL) {
-                base
-              } else {
-                if (!hit) {
-                  base.whnf match {
-                    case cc@Construct(c, vs, ds, ty) =>
+              base.whnf match {
+                case cc@Construct(c, vs, ds, ty) =>
+                  if (s.noArgs && Value.NORMAL_FORM_MODEL) {
+                    base
+                  } else {
+                    if (!hit) {
                       assert(ds.isEmpty)
                       Construct(c, hcompGraph(cs(c).nodes, faces, cc, (b, i) => b.whnf.asInstanceOf[Construct].vs(i)), Seq.empty, Map.empty)
-                    case _: StableCanonical => logicError()
-                    case a => null
+                    } else {
+                      null
+                    }
                   }
-                } else {
-                  null
-                }
+                case _: StableCanonical => logicError()
+                case a => null
               }
             case g: GlueType =>
               hcompGlue(g, base, faces)
