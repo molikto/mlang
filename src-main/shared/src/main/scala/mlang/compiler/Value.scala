@@ -1223,9 +1223,6 @@ object Value {
 
 
     override def reduce(): Option[Value] = {
-      if (!Formula.Or(faces.keySet).satisfiable) {
-        val a = 0
-      }
       val res = faces.find(_._1.normalFormTrue) match {
         case Some(t) => t._2(Formula.True)
         case None =>
