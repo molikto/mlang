@@ -13,7 +13,7 @@ the project is written in Scala and is a standard SBT project. it can be cross c
 
 to compile use `sbt mainJVM/compile`
 
-the project can be imported into IntelliJ IDEA, and to run/debug, just setup a profile to run `mlang.poorparser.Main` with classpath of module `jvm-main` (or something like this)
+the project can be imported into IntelliJ IDEA, and to run/debug, just setup a profile to run `mlang.poorparser.Main` with classpath of module `jvm-main`. currently you also need to add vm options `-Xss1G`
 
 if you have trouble compiling inside IntelliJ IDEA (because it has bad cross platform compilation support), you can setup a terminal compile watch with `sbt` then inside it `~mainJVM/compile`, and disable compilation in IntelliJ IDEA's run target.
 
