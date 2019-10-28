@@ -14,4 +14,19 @@ define inductively groupoid2_trunc(A: type): type = sum {
        )
 }
 
+define groupoid2_trunc_groupoid2(A: type): groupoid2 =
+  make(groupoid2_trunc(A), x → y → p → q → r → s  → t → u → v → k → j → i → groupoid2_trunc(A).squash(@x, @y, @p, @q, @r, @s, t, u, v, k, j, i))
+
+
+define rec_groupoid2_trunc(#A #B: type, gB: is_groupoid2(B), f: A ⇒ B):
+  groupoid_trunc2(A) ⇒ B =
+┌ in(x) → f(x)
+└ squash(x, y, p, q, r, s, t, u, v, k, j, i) →
+  gB(
+    x, y, p, q, r, s,
+    m → n → o → rec_groupoid2_trunc(gB, f, t(m, n, o)),
+    m → n → o → rec_groupoid2_trunc(gB, f, u(m, n, o)),
+    v, k, j, i)
+
 define pointed_groupoid2_trunc(p: pointed): pointed = make(groupoid2_trunc(p.A).in(p.center))
+

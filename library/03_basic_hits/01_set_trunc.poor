@@ -9,3 +9,6 @@ define inductively set_trunc(A: type): type = sum {
        | i: y
        )
 }
+
+define set_trunc_set(A: type): set =
+  make(set_trunc(A), x → y → p → q → j → i → set_trunc(A).squash(x, y, p, q, j, i))
