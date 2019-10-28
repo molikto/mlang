@@ -1531,10 +1531,7 @@ sealed trait Value {
         case _ => this
       }
     case v =>
-      // we just retrace to the "literal" value, which is best for us?
-      var i = v
-      while (!i._from.eq(null) && !i._from.eq(i)) i = i._from
-      i
+      if (v._from.eq(null)) v else v._from
   }
 
 
@@ -1658,9 +1655,6 @@ sealed trait Value {
         if (candidate.eq(this)) { // this is a terminal form, it has no from now
         } else {
           var c = candidate
-          while (!c._from.eq(null) && !c._from.eq(c)) {
-            c = c._from
-          }
           if (c._from.eq(null)) {
             c._from = this
           }
