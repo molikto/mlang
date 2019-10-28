@@ -124,7 +124,7 @@ object Value {
         } else {
           Or(l, r)
         }
-      case Formula.Derestricted(r, g) => logicError()
+      case d@Formula.Derestricted(r, g) => d // FIXME because restrict seems to also call simplify, so we ignore it here
       case Neg(unit) => unit.simplify match {
         case Formula.False => Formula.True
         case Formula.True => Formula.False
@@ -553,11 +553,18 @@ object Value {
     protected def fswapAndInitContent(s: Self, w: Long, z: Formula): Unit
 
     private[Value] def getFswap(w: Long, z: Formula): Self = {
-      if (this.isInstanceOf[Value.Generic]) {
+      //      if (this.isInstanceOf[Value.Generic]) {
+      //        this.asInstanceOf[Self]
+      //      } else {
+      val spt = support()
+      if (spt.openMetas.nonEmpty) {
+        throw ImplementationLimitationCannotRestrictOpenMeta()
+      }
+      if (!spt.names.contains(w)) {
         this.asInstanceOf[Self]
       } else {
         if (fswapCache == null) fswapCache = mutable.Map()
-        // debug(s"getting fswap value by $w, $z", 2)
+      // debug(s"getting fswap value by $w, $z", 2)
         val key = (w, z)
         fswapCache.get(key) match {
           case Some(r) => r.asInstanceOf[Self]
@@ -726,7 +733,6 @@ object Value {
     */
   case class App(@stuck_pos lambda: Value, argument: Value) extends Redux {
     def reduce(): Option[Value] = {
-      // FIXME cubicaltt will also work if lambda is a trans lambda or a comp lambda
       lambda match {
         case Lambda(closure) =>
           Some(closure(argument))
@@ -796,9 +802,18 @@ object Value {
         case s: Sum if s.hit =>
           stuck.whnf match {
             case Hcomp(ty, base, faces) =>
-              res = Comp(
-                AbsClosure(i => lambda.typ(hfill(ty, base, faces)(i))),
-                PatternRedux(lambda, base), faces.view.mapValues(_.map(v => PatternRedux(lambda, v))).toMap)
+              // non-dependent codomain
+              val ge = gen()
+              val d = Value.Generic(ge, null)
+              val ret = lambda.typ(d)
+              ret.support().generic.contains(d) match {
+                case false =>
+                  res = Hcomp(ret, PatternRedux(lambda, base), faces.view.mapValues(_.map(v => PatternRedux(lambda, v))).toMap)
+                case _ =>
+                  res = Comp(
+                    AbsClosure(i => lambda.typ(hfill(ty, base, faces)(i))),
+                    PatternRedux(lambda, base), faces.view.mapValues(_.map(v => PatternRedux(lambda, v))).toMap)
+              }
             case _ =>
           }
         case _ =>
@@ -1178,10 +1193,28 @@ object Value {
   }
 
   def comp(z: Int, @stuck_pos tp: AbsClosure, base: Value, faces: AbsClosureSystem) = {
-    Hcomp(
-      tp(Formula.True),
-      Transp(tp, Formula.False, base),
-      faces.view.mapValues(f => AbsClosure(i => forward(tp, i, f(i)))).toMap)
+    def default() = {
+      Hcomp(
+        tp(Formula.True),
+        Transp(tp, Formula.False, base),
+        faces.view.mapValues(f => AbsClosure(i => forward(tp, i, f(i)))).toMap)
+    }
+    val dim = dgen()
+    val appd = tp.apply(Value.Formula.Generic(dim))
+    appd.whnf match {
+      case PathType(typ, left, right) =>
+        PathLambda(AbsClosure(i => {
+          Comp(tp.map(a => a.whnf.asInstanceOf[PathType].typ(i)), PathApp(base, i),
+            faces.view.mapValues(_.map(a => PathApp(a, i))).toMap
+              .updated(i, AbsClosure(j => tp(j).whnf.asInstanceOf[PathType].right))
+              .updated(Formula.Neg(i).simplify, AbsClosure(j => tp(j).whnf.asInstanceOf[PathType].left))
+          )
+        }))
+      case s: Sum if !s.hit && s.noArgs =>
+        Hcomp(appd, base, faces)
+      case _ =>
+        default()
+    }
   }
   def gcomp(@stuck_pos tp: AbsClosure, base: Value, faces: AbsClosureSystem) = {
     ghcomp(
@@ -1221,7 +1254,6 @@ object Value {
     */
   case class Hcomp(@type_annotation @stuck_pos tp: Value, base: Value, faces: AbsClosureSystem) extends Redux {
 
-
     override def reduce(): Option[Value] = {
       val res = faces.find(_._1.normalFormTrue) match {
         case Some(t) => t._2(Formula.True)
@@ -1247,20 +1279,20 @@ object Value {
                 Make(Seq(B, Apps(BuiltIn.path_to_equiv, Seq(B, A, PathLambda(AbsClosure(a => f(Formula.Neg(a))))))))
               }).toMap)
             case s@Sum(i, hit, cs) =>
-              base.whnf match {
-                case cc@Construct(c, vs, ds, ty) =>
-                  if (s.noArgs && Value.NORMAL_FORM_MODEL) {
-                    base
-                  } else {
-                    if (!hit) {
+              if (!hit) {
+                base.whnf match {
+                  case cc@Construct(c, vs, ds, ty) =>
+                    if (s.noArgs) { // FIXME this doesn't seems to be correct!!! how to judge if the term is open or not
+                      base
+                    } else {
                       assert(ds.isEmpty)
                       Construct(c, hcompGraph(cs(c).nodes, faces, cc, (b, i) => b.whnf.asInstanceOf[Construct].vs(i)), Seq.empty, Map.empty)
-                    } else {
-                      null
                     }
-                  }
-                case _: StableCanonical => logicError()
-                case a => null
+                  case _: StableCanonical => logicError()
+                  case a => null
+                }
+              } else {
+                null
               }
             case g: GlueType =>
               hcompGlue(g, base, faces)
@@ -1527,14 +1559,22 @@ sealed trait Value {
         case app@App(lambda, argument) =>
           // TODO don't do this equals stuff!!!
           @inline def app2(lambda: Value, argument: Value): Value = {
+            def default() = App(lambda, argument)
             lambda match {
               case Lambda(closure) =>
                 closure(argument).whnf
               case p : PatternLambda =>
                 PatternRedux(p, argument.whnf).reduceThenWhnfOrSelf()
+              case Hcomp(tp, base, faces) =>
+                tp.whnf match {
+                  case Function(d, i, c) =>
+                    Hcomp(c(argument), App(base, argument), faces.view.mapValues(v => v.map(a => App(a, argument))).toMap)
+                  case _ => default()
+                }
+                // FIXME what about comp in cubicaltt?
               case _: StableCanonical => logicError()
               case _ =>
-                App(lambda, argument)
+                default()
             }
           }
           app2(lambda.whnf, argument) match {

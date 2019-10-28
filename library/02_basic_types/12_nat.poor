@@ -47,6 +47,18 @@ define n7 = suc(n6)
 define n8 = suc(n7)
 define n9 = suc(n8)
 define n10 = suc(n9)
+define n11 = suc(n10)
+define n12 = suc(n11)
+define n13 = suc(n12)
+define n14 = suc(n13)
+define n15 = suc(n14)
+define n16 = suc(n15)
+define n32 = plus(n16, n16)
+define n64 = plus(n32, n32)
+define n128 = plus(n64, n64)
+define n256 = plus(n128, n128)
+define n512 = plus(n256, n256)
+define n1024 = plus(n512, n512)
 
 // currently we use `_test_xxx` to write test codes
 define _test_plus = run {

@@ -15,13 +15,13 @@ define loop_space_3(A: pointed): pointed = loop_space_2(loop_space(A))
 
 
 
-define map_loop_space_refl(#A: pointed, #B: type, f: A.A ⇒ B, p: loop_space(A).A): loop_space(pointed.make(f(A.center))).A =
+define map_loop_space(#A: pointed, #B: type, f: A.A ⇒ B, p: loop_space(A).A): loop_space(pointed.make(f(A.center))).A =
   i → f(p(i))
 
-define map_loop_space_2_refl(#A: pointed, #B: type, f: A.A ⇒ B, p: loop_space_2(A).A): loop_space_2(pointed.make(f(A.center))).A =
+define map_loop_space_2(#A: pointed, #B: type, f: A.A ⇒ B, p: loop_space_2(A).A): loop_space_2(pointed.make(f(A.center))).A =
   i → j →  f(p(i, j))
 
-define map_loop_space_3_refl(#A: pointed, #B: type, f: A.A ⇒ B, p: loop_space_3(A).A): loop_space_3(pointed.make(f(A.center))).A =
+define map_loop_space_3(#A: pointed, #B: type, f: A.A ⇒ B, p: loop_space_3(A).A): loop_space_3(pointed.make(f(A.center))).A =
   i → j → k → f(p(i, j, k))
 
 

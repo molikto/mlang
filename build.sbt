@@ -5,7 +5,6 @@ import sbtcrossproject.CrossPlugin.autoImport.{crossProject, CrossType}
 
 lazy val `main` = crossProject(JSPlatform, JVMPlatform).in(file("src-main")).settings(
   sharedSettings,
-
   libraryDependencies ++= Seq(
     "org.scala-lang.modules" %%% "scala-parser-combinators" % "1.1.2" ,
     "com.lihaoyi" %%% "fansi" % "0.2.7"

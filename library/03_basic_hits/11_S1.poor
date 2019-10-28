@@ -26,9 +26,7 @@ define S1_basic_tests = run {
   define transp_base: x_refl_type(transp(i → S1, 0, S1.base)) = x_refl(S1.base)
   unit.make
 }
-
-// S1_join_S1 related
-
+// this is a stripe
 define S1_moebius
 : S1      ⇒ type =
 ┌ base    → bool
@@ -44,7 +42,7 @@ define S1_loop_space = S1.base ≡ S1.base
 define S1_loop(i: I) = S1.loop(i)
 define S1_loop_inv(i: I) = S1.loop(~i)
 
-define winding(p: S1_loop_space): int = transp(i → S1_helix(p(i)), 0, int_zero)
+define winding(p: S1_loop_space): int = transport(i → S1_helix(p(i)), i0)
 
 define S1_loop2: S1_loop_space = path_compose(S1_loop, S1_loop)
 
@@ -74,8 +72,22 @@ define S1_winding_tests = run {
 
   define triple_loop(l: S1_loop_space): S1_loop_space = i → mult(l(i), square(l(i)))
 
+  define loop_cap: nat ⇒ S1.base ≡ S1.base =
+  ┌ zero → i → S1.base
+  └ suc(n) → i → hcomp(loop_cap(n)(i) |~i: j → S1.base |i: S1_loop)
+
+  define loop_left: nat ⇒ S1.base ≡ S1.base =
+  ┌ zero → i → S1.base
+  └ suc(n) → i → hcomp(S1_loop(i) |~i: j → loop_left(n)(~j) |i: j → S1.base)
+
+  // DEBUG used time: 1481ms, compare cubicaltt: Time: 0m13.794s
+  define __debug test_loop_left_1024 = winding(loop_left(n1024))
+
   define test_i4: x_refl_type(i4) = x_refl(winding(double_loop(S1_loop2)))
+  define test_i6: x_refl_type(i6) = x_refl(winding(triple_loop(S1_loop2)))
   define test_i8: x_refl_type(i8) = x_refl(winding(double_loop(double_loop(S1_loop2))))
+  define test_i16: x_refl_type(i16) = x_refl(winding(double_loop(double_loop(double_loop(S1_loop2)))))
+  define test_i32: x_refl_type(i32) = x_refl(winding(double_loop(double_loop(double_loop(double_loop(S1_loop2))))))
   unit.make
 }
 
