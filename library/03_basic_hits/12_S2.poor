@@ -30,6 +30,8 @@ define S2_hopf: S2 ⇒ type =
 define loop_space_3_hopf: loop_space_3(S2_pointed).A ⇒ type =
   fib_loop_space_3(@S2_pointed, S2_hopf, S1.base)
 
+define S2_groupoid2_trunc = groupoid2_trunc(S2)
+
 /*
 
 define fib_contr_loop_space_3_hopf(p: loop_space_3(S2_pointed).A): loop_space_3_hopf(p) =
