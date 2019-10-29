@@ -6,6 +6,9 @@ define inductively int: type = sum {
   case negsuc(n: nat)
 }
 
+define pos(a: nat): int = int.pos(a)
+define negsuc(a: nat): int = int.negsuc(a)
+
 define i0 = int.pos(n0)
 define i1 = int.pos(n1)
 define i2 = int.pos(n2)
@@ -52,6 +55,51 @@ define int_pred_suc:
 ├ negsuc(zero)   → refl
 └ negsuc(suc(n)) → refl
 
+define inj_pos(#a #b: nat, c: int.pos(a) ≡ int.pos(b)): a ≡ b = run {
+  define T: int ⇒ type =
+  ┌ pos(x)  → a ≡ x
+  └ negsuc(─) → empty
+  subst(T, c, refl)
+}
+
+define inj_negsuc(#a #b: nat, c: int.negsuc(a) ≡ int.negsuc(b)): a ≡ b = run {
+  define T: int ⇒ type =
+  ┌ pos(─) → empty
+  └ negsuc(x) → a ≡ x
+  subst(T, c, refl)
+}
+
+
+define discrete_int: discrete(int) = a → b → run {
+
+  define pos_not_negsuc(a b: nat, c: int.pos(a) ≡ int.negsuc(b)): empty = run {
+    define T: int ⇒ type =
+    ┌ pos(─)  → nat
+    └ negsuc(─) → empty
+    subst(T, c, n0)
+  }
+
+  define negsuc_not_pos(a b: nat, c: int.negsuc(a) ≡ int.pos(b)): empty = run {
+    define T: int ⇒ type =
+    ┌ pos(─)  → empty
+    └ negsuc(─) → nat
+    subst(T, c, n0)
+  }
+
+  define map_pos(m n: nat):  decidable(m ≡ n) ⇒ decidable(int.pos(m) ≡ int.pos(n)) =
+  ┌ yes(p) → _.yes(path_map(pos, p))
+  └ no(p) → _.no(x → p(inj_pos(x)))
+
+  define map_negsuc(m n: nat):  decidable(m ≡ n) ⇒ decidable(int.negsuc(m) ≡ int.negsuc(n)) =
+  ┌ yes(p) → _.yes(path_map(negsuc, p))
+  └ no(p) → _.no(x → p(inj_negsuc(x)))
+  define rec: (ab: pair(int, int)) ⇒ decidable(ab.a ≡ ab.b) =
+   ┌ (pos(n), pos(m)) → map_pos(n, m, discrete_nat(n, m))
+   ├ (pos(n), negsuc(m)) → _.no(pos_not_negsuc(n, m))
+   ├ (negsuc(n), pos(m)) → _.no(negsuc_not_pos(n, m))
+   └ (negsuc(n), negsuc(m)) → map_negsuc(n, m, discrete_nat(n, m))
+   rec(make(a, b))
+}
 
 define int_suc_path: int ≡ int =
   ua(iso_to_equiv(make(int_suc, int_pred, int_suc_pred, int_pred_suc)))
@@ -63,4 +111,4 @@ define __int_suc_path_tests = run {
 }
 
 
-declare is_set_int: is_set(int)
+define is_set_int: is_set(int) = discrete_then_is_set(discrete_int)

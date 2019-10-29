@@ -1005,9 +1005,13 @@ class Elaborator private(protected override val layers: Layers)
           Value.NORMAL_FORM_MODEL = true
           val k = debugNv(v.value.whnf)
           k match {
-            case lambda: PathLambda =>
-              var j = debugNv(lambda.body(Value.Formula.Generic(2131)))
+            case lambda: Value.PathLambda =>
+              val j = debugNv(lambda.body(Value.Formula.Generic(2131)))
               println("__DEBUG__ WHNF LAMBDA BODY:")
+              println(j)
+            case Value.App(g: Value.Generic, a) =>
+              val j = debugNv(a)
+              println("__DEBUG__ WHNF 2:")
               println(j)
             case _ =>
               println("__DEBUG__ WHNF:")

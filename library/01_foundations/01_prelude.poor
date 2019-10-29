@@ -133,5 +133,3 @@ define singleton_is_contr(#A: type, center: A):
    is_contr(singleton(center)) =
    make(make(center, refl), a → j → ???)
 */
-
-

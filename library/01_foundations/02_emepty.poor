@@ -1,0 +1,7 @@
+
+define empty: type = sum {}
+
+define empty_elim(#A: type): empty ⇒ A = ┬
+
+
+define empty_is_prop: is_prop(empty) = x → empty_elim(x)

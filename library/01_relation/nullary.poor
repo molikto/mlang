@@ -1,0 +1,40 @@
+
+
+
+
+define negate(A: type): type = A ⇒ empty
+
+define negate_is_prop(A: type): is_prop(negate(A)) = p → q → i → x →
+  empty_is_prop(p(x), q(x), i)
+
+define inductively decidable(P: type): type = sum {
+  case yes(p: P)
+  case no(p: negate(P))
+}
+
+define stable(A: type): type = negate(negate(A)) ⇒ A
+
+define discrete(A: type): type = (x y: A) ⇒ decidable(x ≡ y)
+
+
+define decidable_then_stable(A: type): decidable(A) ⇒ stable(A) =
+ ┌ yes(x) → ─ → x
+ └ no(x) → f → empty_elim(f(x))
+
+define stable_then_is_set(#A: type, st: (a b: A) ⇒ stable(a ≡ b)): is_set(A) = a → b → p → q → j → i → run {
+  define f(x: A, p: a ≡ x): a ≡ x = st(a, x, h → h(p))
+  define f_is_const(x: A, p q: a ≡ x): f(x, p) ≡ f(x, q) = i →
+    // FIXME first argument cannot be solved
+    st(a, x, negate_is_prop(negate(a ≡ x), h → h(p), h → h(q), i))
+  define rem(p: a ≡ b): f(a, refl) ≡[i → a ≡ p(i)] f(b, p) = j →
+    f(p(j), i → p(i ∧ j))
+  hcomp(a
+  |~i: f(a, refl)
+  | i: f_is_const(b, p, q, j)
+  |~j: rem(p, i)
+  | j: rem(q, i)
+  )
+}
+
+// FIXME cannot infer this @A, it will error with a logic error
+define discrete_then_is_set(#A: type, d: discrete(A)): is_set(A) = stable_then_is_set(@A, x → y → decidable_then_stable(x ≡ y, d(x, y)))

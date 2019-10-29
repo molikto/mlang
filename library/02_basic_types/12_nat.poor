@@ -120,6 +120,10 @@ define _test_fib = run {
 }
 
 
+define nat_pred: nat ⇒ nat =
+┌ zero → n0
+└ suc(n) → n
+
 
 // TODO wish we have `projection` syntax
 // then we can do
@@ -134,4 +138,44 @@ define nat_is_odd:
 define nat_is_even =
 ┌ zero → bool.true
 └ suc(m) → nat_is_odd(m)
+
+
+
+define inj_suc(#m #n: nat, p: nat.suc(m) ≡ nat.suc(n)): m ≡ n = path_map(nat_pred, p)
+
+define discrete_nat: discrete(nat) = a → b → run {
+  define znots(n: nat): negate(nat.zero ≡ nat.suc(n)) = eq → run {
+     define c: nat ⇒ type =
+      ┌ zero → nat
+      └ suc(─) → empty
+   subst(c, eq, n0)
+  }
+
+  define snotz(n: nat): negate(nat.suc(n) ≡ nat.zero) = eq → run {
+     define c: nat ⇒ type =
+      ┌ zero → empty
+      └ suc(─) → nat
+     subst(c, eq, n0)
+  }
+
+  define mat(m n: nat): decidable(m ≡ n) ⇒ decidable(suc(m) ≡ suc(n)) =
+  ┌ yes(p) → _.yes(path_map(suc, p))
+  └ no(p) → _.no(x → p(inj_suc(x)))
+
+  define rec: (ab: pair(nat, nat)) ⇒ decidable(ab.a ≡ ab.b) =
+  ┌ (zero, zero) → _.yes(refl)
+  ├ (zero, suc(k)) → _.no(znots(k))
+  ├ (suc(k), zero) → _.no(snotz(k))
+  └ (suc(m), suc(n)) → mat(m, n, rec(make(m, n)))
+  rec(make(a, b))
+}
+
+define is_set_nat: is_set(nat) = discrete_then_is_set(discrete_nat)
+
+// define inj_m_plus(#l #m: nat): (#n: nat, eq: plus(m, l) ≡ plus(m, n)) ⇒ l ≡ n =
+// #┌ zero → p → p
+//  └ suc(k) → p → inj_m_plus(inj_suc(p))
+//
+// define inj_plus_m(#l #m: nat): (#n: nat, eq: plus(l, m) ≡ plus(n, m)) ⇒ l ≡ n =
+
 
