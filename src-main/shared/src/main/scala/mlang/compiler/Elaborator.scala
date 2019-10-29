@@ -999,29 +999,27 @@ class Elaborator private(protected override val layers: Layers)
     }
     if (s.modifiers.contains(Declaration.Modifier.__Debug)) {
       val a = ret.layers.head.asInstanceOf[Layer.Defines].terms.find(_.name == s.name).get
-      val time  = System.currentTimeMillis()
       val kkk = a.ref0 match {
         case Some(v) =>
           Value.NORMAL_FORM_MODEL = true
+          val time  = System.currentTimeMillis()
+          def printRes(a: String, j: Value) = {
+            println(s"DEBUG used time: ${System.currentTimeMillis() - time}")
+            println(s"__DEBUG__ WHNF $a:")
+            println(j)
+          }
           val k = debugNv(v.value.whnf)
           k match {
             case lambda: Value.PathLambda =>
               val j = debugNv(lambda.body(Value.Formula.Generic(2131)))
-              println("__DEBUG__ WHNF LAMBDA BODY:")
-              println(j)
-            case Value.App(g: Value.Generic, a) =>
-              val j = debugNv(a)
-              println("__DEBUG__ WHNF 2:")
-              println(j)
+              printRes("LAMBDA", j)
             case _ =>
-              println("__DEBUG__ WHNF:")
-              println(k)
+              printRes("", k)
           }
           Value.NORMAL_FORM_MODEL = false
           val a = 1
         case _ =>
       }
-      println(s"DEBUG used time: ${System.currentTimeMillis() - time}")
     }
     ret
   }

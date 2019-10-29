@@ -806,13 +806,12 @@ object Value {
               val ge = gen()
               val d = Value.Generic(ge, null)
               val ret = lambda.typ(d)
-              ret.support().generic.contains(d) match {
-                case false =>
-                  res = Hcomp(ret, PatternRedux(lambda, base), faces.view.mapValues(_.map(v => PatternRedux(lambda, v))).toMap)
-                case _ =>
-                  res = Comp(
-                    AbsClosure(i => lambda.typ(hfill(ty, base, faces)(i))),
-                    PatternRedux(lambda, base), faces.view.mapValues(_.map(v => PatternRedux(lambda, v))).toMap)
+              if (ret.support().generic.contains(d)) {
+                res = Comp(
+                  AbsClosure(i => lambda.typ(hfill(ty, base, faces)(i))),
+                  PatternRedux(lambda, base), faces.view.mapValues(_.map(v => PatternRedux(lambda, v))).toMap)
+              } else {
+                res = Hcomp(ret, PatternRedux(lambda, base), faces.view.mapValues(_.map(v => PatternRedux(lambda, v))).toMap)
               }
             case _ =>
           }
@@ -1199,8 +1198,8 @@ object Value {
         Transp(tp, Formula.False, base),
         faces.view.mapValues(f => AbsClosure(i => forward(tp, i, f(i)))).toMap)
     }
-    val dim = dgen()
-    val appd = tp.apply(Value.Formula.Generic(dim))
+    val dim = Value.Formula.Generic(dgen())
+    val appd = tp.apply(dim)
     appd.whnf match {
       case PathType(typ, left, right) =>
         PathLambda(AbsClosure(i => {
@@ -1210,7 +1209,10 @@ object Value {
               .updated(Formula.Neg(i).simplify, AbsClosure(j => tp(j).whnf.asInstanceOf[PathType].left))
           )
         }))
+//      case r: Record =>
+//        Make(compGraph(r.nodes, i => tp(i).whnf.asInstanceOf[Record].nodes, faces, base, (v, i) => Projection(v, i)))
       case s: Sum if !s.hit && s.noArgs =>
+        assert(!appd.support().names.contains(dim.id))
         Hcomp(appd, base, faces)
       case _ =>
         default()
@@ -1226,6 +1228,27 @@ object Value {
   // FIXME when we have a syntax for partial values, these should be removed
   case class Comp(@stuck_pos tp: AbsClosure, base: Value, faces: AbsClosureSystem) extends Redux {
     override def reduce(): Option[Value] = Some(comp(33, tp, base, faces))
+  }
+
+
+  def compGraph(cs0: ClosureGraph, cs: Formula => ClosureGraph, faces: AbsClosureSystem, base: Value, map: (Value, Int) => Value): Seq[Value] = {
+    val closures = mutable.ArrayBuffer[AbsClosure]()
+    for (i <- cs0.graph.indices) {
+      val res = cs0(i) match {
+        case _: ClosureGraph.Independent =>
+          fill(AbsClosure(j => cs(j)(i).asInstanceOf[ClosureGraph.Independent].typ), map(base, i),
+            faces.view.mapValues(_.map(a => map(a, i))).toMap
+          )
+        case _: ClosureGraph.Dependent =>
+          fill(
+            AbsClosure(k => cs(k).get(i, j => closures(j)(k))),
+            map(base, i),
+            faces.view.mapValues(_.map(a => map(a, i))).toMap
+          )
+      }
+      closures.append(res)
+    }
+    closures.toSeq.map(_.apply(Formula.True))
   }
 
 
@@ -1568,7 +1591,9 @@ sealed trait Value {
                     Hcomp(c(argument), App(base, argument), faces.view.mapValues(v => v.map(a => App(a, argument))).toMap)
                   case _ => default()
                 }
+              case Comp(tp, base, faces) =>
                 // FIXME what about comp in cubicaltt?
+                default()
               case _: StableCanonical => logicError()
               case _ =>
                 default()

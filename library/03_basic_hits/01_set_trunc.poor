@@ -14,10 +14,16 @@ define set_trunc_set(A: type): set =
   make(set_trunc(A), x → y → p → q → j → i → set_trunc(A).squash(x, y, p, q, j, i))
 
 
-// define elim_set_trunc(
-//   #A: type,
-//   B: set,
-//   g: (a: A) ⇒ B.ty
-// ):(x: set_trunc(A)) ⇒ B.ty =
-// ┌ in(a) → g(a)
-// └ squash(x, y, p, q, i, j) →
+define elim_set_trunc(
+  #A #B: type,
+  Bs: is_set(B),
+  g: A ⇒ B
+): (x: set_trunc(A)) ⇒ B =
+┌ in(a) → g(a)
+└ squash(x, y, p, q, i, j) →
+Bs(
+     elim_set_trunc(Bs, g, x),
+     elim_set_trunc(Bs, g, y),
+     path_map(elim_set_trunc(Bs, g), p),
+     path_map(elim_set_trunc(Bs, g), q),
+     i, j)

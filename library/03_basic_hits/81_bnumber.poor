@@ -60,19 +60,21 @@ define mult_two_tilde_aux: (t: S2_groupoid2_trunc) ⇒ x_refl_type(x_refl(t)) =
 
 
 
+// FIXME moving this inside will cause some logic error when getting support mixed with restrition, when compGraph is enabled
+define mult_two_equiv_aux_common = is_prop_is_equiv(id(@S2_groupoid2_trunc), id_is_equiv(S2_groupoid2_trunc), id_is_equiv(S2_groupoid2_trunc))
+
 define mult_two_equiv_aux: x_refl_type(x_refl(id_equiv(S2_groupoid2_trunc))) = run {
   define f(i j: I): S2_groupoid2_trunc ⇒ S2_groupoid2_trunc =
     t → mult_two_tilde_aux(t, i, j)
-  define common = is_prop_is_equiv(id(@S2_groupoid2_trunc), id_is_equiv(_), id_is_equiv(_))
   i → j → make(
     f(i, j),
-    hcomp(transp(k → is_equiv(f(i, j∧k)), i ∨ (~i) ∨ (~j), id_is_equiv(_))
-    |~i: common
-    | i: common
-    |~j: common
+    hcomp(transp(k → is_equiv(f(i, j∧k)), i ∨ (~i) ∨ (~j), id_is_equiv(S2_groupoid2_trunc))
+    |~i: mult_two_equiv_aux_common
+    | i: mult_two_equiv_aux_common
+    |~j: mult_two_equiv_aux_common
     | j: is_prop_is_equiv(
              id(@S2_groupoid2_trunc),
-             transp(k → is_equiv(f(i, k)), i ∨ (~i), id_is_equiv(_)),
+             transp(k → is_equiv(f(i, k)), i ∨ (~i), id_is_equiv(S2_groupoid2_trunc)),
              id_is_equiv(S2_groupoid2_trunc))
     )
   )
@@ -122,7 +124,7 @@ define g8: loop_space_2(pointed_groupoid2_trunc(S2_pointed)).A ⇒ loop_space(po
 define g9: loop_space(pointed_groupoid_trunc(S1_pointed)).A ⇒ set_trunc(int) =
   encode_trunc_S1
 
-declare g10: set_trunc(int) ⇒ int
+define g10: set_trunc(int) ⇒ int = elim_set_trunc(is_set_int, id(@int))
 
 define __debug brunerie : int = g10(g9(g8(f7(f6(f5(f4(f3(i → j → k → S3.surf(i, j, k)))))))))
 
