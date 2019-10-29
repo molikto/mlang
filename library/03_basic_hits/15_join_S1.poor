@@ -31,6 +31,22 @@ define S3_to_join_S1
 ┌ base → join_S1.inl(S1.base)
 └ surf(j, k, i) → join_S1_border_contraction(i, j, k, 1)
 
+define join_S1_to_S3
+: join_S1 ⇒ S3 =
+┌ inl(x) → S3.base
+├ inr(x) → S3.base
+└ push(a, b, k) → run {
+// FIXME we don't have overlapping hits now!
+  define split_a: S1 ⇒ S3 =
+   ┌ base → S3.base
+   └ loop(i) → run {
+      define split_b: S1 ⇒ S3 =
+        ┌ base → S3.base
+        └ loop(j) → S3.surf(i, j, k)
+      split_b(b)
+   }
+   split_a(a)
+}
 // JUST pasting here for now, delete when it works
 
 

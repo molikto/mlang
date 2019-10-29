@@ -252,6 +252,19 @@ class Elaborator private(protected override val layers: Layers)
       Abstract.Constructor(a._1, a._3))))
   }
 
+  def checkConstructApp(sumValue: Value, index: Int, nodes: Value.ClosureGraph, arguments: Seq[(Boolean, Concrete)]): Abstract = {
+    val ns = arguments.take(nodes.size)
+    val res1 = inferGraphValuesPart(nodes, ns)
+    val ds = arguments.drop(nodes.size)
+    if (ds.size != nodes.dimSize) throw ElaboratorException.NotFullyAppliedConstructorNotSupportedYet()
+    if (ds.exists(_._1)) throw ElaboratorException.DimensionLambdaCannotBeImplicit()
+    val res2 = ds.map(a => checkAndEvalFormula(a._2))
+    Abstract.Construct(index, res1.map(_._1), res2.map(_._2), if (nodes.dimSize == 0) Map.empty else reifyEnclosedSystem(nodes.reduceAll(res1.map(_._2)).reduce(res2.map(_._1)).restrictions()))
+  }
+
+  def checkSumConstructApp(sum: Value.Sum, index: Int, arguments: Seq[(Boolean, Concrete)]) =
+    checkConstructApp(sum, index, sum.constructors(index).nodes, arguments)
+
   private def infer(
                      term: Concrete,
                      noReduceMore: Boolean = false): (Value, Abstract) = {
@@ -264,15 +277,7 @@ class Elaborator private(protected override val layers: Layers)
       }
     }
 
-    def inferConstructApp(sumValue: Value, index: Int, nodes: Value.ClosureGraph, arguments: Seq[(Boolean, Concrete)]): (Value, Abstract) = {
-      val ns = arguments.take(nodes.size)
-      val res1 = inferGraphValuesPart(nodes, ns)
-      val ds = arguments.drop(nodes.size)
-      if (ds.size != nodes.dimSize) throw ElaboratorException.NotFullyAppliedConstructorNotSupportedYet()
-      if (ds.exists(_._1)) throw ElaboratorException.DimensionLambdaCannotBeImplicit()
-      val res2 = ds.map(a => checkAndEvalFormula(a._2))
-      (sumValue, Abstract.Construct(index, res1.map(_._1), res2.map(_._2), if (nodes.dimSize == 0) Map.empty else reifyEnclosedSystem(nodes.reduceAll(res1.map(_._2)).reduce(res2.map(_._1)).restrictions())))
-    }
+
     def inferProjectionApp(left: Concrete, right: Concrete, arguments: Seq[(Boolean, Concrete)]): (Value, Abstract) = {
       val (lt, la) = infer(left)
       val lv = eval(la)
@@ -297,8 +302,7 @@ class Elaborator private(protected override val layers: Layers)
             case r: Value.Record if right == Concrete.Make =>
               (lv, Abstract.Make(inferGraphValuesPart(r.nodes, arguments).map(_._1)))
             case r: Value.Sum if calIndex(t => r.constructors.indexWhere(_.name.by(t))) =>
-              val c = r.constructors(index)
-              inferConstructApp(r, index, c.nodes, arguments)
+              (r, checkSumConstructApp(r, index, arguments))
             case _ =>
               error()
           }
@@ -450,7 +454,7 @@ class Elaborator private(protected override val layers: Layers)
             lookupTerm(name) match {
               case NameLookupResult.Typed(typ, ref) => defaultCase(typ, ref)
               case NameLookupResult.Construct(self, index, closure) =>
-                inferConstructApp(self, index, closure, arguments)
+                (self, checkConstructApp(self, index, closure, arguments))
             }
           case _ =>
             val (lt, la) = infer(lambda, true)
@@ -790,6 +794,20 @@ class Elaborator private(protected override val layers: Layers)
                 Abstract.Make(inferGraphValuesPart(r.nodes, vs).map(_._1))
               case _ =>
                 fallback()
+            }
+          case r: Value.Sum =>
+            term match {
+              case Concrete.Projection(Concrete.Hole, Concrete.Reference(name)) =>
+                r.constructors.indexWhere(_.name.by(name)) match {
+                  case -1 => fallback()
+                  case a => checkSumConstructApp(r, a, Seq.empty)
+                }
+              case Concrete.App(Concrete.Projection(Concrete.Hole, Concrete.Reference(name)), as) =>
+                r.constructors.indexWhere(_.name.by(name)) match {
+                  case -1 => fallback()
+                  case a => checkSumConstructApp(r, a, as)
+                }
+              case _ => fallback()
             }
           case _ => fallback()
         }

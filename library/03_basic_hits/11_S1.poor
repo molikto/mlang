@@ -26,6 +26,8 @@ define S1_basic_tests = run {
   define transp_base: x_refl_type(transp(i → S1, 0, S1.base)) = x_refl(S1.base)
   unit.make
 }
+
+
 // this is a stripe
 define S1_moebius
 : S1      ⇒ type =
@@ -81,7 +83,7 @@ define S1_winding_tests = run {
   └ suc(n) → i → hcomp(S1_loop(i) |~i: j → loop_left(n)(~j) |i: j → S1.base)
 
   // DEBUG used time: 1481ms, compare cubicaltt: Time: 0m13.794s
-  define __debug test_loop_left_1024 = winding(loop_left(n1024))
+  define test_loop_left_1024 = winding(loop_left(n1024))
 
   define test_i4: x_refl_type(i4) = x_refl(winding(double_loop(S1_loop2)))
   define test_i6: x_refl_type(i6) = x_refl(winding(triple_loop(S1_loop2)))
@@ -95,7 +97,6 @@ define S1_winding_tests = run {
 
 
 define S1_pointed: pointed = make(S1.base)
-
 
 define rot_loop:
  (a: S1) ⇒ a ≡ a =
