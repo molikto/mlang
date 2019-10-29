@@ -103,7 +103,7 @@ define code_S1(s: S1): set = set_trunc_set(S1_helix(s))
 
 define code_trunc_S1: groupoid_trunc(S1) ⇒ set = rec_groupoid_trunc(is_groupoid_set, code_S1)
 
-define encode_trunc_S1(p: loop_space(pointed_groupoid_trunc(S2_pointed)).A): set_trunc(int) =
+define encode_trunc_S1(p: loop_space(pointed_groupoid_trunc(S1_pointed)).A): set_trunc(int) =
   transp(i → code_trunc_S1(p(i)).ty, 0, _.in(i0))
 
 define f5: loop_space_3(S2_pointed).A ⇒ loop_space_3(join_S1_pointed).A =
