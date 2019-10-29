@@ -46,6 +46,46 @@ define S1_loop_inv(i: I) = S1.loop(~i)
 
 define winding(p: S1_loop_space): int = transport(i → S1_helix(p(i)), i0)
 
+define encode(x: S1, p: S1.base ≡ x): S1_helix(x) = subst(S1_helix, p, i0)
+
+define int_loop: int ⇒ S1_loop_space =
+┌ pos(zero) → refl
+├ pos(suc(n)) → path_compose(int_loop(_.pos(n)), S1_loop)
+├ negsuc(zero) → path_reverse(S1_loop)
+└ negsuc(suc(n)) → path_compose(int_loop(_.negsuc(n)), path_reverse(S1_loop))
+
+define decode: (x: S1) ⇒ S1_helix(x) ⇒ S1.base ≡ x =
+┌ base → int_loop
+└ loop(i) → y → j → run {
+  define n = unglue(y)
+  define decode_square: (n: int) ⇒ int_loop(int_pred(n)) ≡[i → S1.base ≡ S1.loop(i)] int_loop(n) =
+  ┌ pos(zero) → i → j → S1.loop(i ∨ (~j))
+  ├ pos(suc(n)) → i → j → hfill(int_loop(_.pos(n))(j) |~j: ─ → S1.base |j: S1_loop)(i)
+  └ negsuc(n) → i → j → hcomp(int_loop(_.negsuc(n))(j) |i: ─ → int_loop(_.negsuc(n))(j) |~j: ─ → S1.base |j: k → S1.loop(i ∨ (~k)))
+  hcomp(decode_square(n, i, j)
+  |~i: k → int_loop(int_pred_suc(y, k), j)
+  | i: ─ → int_loop(y, j)
+  |~j: ─ → S1.base
+  | j: ─ → S1.loop(i)
+  )
+}
+
+define decode_encode(x: S1, p: S1.base ≡ x): decode(x, encode(x, p)) ≡ p =
+  J_rule(y → q → decode(y, encode(y, q)) ≡ q, x → refl, p)
+
+define is_set_loop_S1: is_set(S1_loop_space) =
+ p → q → r → s → j → i →
+ hcomp(decode(S1.base, is_set_int(winding(p), winding(q), path_map(winding, r), path_map(winding, s), j, i))
+  |~i: decode_encode(S1.base, p)
+  | i: decode_encode(S1.base, q)
+  |~j: decode_encode(S1.base, r(i))
+  | j: decode_encode(S1.base, s(i))
+  )
+
+
+
+
+
 define S1_loop2: S1_loop_space = path_compose(S1_loop, S1_loop)
 
 define S1_winding_tests = run {
@@ -125,20 +165,6 @@ define rot_is_equiv:
  (a: S1) ⇒ is_equiv(rot(a)) =
 ┌ base → id_is_equiv(S1)
 └ loop(i) → is_prop_fam_S1(x → is_equiv(rot(x)), x → is_prop_is_equiv(rot(x)), id_is_equiv(S1))(i)
-
-
-
-declare is_set_loop_S1: is_set(S1_loop_space)
-
-
-
-
-
-
-
-
-
-
 
 
 

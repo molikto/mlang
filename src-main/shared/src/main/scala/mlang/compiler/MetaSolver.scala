@@ -71,6 +71,7 @@ trait MetaSolver extends ValueConversion with Reifier with ElaboratorContextRebi
       }
       abs = ctx.reify(t20)
     }
+    abs = abs.diff(0, vs.size)
     for (g <- vs) {
       g match {
         case Left(v) =>

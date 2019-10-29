@@ -25,7 +25,7 @@ lazy val `editor-web` = project.in(file("src-editor-web")).settings(
 ).enablePlugins(ScalaJSPlugin).dependsOn(`main`.js)
 
 val sharedSettings = Seq(
-  scalaVersion := "2.13.0",
+  scalaVersion := "2.13.1",
   resolvers ++= Seq(
     "Sonatype OSS Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots/",
     Resolver.jcenterRepo,

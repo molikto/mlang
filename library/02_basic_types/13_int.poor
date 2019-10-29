@@ -61,3 +61,6 @@ define __int_suc_path_tests = run {
   define test1: transport(int_suc_path, i0) ≡ i1 = i → i1
   unit.make
 }
+
+
+declare is_set_int: is_set(int)

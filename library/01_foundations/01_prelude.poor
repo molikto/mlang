@@ -62,7 +62,8 @@ define transport_refl(#A: type, a: A): transport(─ → A, a) ≡ a =
 define subst(#A: type, B: A ⇒ type, #x #y: A, p: x ≡ y, bx: B(x)): B(y) =
   transport(i → B(p(i)), bx)
 
-
+define J_rule(#A: type, #x #y: A, P: (z: A, : x ≡ z) ⇒ type, d: P(x, refl), p: x ≡ y): P(y, p) =
+  transport(i → P(p(i), j → p(i ∧ j)), d)
 
 // #f #g: (x: #A) ⇒ #B(x),
 define fun_ext(#A: type, #B: A ⇒ type, #f #g: (x: A) ⇒ B(x), p: (x: A) ⇒ f(x) ≡ g(x)): f ≡ g =
