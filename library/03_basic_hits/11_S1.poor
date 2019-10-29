@@ -128,8 +128,7 @@ define rot_is_equiv:
 
 
 
-
-
+declare is_set_loop_S1: is_set(S1_loop_space)
 
 
 
