@@ -109,14 +109,15 @@ define encode_trunc_S1(p: loop_space(pointed_groupoid_trunc(S1_pointed)).A): set
 define f5: loop_space_3(S2_pointed).A ⇒ loop_space_3(join_S1_pointed).A =
   p → i → j → k → tee(p(i, j, k), fib_contr_loop_space_3_hopf(p, i, j, k))
 
+// FIXME using map_looop_space_3 have unsolved meta!
 define f6: loop_space_3(join_S1_pointed).A ⇒ loop_space_3(S3_pointed).A =
-  map_loop_space_3(join_S1_to_S3)
+  p → i → j → k → join_S1_to_S3(p(i, j, k))
 
-define f7: loop_space_3(S3_pointed).A ⇒ loop_space_2(pointed_groupoid2_trunc(S1_pointed)).A =
+define f7: loop_space_3(S3_pointed).A ⇒ loop_space_2(pointed_groupoid2_trunc(S2_pointed)).A =
   pi_3_S3
 
-define g8: loop_space_2(pointed_groupoid_trunc(S1_pointed)).A ⇒ loop_space(pointed_groupoid_trunc(S1_pointed)).A =
-  map_loop_space(encode_trunc_S2)
+define g8: loop_space_2(pointed_groupoid2_trunc(S2_pointed)).A ⇒ loop_space(pointed_groupoid_trunc(S1_pointed)).A =
+  p → i → encode_trunc_S2(p(i))
 
 define g9: loop_space(pointed_groupoid_trunc(S1_pointed)).A ⇒ set_trunc(int) =
   encode_trunc_S1

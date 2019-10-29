@@ -1,0 +1,11 @@
+
+
+
+
+
+// define is_h_level: nat ⇒ type ⇒ type =
+// ┌ zero → is_contr
+// ├ suc(zero) → is_prop
+// └ suc(suc(a)) → A → (a b: A) ⇒ is_h_level(suc(a), a ≡ b)
+
+// define is_h_level_dep

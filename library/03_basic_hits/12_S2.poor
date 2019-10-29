@@ -43,7 +43,7 @@ define fib_contr_loop_space_3_hopf(p: loop_space_3(S2_pointed).A): loop_space_3_
     | k: m → is_set_loop_S1(
        refl,
        refl,
-       i → j → transp(n → S2_hopf(p(i, i, n)), i ∨ (~i) ∨ j ∨ (~j), _.base),
+       i → j → transp(n → S2_hopf(p(i, j, n)), i ∨ (~i) ∨ j ∨ (~j), _.base),
        ─ → ─ → _.base,
        m, i, j
      )

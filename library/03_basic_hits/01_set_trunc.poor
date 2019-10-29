@@ -12,3 +12,12 @@ define inductively set_trunc(A: type): type = sum {
 
 define set_trunc_set(A: type): set =
   make(set_trunc(A), x → y → p → q → j → i → set_trunc(A).squash(x, y, p, q, j, i))
+
+
+// define elim_set_trunc(
+//   #A: type,
+//   B: set,
+//   g: (a: A) ⇒ B.ty
+// ):(x: set_trunc(A)) ⇒ B.ty =
+// ┌ in(a) → g(a)
+// └ squash(x, y, p, q, i, j) →
