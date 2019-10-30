@@ -24,7 +24,7 @@ define mult_two_aux: (x: S2) ⇒ x_refl_type(x_refl(S2_groupoid2_trunc.in(x))) =
   | k: m → S2_groupoid2_trunc.in(S2.surf(i, j))
   |~l: m → S2_groupoid2_trunc.in(S2.surf(i, j))
   | l: m → S2_groupoid2_trunc.squash(
-  // FIXME these metas is not currenlty solvable
+  // FIXME(META) these metas is not currenlty solvable
   // when it is run (without given meta values), it first creates 6 metas, then try to check the
   // inner most j → step1(k, i, j) has same end points, then it try to check
   // step1(k, i, 0) has value of first meta, which will result in rebinding error because k, i is
@@ -111,7 +111,7 @@ define encode_trunc_S1(p: loop_space(pointed_groupoid_trunc(S1_pointed)).A): set
 define f5: loop_space_3(S2_pointed).A ⇒ loop_space_3(join_S1_pointed).A =
   p → i → j → k → tee(p(i, j, k), fib_contr_loop_space_3_hopf(p, i, j, k))
 
-// FIXME using map_looop_space_3 have unsolved meta!
+// FIXME(META) using map_looop_space_3 have unsolved meta!
 define f6: loop_space_3(join_S1_pointed).A ⇒ loop_space_3(S3_pointed).A =
   p → i → j → k → join_S1_to_S3(p(i, j, k))
 

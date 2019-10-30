@@ -24,7 +24,7 @@ define decidable_then_stable(A: type): decidable(A) ⇒ stable(A) =
 define stable_then_is_set(#A: type, st: (a b: A) ⇒ stable(a ≡ b)): is_set(A) = a → b → p → q → j → i → run {
   define f(x: A, p: a ≡ x): a ≡ x = st(a, x, h → h(p))
   define f_is_const(x: A, p q: a ≡ x): f(x, p) ≡ f(x, q) = i →
-    // FIXME first argument cannot be solved
+    // FIXME(META) first argument cannot be solved
     st(a, x, negate_is_prop(negate(a ≡ x), h → h(p), h → h(q), i))
   define rem(p: a ≡ b): f(a, refl) ≡[i → a ≡ p(i)] f(b, p) = j →
     f(p(j), i → p(i ∧ j))
@@ -36,5 +36,5 @@ define stable_then_is_set(#A: type, st: (a b: A) ⇒ stable(a ≡ b)): is_set(A)
   )
 }
 
-// FIXME cannot infer this @A, it will error with a logic error
+// FIXME(META) cannot infer this @A, it will error with a logic error, cannot Value.inferLevel on a meta
 define discrete_then_is_set(#A: type, d: discrete(A)): is_set(A) = stable_then_is_set(@A, x → y → decidable_then_stable(x ≡ y, d(x, y)))

@@ -379,7 +379,7 @@ trait ValueConversion {
           }
         }
         recNeutral(b1, b2).map(_ => t1)
-      // FIXME solve meta headed?
+      // FIXME(META) solve meta headed?
       //      case (SolvableMetaForm(m1, o1, gs1), SolvableMetaForm(m2, o2, gs2)) if o1.id == o2.id =>
       //        if (gs1.size == gs2.size) {
       //          gs1.zip(gs2).foldLeft(Some(o1.typ)) {

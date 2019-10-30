@@ -794,7 +794,6 @@ object Value {
     * whnf: stuck is whnf AND pattern redux cannot continue
     */
   case class PatternRedux(lambda: PatternLambda, @stuck_pos stuck: Value) extends Redux {
-    // FIXME cubical tt will also work if argument is a hcomp
     def reduce(): Option[Value] = {
       // using first match is even ok for overlapping ones
       var res: Value = null
@@ -1225,7 +1224,7 @@ object Value {
       faces.view.mapValues(f => AbsClosure(i => forward(tp, i, f(i)))).toMap)
   }
 
-  // FIXME when we have a syntax for partial values, these should be removed
+  // FIXME when we have a syntax for partial values, these should be removed (or what? because Agda cannot compute the problem?)
   case class Comp(@stuck_pos tp: AbsClosure, base: Value, faces: AbsClosureSystem) extends Redux {
     override def reduce(): Option[Value] = Some(comp(33, tp, base, faces))
   }

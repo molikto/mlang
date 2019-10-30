@@ -35,10 +35,10 @@ define fib_loop_space_3(#B: pointed, P: B.A ⇒ type, f: P(B.center)): loop_spac
   fib_loop_space_2(@loop_space(B), fib_loop_space(P, f),  ─ → f)
 
 
-// FIXME this will result in unsloved meta
+// FIXME(META) this will result in unsloved meta
 //define fib_loop_space_2(#B: pointed, P: B.A ⇒ type, f: P(B.center)): loop_space_2(B).A ⇒ type =
 //  fib_loop_space(fib_loop_space(P, f), refl)
 
-// FIXME this will result in meta solution reify error, no value in scope???
+// FIXME(META) this will result in meta solution reify error, no value in scope???
 //define fib_loop_space_2(#B: pointed, P: B.A ⇒ type, f: P(B.center)): loop_space_2(B).A ⇒ type =
 //  fib_loop_space(@loop_space(B), fib_loop_space(P, f), refl)

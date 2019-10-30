@@ -86,7 +86,7 @@ class Elaborator private(protected override val layers: Layers)
         nfs.append(asgn0)
         val ctx0 = newSyntaxDirectedRestrictionLayer(asgn0)
         val btr = bt.restrict(asgn0)
-        // FIXME no hurry to finalize this context? use information in cap to infer?
+        // FIXME(META) no hurry to finalize this context? use information in cap to infer?
         val (dim, na) = ctx0.checkLine(a.term, btr)
         val naa = ctx0.eval(na)
         val nv = naa(Formula.False)
@@ -245,7 +245,6 @@ class Elaborator private(protected override val layers: Layers)
       }
       (c.name, ll, closureGraph)
     })
-    // FIXME currently crash on empty type
     val fl = tps.map(_._3).getOrElse(
       if (fs.isEmpty) throw ElaboratorException.EmptySumMustHaveTypeAnnotation() else fs.map(_._2).max)
     (Value.Universe(fl), Abstract.Sum(tps.flatMap(_._2.map(_._2)), isHit, fs.map(a =>
@@ -411,7 +410,7 @@ class Elaborator private(protected override val layers: Layers)
             val ra = check(right, tv(Value.Formula.True))
             (Value.Universe(tl), Abstract.PathType(ca, la, ra))
           case None =>
-            // FIXME instead of inferring two side, infer one side then check another; or if we have meta with levels... can we just write a max level? it seems not that easy... because you run into the same kind of problems
+            // FIXME(META) instead of inferring two side, infer one side then check another; or if we have meta with levels... can we just write a max level? it seems not that easy... because you run into the same kind of problems
             val (lt, la) = infer(left)
             val (rt, ra) = infer(right)
             val ttt = if (subTypeOf(lt, rt)) {

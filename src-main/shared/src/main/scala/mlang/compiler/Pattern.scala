@@ -26,7 +26,7 @@ sealed trait Pattern {
   }
 }
 
-// FIXME support implicit variables
+// FIXME(PATTERN) support implicit variables
 object Pattern {
   case object GenericValue extends Pattern
   case object GenericDimension extends Pattern

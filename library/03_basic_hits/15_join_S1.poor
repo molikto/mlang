@@ -36,7 +36,7 @@ define join_S1_to_S3
 ┌ inl(x) → S3.base
 ├ inr(x) → S3.base
 └ push(a, b, k) → run {
-// FIXME we don't have overlapping hits now!
+// FIXME(PATTERN) we don't have overlapping hits now!
   define split_a: S1 ⇒ S3 =
    ┌ base → S3.base
    └ loop(i) → run {

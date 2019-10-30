@@ -21,7 +21,7 @@ define rec_groupoid_trunc(#A #B: type, gB: is_groupoid(B), f: A ⇒ B):
 ┌ in(x) → f(x)
 └ squash(x, y, p, q, r, s, k, j, i) →
   gB(
-  // FIXME cannot infer these
+  // FIXME(META) cannot infer these
     rec_groupoid_trunc(gB, f, x),
     rec_groupoid_trunc(gB, f, y),
     n → rec_groupoid_trunc(gB, f, r(0, n)),

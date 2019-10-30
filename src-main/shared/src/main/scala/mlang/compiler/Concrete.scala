@@ -115,7 +115,7 @@ object Concrete {
     // depending on our algorithm, recursive ones might not need to declare first
     case class Declare(modifiers: Seq[Modifier], name: Name, parameters: Seq[NameType], typ: Concrete) extends Single
 
-    // FIXME this is kind of wired now, it only generalize the parameters but not the applications
+    // FIXME(PATTERN) this is kind of wired now, it only generalize the parameters but not the applications
     case class Parameters(parameters: Seq[NameType], items: Seq[Declaration]) extends Declaration
   }
 
