@@ -79,7 +79,7 @@ object ElaboratorException {
   case class StaticDisjunctionCurrentlyNotSupported() extends ElaboratorException
   case class UnglueCannotInfer() extends ElaboratorException
 
-  case class ConstantSortWrong() extends ElaboratorException
+  case class TermSortWrong() extends ElaboratorException
 
   case class HitContainingExternalDimension() extends ElaboratorException
   case class CannotInferTypeOfHit() extends ElaboratorException

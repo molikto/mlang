@@ -119,8 +119,6 @@ trait DebugPrettyPrinter extends ElaboratorContextBuilder {
 //        s"${debugPPrint(left)}(${debugPPrint(right)})"
 //      case Abstract.Record(inductively, names, graph) =>
 //        s"record ${inductively.fold("")(_.toString + " ")}{${
-//          // TODO
-//          ""
 //        }"
 //      case Abstract.Sum(inductively, constructors) =>
 //        s"sum ${inductively.fold("")(_.toString + " ")}{${

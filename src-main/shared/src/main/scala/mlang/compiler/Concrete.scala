@@ -77,7 +77,6 @@ object Concrete {
 
   // TODO can you define a macro in a abstracted context?
   case class Let(declarations: Seq[Declaration], in: Concrete) extends Concrete
-  // TODO make expression, type is inferred as non-dependent
   case class PathType(typ: Option[Concrete], left: Concrete, right: Concrete) extends Concrete
   case class Face(dimension: Concrete, term: Concrete)
   case class Transp(typ: Concrete, direction: Concrete, base: Concrete) extends Concrete

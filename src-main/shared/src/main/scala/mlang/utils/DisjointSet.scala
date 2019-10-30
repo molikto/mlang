@@ -6,8 +6,6 @@ import scala.language.postfixOps
 /**
   * A disjoint-set data structure (also called union-find data structure)
   * Has efficient union and find operations in amortised O(a(n)) time (where a is the inverse-Ackermann function)
-  * TODO: Support delete
-  * TODO: extend scala collection
   *
   * @tparam A types of things in set
   */

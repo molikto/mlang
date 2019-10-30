@@ -787,7 +787,7 @@ object Value {
 
   // the reason we must have a domain here is because we support unordered pattern matching
   // so pattern redux can be stuck value when non of their arguments is stuck
-  // LATER is unordered pattern matching really a good thing? but I don't want case trees!
+  // LATER(PATTERN) is unordered pattern matching really a good thing? but I don't want case trees!
   case class PatternLambda(@nominal_equality id: Long, @type_annotation domain: Value, @type_annotation typ: Closure, cases: Seq[Case]) extends StableCanonical
 
   /**
@@ -1336,7 +1336,7 @@ object Value {
   case class Glue(m: Value, @stuck_pos faces: ValueSystem) extends UnstableCanonical
   /**
     * whnf: faces is not constant, base is whnf, and base's whnf is not glue
-    * LATER this is how the whnf is defined, so glue is considered canonical
+    * LATER this is how the whnf is defined, so glue is considered canonical, but unglue is not
     *
     * FIXME it seems ty can be considered a type annotation? I am confused
     */
@@ -1559,6 +1559,7 @@ sealed trait Value {
 
   // it is ensured that if the value is not reducable, it will return the same reference
   def whnf: Value = {
+    // TODO don't do this equals stuff!!!
     def eqFaces(f1: AbsClosureSystem, f2: AbsClosureSystem): Boolean =
       f1.eq(f2) || (f1.keys == f2.keys && f1.forall(p => p._2.eq(f2(p._1))))
     val cached = _whnfCache
@@ -1576,7 +1577,6 @@ sealed trait Value {
             case _: MetaState.Open => m
           }
         case app@App(lambda, argument) =>
-          // TODO don't do this equals stuff!!!
           @inline def app2(lambda: Value, argument: Value): Value = {
             def default() = App(lambda, argument)
             lambda match {

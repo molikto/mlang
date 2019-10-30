@@ -346,16 +346,15 @@ class Elaborator private(protected override val layers: Layers)
       case Concrete.Hole =>
         throw ElaboratorException.CannotInferMeta()
       case Concrete.True =>
-        throw ElaboratorException.ConstantSortWrong()
+        throw ElaboratorException.TermSortWrong()
       case Concrete.False =>
-        throw ElaboratorException.ConstantSortWrong()
-        // LATER these three is not exactly constants, maybe this can be fixed after refactor better elaboration
+        throw ElaboratorException.TermSortWrong()
       case _: Concrete.And =>
-        throw ElaboratorException.ConstantSortWrong()
+        throw ElaboratorException.TermSortWrong()
       case _: Concrete.Or =>
-        throw ElaboratorException.ConstantSortWrong()
+        throw ElaboratorException.TermSortWrong()
       case _: Concrete.Neg =>
-        throw ElaboratorException.ConstantSortWrong()
+        throw ElaboratorException.TermSortWrong()
       case Concrete.I =>
         throw ElaboratorException.TermICanOnlyAppearInDomainOfFunction()
       case Concrete.Make =>
@@ -375,7 +374,6 @@ class Elaborator private(protected override val layers: Layers)
       case s: Concrete.Sum =>
         checkSum(None, s)
       case Concrete.Transp(tp, direction, base) =>
-        // LATER does these needs finish off implicits?
         val (dv, da) = checkAndEvalFormula(direction)
         val (tv, ta) = checkTypeLine(tp)
         val cl = eval(ta)
@@ -523,7 +521,7 @@ class Elaborator private(protected override val layers: Layers)
   private def inferFlatLevel(fs: Concrete.NameType.FlatSeq): (Int, Seq[(Name, Boolean, Abstract.MetaEnclosed)], Self) = {
     var ctx = this
     var l = 0
-    // TODO it used be like this, but I forget what it is for
+    // FIXME it used be like this, but I forget what it is for
     // if (fs.map(_._2).toSet.size != fs.size) throw ElaboratorException.AlreadyDeclared()
     val fas = fs.map(n => {
       val (fl, fa) = ctx.inferLevel(n._3)
@@ -1096,7 +1094,6 @@ class Elaborator private(protected override val layers: Layers)
 }
 
 
-// TODO move them into context? they are ugly
 private case class CodeInfo[T](
     code: Abstract,
     t: T) {

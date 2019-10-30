@@ -150,7 +150,6 @@ object Abstract {
 
   case class Comp(tp: AbsClosure, base: Abstract, faces: AbsClosureSystem) extends Abstract
 
-  // TODO don't use face anymore!!! it is wrong concept!! (but I am too lazy to change it for now)
   case class GlueType(tp: Abstract, faces: EnclosedSystem) extends Abstract
   case class Glue(base: Abstract, faces: EnclosedSystem) extends Abstract
   case class Unglue(tp: Abstract, base: Abstract, faces: EnclosedSystem) extends Abstract
