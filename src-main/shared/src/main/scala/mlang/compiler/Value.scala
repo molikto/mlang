@@ -1590,8 +1590,20 @@ sealed trait Value {
                     Hcomp(c(argument), App(base, argument), faces.view.mapValues(v => v.map(a => App(a, argument))).toMap)
                   case _ => default()
                 }
+              case Transp(tp, phi, base) =>
+                val dim = dgen()
+                tp.apply(Value.Formula.Generic(dim)).whnf match {
+                  case _: Function =>
+                    def tpr(i: Value.Formula) = tp(i).whnf.asInstanceOf[Function]
+                    Transp(
+                      AbsClosure(i => tpr(i).codomain(transpFill_inv(i, phi, AbsClosure(j => tpr(j).domain), argument))),
+                      phi,
+                      App(base, transp_inv(phi, AbsClosure(i => tpr(i).domain), argument))
+                    )
+                  case _ => default()
+                }
               case Comp(tp, base, faces) =>
-                // FIXME what about comp in cubicaltt?
+                // FIXME what about comp in cubicaltt? it seems it is not essential
                 default()
               case _: StableCanonical => logicError()
               case _ =>
