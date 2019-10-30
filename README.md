@@ -7,6 +7,13 @@ A cubical type theory implementation with implicit arguments, structural record 
 
 see `library` and `tests` folder for sample code
 
+
+## current status
+
+the status and the goal of this project is in constant flux now.
+
+2019-10-30 status: we have implemented a cubical type theory with a core similar to cubicaltt, but with some elaboration to make it easier to use. we implemented Brunerie's number, but sadly it is not computing (just like all other ctt implementations)
+
 ## build & run & debug & editor setup
 
 the project is written in Scala and is a standard SBT project. it can be cross compiled to Scala.js and Scala JVM. currently we are only compiling on JVM.
