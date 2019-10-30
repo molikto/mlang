@@ -104,7 +104,6 @@ define discrete_int: discrete(int) = a → b → run {
 define int_suc_path: int ≡ int =
   ua(iso_to_equiv(make(int_suc, int_pred, int_suc_pred, int_pred_suc)))
 
-
 define __int_suc_path_tests = run {
   define test1: transport(int_suc_path, i0) ≡ i1 = i → i1
   unit.make

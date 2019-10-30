@@ -123,7 +123,7 @@ define S1_winding_tests = run {
   └ suc(n) → i → hcomp(S1_loop(i) |~i: j → loop_left(n)(~j) |i: j → S1.base)
 
   // DEBUG used time: 1481ms, compare cubicaltt: Time: 0m13.794s
-  define test_loop_left_1024 = winding(loop_left(n1024))
+  define __debug test_loop_left_1024 = winding(loop_left(n1024))
 
   define test_i4: x_refl_type(i4) = x_refl(winding(double_loop(S1_loop2)))
   define test_i6: x_refl_type(i6) = x_refl(winding(triple_loop(S1_loop2)))
