@@ -2,14 +2,21 @@ package mlang.compiler
 
 import mlang.utils._
 
+import scala.collection.mutable
 import scala.reflect.runtime.currentMirror
 import scala.tools.reflect.ToolBox
 
 
 
+trait Holder {
+  def value(vs: Seq[Any]): Value
+}
+
 
 trait PlatformEvaluator extends Evaluator {
 
+  val REDUCE= ""
+  
   private def compile[A](string: String): A = Benchmark.HoasCompile {
     try {
       val toolbox = currentMirror.mkToolBox()
@@ -116,15 +123,15 @@ trait PlatformEvaluator extends Evaluator {
           s"Universe($l)"
         case Abstract.Reference(up, index) =>
           if (up > depth) {
-            s"${tunnel(getReference(up - depth - 1, index))}"
+            s"${tunnel(getReference(up - depth - 1, index))}$REDUCE"
           } else {
-            if (index == -1) s"r${depth - up}" else s"r${depth - up}($index)"
+            if (index == -1) s"r${depth - up}$REDUCE" else s"r${depth - up}($index)$REDUCE"
           }
         case Abstract.MetaReference(up, index) =>
           if (up > depth) {
-            s"${tunnel(getMetaReference(up - depth - 1, index))}"
+            s"${tunnel(getMetaReference(up - depth - 1, index))}$REDUCE"
           } else {
-            s"m${depth - up}($index)"
+            s"m${depth - up}($index)$REDUCE"
           }
         case Abstract.Let(metas, definitions, in) =>
           if (metas.isEmpty && definitions.isEmpty) {
@@ -148,11 +155,11 @@ trait PlatformEvaluator extends Evaluator {
         case Abstract.Lambda(closure) =>
           s"Lambda(${emitClosure(closure, depth)})"
         case Abstract.App(left, right) =>
-          s"App(${emit(left, depth)}, ${emit(right, depth)})"
+          s"App(${emit(left, depth)}, ${emit(right, depth)})$REDUCE"
         case Abstract.Record(id, names, nodes) =>
           s"""Record( ${emit(id, depth)}, Seq(${names.map(n => source(n)).mkString(", ")}), ${emitGraph(nodes, depth)})"""
         case Abstract.Projection(left, field) =>
-          s"Projection(${emit(left, depth)}, $field)"
+          s"Projection(${emit(left, depth)}, $field)$REDUCE"
         case Abstract.Sum(id, hit, constructors) =>
           s"""Sum(${emit(id, depth)}, $hit, Seq(${constructors.map(c => emitConstructor(c, depth)).mkString(", ")}))"""
         case Abstract.Make(vs) =>
@@ -162,41 +169,41 @@ trait PlatformEvaluator extends Evaluator {
         case Abstract.PatternLambda(id, dom, codomain, cases) =>
           s"PatternLambda($id, ${emit(dom, depth)}, ${emitClosure(codomain, depth)}, Seq(${cases.map(c => s"Case(${tunnel(c.pattern)}, ${emitMultiClosure(c.body, depth)})").mkString(", ")}))"
         case Abstract.PathApp(left, right) =>
-          s"PathApp(${emit(left, depth)}, ${emit(right, depth)})"
+          s"PathApp(${emit(left, depth)}, ${emit(right, depth)})$REDUCE"
         case Abstract.PathLambda(body) =>
           s"PathLambda(${emitAbsClosure(body, depth)})"
         case Abstract.PathType(typ, left, right) =>
           s"PathType(${emitAbsClosure(typ, depth)}, ${emit(left, depth)}, ${emit(right, depth)})"
         case Abstract.Transp(tp, dir, base) =>
-          s"Transp(${emitAbsClosure(tp, depth)}, ${emit(dir, depth)}, ${emit(base, depth)})"
+          s"Transp(${emitAbsClosure(tp, depth)}, ${emit(dir, depth)}, ${emit(base, depth)})$REDUCE"
         case Abstract.Hcomp(tp, base, faces) =>
           s"Hcomp(" +
               s"${emit(tp, depth)}, " +
               s"${emit(base, depth)}, " +
               emitAbsClosureSystem(faces, depth) +
-              s")"
+              s")$REDUCE"
         case Abstract.Comp(tp, base, faces) =>
           s"Comp(" +
               s"${emitAbsClosure(tp, depth)}, " +
               s"${emit(base, depth)}, " +
               emitAbsClosureSystem(faces, depth) +
-              s")"
+              s")$REDUCE"
         case Abstract.GlueType(tp, faces) =>
           s"GlueType(" +
               s"${emit(tp, depth)}, " +
               emitEnclosedSystem(faces, depth) +
-              s")"
+              s")$REDUCE"
         case Abstract.Glue(base, faces) =>
           s"Glue(" +
               s"${emit(base, depth)}, " +
             emitEnclosedSystem(faces, depth) +
-              s")"
+              s")$REDUCE"
         case Abstract.Unglue(tp, base, faces) =>
           s"Unglue(" +
               s"${emit(tp, depth)}, " +
               s"${emit(base, depth)}, " +
             emitEnclosedSystem(faces, depth) +
-              s")"
+              s")$REDUCE"
       }
     }
 
@@ -228,7 +235,38 @@ trait PlatformEvaluator extends Evaluator {
       }
   }
 
+  private val vs = mutable.ArrayBuffer[Any]()
+  private val ns = mutable.ArrayBuffer[String]()
+
+  protected def extractFromHolder(h: Holder): Value = {
+    val res = h.value(vs.toSeq)
+    ns.clear()
+    vs.clear()
+    res
+  }
+
+  private def tunnel(v: Any, str: String): String = {
+    val i = vs.size
+    vs += v
+    ns += str
+    s"vs$i"
+  }
+
+  protected def tunnel(v: Value.Formula): String = {
+    tunnel(v, "Formula")
+  }
+
+  protected def tunnel(v: Value): String = {
+    tunnel(v, "Value")
+  }
+
+  protected def tunnel(v: Pattern): String = {
+    tunnel(v, "Pattern")
+  }
+
   private def holderSrc(res: String): String = {
+
+      val defs = (0 until vs.size).map(i => s"val vs${i} = vs($i).asInstanceOf[${ns(i)}]").mkString("\n")
       s"""
          |import mlang.utils._
          |import mlang.compiler._
@@ -236,9 +274,13 @@ trait PlatformEvaluator extends Evaluator {
          |
          |
          |new Holder {
-         |  def value(ctx: EvaluatorContext, vs: Seq[Any]) = $res
+         |  def value(vs: Seq[Any]): Value = {
+         |  $defs
+         |  val res = $res
+         |  res
+         |  }
          |}
-       """.stripMargin
+         |""".stripMargin
   }
 
 

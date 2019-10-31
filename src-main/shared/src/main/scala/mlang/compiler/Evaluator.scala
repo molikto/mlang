@@ -8,46 +8,10 @@ import scala.collection.mutable
 case class PlatformEvaluatorException(src: String, cause: Throwable)
     extends Exception(s"Src: $src", cause) with CompilerException
 
-trait Holder {
-  def value(c: EvaluatorContext, vs: Seq[Any]): Value
-}
 
 trait Evaluator extends EvaluatorContext {
 
 
-  private val vs = mutable.ArrayBuffer[Any]()
-
-  protected def extractFromHolder(h: Holder): Value = {
-    val res = h.value(this, vs.toSeq)
-    if (debug.enabled) {
-      for (v <- vs.indices) debug(s"v$v: ${vs(v)}")
-    }
-    vs.clear()
-    res
-  }
-
-
-  private def tunnel(v: Any, str: String): String = {
-    val i = vs.size
-    vs += v
-    s"vs($i).asInstanceOf[$str]"
-  }
-
-  protected def tunnel(v: Value.Formula): String = {
-    tunnel(v, "Formula")
-  }
-
-  protected def tunnel(v: Value): String = {
-    tunnel(v, "Value")
-  }
-
-  protected def tunnel(v: Value.Closure): String = {
-    tunnel(v, "Closure")
-  }
-
-  protected def tunnel(v: Pattern): String = {
-    tunnel(v, "Pattern")
-  }
 
   protected def platformEval(value: Abstract): Value
 

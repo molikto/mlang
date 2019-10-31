@@ -476,6 +476,9 @@ object Value {
     // maybe inline in whnf
     def reduce(): Option[Value]
 
+
+    override def reduceOrSelf() = reduce().getOrElse(this)
+
     @inline def reduceThenWhnfOrSelf() = reduce() match {
       case Some(r) => r.whnf
       case _ => this
@@ -622,6 +625,8 @@ object Value {
     case class Open(id: Long, @type_annotation typ: Value) extends MetaState
   }
   case class Meta(private var _state: MetaState) extends LocalReferential {
+
+    override def reduceOrSelf(): Value = if (isSolved) solved else this
     def solved: Value = state.asInstanceOf[MetaState.Closed].v
     def isSolved: Boolean = state.isInstanceOf[MetaState.Closed]
     def state_=(a: MetaState) = {
@@ -657,9 +662,13 @@ object Value {
     def lookupChildren(v: Referential): Option[Formula.Assignments] = if (this.eq(v)) Some(Set.empty) else None
     override def supportShallow(): SupportShallow = SupportShallow.empty
     override def support(): Support = Support.empty
+
+    override def reduceOrSelf(): Value = referenced
 }
 
   case class LocalReference(@lateinit private var _value: Value) extends LocalReferential with Reference {
+
+    override def reduceOrSelf(): Value = referenced
 
     override def value_=(a: Value) = {
       clearSavedAfterValueChange()
@@ -1329,11 +1338,25 @@ object Value {
   /**
     * whnf: faces is not constant
     */
-  case class GlueType(ty: Value, @stuck_pos faces: ValueSystem) extends UnstableCanonical
+  case class GlueType(ty: Value, @stuck_pos faces: ValueSystem) extends UnstableCanonical {
+    override def reduceOrSelf() = faces.find(_._1.normalFormTrue).map(b => Projection(b._2, 0)).getOrElse(this)
+  }
   /**
     * whnf: faces is not constant
     */
-  case class Glue(m: Value, @stuck_pos faces: ValueSystem) extends UnstableCanonical
+  case class Glue(m: Value, @stuck_pos faces: ValueSystem) extends UnstableCanonical {
+    override def reduceOrSelf() = {
+      faces.find(_._1.normalFormTrue).map(_._2) match {
+        case Some(a) => a
+        case None =>
+          val bf = m
+          bf match {
+            case Unglue(b, _, _) => b
+            case _ => this
+          }
+      }
+    }
+  }
   /**
     * whnf: faces is not constant, base is whnf, and base's whnf is not glue
     * LATER this is how the whnf is defined, so glue is considered canonical, but unglue is not
@@ -1341,7 +1364,19 @@ object Value {
     * FIXME it seems ty can be considered a type annotation? I am confused
     */
   case class Unglue(ty: Value, base: Value, @stuck_pos faces: ValueSystem) extends Redux {
-    override def reduce(): Option[Value] = logicError() // in whnf
+    override def reduce(): Option[Value] = {
+      val red = faces.find(_._1.normalFormTrue).map(b => App(Projection(Projection(b._2, 1), 0), base))
+      red match {
+        case Some(a) => red
+        case None =>
+          val bf = base
+          bf match {
+            case Glue(b, _) => Some(b)
+            case _ => if (bf.eq(base)) None else Some(Unglue(ty, bf, faces))
+          }
+      }
+
+    }
   }
 
   var NORMAL_FORM_MODEL = false
@@ -1352,6 +1387,18 @@ sealed trait Value {
   final override def equals(obj: Any): Boolean = (this, obj) match {
     case (r: Referential, j: Referential) => r.eq(j)
     case _ => logicError()
+  }
+
+  def reduceOrSelf(): Value = this
+
+  def reduceUntilSelf() = {
+    var old: Value = null
+    var b = this
+    do {
+      old = b
+      b = old.reduceOrSelf()
+    } while (!b.eq(b))
+    b
   }
 
 
