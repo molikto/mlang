@@ -1,6 +1,7 @@
 package mlang.compiler
 
 import mlang.compiler.Value.Formula.Assignments
+import mlang.compiler.Value.SupportShallow
 import mlang.utils._
 
 import scala.collection.mutable
@@ -14,6 +15,27 @@ trait Holder {
 }
 
 object ObjRestrict extends ObjWorker {
+
+  override def supportShallow(v1: AnyRef): Value.SupportShallow = {
+    val clz = v1.getClass
+    val fs = clz.getDeclaredFields
+    var ns = SupportShallow.empty
+    for (f <- fs) {
+      f.setAccessible(true)
+      val o = f.get(v1)
+      o match {
+        case v: Value =>
+          ns = ns ++ v.supportShallow()
+        case f: Value.Formula =>
+          ns = ns +- f.names
+        case p: Pattern =>
+        case a =>
+          ns = ns ++ supportShallow(a)
+      }
+    }
+    ns
+  }
+
   override def restrict(v1: AnyRef, v2: Assignments): AnyRef = {
     val clz = v1.getClass
     val fs = clz.getDeclaredFields
@@ -37,11 +59,8 @@ object ObjRestrict extends ObjWorker {
         case p: Pattern =>
           ns(i) = p
         case a =>
-          if (a.getClass.getName.startsWith("__wrapper")) {
-            restrict(a, v2)
-          } else {
-            logicError()
-          }
+          // this happens because of the code NOT GENERATED in `Value.scala` has more liberate ways of referring things
+          restrict(a, v2)
       }
       i += 1
     }
@@ -53,6 +72,7 @@ object ObjRestrict extends ObjWorker {
       v1
     }
   }
+
 }
 
 trait PlatformEvaluator extends Evaluator {
@@ -79,10 +99,9 @@ trait PlatformEvaluator extends Evaluator {
         emit(term.term, d)
       } else {
         s"{ " +
-            s"val m$d = new scala.collection.mutable.ArrayBuffer[Meta](); " +
-            s"for (_ <- 0 until ${term.metas.size}) m$d.append(Meta(null)); " + // because they might reference each other
+          (for (r <- 0 until term.metas.size) yield s"val m${d}_$r = Meta(null); ").mkString +
             s"${term.metas.zipWithIndex.map(a =>
-              s"m$d(${a._2}).state = MetaState.Closed(${emit(a._1, d)}); ").mkString("")}" +
+              s"m${d}_${a._2}.state = MetaState.Closed(${emit(a._1, d)}); ").mkString("")}" +
             s"${emit(term.term, d)}; " +
             s"}"
       }
@@ -98,31 +117,43 @@ trait PlatformEvaluator extends Evaluator {
     s"AbsClosure(dm$d => ${emitInner(c, d)})"
   }
 
-  def emitMultiClosure(c: Abstract.MultiClosure, depth: Int, noDim: Boolean = false): String = {
+  def emitMultiClosure(pattern: Pattern, c: Abstract.MultiClosure, depth: Int): String = {
+    val (rs, dms) = pattern.atomCount
     val d = depth + 1
-    val dim = if (noDim) "_" else s"dm$d"
-    s"MultiClosure((r$d,$dim) => ${emitInner(c, d)})"
+    val emit = emitInner(c, d)
+    val inner = if (rs == 0 && dms == 0) {
+      emit
+    } else {
+      s"{${(0 until rs).map(i => s"val r${d}_$i = r${d}($i); ").mkString}${(0 until dms).map(i => s"val dm${d}_$i = dm${d}($i); ").mkString}$emit }"
+    }
+    s"MultiClosure((r$d,dm$d) => $inner)"
   }
 
 
-    def emitGraph(a: Abstract.ClosureGraph, depth: Int): String = {
+    def emitGraph(grf: Abstract.ClosureGraph, depth: Int): String = {
       val d = depth + 1
-      val res = a.nodes.zipWithIndex.map(pair => {
+      def declares(a: String, d: Int, count: Int) =
+        (0 until count).map(i => s"val $a${d}_$i = $a${d}($i); ").mkString
+      val res = grf.nodes.zipWithIndex.map(pair => {
         val c = pair._1
         val index = pair._2
-        val metasBefore = a.nodes.take(index).map(_.typ.metas.size).sum
-        val metaBody = if (c.typ.metas.isEmpty) {
-          s"(Seq.empty[Value.Meta], ${emit(c.typ.term, d)})"
-        } else {
-          s"{ val m$d = m${d}_.asInstanceOf[Seq[Meta]].toBuffer; " +
-            s"for (k <- 0 until ${c.typ.metas.size}) { assert(m$d(k + ${metasBefore}) == null); m$d(k + $metasBefore) = Meta(null)}; " +
-            s"${c.typ.metas.zipWithIndex.map(k => (k._1, k._2 + metasBefore)).map(a => s"m$d(${a._2}).state = MetaState.Closed(${emit(a._1, d)}); ").mkString("")}" +
-            s"(m$d.slice($metasBefore, ${metasBefore + c.typ.metas.size}).toSeq, ${emit(c.typ.term, d)})}"
-        }
+        val metasBefore = grf.nodes.take(index).map(_.typ.metas.size).sum
+        val metaBody =
+        s"{ val m$d = m${d}_.asInstanceOf[Seq[Meta]].toBuffer; " +
+          s"for (k <- 0 until ${c.typ.metas.size}) { assert(m$d(k + ${metasBefore}) == null); m$d(k + $metasBefore) = Meta(null)}; " +
+          declares("m", d, c.typ.metas.size + metasBefore) +
+          declares("r", d, index) +
+          s"${c.typ.metas.zipWithIndex.map(k => (k._1, k._2 + metasBefore)).map(a => s"m$d(${a._2}).state = MetaState.Closed(${emit(a._1, d)}); ").mkString("")}" +
+          s"(m$d.slice($metasBefore, ${metasBefore + c.typ.metas.size}).toSeq, ${emit(c.typ.term, d)})}"
         s"(${c.implicitt}, Seq[Int](${c.deps.mkString(", ")}), ${c.typ.metas.size}, (m${d}_, r$d) => $metaBody)"
       }).mkString(", ")
-      val kkk = s"Seq(${a.restrictions.toSeq.map(a => s"(${emit(a._1, d)}, (m$d: Seq[Value], r$d: Seq[Value]) => ${emitInner(a._2, d + 1)})").mkString(", ")}).toMap"
-      s"""ClosureGraph.createMetaAnnotated(Seq($res), ${a.dims}, (dm$d: Seq[Formula]) => $kkk)""".stripMargin
+      val kkk = s"Seq(${grf.restrictions.toSeq.map(a =>
+        s"(${emit(a._1, d)}, (m$d: Seq[Value], r$d: Seq[Value]) => {" +
+          s" ${declares("m", d, grf.nodes.map(_.typ.metas.size).sum)}" +
+          s" ${declares("r", d, grf.nodes.size)}" +
+          s" ${emitInner(a._2, d + 1)}" +
+          s" })").mkString(", ")}).toMap"
+      s"""ClosureGraph.createMetaAnnotated(Seq($res), ${grf.dims}, (dm$d: Seq[Formula]) => { ${declares("dm",d,  grf.dims)} $kkk })""".stripMargin
     }
 
   def emit(id: Option[Abstract.Inductively], depth: Int): String = {
@@ -141,15 +172,6 @@ trait PlatformEvaluator extends Evaluator {
     if (faces.isEmpty) "AbsClosureSystem.empty" else s"Seq(${faces.toSeq.map(a => s"(${emit(a._1, depth)}, ${emitAbsClosure(a._2, depth + 1)})").mkString(", ")}).toMap"
   }
 
-  def emitMultiClosureSystem(faces: Abstract.MultiClosureSystem, depth: Int, noDim: Boolean = true) = {
-    if (faces.isEmpty) {
-      "MultiClosureSystem.empty"
-    } else {
-      val d = depth + 2
-      val dim = if (noDim) "_" else s"dm$d"
-      s"Seq(${faces.toSeq.map(a => s"(${emit(a._1, depth)}, ${emitMultiClosure(a._2, depth + 1, noDim)})").mkString(", ")}).toMap"
-    }
-  }
 
   def emitEnclosedSystem(faces: Abstract.EnclosedSystem, depth: Int) = {
     // it evals to a value system.
@@ -170,13 +192,13 @@ trait PlatformEvaluator extends Evaluator {
           if (up > depth) {
             s"${tunnel(getReference(up - depth - 1, index))}$REDUCE"
           } else {
-            if (index == -1) s"r${depth - up}$REDUCE" else s"r${depth - up}($index)$REDUCE"
+            if (index == -1) s"r${depth - up}$REDUCE" else s"r${depth - up}_$index$REDUCE"
           }
         case Abstract.MetaReference(up, index) =>
           if (up > depth) {
             s"${tunnel(getMetaReference(up - depth - 1, index))}$REDUCE"
           } else {
-            s"m${depth - up}($index)$REDUCE"
+            s"m${depth - up}_$index$REDUCE"
           }
         case Abstract.Let(metas, definitions, in) =>
           if (metas.isEmpty && definitions.isEmpty) {
@@ -184,14 +206,12 @@ trait PlatformEvaluator extends Evaluator {
           } else {
             val d = depth + 1
             s"{ " +
-                s"val r$d = new scala.collection.mutable.ArrayBuffer[LocalReference](); " +
-                s"for (_ <- 0 until ${definitions.size}) r$d.append(LocalReference(null)); " +
-                s"val m$d = new scala.collection.mutable.ArrayBuffer[Meta](); " +
-                s"for (_ <- 0 until ${metas.size}) m$d.append(Meta(null)); " +
+              (for (r <- 0 until definitions.size) yield s"val r${d}_$r = LocalReference(null); ").mkString +
+              (for (r <- 0 until metas.size) yield s"val m${d}_$r = Meta(null); ").mkString +
                 s"${metas.zipWithIndex.map(a =>
-                  s"m$d(${a._2}).state = MetaState.Closed(${emit(a._1, d)}); ").mkString("")}" +
+                  s"m${d}_${a._2}.state = MetaState.Closed(${emit(a._1, d)}); ").mkString("")}" +
                 s"${definitions.zipWithIndex.map(a =>
-                  s"r$d(${a._2}).value = ${emit(a._1, d)}; ").mkString("")}" +
+                  s"r${d}_${a._2}.value = ${emit(a._1, d)}; ").mkString("")}" +
                 s"${emit(in, d)}" +
                 s"}"
           }
@@ -212,7 +232,7 @@ trait PlatformEvaluator extends Evaluator {
         case Abstract.Construct(name, vs, ds, ty) =>
           s"Construct($name, ${vs.map(v => emit(v, depth))}, ${ds.map(d => emit(d, depth))}, ${emitEnclosedSystem(ty, depth)})"
         case Abstract.PatternLambda(id, dom, codomain, cases) =>
-          s"PatternLambda($id, ${emit(dom, depth)}, ${emitClosure(codomain, depth)}, Seq(${cases.map(c => s"Case(${tunnel(c.pattern)}, ${emitMultiClosure(c.body, depth)})").mkString(", ")}))"
+          s"PatternLambda($id, ${emit(dom, depth)}, ${emitClosure(codomain, depth)}, Seq(${cases.map(c => s"Case(${tunnel(c.pattern)}, ${emitMultiClosure(c.pattern, c.body, depth)})").mkString(", ")}))"
         case Abstract.PathApp(left, right) =>
           s"PathApp(${emit(left, depth)}, ${emit(right, depth)})$REDUCE"
         case Abstract.PathLambda(body) =>
