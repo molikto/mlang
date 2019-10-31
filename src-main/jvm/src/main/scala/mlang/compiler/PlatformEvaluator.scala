@@ -1,5 +1,6 @@
 package mlang.compiler
 
+import mlang.compiler.Value.Formula.Assignments
 import mlang.utils._
 
 import scala.collection.mutable
@@ -12,10 +13,54 @@ trait Holder {
   def value(vs: Seq[Any]): Value
 }
 
+object ObjRestrict extends ObjWorker {
+  override def restrict(v1: AnyRef, v2: Assignments): AnyRef = {
+    val clz = v1.getClass
+    val fs = clz.getDeclaredFields
+    val ns = new Array[AnyRef](fs.size)
+    val cons = clz.getDeclaredConstructors
+    assert(cons.size == 1)
+    var changed = false
+    var i = 0
+    for (f <- fs) {
+      f.setAccessible(true)
+      val o = f.get(v1)
+      o match {
+        case v: Value =>
+          val r = v.restrict(v2)
+          ns(i) = r
+          if (!v.eq(r)) changed = true
+        case f: Value.Formula =>
+          val r = f.restrict(v2)
+          ns(i) = r
+          if (!f.eq(r)) changed = true
+        case p: Pattern =>
+          ns(i) = p
+        case a =>
+          if (a.getClass.getName.startsWith("__wrapper")) {
+            restrict(a, v2)
+          } else {
+            logicError()
+          }
+      }
+      i += 1
+    }
+    if (changed) {
+      val c = cons(0)
+      c.setAccessible(true)
+      c.newInstance(ns : _*).asInstanceOf[AnyRef]
+    } else {
+      v1
+    }
+  }
+}
 
 trait PlatformEvaluator extends Evaluator {
 
+  Value.RESTRICT_OBJ = ObjRestrict
+
   val REDUCE= ""
+  //val REDUCE= ".reduceUntilSelf()"
   
   private def compile[A](string: String): A = Benchmark.HoasCompile {
     try {

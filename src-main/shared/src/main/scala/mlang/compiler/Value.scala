@@ -15,8 +15,13 @@ private[compiler] class nominal_equality extends Annotation
 case class ImplementationLimitationCannotRestrictOpenMeta() extends Exception
 
 
+trait ObjWorker {
+  def restrict(a: AnyRef, b: Assignments): AnyRef
+}
 // FIXME: move out whnf
 object Value {
+
+  var RESTRICT_OBJ: ObjWorker = null
 
   sealed trait Formula {
 
@@ -33,7 +38,6 @@ object Value {
         case And(left, right) => left.names ++ right.names
         case Or(left, right) => left.names ++ right.names
         case Neg(unit) => unit.names
-        case _: Formula.Internal => logicError()
       }
     }
 
@@ -63,13 +67,11 @@ object Value {
             case Neg(u2) => u2
             case True => False
             case False => True
-            case _: Formula.Internal => logicError()
           }
           unit match {
             case Formula.Generic(id) => Set(Set((id, false)))
             case r => negate(r).normalForm
           }
-        case _: Formula.Internal => logicError()
       }
     }
 
@@ -80,7 +82,6 @@ object Value {
       case And(left, right) => And(left.fswap(w, z), right.fswap(w, z))
       case Or(left, right) => Or(left.fswap(w, z), right.fswap(w, z))
       case Neg(unit) => Neg(unit.fswap(w, z))
-      case _: Formula.Internal => logicError()
     }).simplify
 
     def restrict(lv: Value.Formula.Assignments): Formula = if (lv.isEmpty) this else {
@@ -90,7 +91,6 @@ object Value {
         case Formula.False => Formula.False
         case And(left, right) => And(left.restrict(lv), right.restrict(lv))
         case Or(left, right) => Or(left.restrict(lv), right.restrict(lv))
-        case Formula.Derestricted(r, g) => if (g.subsetOf(lv)) r.restrict(lv -- g) else logicError()
         case Neg(unit) => Neg(unit.restrict(lv))
       }
       ret.simplify
@@ -124,7 +124,6 @@ object Value {
         } else {
           Or(l, r)
         }
-      case d@Formula.Derestricted(r, g) => d // FIXME because restrict seems to also call simplify, so we ignore it here
       case Neg(unit) => unit.simplify match {
         case Formula.False => Formula.True
         case Formula.True => Formula.False
@@ -161,7 +160,7 @@ object Value {
     }
     object Generic {
       val HACK = Generic(0)
-      val HACKS = (0 until 20).map(_ => HACK)
+      val HACKS = (0 until 40).map(_ => HACK)
     }
     case class Generic(id: Long) extends Formula {
       def assign(asgs: Assignments): Formula = asgs.find(_._1 == id) match {
@@ -181,8 +180,6 @@ object Value {
     }
     case class Or(left: Formula, right: Formula) extends Formula
     case class Neg(unit: Formula) extends Formula
-    sealed trait Internal extends Formula
-    case class Derestricted(a: Formula, b: Formula.Assignments) extends Internal
   }
 
 
@@ -190,7 +187,7 @@ object Value {
     def eq(b: MultiClosure): Boolean = func.eq(b.func)
     def supportShallow(): SupportShallow = func(Generic.HACKS, Formula.Generic.HACKS).supportShallow()
     // def apply() = func(Seq.empty, Seq.empty)
-    def restrict(dav: Formula.Assignments): MultiClosure = MultiClosure((v, d) => this(v.map(a => Derestricted(a, dav)), d.map(a => Formula.Derestricted(a, dav))).restrict(dav))
+    def restrict(dav: Formula.Assignments): MultiClosure = MultiClosure(RESTRICT_OBJ.restrict(func, dav).asInstanceOf[(Seq[Value], Seq[Value.Formula]) => Value])
     def fswap(w: Long, z: Formula): MultiClosure = MultiClosure((d, k) => func(d, k).fswap(w, z))
 
     def apply(seq: Seq[Value], ds: Seq[Formula]): Value = func(seq, ds)
@@ -204,8 +201,7 @@ object Value {
     def eq(b: AbsMultiClosureSystem): Boolean = func.eq(b.func)
     def supportShallow(): SupportShallow = MultiClosureSystem.supportShallow(func(Formula.Generic.HACKS))
     // def apply() = func(Seq.empty, Seq.empty)
-    def restrict(dav: Formula.Assignments): AbsMultiClosureSystem =
-      AbsMultiClosureSystem(d => MultiClosureSystem.restrict(this(d.map(a => Formula.Derestricted(a, dav))), dav))
+    def restrict(dav: Formula.Assignments): AbsMultiClosureSystem = AbsMultiClosureSystem(RESTRICT_OBJ.restrict(func, dav).asInstanceOf[Seq[Value.Formula] => MultiClosureSystem])
     def fswap(w: Long, z: Formula): AbsMultiClosureSystem =
       AbsMultiClosureSystem(d => MultiClosureSystem.fswap(func(d), w, z))
 
@@ -215,7 +211,7 @@ object Value {
   implicit class Closure(private val func: Value => Value) extends AnyVal {
     def eq(b: Closure): Boolean = func.eq(b.func)
     def supportShallow(): SupportShallow = func(Generic.HACK).supportShallow()
-    def restrict(dav: Formula.Assignments): Closure = Closure(d => func(Derestricted(d, dav)).restrict(dav))
+    def restrict(dav: Formula.Assignments): Closure = Closure(RESTRICT_OBJ.restrict(func, dav).asInstanceOf[Value => Value])
     def fswap(w: Long, z: Formula): Closure = Closure(d => func(d).fswap(w, z))
 
     def apply(seq: Value): Value = func(seq)
@@ -235,7 +231,7 @@ object Value {
     def supportShallow(): SupportShallow = func(Formula.Generic.HACK).supportShallow()
     def mapd(a: (Value, Formula) => Value): AbsClosure = AbsClosure(d => a(this(d), d))
     def map(a: Value => Value): AbsClosure = AbsClosure(d => a(this(d)))
-    def restrict(dav: Formula.Assignments): AbsClosure = AbsClosure(d => func(Formula.Derestricted(d, dav)).restrict(dav))
+    def restrict(dav: Formula.Assignments): AbsClosure = AbsClosure(RESTRICT_OBJ.restrict(func, dav).asInstanceOf[Formula => Value])
     def fswap(w: Long, z: Formula): AbsClosure = AbsClosure(d => func(d).fswap(w, z))
 
     def apply(seq: Formula): Value = func(seq)
@@ -359,14 +355,12 @@ object Value {
           case IndependentWithMeta(ims, ds, ms, typ) =>
             IndependentWithMeta(ims, ds, ms.map(_.restrict(lv).asInstanceOf[Value.Meta]), typ.restrict(lv))
           case DependentWithMeta(ims, ds, mc, c) =>
-            DependentWithMeta(ims, ds, mc, (a, b) => {
-              val t = c(a.map(k => Derestricted(k, lv)), b.map(k => Derestricted(k, lv))); (t._1.map(_.restrict(lv).asInstanceOf[Value.Meta]), t._2.restrict(lv)) })
+            DependentWithMeta(ims, ds, mc, RESTRICT_OBJ.restrict(c, lv).asInstanceOf[(Seq[Value], Seq[Value]) => (Seq[Value.Meta], Value)])
           case _ => logicError()
         }
         val zz = if (dimSize == 0) tm else {
           val clo = tm.asInstanceOf[RestrictionsState.Abstract].tm
-          RestrictionsState.Abstract(fs => clo(fs.map(f => Formula.Derestricted(f, lv))).map(pair =>
-            (pair._1.restrict(lv), (v1, v2) => pair._2(v1.map(v => Value.Derestricted(v, lv)), v2.map(v => Value.Derestricted(v, lv))).restrict(lv))))
+          RestrictionsState.Abstract(RESTRICT_OBJ.restrict(clo, lv).asInstanceOf[Seq[Formula] => System[(Seq[Value], Seq[Value]) => Value]])
         }
         ClosureGraph.Impl(gs, dimSize, zz)
       }
@@ -467,7 +461,6 @@ object Value {
 
 
   // these serve the purpose of recovering syntax
-  sealed trait Internal extends Value
   sealed trait StableCanonical extends Value
   // FIXME hcomp is either unstable canonical or redux, depending on the type
   sealed trait UnstableCanonical extends Value // this value can reduce more, but only when restricted
@@ -485,7 +478,6 @@ object Value {
     }
   }
 
-  case class Derestricted(a: Value, asgn: Formula.Assignments) extends Internal
 
   sealed trait Referential extends Value {
     _from = this
@@ -640,11 +632,11 @@ object Value {
     override protected def createNewEmpty(): Meta = Meta(null)
     override protected def restrictAndInitContent(s: Meta, assignments: Assignments): Unit = state match {
       case MetaState.Closed(v) => s._state = MetaState.Closed(v.restrict(assignments))
-      case _: MetaState.Open => logicError()
+      case _: MetaState.Open => throw ImplementationLimitationCannotRestrictOpenMeta()
     }
     override protected def fswapAndInitContent(s: Meta, w: Long, z: Formula): Unit = state match {
       case MetaState.Closed(v) => s._state = MetaState.Closed(v.fswap(w, z))
-      case _: MetaState.Open => logicError()
+      case _: MetaState.Open => throw ImplementationLimitationCannotRestrictOpenMeta()
     }
 
     override def referenced: Value = state match {
@@ -687,7 +679,7 @@ object Value {
 
   object Generic {
     private[Value] val HACK = Generic(0, null)
-    private[Value] val HACKS = (0 until 20).map(_ => HACK)
+    private[Value] val HACKS = (0 until 40).map(_ => HACK)
   }
   case class Generic(id: Long, @type_annotation @lateinit private var _typ: Value) extends LocalReferential {
 
@@ -1115,7 +1107,6 @@ object Value {
             transpGlue(g, dim, phi, base)
           case _: Universe =>
             base
-          case _: Internal => logicError()
           case _ => null
         }
         Option(res)
@@ -1327,7 +1318,6 @@ object Value {
               }
             case g: GlueType =>
               hcompGlue(g, base, faces)
-            case _: Internal => logicError()
             case _ => null
           }
       }
@@ -1484,7 +1474,6 @@ sealed trait Value {
     case Glue(base, faces) => base.supportShallow() ++ ValueSystem.supportShallow(faces)
     case Unglue(tp, base, faces) => tp.supportShallow() ++ base.supportShallow() ++ ValueSystem.supportShallow(faces)
     case referential: Referential => SupportShallow.empty ++ Set(referential)
-    case internal: Internal => logicError()
   }
 
   /**
@@ -1517,7 +1506,6 @@ sealed trait Value {
     case Glue(base, faces) => Glue(base.fswap(w, z), ValueSystem.fswap(faces, w, z))
     case Unglue(tp, base, faces) => Unglue(tp.fswap(w, z), base.fswap(w, z), ValueSystem.fswap(faces, w, z))
     case g: Referential => g.getFswap(w, z)
-    case _: Internal => logicError()
   }
 
 
@@ -1562,12 +1550,6 @@ sealed trait Value {
       Glue(base.restrict(lv), ValueSystem.restrict(faces, lv))
     case Unglue(tp, base, faces) =>
       Unglue(tp.restrict(lv), base.restrict(lv), ValueSystem.restrict(faces, lv))
-    case Derestricted(v, lv0) =>
-      if (lv0.subsetOf(lv)) {
-        v.restrict(lv -- lv0)
-      } else {
-        logicError()
-      }
     case g: Referential =>
       g.getRestrict(lv)
   }
@@ -1725,8 +1707,6 @@ sealed trait Value {
                 case _ => if (bf.eq(base)) this else Unglue(ty, bf, faces)
               }
           }
-        case _: Internal =>
-          logicError()
       }
       if (Value.NORMAL_FORM_MODEL) {
         _whnfCache = candidate
@@ -1809,14 +1789,12 @@ sealed trait Value {
 
   def demeta(): Value = this match {
     case Meta(c: MetaState.Closed) => c.v.demeta()
-    case _: Internal => logicError()
     case _ => this
   }
 
   def deref(): Value = this match {
     case r: Reference => r.value.deref()
     case Meta(c: MetaState.Closed) => c.v.deref()
-    case _: Internal => logicError()
     case _ => this
   }
 }

@@ -181,8 +181,6 @@ private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorCon
         Glue(reify(base), reifyEnclosedSystem(faces))
       case Value.Unglue(ty, base, faces) =>
         Unglue(reify(ty), reify(base), reifyEnclosedSystem(faces))
-      case _: Value.Internal =>
-        logicError()
     }
   }
 
