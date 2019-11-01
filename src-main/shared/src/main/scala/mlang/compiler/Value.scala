@@ -336,7 +336,7 @@ object Value {
         }
         val zz = if (dimSize == 0) tm else {
           val clo = tm.asInstanceOf[RestrictionsState.Abstract].tm
-          RestrictionsState.Abstract(fs => clo(fs).map(pair => (pair._1.fswap(w, z), (v1, v2) => pair._2(v1, v2).fswap(w, z))))
+          RestrictionsState.Abstract(fs => clo(fs).map(pair => (pair._1.fswap(w, z), (v1: Seq[Value], v2: Seq[Value]) => pair._2(v1, v2).fswap(w, z))))
         }
         ClosureGraph.Impl(gs, dimSize, zz)
       }
@@ -658,7 +658,7 @@ object Value {
 
     override def reduceOrSelf(): Value = referenced
 
-    override def value_=(a: Value) = {
+    override def value_=(a: Value): Unit = {
       clearSavedAfterValueChange()
       _value = a
     }
@@ -1380,10 +1380,11 @@ sealed trait Value {
   def reduceUntilSelf() = {
     var old: Value = null
     var b = this
-    do {
-      old = b
+    while ({
+      old =b
       b = old.reduceOrSelf()
-    } while (!b.eq(b))
+      !b.eq(b)
+    }) {}
     b
   }
 
@@ -1602,8 +1603,8 @@ sealed trait Value {
             case _: MetaState.Open => m
           }
         case app@App(lambda, argument) =>
-          @inline def app2(lambda: Value, argument: Value): Value = {
-            def default() = App(lambda, argument)
+          def app2(lambda: Value, argument: Value): Value = {
+            @inline def default() = App(lambda, argument)
             lambda match {
               case Lambda(closure) =>
                 closure(argument).whnf
@@ -1619,7 +1620,7 @@ sealed trait Value {
                 val dim = dgen()
                 tp.apply(Value.Formula.Generic(dim)).whnf match {
                   case _: Function =>
-                    def tpr(i: Value.Formula) = tp(i).whnf.asInstanceOf[Function]
+                    @inline def tpr(i: Value.Formula) = tp(i).whnf.asInstanceOf[Function]
                     Transp(
                       AbsClosure(i => tpr(i).codomain(transpFill_inv(i, phi, AbsClosure(j => tpr(j).domain), argument))),
                       phi,

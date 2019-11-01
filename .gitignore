@@ -24,3 +24,4 @@ dump_local.sh
 # production files
 production.sh
 deploy.sh
+.dotty-ide.json

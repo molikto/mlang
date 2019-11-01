@@ -13,7 +13,7 @@ class DisjointSet[A] {
   import DisjointSet.Node
   private[this] val parent = mutable.Map.empty[A, Node[A]]
 
-  private[this] implicit def toNode(x: A) = {
+  private[this] implicit def toNode(x: A): DisjointSet.Node[A] = {
     assume(contains(x))
     parent(x)
   }
