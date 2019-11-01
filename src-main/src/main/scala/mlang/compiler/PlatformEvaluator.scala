@@ -5,8 +5,8 @@ import mlang.compiler.Value.SupportShallow
 import mlang.utils._
 
 import scala.collection.mutable
-import scala.reflect.runtime.currentMirror
-import scala.tools.reflect.ToolBox
+// import scala.reflect.runtime.currentMirror
+// import scala.tools.reflect.ToolBox
 
 
 
@@ -83,13 +83,14 @@ trait PlatformEvaluator extends Evaluator {
   //val REDUCE= ".reduceUntilSelf()"
   
   private def compile[A](string: String): A = Benchmark.HoasCompile {
-    try {
-      val toolbox = currentMirror.mkToolBox()
-      val tree = toolbox.parse(string)
-      toolbox.eval(tree).asInstanceOf[A]
-    } catch {
-      case e: Throwable => throw PlatformEvaluatorException(string, e)
-    }
+    // try {
+    //   val toolbox = currentMirror.mkToolBox()
+    //   val tree = toolbox.parse(string)
+    //   toolbox.eval(tree).asInstanceOf[A]
+    // } catch {
+    //   case e: Throwable => throw PlatformEvaluatorException(string, e)
+    // }
+    null.asInstanceOf[A]
   }
 
   private def source(a: Name): String = "Name(\"" + a.main + "\")"
