@@ -191,10 +191,10 @@ trait PlatformEvaluator extends Evaluator {
               s"${emit(base, depth)}, " +
             emitEnclosedSystem(faces, depth) +
               s")"
-        case Abstract.Unglue(tp, base, faces) =>
+        case Abstract.Unglue(tp, base, iu, faces) =>
           s"Unglue(" +
               s"${emit(tp, depth)}, " +
-              s"${emit(base, depth)}, " +
+              s"${emit(base, depth)}, " + iu + ", " +
             emitEnclosedSystem(faces, depth) +
               s")"
       }

@@ -4,7 +4,7 @@ import mlang.compiler.Concrete._
 import Declaration.Modifier
 import mlang.compiler.Abstract.{Inductively, MetaEnclosed}
 import mlang.compiler.Layer.Layers
-import mlang.compiler.Value.{ClosureGraph, PathLambda, PatternRedux}
+import mlang.compiler.Value.{ClosureGraph, PathLambda, PatternRedux, StableCanonical, UnstableCanonical}
 import mlang.utils._
 
 import scala.annotation.Annotation
@@ -477,7 +477,7 @@ class Elaborator private(protected override val layers: Layers)
         val (mt, ma) = infer(m)
         mt.whnf match {
           case Value.GlueType(ty, faces) =>
-            (ty, Abstract.Unglue(reify(ty.bestReifyValue), ma, reifyEnclosedSystem(faces.view.mapValues(_.bestReifyValue).toMap)))
+            (ty, Abstract.Unglue(reify(ty.bestReifyValue), ma, false, reifyEnclosedSystem(faces.view.mapValues(_.bestReifyValue).toMap)))
           case _ => throw ElaboratorException.UnglueCannotInfer()
         }
       case Concrete.Let(declarations, in) =>
@@ -953,9 +953,6 @@ class Elaborator private(protected override val layers: Layers)
               } else if (name == Name(Text("equiv_of"))) {
                 assert(BuiltIn.equiv_of == null)
                 BuiltIn.equiv_of = ref.value
-              } else if (name == Name(Text("path_to_equiv"))) {
-                assert(BuiltIn.path_to_equiv == null)
-                BuiltIn.path_to_equiv = ref.value
               }
               info(s"defined $name")
               ctx2
@@ -1002,6 +999,7 @@ class Elaborator private(protected override val layers: Layers)
           val time  = System.currentTimeMillis()
           def printRes(a: String, j: Value) = {
             println(s"DEBUG used time: ${System.currentTimeMillis() - time}")
+            loopBase(j)
             println(s"__DEBUG__ WHNF $a:")
             println(j)
           }
@@ -1066,29 +1064,88 @@ class Elaborator private(protected override val layers: Layers)
 
 
   // debug metthods
-  def loopType(a: Value.AbsClosure) = loopBase(a(Value.Formula.Generic(-Random.nextLong(Long.MaxValue / 2))))
+  def loopType(a: Value.AbsClosure): Value = loopBase(a(Value.Formula.Generic(-Random.nextLong(Long.MaxValue / 2))))
   def loopBase(k: Value): Value = {
     k.whnf match {
       case h: Value.Hcomp =>
         h.tp.whnf match {
-          case s: Value.Sum =>
-            h.base
+          case a: Value.Sum =>
+            if (a.hit) {
+              loopBase(h.base)
+            } else {
+              loopBase(h.base)
+            }
+          case a: Value.Function =>
+            logicError()
+          case a: Value.PathType =>
+            logicError()
+          case a: Value.Record =>
+            logicError()
+          case a: Value.GlueType =>
+            logicError()
           case _ =>
             loopBase(h.tp)
         }
       case t: Value.Transp =>
-        loopType(t.tp) match {
+        t.tp(Value.Formula.Generic(-Random.nextLong(Long.MaxValue / 2))).whnf match {
           case _: Value.Sum =>
             loopBase(t.base)
-          case a => a
+          case a: Value.Function =>
+            logicError()
+          case a: Value.PathType =>
+            logicError()
+          case a: Value.Record =>
+            logicError()
+          case a: Value.GlueType =>
+            logicError()
+          case a: Value.Universe =>
+            logicError()
+          case Value.Hcomp(v: Value.Universe, _, _) =>
+            logicError()
+          case a =>
+            loopType(t.tp)
         }
       case t: Value.Glue =>
+        assert(!t.faces.exists(_._1.normalFormTrue))
         loopBase(t.m)
       case v: Value.Unglue =>
         loopBase(v.base)
-      case p: PatternRedux =>
-        loopBase(p.stuck)
-      case a => a
+      case a: Value.GlueType =>
+        assert(!a.faces.exists(_._1.normalFormTrue))
+        k
+      case Value.PathType(typ, left, right) =>
+        k
+      case c: Value.Construct =>
+        k
+      case Value.Make(values) =>
+        k
+      case PathLambda(body) =>
+        k
+      case a: Value.Function =>
+        k
+      case a: Value.Record =>
+        k
+      case a: Value.Universe =>
+        k
+      case a: Value.Lambda =>
+        k
+      case a: Value.PatternLambda =>
+        k
+      case Value.PatternRedux(a, b) =>
+        b.whnf match {
+          case h: Hcomp =>
+            h
+          case a: Value.Construct =>
+            a
+          case _ =>
+            loopBase(b)
+        }
+      case Value.Projection(a, b) =>
+        loopBase(a)
+      case g: Value.Generic =>
+        k
+      case Value.PathApp(a, _) =>
+        loopBase(a)
     }
   }
 }

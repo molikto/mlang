@@ -979,6 +979,14 @@ object Value {
     )
   }
 
+  def gfill(tp: AbsClosure, base: Value, faces: AbsClosureSystem) = {
+    AbsClosure(i =>
+      gcomp(AbsClosure(j => tp(Formula.And(i, j))),
+        base,
+        faces.view.mapValues(f => AbsClosure(j => f(Formula.And(i, j)))).toMap.updated(Formula.Neg(i), AbsClosure(_ => base)))
+    )
+  }
+
   // from base => com
   def fill(tp: AbsClosure, base: Value, faces: AbsClosureSystem) = {
     AbsClosure(i =>
@@ -1104,6 +1112,8 @@ object Value {
             }
           case g: GlueType =>
             transpGlue(g, dim, phi, base)
+          case Hcomp(Universe(_), b0, faces) =>
+            transpHcompUniverse(b0, faces, dim, phi, base)
           case _: Universe =>
             base
           case _: Internal => logicError()
@@ -1114,6 +1124,64 @@ object Value {
     }
   }
 
+  def transpHcompUniverse(A: Value, es: AbsClosureSystem, dim: Long, si: Formula, u0: Value): Value = {
+    // this mapping is done in hcomp in cubicaltt
+    val A0 = A.fswap(dim, Formula.False)
+    val A1 = A.fswap(dim, Formula.True)
+    val es0 = AbsClosureSystem.fswap(es, dim, Formula.False)
+    val es1 = AbsClosureSystem.fswap(es, dim, Formula.True)
+
+    // this is UnglueU in cubicaltt, the es0 is a system of path lambdas
+    val v0 = Unglue(A0, u0, true, es0.view.mapValues(a => PathLambda(a)).toMap)
+
+    val faces_elim_dim = es.toSeq.map(a => (a._1.elim(dim), a._2)).filter(_._1.normalForm != Formula.NormalForm.False).toMap
+    val t1s = faces_elim_dim.view.mapValues(p => {
+      Transp(AbsClosure(i => p(Formula.True).fswap(dim, i)), si, u0)
+    }).toMap
+    val v1 = gcomp(AbsClosure(i => A.fswap(dim, i)), v0,
+      faces_elim_dim.map((pair: (Formula, AbsClosure)) => {
+        val abs = AbsClosure(i => {
+          transp_inv(Formula.False, pair._2.fswap(dim, i),
+            transpFill(i, si, AbsClosure(i => pair._2(Formula.True).fswap(dim, i)), u0)
+          )
+        })
+        (pair._1, abs)
+      }).updated(si, AbsClosure(_ => v0)))
+    val sys = t1s.updated(si, u0)
+    val fibersys_ = es1.map((pair: (Formula, AbsClosure)) => {
+      val eq = pair._2
+      val b = v1
+      val as = sys
+      val dg = Formula.Generic(dgen())
+      val res = eq(dg).whnf match {
+        case s: Sum if s.noArgs =>
+          // because we know this is non-dependent
+          val p1 = Hcomp(eq(dg), b, as.view.mapValues(a => AbsClosure(_ => a)).toMap)
+          val p2 = hfill(eq(dg), b, as.view.mapValues(a => AbsClosure(_ => a)).toMap)
+          (p1: Value, p2: AbsClosure)
+        case other =>
+          val adwns = as.map((pair: (Formula, Value)) => {
+            (pair._1, AbsClosure(j => transpFill_inv(j, Formula.False, eq, pair._2)))
+          }).toMap
+          val left = gfill(eq, b, adwns)
+          val a = gcomp(eq, b, adwns)
+          val right = AbsClosure(j =>
+            transpFill_inv(j, Formula.False, eq, a)
+          )
+          val p = AbsClosure(i =>
+            gcomp(AbsClosure(a => eq(Formula.Neg(a))), a,
+              adwns.updated(Formula.Neg(i), left).updated(i, right).view.mapValues(v => AbsClosure(j => v(Formula.Neg(j)))).toMap
+            )
+          )
+          (a : Value, p: AbsClosure)
+      }
+      (pair._1, res)
+    }).toMap
+    val t1s_ = fibersys_.view.mapValues(_._1).toMap
+    val v1_ = ghcomp(A1, v1, fibersys_.view.mapValues(_._2).toMap.updated(si, AbsClosure(_ => v1)))
+    Glue(v1_, t1s_)
+  }
+
   def transpGlue(B: GlueType, dim: Long, si: Formula, u0: Value): Value = {
     def B_swap(f: Formula) = B.fswap(dim, f).asInstanceOf[GlueType]
     val B0 = B_swap(Formula.False)
@@ -1122,7 +1190,7 @@ object Value {
     val A1 = B1.ty
     val A0 = B0.ty
     // a0: A(i/0)
-    val a0 = Unglue(A0, u0, B0.faces)
+    val a0 = Unglue(A0, u0, false, B0.faces)
     // defined in phi_elim_i
     def t_tide(trueFace: Value, i: Formula) = {
       transpFill(i, si, AbsClosure(i => {
@@ -1173,8 +1241,8 @@ object Value {
       hfill(Projection(trueFace, 0), u0, faces)
     }
     def t1(trueFace: Value) = t_tide(trueFace)(Formula.True)
-    val a1 = Hcomp(B.ty, Unglue(B.ty, u0, B.faces),
-      faces.view.mapValues(_.map(u => Unglue(B.ty, u, B.faces))).toMap ++
+    val a1 = Hcomp(B.ty, Unglue(B.ty, u0, false, B.faces),
+      faces.view.mapValues(_.map(u => Unglue(B.ty, u, false, B.faces))).toMap ++
       B.faces.view.mapValues(pair => AbsClosure(i => {
         val w = Projection(pair, 1)
         val f = Projection(w, 0)
@@ -1190,7 +1258,7 @@ object Value {
     Hcomp(tp, base, faces.updated(Formula.Neg(Formula.Or(faces.keys)), AbsClosure(base)))
   }
 
-  def comp(z: Int, @stuck_pos tp: AbsClosure, base: Value, faces: AbsClosureSystem) = {
+  def comp(@stuck_pos tp: AbsClosure, base: Value, faces: AbsClosureSystem) = {
     def default() = {
       Hcomp(
         tp(Formula.True),
@@ -1226,7 +1294,7 @@ object Value {
 
   // FIXME when we have a syntax for partial values, these should be removed (or what? because Agda cannot compute the problem?)
   case class Comp(@stuck_pos tp: AbsClosure, base: Value, faces: AbsClosureSystem) extends Redux {
-    override def reduce(): Option[Value] = Some(comp(33, tp, base, faces))
+    override def reduce(): Option[Value] = Some(comp(tp, base, faces))
   }
 
 
@@ -1272,7 +1340,7 @@ object Value {
   }
 
   /**
-    * whnf: tp is whnf and not canonical, or tp is sum, base is whnf
+    * whnf: tp is whnf and not canonical, or tp is sum or u, base is whnf
     */
   case class Hcomp(@type_annotation @stuck_pos tp: Value, base: Value, faces: AbsClosureSystem) extends Redux {
 
@@ -1294,12 +1362,6 @@ object Value {
                Lambda(Closure(v => Hcomp( b(v), App(base, v), faces.view.mapValues(_.map(j => App(j, v))).toMap)))
             case Record(_, _, cs) =>
               Make(hcompGraph(cs, faces, base, (v, i) => Projection(v, i)))
-            case u: Universe =>
-              GlueType(base, faces.view.mapValues({ f =>
-                val A = f(Formula.False)
-                val B = f(Formula.True)
-                Make(Seq(B, Apps(BuiltIn.path_to_equiv, Seq(B, A, PathLambda(AbsClosure(a => f(Formula.Neg(a))))))))
-              }).toMap)
             case s@Sum(i, hit, cs) =>
               if (!hit) {
                 base.whnf match {
@@ -1316,6 +1378,35 @@ object Value {
               } else {
                 null
               }
+            case u: Universe =>
+              null // taken from new cubicaltt, we don't reduce here!
+            case Hcomp(u: Universe, b, es) =>
+              val wts = es.map((pair: (Value.Formula, Value.AbsClosure)) => {
+                val al = pair._1
+                val eal = pair._2
+                val ret = AbsClosure(i =>
+                  transp_inv(Formula.False, eal, hfill(eal( Formula.True), base, faces).apply(i))
+                )
+                (al, ret)
+              })
+              val t1s = es.map((pair: (Value.Formula, Value.AbsClosure)) => {
+                val al = pair._1
+                val eal = pair._2
+                val ret = Hcomp(eal(Formula.True), u, faces)
+                (al, ret)
+              })
+              val esmap = es.view.mapValues(a => PathLambda(a)).toMap
+              val v = Unglue(b, u, true, esmap)
+              val vs = faces.map((pair: (Value.Formula, Value.AbsClosure)) => {
+                val al = pair._1
+                val ual = pair._2
+                val ret = ual.map(v =>
+                  Unglue(b, v, true, esmap)
+                )
+                (al, ret)
+              })
+              val v1 = Hcomp(b, v, vs ++ wts)
+              Glue(v1, t1s)
             case g: GlueType =>
               hcompGlue(g, base, faces)
             case _: Internal => logicError()
@@ -1340,7 +1431,7 @@ object Value {
     *
     * FIXME it seems ty can be considered a type annotation? I am confused
     */
-  case class Unglue(ty: Value, base: Value, @stuck_pos faces: ValueSystem) extends Redux {
+  case class Unglue(ty: Value, base: Value, isU: Boolean, @stuck_pos faces: ValueSystem) extends Redux {
     override def reduce(): Option[Value] = logicError() // in whnf
   }
 
@@ -1435,7 +1526,7 @@ sealed trait Value {
     case Hcomp(tp, base, faces) => tp.supportShallow() ++ base.supportShallow() ++ AbsClosureSystem.supportShallow(faces)
     case GlueType(tp, faces) => tp.supportShallow()++ ValueSystem.supportShallow(faces)
     case Glue(base, faces) => base.supportShallow() ++ ValueSystem.supportShallow(faces)
-    case Unglue(tp, base, faces) => tp.supportShallow() ++ base.supportShallow() ++ ValueSystem.supportShallow(faces)
+    case Unglue(tp, base, iu, faces) => tp.supportShallow() ++ base.supportShallow() ++ ValueSystem.supportShallow(faces)
     case referential: Referential => SupportShallow.empty ++ Set(referential)
     case internal: Internal => logicError()
   }
@@ -1468,7 +1559,7 @@ sealed trait Value {
     case PathApp(left, stuck) => PathApp(left.fswap(w, z), stuck.fswap(w, z))
     case GlueType(base, faces) => GlueType(base.fswap(w, z), ValueSystem.fswap(faces, w, z))
     case Glue(base, faces) => Glue(base.fswap(w, z), ValueSystem.fswap(faces, w, z))
-    case Unglue(tp, base, faces) => Unglue(tp.fswap(w, z), base.fswap(w, z), ValueSystem.fswap(faces, w, z))
+    case Unglue(tp, base, iu, faces) => Unglue(tp.fswap(w, z), base.fswap(w, z), iu, ValueSystem.fswap(faces, w, z))
     case g: Referential => g.getFswap(w, z)
     case _: Internal => logicError()
   }
@@ -1513,8 +1604,8 @@ sealed trait Value {
       GlueType(base.restrict(lv), ValueSystem.restrict(faces, lv))
     case Glue(base, faces) =>
       Glue(base.restrict(lv), ValueSystem.restrict(faces, lv))
-    case Unglue(tp, base, faces) =>
-      Unglue(tp.restrict(lv), base.restrict(lv), ValueSystem.restrict(faces, lv))
+    case Unglue(tp, base, iu, faces) =>
+      Unglue(tp.restrict(lv), base.restrict(lv), iu, ValueSystem.restrict(faces, lv))
     case Derestricted(v, lv0) =>
       if (lv0.subsetOf(lv)) {
         v.restrict(lv -- lv0)
@@ -1663,19 +1754,23 @@ sealed trait Value {
             case None =>
               val bf = base.whnf
               bf match {
-                case Unglue(b, _, _) => b.whnf
+                case Unglue(b, _, _, _) => b.whnf
                 case _ => if (bf.eq(base)) this else Glue(bf, faces)
               }
           }
-        case Unglue(ty, base, faces) =>
-          val red = faces.find(_._1.normalFormTrue).map(b => App(Projection(Projection(b._2, 1), 0), base).whnf)
+        case Unglue(ty, base, iu, faces) =>
+          val red = faces.find(_._1.normalFormTrue).map(b =>
+            if (iu) transp_inv(Formula.False, b._2.whnf.asInstanceOf[PathLambda].body, base).whnf
+            else App(Projection(Projection(b._2, 1), 0), base).whnf)
           red match {
             case Some(a) => a
             case None =>
               val bf = base.whnf
               bf match {
                 case Glue(b, _) => b.whnf
-                case _ => if (bf.eq(base)) this else Unglue(ty, bf, faces)
+                case _ =>
+                  this // FIXME to see what's inside
+                  // if (bf.eq(base)) this else Unglue(ty, bf, iu, faces)
               }
           }
         case _: Internal =>
@@ -1683,8 +1778,8 @@ sealed trait Value {
       }
       if (Value.NORMAL_FORM_MODEL) {
         _whnfCache = candidate
-        candidate
-      } else {
+      }
+      //} else {
         // because some values is shared, it means the solved ones is not created for this whnf, we don't say this
         // is from us
         // TODO these are already defined ones, think more about this
@@ -1696,7 +1791,7 @@ sealed trait Value {
           }
         }
         candidate
-      }
+      //}
     } else {
       cached
     }
@@ -1754,7 +1849,7 @@ sealed trait Value {
       case h: Comp => h.tp(Formula.True)
       case GlueType(ty, pos) =>
         ty.infer // FIXME NOW this seems wrong, what if we annotate the level? generally we want to make sure this is working as intent
-      case Unglue(ty, _, _) => ty
+      case Unglue(ty, _, _, _) => ty
       case _ => logicError()
     }
   }
@@ -1778,5 +1873,4 @@ object BuiltIn {
   var equiv: Value = null
   var fiber_at: Value = null
   var equiv_of: Value = null
-  var path_to_equiv: Value = null
 }

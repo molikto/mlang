@@ -369,16 +369,33 @@ trait ValueConversion {
         } else {
           unifyFailed()
         }
-      case (Unglue(t1, b1, f1), Unglue(t2, b2, f2)) =>
+      case (Unglue(t1, b1, u1, f1), Unglue(t2, b2, u2, f2)) =>
         if (debug.enabled) { // here because we know they are of same type
           if (!recType(t1, t2)) {
             logicError()
           }
-          if (!recGlueFaces(t1, f1, f2)) {
-            logicError()
-          }
         }
-        recNeutral(b1, b2).map(_ => t1)
+        if (u1 == u2) {
+          if (u1) {
+            val g = Formula.Generic(dgen())
+            if (forCompatibleAssignments(f1, f2) { (a, b1, b2) =>
+              recType(PathApp(b1.restrict(a), g), PathApp(b2.restrict(a), g))
+            }) {
+              Some(t1)
+            } else {
+              unifyFailed()
+            }
+          } else {
+            if (recGlueFaces(t1, f1, f2)) {
+
+              recNeutral(b1, b2).map(_ => t1)
+            } else {
+              unifyFailed()
+            }
+          }
+        } else {
+          unifyFailed()
+        }
       // FIXME(META) solve meta headed?
       //      case (SolvableMetaForm(m1, o1, gs1), SolvableMetaForm(m2, o2, gs2)) if o1.id == o2.id =>
       //        if (gs1.size == gs2.size) {
@@ -471,7 +488,7 @@ trait ValueConversion {
           def deunglue(a: Value): Value = a match {
             case g: Glue =>
               g.m.whnf match {
-                case Unglue(_, base, _) => deunglue(base.whnf)
+                case Unglue(_, base, _, _) => deunglue(base.whnf)
                 case _ => a
               }
             case _ => g
