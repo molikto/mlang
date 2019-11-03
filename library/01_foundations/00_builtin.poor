@@ -24,32 +24,32 @@ define equiv_of(A: type): type = record {
 }
 
 // adapted from cubical agda
-// define path_to_equiv(#A #B: type, E: A ≡ B): equiv(A, B) = run {
-//   define Ei: B ≡ A = i → E(~i)
-//   define f(x: A): B = transp(E, 0, x)
-//   define g(y: B): A = transp(i → E(~i), 0, y)
-//   define u(x: A, i: I): E(i) = transp(j → E(i∧j), ~i, x)
-//   define v(y: B, i: I): E(i) = transp(j → Ei((~i)∧j), i, y)
-//   define fiber_path(y: B, fib0 fib1: fiber_at(f, y)): fib0 ≡ fib1 = k → run {
-//     define t(fib: fiber_at(f, y), j: I) = fill(Ei, fib.path(~j) |~j: i → v(y, ~i) |j: i → u(fib.from, ~i))
-//     define t0 = t(fib0)
-//     define t1 = t(fib1)
-//     define tt = hfill(g(y) |~k: j → t0(j, 1) |k: j → t1(j, 1))
-//     define w = tt(1)
-//     define dt(j: I) = comp(E, tt(j) |~j: v(y) |~k: i → t0(j, ~i) | j: u(w) | k: i → t1(j, ~i))
-//     fiber_at(f, y).make(w, j → dt(~j))
-//   }
-//   define yy(y: B): y ≡ f(g(y)) = j → comp(E, g(y) |~j: v(y) |j: u(g(y)))
-//
-//   define equ(y: B): is_contr(fiber_at(f, y)) = run {
-//     define center: fiber_at(f, y) = make(g(y), k → yy(y, ~k))
-//     make(center, fiber_path(y, center))
-//   }
-//   make(f, equ)
-// }
-//
-//
-//
+define path_to_equiv(#A #B: type, E: A ≡ B): equiv(A, B) = run {
+  define Ei: B ≡ A = i → E(~i)
+  define f(x: A): B = transp(E, 0, x)
+  define g(y: B): A = transp(i → E(~i), 0, y)
+  define u(x: A, i: I): E(i) = transp(j → E(i∧j), ~i, x)
+  define v(y: B, i: I): E(i) = transp(j → Ei((~i)∧j), i, y)
+  define fiber_path(y: B, fib0 fib1: fiber_at(f, y)): fib0 ≡ fib1 = k → run {
+    define t(fib: fiber_at(f, y), j: I) = fill(Ei, fib.path(~j) |~j: i → v(y, ~i) |j: i → u(fib.from, ~i))
+    define t0 = t(fib0)
+    define t1 = t(fib1)
+    define tt = hfill(g(y) |~k: j → t0(j, 1) |k: j → t1(j, 1))
+    define w = tt(1)
+    define dt(j: I) = comp(E, tt(j) |~j: v(y) |~k: i → t0(j, ~i) | j: u(w) | k: i → t1(j, ~i))
+    fiber_at(f, y).make(w, j → dt(~j))
+  }
+  define yy(y: B): y ≡ f(g(y)) = j → comp(E, g(y) |~j: v(y) |j: u(g(y)))
+
+  define equ(y: B): is_contr(fiber_at(f, y)) = run {
+    define center: fiber_at(f, y) = make(g(y), k → yy(y, ~k))
+    make(center, fiber_path(y, center))
+  }
+  make(f, equ)
+}
+
+
+
 
 
 

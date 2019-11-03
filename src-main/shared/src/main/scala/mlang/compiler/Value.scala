@@ -1138,7 +1138,7 @@ object Value {
     val t1s = faces_elim_dim.view.mapValues(p => {
       Transp(AbsClosure(i => p(Formula.True).fswap(dim, i)), si, u0)
     }).toMap
-    val v1 = gcomp(AbsClosure(i => A.fswap(dim, i)), v0,
+    val v1 = comp(AbsClosure(i => A.fswap(dim, i)), v0,
       faces_elim_dim.map((pair: (Formula, AbsClosure)) => {
         val abs = AbsClosure(i => {
           transp_inv(Formula.False, pair._2.fswap(dim, i),
@@ -1163,13 +1163,13 @@ object Value {
           val adwns = as.map((pair: (Formula, Value)) => {
             (pair._1, AbsClosure(j => transpFill_inv(j, Formula.False, eq, pair._2)))
           }).toMap
-          val left = gfill(eq, b, adwns)
-          val a = gcomp(eq, b, adwns)
+          val left = fill(eq, b, adwns)
+          val a = comp(eq, b, adwns)
           val right = AbsClosure(j =>
             transpFill_inv(j, Formula.False, eq, a)
           )
           val p = AbsClosure(i =>
-            gcomp(AbsClosure(a => eq(Formula.Neg(a))), a,
+            comp(AbsClosure(a => eq(Formula.Neg(a))), a,
               adwns.updated(Formula.Neg(i), left).updated(i, right).view.mapValues(v => AbsClosure(j => v(Formula.Neg(j)))).toMap
             )
           )
@@ -1178,7 +1178,7 @@ object Value {
       (pair._1, res)
     }).toMap
     val t1s_ = fibersys_.view.mapValues(_._1).toMap
-    val v1_ = ghcomp(A1, v1, fibersys_.view.mapValues(_._2).toMap.updated(si, AbsClosure(_ => v1)))
+    val v1_ = Hcomp(A1, v1, fibersys_.view.mapValues(_._2).toMap.updated(si, AbsClosure(_ => v1)))
     Glue(v1_, t1s_)
   }
 
@@ -1753,10 +1753,7 @@ sealed trait Value {
             case Some(a) => a
             case None =>
               val bf = base.whnf
-              bf match {
-                case Unglue(b, _, _, _) => b.whnf
-                case _ => if (bf.eq(base)) this else Glue(bf, faces)
-              }
+              if (bf.eq(base)) this else Glue(bf, faces)
           }
         case Unglue(ty, base, iu, faces) =>
           val red = faces.find(_._1.normalFormTrue).map(b =>
