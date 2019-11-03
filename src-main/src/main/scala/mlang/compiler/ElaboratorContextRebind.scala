@@ -36,15 +36,15 @@ trait ElaboratorContextRebind extends ElaboratorContextBase {
   }
 
 
-  def rebindFormula(a: Value.Formula): Abstract.Formula = {
+  def rebindFormula(a: semantic.Formula): Abstract.Formula = {
     a match {
-      case Value.Formula.Generic(stuck) =>
+      case semantic.Formula.Generic(stuck) =>
         rebindDimension(stuck)
-      case Value.Formula.True => Abstract.Formula.True
-      case Value.Formula.False => Abstract.Formula.False
-      case Value.Formula.And(a, b) => Abstract.Formula.And(rebindFormula(a), rebindFormula(b))
-      case Value.Formula.Or(a, b) => Abstract.Formula.Or(rebindFormula(a), rebindFormula(b))
-      case Value.Formula.Neg(a) => Abstract.Formula.Neg(rebindFormula(a))
+      case semantic.Formula.True => Abstract.Formula.True
+      case semantic.Formula.False => Abstract.Formula.False
+      case semantic.Formula.And(a, b) => Abstract.Formula.And(rebindFormula(a), rebindFormula(b))
+      case semantic.Formula.Or(a, b) => Abstract.Formula.Or(rebindFormula(a), rebindFormula(b))
+      case semantic.Formula.Neg(a) => Abstract.Formula.Neg(rebindFormula(a))
     }
   }
 
@@ -82,7 +82,7 @@ trait ElaboratorContextRebind extends ElaboratorContextBase {
     rebindGeneric0(o) != null
   }
 
-  def containsGeneric(o: Value.Formula.Generic): Boolean = {
+  def containsGeneric(o: semantic.Formula.Generic): Boolean = {
     rebindDimension(o.id) != null
   }
 

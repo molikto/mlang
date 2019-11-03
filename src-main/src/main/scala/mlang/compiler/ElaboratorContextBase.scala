@@ -41,7 +41,7 @@ case class ParameterBinder(name: Name, value: Value.Generic) extends Binder {
   def typ: Value= value.typ
 }
 
-case class DimensionBinder(name: Name, value: Value.Formula.Generic) extends Binder {
+case class DimensionBinder(name: Name, value: semantic.Formula.Generic) extends Binder {
   def id: Long = value.id
 }
 
@@ -102,7 +102,7 @@ object Layer {
   }
 
   // no meta should be resolved here
-  case class Restriction(id: Long, res: Value.Formula.Assignments, metas: MetasState) extends Layer
+  case class Restriction(id: Long, res: semantic.Formula.Assignments, metas: MetasState) extends Layer
   case class ReifierRestriction(metas: MetasState) extends Layer
 }
 
@@ -124,17 +124,17 @@ trait ElaboratorContextBase {
     v.restrict(asg)
   }
 
-  protected def getRestricted(v: Value.Formula, level: Int): Value.Formula = {
+  protected def getRestricted(v: semantic.Formula, level: Int): semantic.Formula = {
     val asg = getAllRestrictions(v.names, level)
     v.restrict(asg)
   }
 
   // these are just to be sure we got correct value out when reify
-  @inline protected def getAllRestrictions(support: => Set[Long], level: Int): Value.Formula.Assignments = {
+  @inline protected def getAllRestrictions(support: => Set[Long], level: Int): semantic.Formula.Assignments = {
     val rs = layers.take(level).flatMap {
       case r: Layer.Restriction =>
         r.res
-      case _ => Set.empty[Value.Formula.Assignment]
+      case _ => Set.empty[semantic.Formula.Assignment]
     }.toSet
     if (rs.isEmpty) {
       rs

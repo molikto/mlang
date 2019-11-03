@@ -8,5 +8,5 @@ trait EvaluatorContext {
   // get value directly without resolving faces
   def getReference(depth: Int, index: Int): Value
 
-  def getDimension(depth: Int, index: Int): Value.Formula
+  def getDimension(depth: Int, index: Int): semantic.Formula
 }

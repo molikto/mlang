@@ -28,14 +28,14 @@ trait Evaluator extends EvaluatorContext {
     }
   }
 
-  protected def eval(a: Abstract.Formula): Value.Formula = {
+  protected def eval(a: Abstract.Formula): semantic.Formula = {
     a match {
       case Formula.Reference(up, index) => getDimension(up, index)
-      case Formula.True => Value.Formula.True
-      case Formula.False => Value.Formula.False
-      case Formula.And(left, right) => Value.Formula.And(eval(left), eval(right))
-      case Formula.Or(left, right) => Value.Formula.Or(eval(left), eval(right))
-      case Formula.Neg(unit) => Value.Formula.Neg(eval(unit))
+      case Formula.True => semantic.Formula.True
+      case Formula.False => semantic.Formula.False
+      case Formula.And(left, right) => semantic.Formula.And(eval(left), eval(right))
+      case Formula.Or(left, right) => semantic.Formula.Or(eval(left), eval(right))
+      case Formula.Neg(unit) => semantic.Formula.Neg(eval(unit))
     }
   }
 

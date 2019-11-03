@@ -1,6 +1,6 @@
 package mlang.compiler
 
-import mlang.compiler.Value.Formula.Assignments
+import mlang.compiler.semantic.Formula.Assignments
 import mlang.compiler.Value.SupportShallow
 import mlang.utils._
 
@@ -33,7 +33,7 @@ object ObjRestrict extends ObjWorker {
       o match {
         case v: Value =>
           ns = ns ++ v.supportShallow()
-        case f: Value.Formula =>
+        case f: semantic.Formula =>
           ns = ns +- f.names
         case p: Pattern =>
         case a =>
@@ -64,7 +64,7 @@ object ObjRestrict extends ObjWorker {
           val r = v.restrict(v2)
           ns(i) = r
           if (!v.eq(r)) changed = true
-        case f: Value.Formula =>
+        case f: semantic.Formula =>
           val r = f.restrict(v2)
           ns(i) = r
           if (!f.eq(r)) changed = true
@@ -330,7 +330,7 @@ trait PlatformEvaluator extends Evaluator {
     s"vs$i"
   }
 
-  protected def tunnel(v: Value.Formula): String = {
+  protected def tunnel(v: semantic.Formula): String = {
     tunnel(v, "Formula")
   }
 

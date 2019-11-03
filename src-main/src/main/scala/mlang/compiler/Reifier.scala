@@ -86,7 +86,7 @@ private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorCon
   def mkContext(size: (Int, Int)) = {
     var ctx = newParametersLayer().asInstanceOf[ReifierContext]
     var vs = mutable.ArrayBuffer[Value]()
-    val ds = mutable.ArrayBuffer[Value.Formula]()
+    val ds = mutable.ArrayBuffer[semantic.Formula]()
     for (_ <- 0 until size._1) {
       val (ctx0, v) = ctx.newParameter(Name.empty, null)
       ctx = ctx0
@@ -184,7 +184,7 @@ private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorCon
     }
   }
 
-  def reify(a: Value.Formula): Abstract.Formula = {
+  def reify(a: semantic.Formula): Abstract.Formula = {
     rebindFormula(a)
   }
 }

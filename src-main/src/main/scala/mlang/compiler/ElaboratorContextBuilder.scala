@@ -31,23 +31,23 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
 
   def drop(up: Int): Self = create(layers.drop(up))
 
-  def newSyntaxDirectedRestrictionLayer(pair: Value.Formula.Assignments): Self = {
+  def newSyntaxDirectedRestrictionLayer(pair: semantic.Formula.Assignments): Self = {
     debug(s"new syntax directed layer $pair")
     Layer.Restriction(0, pair, createMetas()) +: layers
   }
 
-  def newReifierRestrictionLayer(pair: Value.Formula): Self = {
+  def newReifierRestrictionLayer(pair: semantic.Formula): Self = {
     Layer.ReifierRestriction(createMetas()) +: layers
   }
 
-  def newDimensionLayer(n: Name, dimension: Value.Formula.Generic): Self = {
+  def newDimensionLayer(n: Name, dimension: semantic.Formula.Generic): Self = {
     val l = Layer.Dimension(DimensionBinder(n, dimension), createMetas())
     val ctx: Self = l +: layers
     ctx
   }
 
-  def newDimensionLayer(n: Name): (Self, Value.Formula.Generic) = {
-    val v = Value.Formula.Generic(dgen())
+  def newDimensionLayer(n: Name): (Self, semantic.Formula.Generic) = {
+    val v = semantic.Formula.Generic(dgen())
     val l = Layer.Dimension(DimensionBinder(n, v), createMetas())
     val ctx: Self = l +: layers
     (ctx, v)
@@ -166,13 +166,13 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
     }
   }
 
-  def newDimension(name: Name): (Self, Value.Formula.Generic) = {
+  def newDimension(name: Name): (Self, semantic.Formula.Generic) = {
     layers.head match {
       case Layer.ParameterGraph(alters, binders, ds, metas) =>
         binders.find(_.name.intersect(name)) match {
           case Some(_) => logicError()
           case _ =>
-            val v = Value.Formula.Generic(dgen())
+            val v = semantic.Formula.Generic(dgen())
             assert(metas.debug_allFrozen)
 
             (Layer.ParameterGraph(alters, binders, ds :+ DimensionBinder(name, v), metas) +: layers.tail, v)
@@ -246,7 +246,7 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
                     throw PatternExtractException.NonAtomicPatternForDimension()
                   }
                   val names = dPs.map(_.asInstanceOf[Concrete.Pattern.Atom].id)
-                  val ds = names.map(n => DimensionBinder(n, Value.Formula.Generic(dgen())))
+                  val ds = names.map(n => DimensionBinder(n, semantic.Formula.Generic(dgen())))
                   vvv.appendAll(ds)
                   val vvs = vs.map(_._1)
                    val dds = ds.map(_.value)

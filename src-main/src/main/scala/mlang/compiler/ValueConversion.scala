@@ -2,6 +2,7 @@ package mlang.compiler
 
 import mlang.compiler.GenLong.Negative.{dgen, gen}
 import mlang.compiler.Value._
+import mlang.compiler.semantic._
 import mlang.utils.{Benchmark, Name, debug}
 
 import scala.collection.mutable
@@ -35,7 +36,7 @@ object SolvableMetaForm {
 
 
 object ValueConversion {
-  type MetaSpine = Seq[Either[Value.Generic, Value.Formula.Generic]]
+  type MetaSpine = Seq[Either[Value.Generic, Formula.Generic]]
 }
 trait ValueConversion {
   protected def unifyTerm(typ: Value, t1: Value, t2: Value): Boolean = {
@@ -87,10 +88,10 @@ trait ValueConversion {
         if (n1.dimSize == 0) {
           true
         } else {
-          val ds = (0 until n1.dimSize).map(_ => Value.Formula.Generic(dgen()))
+          val ds = (0 until n1.dimSize).map(_ => Formula.Generic(dgen()))
           g1 = g1.reduce(ds)
           g2 = g2.reduce(ds)
-          val phiEq = Value.Formula.Or(g1.phi()).normalForm == Value.Formula.Or(g2.phi()).normalForm
+          val phiEq = Formula.Or(g1.phi()).normalForm == Formula.Or(g2.phi()).normalForm
           if (phiEq) {
             recValueSystem(selfValue, g1.restrictions(), g2.restrictions())
           } else {
@@ -364,8 +365,8 @@ trait ValueConversion {
         }
         if (res) Some(t1) else unifyFailed()
       case (Transp(t1, d1, b1), Transp(t2, d2, b2)) =>
-        if (d1.normalForm == d2.normalForm && recTypeAbsClosure(t1, t2) && recTerm(t1(Value.Formula.False), b1, b2)) {
-          Some(t1(Value.Formula.True))
+        if (d1.normalForm == d2.normalForm && recTypeAbsClosure(t1, t2) && recTerm(t1(Formula.False), b1, b2)) {
+          Some(t1(Formula.True))
         } else {
           unifyFailed()
         }

@@ -60,9 +60,9 @@ class Elaborator private(protected override val layers: Layers)
   override type Self = Elaborator
   override protected implicit def create(a: Layers): Self = new Elaborator(a)
 
-  private def doForValidFormulaOrThrow[T](f: Value.Formula, a: Value.Formula.Assignments => T): T = {
+  private def doForValidFormulaOrThrow[T](f: semantic.Formula, a: semantic.Formula.Assignments => T): T = {
     val davn = f.normalForm
-    val valid = davn.filter(Value.Formula.Assignments.satisfiable)
+    val valid = davn.filter(semantic.Formula.Assignments.satisfiable)
     if (valid.isEmpty) {
       throw ElaboratorException.RemoveStaticFalseOrUnsatisfiableFace()
     } else {
@@ -76,8 +76,8 @@ class Elaborator private(protected override val layers: Layers)
                                   bt: Value.AbsClosure,
                                   bv: Value
   ): Abstract.AbsClosureSystem = {
-    import Value.Formula
-    val nfs = mutable.ArrayBuffer.empty[Value.Formula.Assignments]
+    import semantic.Formula
+    val nfs = mutable.ArrayBuffer.empty[semantic.Formula.Assignments]
     val tms = mutable.ArrayBuffer.empty[Value]
     faces.indices.map { i =>
       val a = faces(i)
@@ -99,7 +99,7 @@ class Elaborator private(protected override val layers: Layers)
           // this might evaluate the dimensions to new values
           val dfv = asgn1 ++ asgn0
           // only used to test if this restriction is false face or not
-          if (Value.Formula.Assignments.satisfiable(dfv)) {
+          if (semantic.Formula.Assignments.satisfiable(dfv)) {
             val ctx0 = newSyntaxDirectedRestrictionLayer(dfv)
             val (ctx1, dim) = ctx0.newDimensionLayer(Name.empty)
             if (!ctx1.unifyTerm(
@@ -116,7 +116,7 @@ class Elaborator private(protected override val layers: Layers)
   }
 
 
-  private def checkLine(a: Concrete, typ: Value.AbsClosure): (Value.Formula.Generic, Abstract.AbsClosure) = {
+  private def checkLine(a: Concrete, typ: Value.AbsClosure): (semantic.Formula.Generic, Abstract.AbsClosure) = {
     a match {
       case Concrete.Lambda(n, b, _, body) =>
         if (b) throw ElaboratorException.DimensionLambdaCannotBeImplicit()
@@ -378,20 +378,20 @@ class Elaborator private(protected override val layers: Layers)
         val (tv, ta) = checkTypeLine(tp)
         val cl = eval(ta)
         val (ctx, dim) = newDimensionLayer(Name.empty)
-        val constant = dv.normalForm.filter(a => Value.Formula.Assignments.satisfiable(a)).forall(asg => {
-          ctx.newSyntaxDirectedRestrictionLayer(asg).unifyTerm(Value.Universe(tv), cl(dim).restrict(asg), cl(Value.Formula.False).restrict(asg))
+        val constant = dv.normalForm.filter(a => semantic.Formula.Assignments.satisfiable(a)).forall(asg => {
+          ctx.newSyntaxDirectedRestrictionLayer(asg).unifyTerm(Value.Universe(tv), cl(dim).restrict(asg), cl(semantic.Formula.False).restrict(asg))
         })
         if (!constant) {
           throw ElaboratorException.TranspShouldBeConstantOn()
         }
-        val ba = check(base, cl(Value.Formula.False))
-        (cl(Value.Formula.True), Abstract.Transp(ta, da, ba))
+        val ba = check(base, cl(semantic.Formula.False))
+        (cl(semantic.Formula.True), Abstract.Transp(ta, da, ba))
       case Concrete.Comp(tp, base, faces) =>
         val (_, ta) = checkTypeLine(tp)
         val cl = eval(ta)
-        val ba = check(base, cl(Value.Formula.False))
+        val ba = check(base, cl(semantic.Formula.False))
         val rs = checkCompatibleCapAndFaces(faces, cl, eval(ba))
-        (cl(Value.Formula.True), Abstract.Comp(ta, ba, rs))
+        (cl(semantic.Formula.True), Abstract.Comp(ta, ba, rs))
       case Concrete.Hcomp(base, faces) =>
         val (bt, ba) = infer(base)
         val bv = eval(ba)
@@ -404,8 +404,8 @@ class Elaborator private(protected override val layers: Layers)
           case Some(tp) =>
             val (tl, ca) = checkTypeLine(tp)
             val tv = eval(ca)
-            val la = check(left, tv(Value.Formula.False))
-            val ra = check(right, tv(Value.Formula.True))
+            val la = check(left, tv(semantic.Formula.False))
+            val ra = check(right, tv(semantic.Formula.True))
             (Value.Universe(tl), Abstract.PathType(ca, la, ra))
           case None =>
             // FIXME(META) instead of inferring two side, infer one side then check another; or if we have meta with levels... can we just write a max level? it seems not that easy... because you run into the same kind of problems
@@ -490,7 +490,7 @@ class Elaborator private(protected override val layers: Layers)
     res
   }
 
-  private def checkAndEvalFormula(r: Concrete): (Value.Formula, Abstract.Formula) = {
+  private def checkAndEvalFormula(r: Concrete): (semantic.Formula, Abstract.Formula) = {
     val a = checkFormula(r)
     (eval(a), a)
   }
@@ -546,8 +546,8 @@ class Elaborator private(protected override val layers: Layers)
             val ms = ctx.finishReify()
             val cloa = Abstract.AbsClosure(ms, va)
             val clov = eval(cloa)
-            val left = clov(Value.Formula.False)
-            val right = clov(Value.Formula.True)
+            val left = clov(semantic.Formula.False)
+            val right = clov(semantic.Formula.True)
             (Abstract.PathType(Abstract.AbsClosure(ms, ta), reify(left.bestReifyValue), reify(right.bestReifyValue)), Abstract.PathLambda(cloa))
           case _ =>
             val (_, da) = inferLevel(head._3)
@@ -729,17 +729,17 @@ class Elaborator private(protected override val layers: Layers)
               case Concrete.Glue(base, fs) =>
                 val ba = check(base, ty)
                 val bv = eval(ba)
-                val phi1 = Value.Formula.phi(faces.keys)
+                val phi1 = semantic.Formula.phi(faces.keys)
                 val ffs = fs.map(a => { val (f1, f2) = checkAndEvalFormula(a.dimension); (f1, f2, a.term) })
-                val phi2 =  Value.Formula.phi(ffs.map(_._1))
+                val phi2 =  semantic.Formula.phi(ffs.map(_._1))
                 if (phi1 == phi2) {
                   val fas = ffs.map(f => {
                     val body = doForValidFormulaOrThrow(f._1, asgn => {
                       val terms = mutable.Set.empty[Abstract.MetaEnclosed]
                       for (tf <- faces) {
-                        tf._1.normalForm.filter(Value.Formula.Assignments.satisfiable).foreach(asgn2 => {
+                        tf._1.normalForm.filter(semantic.Formula.Assignments.satisfiable).foreach(asgn2 => {
                           val asg = asgn ++ asgn2
-                          if (Value.Formula.Assignments.satisfiable(asg)) {
+                          if (semantic.Formula.Assignments.satisfiable(asg)) {
                             val ctx = newSyntaxDirectedRestrictionLayer(asg).newDimensionLayer(Name.empty)._1
                             val bd1 = tf._2.restrict(asg)
                             val res = ctx.check(f._3, Value.Projection(bd1, 0))
@@ -771,7 +771,7 @@ class Elaborator private(protected override val layers: Layers)
                 if (b) throw ElaboratorException.DimensionLambdaCannotBeImplicit()
                 val (c1, dv) = newDimensionLayer(n.nonEmptyOrElse(hint))
                 val t1 = typ(dv)
-                import Value.Formula._
+                import semantic.Formula._
                 val a1 = c1.check(body, t1, tail)
                 val ps = Abstract.AbsClosure(c1.finishReify(), a1)
                 info("path body:"); print(Abstract.PathLambda(ps))
@@ -1006,7 +1006,7 @@ class Elaborator private(protected override val layers: Layers)
           val k = debugNv(v.value.whnf)
           k match {
             case lambda: Value.PathLambda =>
-              val j = debugNv(lambda.body(Value.Formula.Generic(2131)))
+              val j = debugNv(lambda.body(semantic.Formula.Generic(2131)))
               printRes("LAMBDA", j)
             case _ =>
               printRes("", k)
@@ -1064,7 +1064,7 @@ class Elaborator private(protected override val layers: Layers)
 
 
   // debug metthods
-  def loopType(a: Value.AbsClosure): Value = loopBase(a(Value.Formula.Generic(-Random.nextLong(Long.MaxValue / 2))))
+  def loopType(a: Value.AbsClosure): Value = loopBase(a(semantic.Formula.Generic(-Random.nextLong(Long.MaxValue / 2))))
   def loopBase(k: Value): Value = {
     k.whnf match {
       case h: Value.Hcomp =>
@@ -1087,7 +1087,7 @@ class Elaborator private(protected override val layers: Layers)
             loopBase(h.tp)
         }
       case t: Value.Transp =>
-        t.tp(Value.Formula.Generic(-Random.nextLong(Long.MaxValue / 2))).whnf match {
+        t.tp(semantic.Formula.Generic(-Random.nextLong(Long.MaxValue / 2))).whnf match {
           case _: Value.Sum =>
             loopBase(t.base)
           case a: Value.Function =>
@@ -1133,7 +1133,7 @@ class Elaborator private(protected override val layers: Layers)
         k
       case Value.PatternRedux(a, b) =>
         b.whnf match {
-          case h: Hcomp =>
+          case h: Value.Hcomp =>
             h
           case a: Value.Construct =>
             a

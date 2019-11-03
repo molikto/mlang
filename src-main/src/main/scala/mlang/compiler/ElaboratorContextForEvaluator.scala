@@ -33,7 +33,7 @@ trait ElaboratorContextForEvaluator extends EvaluatorContext with ElaboratorCont
   }, depth)
 
 
-  def getDimension(depth: Int, index: Int): Value.Formula =
+  def getDimension(depth: Int, index: Int): semantic.Formula =
     getRestricted(layers(depth) match {
       case ps: Layer.Parameters if index >= 0 =>
         ps.dimensionBinders(index).value

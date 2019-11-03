@@ -1,7 +1,8 @@
 package mlang.compiler
 
 import mlang.compiler.GenLong.Negative.{dgen, gen}
-import mlang.compiler.Value.Formula.{Assignments, NormalForm}
+import mlang.compiler.semantic.Formula.{Assignments, NormalForm}
+import mlang.compiler.semantic._
 import mlang.compiler.Value.{AbsClosure, AbsMultiClosureSystem, _}
 import mlang.utils.{Name, debug, warn}
 
@@ -14,6 +15,7 @@ private[compiler] class nominal_equality extends Annotation
 
 case class ImplementationLimitationCannotRestrictOpenMeta() extends Exception
 
+def (f: Formula) supportShallow(): Value.SupportShallow = Value.SupportShallow(f.names, Set.empty)
 
 trait ObjWorker {
   def supportShallow(func: AnyRef): Value.SupportShallow
@@ -25,167 +27,11 @@ object Value {
 
   var RESTRICT_OBJ: ObjWorker = null
 
-  sealed trait Formula {
-
-
-    import Formula.{And, Assignments, False, Neg, NormalForm, Or, True}
-
-    def supportShallow(): SupportShallow = SupportShallow(names, Set.empty)
-
-    def names: Set[Long] = {
-      this match {
-        case Formula.Generic(id) => if (id != 0) Set(id) else Set.empty // 0 is only used as a hack
-        case Formula.True => Set.empty
-        case Formula.False => Set.empty
-        case And(left, right) => left.names ++ right.names
-        case Or(left, right) => left.names ++ right.names
-        case Neg(unit) => unit.names
-      }
-    }
-
-    def normalFormTrue = normalForm == NormalForm.True
-
-    def satisfiable: Boolean = NormalForm.satisfiable(normalForm)
-
-    def normalForm: NormalForm  = {
-      def merge(a: NormalForm, b: NormalForm): NormalForm = {
-        def properSupersetOfAny(c: Assignments, g: NormalForm) = g.exists(g => g.subsetOf(c) && g != c)
-        a.filter(c => !properSupersetOfAny(c, b)) ++ b.filter(c => !properSupersetOfAny(c, a))
-      }
-      this match {
-        case True => NormalForm.True
-        case False => NormalForm.False
-        case Formula.Generic(id) => Set(Set((id, true)))
-        case And(left, right) =>
-          val ln = left.normalForm.toSeq
-          val rn = right.normalForm.toSeq
-          ln.flatMap(i => rn.map(r => Set(i ++ r) : NormalForm)).foldLeft(NormalForm.False) { (a, b) => merge(a, b) }
-        case Or(left, right) => merge(left.normalForm, right.normalForm)
-        case Neg(unit) =>
-          def negate(f: Formula): Formula = f match {
-            case g: Formula.Generic => Neg(g)
-            case And(left, right) => Or(negate(left), negate(right))
-            case Or(left, right) => And(negate(left), negate(right))
-            case Neg(u2) => u2
-            case True => False
-            case False => True
-          }
-          unit match {
-            case Formula.Generic(id) => Set(Set((id, false)))
-            case r => negate(r).normalForm
-          }
-      }
-    }
-
-    def fswap(w: Long, z: Formula): Formula = (this match {
-      case g:Formula.Generic => if (g.id == w) z else g
-      case Formula.True => Formula.True
-      case Formula.False => Formula.False
-      case And(left, right) => And(left.fswap(w, z), right.fswap(w, z))
-      case Or(left, right) => Or(left.fswap(w, z), right.fswap(w, z))
-      case Neg(unit) => Neg(unit.fswap(w, z))
-    }).simplify
-
-    def restrict(lv: Value.Formula.Assignments): Formula = if (lv.isEmpty) this else {
-      val ret = this match {
-        case g:Formula.Generic => g.assign(lv)
-        case Formula.True => Formula.True
-        case Formula.False => Formula.False
-        case And(left, right) => And(left.restrict(lv), right.restrict(lv))
-        case Or(left, right) => Or(left.restrict(lv), right.restrict(lv))
-        case Neg(unit) => Neg(unit.restrict(lv))
-      }
-      ret.simplify
-    }
-
-    def simplify : Formula = this match {
-      case g:Formula.Generic => g
-      case Formula.True => Formula.True
-      case Formula.False => Formula.False
-      case And(left, right) =>
-        val l = left.simplify
-        val r = right.simplify
-        if (l == Formula.True) {
-          r
-        } else if (r == Formula.True) {
-          l
-        } else if (l == Formula.False || r == Formula.False) {
-          Formula.False
-        } else {
-          And(l, r)
-        }
-      case Or(left, right) =>
-        val l = left.simplify
-        val r = right.simplify
-        if (l == Formula.False) {
-          r
-        } else if (r == Formula.False) {
-          l
-        } else if (l == Formula.True || r == Formula.True) {
-          Formula.True
-        } else {
-          Or(l, r)
-        }
-      case Neg(unit) => unit.simplify match {
-        case Formula.False => Formula.True
-        case Formula.True => Formula.False
-        case Formula.Neg(c) => c
-        case a => Neg(a)
-      }
-    }
-
-    def elim(i: Long): Formula = Formula(NormalForm.elim(normalForm, i))
-  }
-
-  object Formula {
-    def apply(nf: NormalForm): Formula = {
-      val ret = nf.foldLeft(Formula.False : Formula) {(f, z) =>
-        Formula.Or(f, z.foldLeft(Formula.True : Formula) { (t, y) => Formula.And(t, if (y._2) Formula.Generic(y._1) else Formula.Neg(Formula.Generic(y._1)))})}
-      ret.simplify
-    }
-
-
-    def phi(se: Iterable[Formula]) = se.flatMap(_.normalForm).toSet
-    type Assignment = (Long, Boolean)
-    type Assignments = Set[Assignment]
-    object Assignments {
-      def satisfiable(rs: Assignments): Boolean = rs.map(_._1).size == rs.size
-    }
-    type NormalForm = Set[Assignments]
-    object NormalForm {
-      def elim(nf: NormalForm, value: Long) = nf.filter(!_.exists(_._1 == value))
-
-      def satisfiable(_2: NormalForm): Boolean = _2.exists(Assignments.satisfiable)
-
-      val True: NormalForm = Set(Set.empty)
-      val False: NormalForm = Set.empty
-    }
-    case class Generic(id: Long) extends Formula {
-      def assign(asgs: Assignments): Formula = asgs.find(_._1 == id) match {
-        case Some(a) => if (a._2) True else False
-        case None => this
-      }
-    }
-    object True extends Formula
-    object False extends Formula
-    case class And(left: Formula, right: Formula) extends Formula
-    object Or {
-      def apply(fs: Iterable[Formula]): Formula = {
-        fs.foldLeft(Formula.False: Formula) {
-          (f, a) => Or(f, a)
-        }
-      }
-    }
-    case class Or(left: Formula, right: Formula) extends Formula
-    case class Neg(unit: Formula) extends Formula
-  }
-
-
-  implicit class MultiClosure(private val func: (Seq[Value], Seq[Value.Formula]) => Value) extends AnyVal {
+  implicit class MultiClosure(private val func: (Seq[Value], Seq[Formula]) => Value) extends AnyVal {
     def eq(b: MultiClosure): Boolean = func.eq(b.func)
     def supportShallow(): SupportShallow = RESTRICT_OBJ.supportShallow(func)
     // def apply() = func(Seq.empty, Seq.empty)
-    def restrict(dav: Formula.Assignments): MultiClosure = MultiClosure(RESTRICT_OBJ.restrict(func, dav).asInstanceOf[(Seq[Value], Seq[Value.Formula]) => Value])
+    def restrict(dav: Formula.Assignments): MultiClosure = MultiClosure(RESTRICT_OBJ.restrict(func, dav).asInstanceOf[(Seq[Value], Seq[Formula]) => Value])
     def fswap(w: Long, z: Formula): MultiClosure = MultiClosure((d, k) => func(d, k).fswap(w, z))
 
     def apply(seq: Seq[Value], ds: Seq[Formula]): Value = func(seq, ds)
@@ -195,11 +41,11 @@ object Value {
   object AbsMultiClosureSystem {
     val empty = AbsMultiClosureSystem(_ => Map.empty)
   }
-  implicit class AbsMultiClosureSystem(private val func: Seq[Value.Formula] => MultiClosureSystem) extends AnyVal {
+  implicit class AbsMultiClosureSystem(private val func: Seq[Formula] => MultiClosureSystem) extends AnyVal {
     def eq(b: AbsMultiClosureSystem): Boolean = func.eq(b.func)
     def supportShallow(): SupportShallow = RESTRICT_OBJ.supportShallow(func)
     // def apply() = func(Seq.empty, Seq.empty)
-    def restrict(dav: Formula.Assignments): AbsMultiClosureSystem = AbsMultiClosureSystem(RESTRICT_OBJ.restrict(func, dav).asInstanceOf[Seq[Value.Formula] => MultiClosureSystem])
+    def restrict(dav: Formula.Assignments): AbsMultiClosureSystem = AbsMultiClosureSystem(RESTRICT_OBJ.restrict(func, dav).asInstanceOf[Seq[Formula] => MultiClosureSystem])
     def fswap(w: Long, z: Formula): AbsMultiClosureSystem =
       AbsMultiClosureSystem(d => MultiClosureSystem.fswap(func(d), w, z))
 
@@ -743,9 +589,9 @@ object Value {
   def Apps(maker: Value, values: Seq[Value]) : Value = values.foldLeft(maker) { (m: Value, v: Value) => Value.App(m, v) }
   case class Lambda(closure: Closure) extends StableCanonical
   case class Case(pattern: Pattern, closure: MultiClosure) {
-    private def extract(pattern: Pattern, v: Value): Option[(Seq[Value], Seq[Value.Formula])] = {
+    private def extract(pattern: Pattern, v: Value): Option[(Seq[Value], Seq[Formula])] = {
       val vs = mutable.ArrayBuffer[Value]()
-      val ds = mutable.ArrayBuffer[Value.Formula]()
+      val ds = mutable.ArrayBuffer[Formula]()
       def rec(pattern: Pattern, v: Value): Boolean = {
         pattern match {
           case Pattern.GenericValue =>
@@ -903,7 +749,7 @@ object Value {
 
   type System[T] = Map[Formula, T]
   object System {
-    def phi[T](a: System[T]) = Value.Formula.phi(a.keys)
+    def phi[T](a: System[T]) = Formula.phi(a.keys)
   }
   type ValueSystem = System[Value]
   object ValueSystem {
@@ -1049,17 +895,17 @@ object Value {
       if (phi.normalFormTrue) {
         Some(base)
       } else {
-        val dim = Value.Formula.Generic(dgen())
+        val dim = Formula.Generic(dgen())
         val res: Value = tp.apply(dim).whnf match {
           case _: Function =>
-            def tpr(i: Value.Formula) = tp(i).whnf.asInstanceOf[Function]
+            def tpr(i: Formula) = tp(i).whnf.asInstanceOf[Function]
             Lambda(Closure(v => {
               def w(i: Formula) = transpFill_inv(i, phi, AbsClosure(a => tpr(a).domain), v)
               val w0 = transp_inv(phi, AbsClosure(a => tpr(a).domain), v)
               Transp(AbsClosure(i => tpr(i).codomain(w(i))), phi, App(base, w0))
             }))
           case _: PathType =>
-            def tpr(i: Value.Formula) = tp(i).whnf.asInstanceOf[PathType]
+            def tpr(i: Formula) = tp(i).whnf.asInstanceOf[PathType]
             PathLambda(AbsClosure(dim => {
               Comp(
                 AbsClosure(i => tpr(i).typ(dim)),
@@ -1074,7 +920,7 @@ object Value {
             if (r.nodes.isEmpty) {
               base
             } else {
-              def tpr(i: Value.Formula) = tp(i).whnf.asInstanceOf[Record].nodes
+              def tpr(i: Formula) = tp(i).whnf.asInstanceOf[Record].nodes
               val closures = transpFill(r.nodes, tpr, phi, i => Projection(base, i))
               Make(closures.map(_.apply(Formula.True)))
             }
@@ -1084,7 +930,7 @@ object Value {
             } else {
               base.whnf match {
                 case Construct(c, vs, rs, d) =>
-                  def tpr(i: Value.Formula) = tp(i).whnf.asInstanceOf[Sum].constructors(c)
+                  def tpr(i: Formula) = tp(i).whnf.asInstanceOf[Sum].constructors(c)
                   val cc = s.constructors(c)
                   val theta = transpFill(cc.nodes, i => tpr(i).nodes, phi, vs)
                   val w1p = Construct(c, theta.map(_.apply(Formula.True)), rs, d)
@@ -1101,7 +947,7 @@ object Value {
                     Hcomp(tp(Formula.True), w1p, items)
                   }
                 case Hcomp(hty, hbase, faces) =>
-                  Hcomp(tp(Value.Formula.True), Transp(tp, phi, hbase), faces.map(pr => (pr._1, pr._2.map(v => Transp(tp, phi, v)))))
+                  Hcomp(tp(Formula.True), Transp(tp, phi, hbase), faces.map(pr => (pr._1, pr._2.map(v => Transp(tp, phi, v)))))
                 case _: StableCanonical => logicError()
                 case _ =>
                   null
@@ -1261,7 +1107,7 @@ object Value {
         Transp(tp, Formula.False, base),
         faces.view.mapValues(f => AbsClosure(i => forward(tp, i, f(i)))).toMap)
     }
-    val dim = Value.Formula.Generic(dgen())
+    val dim = Formula.Generic(dgen())
     val appd = tp.apply(dim)
     appd.whnf match {
       case PathType(typ, left, right) =>
@@ -1377,7 +1223,7 @@ object Value {
             case u: Universe =>
               null // taken from new cubicaltt, we don't reduce here!
             case Hcomp(u: Universe, b, es) =>
-              val wts = es.map((pair: (Value.Formula, Value.AbsClosure)) => {
+              val wts = es.map((pair: (Formula, Value.AbsClosure)) => {
                 val al = pair._1
                 val eal = pair._2
                 val ret = AbsClosure(i =>
@@ -1385,7 +1231,7 @@ object Value {
                 )
                 (al, ret)
               })
-              val t1s = es.map((pair: (Value.Formula, Value.AbsClosure)) => {
+              val t1s = es.map((pair: (Formula, Value.AbsClosure)) => {
                 val al = pair._1
                 val eal = pair._2
                 val ret = Hcomp(eal(Formula.True), u, faces)
@@ -1393,7 +1239,7 @@ object Value {
               })
               val esmap = es.view.mapValues(a => PathLambda(a)).toMap
               val v = Unglue(b, u, true, esmap)
-              val vs = faces.map((pair: (Value.Formula, Value.AbsClosure)) => {
+              val vs = faces.map((pair: (Formula, Value.AbsClosure)) => {
                 val al = pair._1
                 val ual = pair._2
                 val ret = ual.map(v =>
@@ -1584,7 +1430,7 @@ sealed trait Value {
 
 
 
-  def restrict(lv: Value.Formula.Assignments): Value = if (lv.isEmpty) this else this match {
+  def restrict(lv: Formula.Assignments): Value = if (lv.isEmpty) this else this match {
     case u: Universe => u
     case Function(domain, im, codomain) =>
       Function(domain.restrict(lv), im, codomain.restrict(lv))
@@ -1695,9 +1541,9 @@ sealed trait Value {
                 }
               case Transp(tp, phi, base) =>
                 val dim = dgen()
-                tp.apply(Value.Formula.Generic(dim)).whnf match {
+                tp.apply(Formula.Generic(dim)).whnf match {
                   case _: Function =>
-                    @inline def tpr(i: Value.Formula) = tp(i).whnf.asInstanceOf[Function]
+                    @inline def tpr(i: Formula) = tp(i).whnf.asInstanceOf[Function]
                     Transp(
                       AbsClosure(i => tpr(i).codomain(transpFill_inv(i, phi, AbsClosure(j => tpr(j).domain), argument))),
                       phi,
