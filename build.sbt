@@ -10,7 +10,7 @@ lazy val `main` = project.in(file("src-main")).settings(
 
 
 val sharedSettings = Seq(
-  scalaVersion := "0.19.0-RC1",
+  scalaVersion := "0.20.0-RC1",
   resolvers ++= Seq(
     "Sonatype OSS Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots/",
     Resolver.jcenterRepo,
