@@ -16,7 +16,14 @@ trait Holder {
 
 object ObjRestrict extends ObjWorker {
 
+  var hashSet = new mutable.HashSet[AnyRef]()
+
   override def supportShallow(v1: AnyRef): Value.SupportShallow = {
+    hashSet.clear()
+    supportShallow0(v1)
+  }
+
+  def supportShallow0(v1: AnyRef): Value.SupportShallow = {
     val clz = v1.getClass
     val fs = clz.getDeclaredFields
     var ns = SupportShallow.empty
@@ -30,7 +37,12 @@ object ObjRestrict extends ObjWorker {
           ns = ns +- f.names
         case p: Pattern =>
         case a =>
-          ns = ns ++ supportShallow(a)
+          if (hashSet.contains(a)) {
+            val j = 1
+          } else {
+            hashSet.add(a)
+            ns = ns ++ supportShallow0(a)
+          }
       }
     }
     ns
@@ -264,10 +276,10 @@ trait PlatformEvaluator extends Evaluator {
               s"${emit(base, depth)}, " +
             emitEnclosedSystem(faces, depth) +
               s")$REDUCE"
-        case Abstract.Unglue(tp, base, faces) =>
+        case Abstract.Unglue(tp, base, iu, faces) =>
           s"Unglue(" +
               s"${emit(tp, depth)}, " +
-              s"${emit(base, depth)}, " +
+              s"${emit(base, depth)}, " + iu + ", " +
             emitEnclosedSystem(faces, depth) +
               s")$REDUCE"
       }

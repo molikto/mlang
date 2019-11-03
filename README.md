@@ -60,9 +60,20 @@ so some improvements:
     * makes sum type construct use name of the field instead of index
     * make the syntax more like in concrete syntax (for example application syntax)
 * pretty print to HTML with clear AST delimitation/boundary, layout it properly, might print it like a tree (see Lamdu project)
-    
 
-## roadmap/TODO
+
+### new evaluation core
+
+the plan is implement new nominal values so we get rid of the hacky `Derestricted`, also this enables us to 
+continue with a full-reduction mode. this might makes meta ugly, but this is another story
+
+also we can cleanup whnf code out of value, we can review all code in value, conversion checking and computation rules,
+these are the core of the theory
+
+* rationize cubicaltt's computation rules: cubicaltt has a complicated computation rule that is not as clear as in the paper
+  
+
+## roadmap
 
 * **DONE** totally unsafe MLTT basics
     * basic `.poor` syntax and parser
@@ -84,17 +95,18 @@ so some improvements:
 * think how we can have a syntax for partial elements and dimension
 * think how we can incorporate XTT or/and two level system
 * ~~~~~~~~
+* `match` expressions
 * user defined eliminations
     * constant projection `square.constant`
     * projection `1.is_even`
     * user defined patterns
     * user defined implicit right form
 * implicit conversions
-* pretty printer (from readback abstract syntax)
-* record calculus (one problem is dependency graph introduces syntax stuff in equality)
 * HTML pretty print with inferred types, cross links
+* record calculus (one problem is dependency graph introduces syntax stuff in equality)
+* **SOUNDNESS** core checker, so we check meta solutions. also as a double check of elaboration
 * **SOUNDNESS** positivity checker
-* **SOUNDNESS** coverage & confluence checker
+* **SOUNDNESS** coverage & confluence checker for overlapping patterns and for hits
 * **SOUNDNESS** termination checking: currently you don't need modifier `inductively` to write a recursive type, with termination checking, you should not be able to do this
     * relax the syntax check for inductive definitions
 * more recursive types
