@@ -31,5 +31,5 @@ case class Name(main: Text) {
 }
 
 object Name {
-  val empty: Name = Name("")
+  val empty: Name = Name(Text(""))
 }

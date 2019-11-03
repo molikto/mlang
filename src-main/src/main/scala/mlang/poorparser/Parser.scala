@@ -95,7 +95,7 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
         delimited("(", term, ")") |
         absDimension | reference
 
-  lazy val reference = ident ^^ {a => Reference(a)}
+  lazy val reference = ident ^^ {a => Reference(Text(a)) }
   lazy val make: PackratParser[Concrete] = keyword("make") ^^ { _ => Make }
   lazy val meta: PackratParser[Concrete] = keyword("_") ^^ { _ => Hole }
 

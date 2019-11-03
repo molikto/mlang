@@ -239,7 +239,7 @@ trait ValueConversion {
     * mode =-1 right =< left
     */
   private def recType(tm1: Value, tm2: Value, mode: Int = 0): Boolean = {
-    if (tm1.eq(tm2)) {
+    if (tm1 == tm2) {
       true
     } else {
       (tm1.whnf, tm2.whnf) match {
@@ -312,7 +312,7 @@ trait ValueConversion {
     (tmm1.whnf, tmm2.whnf) match {
       case (Generic(i1, v1), Generic(i2, v2)) =>
         if (i1 == i2) {
-          if (v1.eq(v2)) {
+          if (v1 == v2) {
             Some(v1)
           } else {
             logicError()
@@ -457,7 +457,7 @@ trait ValueConversion {
     * FIXME what impact will there be if unification is not type directed?
     */
   private def recTerm(typ: Value, t1: Value, t2: Value): Boolean = {
-    if (t1.eq(t2)) {
+    if (t1 == t2) {
       true
     } else {
       (typ.whnf, t1.whnf, t2.whnf) match {

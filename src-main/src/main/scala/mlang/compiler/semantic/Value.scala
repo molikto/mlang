@@ -146,11 +146,11 @@ object Value {
     }
 
     def lookupChildren(v: Referential): Option[Assignments] = {
-      if (this.eq(v)) {
+      if (this == v) {
         Some(Set.empty)
       } else {
         assert(childRestricted == null) // you can only lookup children from root
-        if (restrictedCache != null) restrictedCache.find(_._2.eq(v)).map(_._1)
+        if (restrictedCache != null) restrictedCache.find(_._2 == v).map(_._1)
         else None
       }
     }
@@ -196,7 +196,7 @@ object Value {
     override type Self = GlobalReference
     override private[Value] def getRestrict(asgs: Assignments): GlobalReference = this
     private[Value] def getFswap(w: Long, z: Formula): Self = this
-    def lookupChildren(v: Referential): Option[Assignments] = if (this.eq(v)) Some(Set.empty) else None
+    def lookupChildren(v: Referential): Option[Assignments] = if (this == v) Some(Set.empty) else None
     override def supportShallow(): SupportShallow = SupportShallow.empty
     override def support(): Support = Support.empty
 
@@ -611,8 +611,8 @@ object Value {
     // this mapping is done in hcomp in cubicaltt
     val A0 = A.fswap(dim.id, Formula.False)
     val A1 = A.fswap(dim.id, Formula.True)
-    val es0 = AbsClosureSystem.fswap(es, dim.id, Formula.False)
-    val es1 = AbsClosureSystem.fswap(es, dim.id, Formula.True)
+    val es0 = es.fswap(dim.id, Formula.False)
+    val es1 = es.fswap(dim.id, Formula.True)
 
     // this is UnglueU in cubicaltt, the es0 is a system of path lambdas
     val v0 = Unglue(A0, u0, true, es0.view.mapValues(a => PathLambda(a)).toMap)
@@ -952,7 +952,7 @@ sealed trait Value {
     while ({
       old =b
       b = old.reduceOrSelf()
-      !b.eq(b)
+      b != b
     }) {}
     b
   }
@@ -1020,7 +1020,7 @@ sealed trait Value {
       SupportShallow.orEmpty(inductively.map(_.supportShallow())) ++ nodes.supportShallow()
     case Make(values) => SupportShallow.flatten(values.map(_.supportShallow()))
     case Construct(name, vs, ds, ty) =>
-      SupportShallow.flatten(vs.map(_.supportShallow()) ++ ds.map(_.supportShallow())) ++ ValueSystem.supportShallow(ty)
+      SupportShallow.flatten(vs.map(_.supportShallow()) ++ ds.map(_.supportShallow())) ++ ty.supportShallow()
     case Sum(inductively, _, constructors) =>
       SupportShallow.orEmpty(inductively.map(_.supportShallow())) ++ SupportShallow.flatten(constructors.map(a => a.nodes.supportShallow()))
     case PathType(typ, left, right) =>
@@ -1031,11 +1031,11 @@ sealed trait Value {
     case Projection(make, field) => make.supportShallow()
     case PathApp(left, dimension) => left.supportShallow() +- dimension.names
     case Transp(tp, direction, base) => tp.supportShallow() ++ base.supportShallow() +- direction.names
-    case Comp(tp, base, faces) => tp.supportShallow() ++ base.supportShallow() ++ AbsClosureSystem.supportShallow(faces)
-    case Hcomp(tp, base, faces) => tp.supportShallow() ++ base.supportShallow() ++ AbsClosureSystem.supportShallow(faces)
-    case GlueType(tp, faces) => tp.supportShallow()++ ValueSystem.supportShallow(faces)
-    case Glue(base, faces) => base.supportShallow() ++ ValueSystem.supportShallow(faces)
-    case Unglue(tp, base, iu, faces) => tp.supportShallow() ++ base.supportShallow() ++ ValueSystem.supportShallow(faces)
+    case Comp(tp, base, faces) => tp.supportShallow() ++ base.supportShallow() ++ faces.supportShallow()
+    case Hcomp(tp, base, faces) => tp.supportShallow() ++ base.supportShallow() ++ faces.supportShallow()
+    case GlueType(tp, faces) => tp.supportShallow()++ faces.supportShallow()
+    case Glue(base, faces) => base.supportShallow() ++ faces.supportShallow()
+    case Unglue(tp, base, iu, faces) => tp.supportShallow() ++ base.supportShallow() ++ faces.supportShallow()
     case referential: Referential => SupportShallow.empty ++ Set(referential)
   }
 
@@ -1048,7 +1048,7 @@ sealed trait Value {
     case Record(inductively, ns, nodes) =>
       Record(inductively.map(_.fswap(w, z)), ns, nodes.fswap(w, z))
     case Make(values) => Make(values.map(_.fswap(w, z)))
-    case Construct(name, vs, ds, ty) => Construct(name, vs.map(_.fswap(w, z)), ds.map(_.fswap(w, z)), ValueSystem.fswap(ty, w, z))
+    case Construct(name, vs, ds, ty) => Construct(name, vs.map(_.fswap(w, z)), ds.map(_.fswap(w, z)), ty.fswap(w, z))
     case Sum(inductively, hit, constructors) =>
       Sum(inductively.map(_.fswap(w, z)), hit, constructors.map(_.fswap(w, z)))
     case Lambda(closure) => Lambda(closure.fswap(w, z))
@@ -1059,15 +1059,15 @@ sealed trait Value {
     case PathLambda(body) => PathLambda(body.fswap(w, z))
     case App(lambda, argument) => App(lambda.fswap(w, z), argument.fswap(w, z))
     case t@Transp(tp, direction, base) => Transp(tp.fswap(w, z), direction.fswap(w, z), base.fswap(w, z))
-    case h@Hcomp(tp, base, faces) => Hcomp(tp.fswap(w, z), base.fswap(w, z), AbsClosureSystem.fswap(faces, w, z))
-    case Comp(tp, base, faces) => Comp(tp.fswap(w, z), base.fswap(w, z), AbsClosureSystem.fswap(faces, w, z))
+    case h@Hcomp(tp, base, faces) => Hcomp(tp.fswap(w, z), base.fswap(w, z), faces.fswap(w, z))
+    case Comp(tp, base, faces) => Comp(tp.fswap(w, z), base.fswap(w, z), faces.fswap(w, z))
     case p@Projection(make, field) => Projection(make.fswap(w, z), field)
     case PatternRedux(lambda, stuck) =>
       PatternRedux(lambda.fswap(w, z).asInstanceOf[PatternLambda], stuck.fswap(w, z))
     case PathApp(left, stuck) => PathApp(left.fswap(w, z), stuck.fswap(w, z))
-    case GlueType(base, faces) => GlueType(base.fswap(w, z), ValueSystem.fswap(faces, w, z))
-    case Glue(base, faces) => Glue(base.fswap(w, z), ValueSystem.fswap(faces, w, z))
-    case Unglue(tp, base, iu, faces) => Unglue(tp.fswap(w, z), base.fswap(w, z), iu, ValueSystem.fswap(faces, w, z))
+    case GlueType(base, faces) => GlueType(base.fswap(w, z), faces.fswap(w, z))
+    case Glue(base, faces) => Glue(base.fswap(w, z), faces.fswap(w, z))
+    case Unglue(tp, base, iu, faces) => Unglue(tp.fswap(w, z), base.fswap(w, z), iu, faces.fswap(w, z))
     case g: Referential => g.getFswap(w, z)
   }
 
@@ -1082,7 +1082,7 @@ sealed trait Value {
     case Make(values) =>
       Make(values.map(_.restrict(lv)))
     case Construct(name, vs, ds, ty) =>
-      Construct(name, vs.map(_.restrict(lv)), ds.map(_.restrict(lv)), ValueSystem.restrict(ty, lv))
+      Construct(name, vs.map(_.restrict(lv)), ds.map(_.restrict(lv)), ty.restrict(lv))
     case Sum(inductively, hit, constructors) =>
       Sum(inductively.map(_.restrict(lv)), hit, constructors.map(_.restrict(lv)))
     case Lambda(closure) =>
@@ -1098,9 +1098,9 @@ sealed trait Value {
     case t@Transp(tp, direction, base) =>
       Transp(tp.restrict(lv), direction.restrict(lv), base.restrict(lv))
     case h@Hcomp(tp, base, faces) =>
-      Hcomp(tp.restrict(lv), base.restrict(lv), AbsClosureSystem.restrict(faces, lv))
+      Hcomp(tp.restrict(lv), base.restrict(lv), faces.restrict(lv))
     case Comp(tp, base, faces) =>
-      Comp(tp.restrict(lv), base.restrict(lv), AbsClosureSystem.restrict(faces, lv))
+      Comp(tp.restrict(lv), base.restrict(lv), faces.restrict(lv))
     case p@Projection(make, field) =>
       Projection(make.restrict(lv), field)
     case PatternRedux(lambda, stuck) =>
@@ -1108,11 +1108,11 @@ sealed trait Value {
     case PathApp(left, stuck) =>
       PathApp(left.restrict(lv), stuck.restrict(lv))
     case GlueType(base, faces) =>
-      GlueType(base.restrict(lv), ValueSystem.restrict(faces, lv))
+      GlueType(base.restrict(lv), faces.restrict(lv))
     case Glue(base, faces) =>
-      Glue(base.restrict(lv), ValueSystem.restrict(faces, lv))
+      Glue(base.restrict(lv), faces.restrict(lv))
     case Unglue(tp, base, iu, faces) =>
-      Unglue(tp.restrict(lv), base.restrict(lv), iu, ValueSystem.restrict(faces, lv))
+      Unglue(tp.restrict(lv), base.restrict(lv), iu, faces.restrict(lv))
     case g: Referential =>
       g.getRestrict(lv)
   }
@@ -1145,15 +1145,13 @@ sealed trait Value {
         case _ => this
       }
     case v =>
-      if (v._from.eq(null)) v else v._from
+      if (v._from == null) v else v._from
   }
 
 
   // it is ensured that if the value is not reducable, it will return the same reference
   def whnf: Value = {
     // TODO don't do this equals stuff!!!
-    def eqFaces(f1: AbsClosureSystem, f2: AbsClosureSystem): Boolean =
-      f1.eq(f2) || (f1.keys == f2.keys && f1.forall(p => p._2.eq(f2(p._1))))
     val cached = _whnfCache
     if (cached == null) {
       val candidate = this match {
@@ -1203,17 +1201,17 @@ sealed trait Value {
             }
           }
           app2(lambda.whnf, argument) match {
-            case App(l2, a2) if lambda.eq(l2) && a2.eq(argument) => this
+            case App(l2, a2) if lambda == l2 && a2 == argument => this
             case a => a
           }
         case pat@PatternRedux(lambda, stuck) =>
           PatternRedux(lambda, stuck.whnf).reduceThenWhnfOrSelf() match {
-            case PatternRedux(l2, s2) if lambda.eq(l2) && stuck.eq(s2) => this
+            case PatternRedux(l2, s2) if lambda == l2 && stuck == s2 => this
             case a => a
           }
         case pro@Projection(make, field) =>
           Projection(make.whnf, field).reduceThenWhnfOrSelf() match {
-            case Projection(m2, f2) if make.eq(m2) && field == f2 => this
+            case Projection(m2, f2) if make == m2 && field == f2 => this
             case a => a
           }
         case c@Construct(f, vs, ds, ty) =>
@@ -1228,23 +1226,23 @@ sealed trait Value {
         case PathApp(left, dimension) =>
           // we MUST perform this, because this doesn't care
           PathApp(left.whnf, dimension).reduceThenWhnfOrSelf() match {
-            case PathApp(l2, s2) if left.eq(l2) && dimension == s2 => this
+            case PathApp(l2, s2) if left == l2 && dimension == s2 => this
             case a => a.whnf
           }
         case transp@Transp(direction, tp, base) =>
           // kan ops case analysis on tp, so they perform their own whnf
           transp.reduceThenWhnfOrSelf() match {
-            case Transp(d2, t2, b2) if d2 == direction && t2.eq(tp) && base.eq(b2) => this
+            case Transp(d2, t2, b2) if d2 == direction && t2 == tp && base == b2 => this
             case a => a
           }
         case com@Comp(tp, base, faces) =>
           com.reduceThenWhnfOrSelf() match {
-            case Comp(t2, b2, f2) if tp.eq(t2) && base.eq(b2) && eqFaces(faces, f2) => this
+            case Comp(t2, b2, f2) if tp == t2 && base == b2 && faces == f2 => this
             case a => a
           }
         case hcom@Hcomp(tp, base, faces) =>
           Hcomp(tp.whnf, base, faces).reduceThenWhnfOrSelf() match {
-            case Hcomp(t2, b2, f2) if tp.eq(t2) && base.eq(b2) && eqFaces(faces, f2) => this
+            case Hcomp(t2, b2, f2) if tp == t2 && base == b2 && faces == f2 => this
             case a => a
           }
         case GlueType(tm, faces) =>
@@ -1254,7 +1252,7 @@ sealed trait Value {
             case Some(a) => a
             case None =>
               val bf = base.whnf
-              if (bf.eq(base)) this else Glue(bf, faces)
+              if (bf == base) this else Glue(bf, faces)
           }
         case Unglue(ty, base, iu, faces) =>
           val red = faces.find(_._1.normalFormTrue).map(b =>
@@ -1268,7 +1266,7 @@ sealed trait Value {
                 case Glue(b, _) => b.whnf
                 case _ =>
                   this // FIXME to see what's inside
-                  // if (bf.eq(base)) this else Unglue(ty, bf, iu, faces)
+                  // if (bf == base) this else Unglue(ty, bf, iu, faces)
               }
           }
       }
@@ -1279,10 +1277,10 @@ sealed trait Value {
         // because some values is shared, it means the solved ones is not created for this whnf, we don't say this
         // is from us
         // TODO these are already defined ones, think more about this
-        if (candidate.eq(this)) { // this is a terminal form, it has no from now
+        if (candidate == this) { // this is a terminal form, it has no from now
         } else {
           var c = candidate
-          if (c._from.eq(null)) {
+          if (c._from == null) {
             c._from = this
           }
         }

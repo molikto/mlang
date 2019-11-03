@@ -8,9 +8,13 @@ package object utils {
 
   def logicError(additionalInfo: String) = throw new IllegalArgumentException(s"This state is considered a logic error (${additionalInfo})")
 
-  implicit class Text(val s: String) extends AnyVal {
+  opaque type Text = String
+  object Text {
+    def apply(s: String): Text = s
+  }
+  given (s: Text) {
     def string: String = s
-    override def toString: String = s.toString
+    def toString: String = s.toString
     def isEmpty: Boolean = s.isEmpty
     def nonEmpty: Boolean = !s.isEmpty
   }

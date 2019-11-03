@@ -211,7 +211,7 @@ private class ReifierContextBottom(layersBefore: Layers) extends ReifierContext 
     val index = terms.size
     debug(s"out of scope value saved??", 2)
     terms.append(DefineItem(ParameterBinder(Name.empty, Value.Generic(GenLong.Negative.gen(), null)), Some(r)))
-    val abs = if (r.value.eq(self)) {
+    val abs = if (r.value == self) {
       None : Option[Abstract]
     } else {
       Some(reify(r.value))
