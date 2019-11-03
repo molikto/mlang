@@ -1,7 +1,9 @@
 package mlang.compiler
 
+import mlang.compiler.semantic.Value
+import mlang.compiler.semantic.ValueConversion
 import Value.{Reference => _, _}
-import mlang.utils.{Benchmark, Name, debug, warn}
+import mlang.utils._
 
 import scala.collection.mutable
 import scala.util.{Failure, Success, Try}

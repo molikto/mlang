@@ -1,7 +1,8 @@
 package mlang.compiler
 
 import mlang.compiler.Layer.{AlternativeGraph, HitDefinition, Layers}
-import mlang.utils.{Name, debug}
+import mlang.utils._
+import mlang.compiler.semantic.Value
 
 import scala.collection.mutable
 
@@ -31,7 +32,7 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
 
   def drop(up: Int): Self = create(layers.drop(up))
 
-  def newSyntaxDirectedRestrictionLayer(pair: semantic.Formula.Assignments): Self = {
+  def newSyntaxDirectedRestrictionLayer(pair: semantic.Assignments): Self = {
     debug(s"new syntax directed layer $pair")
     Layer.Restriction(0, pair, createMetas()) +: layers
   }
@@ -132,7 +133,7 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
   def newParametersLayer(hit: Option[Value] = None): Self =
     Layer.ParameterGraph(hit.map(a => HitDefinition(a, Seq.empty)), Seq.empty, Seq.empty, createMetas()) +: layers
 
-  def newConstructor(name: Name, ps: Value.ClosureGraph): Self =
+  def newConstructor(name: Name, ps: semantic.ClosureGraph): Self =
     layers.head match {
       case Layer.ParameterGraph(alters,_, _, metas) =>
         alters match {
@@ -185,7 +186,7 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
 
   def newPatternLayer(pattern: Concrete.Pattern, typ: Value): (Self, Value, Pattern) = {
     val vvv = mutable.ArrayBuffer[Binder]()
-    def recs(maps: Seq[Concrete.Pattern], nodes: Value.ClosureGraph): Seq[(Value, Pattern)] = {
+    def recs(maps: Seq[Concrete.Pattern], nodes: semantic.ClosureGraph): Seq[(Value, Pattern)] = {
       var vs =  Seq.empty[(Value, Pattern)]
       var graph = nodes
       for (i <- maps.indices) {

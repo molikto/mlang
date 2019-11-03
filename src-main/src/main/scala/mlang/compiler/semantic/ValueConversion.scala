@@ -1,24 +1,24 @@
-package mlang.compiler
+package mlang.compiler.semantic
 
 import mlang.compiler.GenLong.Negative.{dgen, gen}
-import mlang.compiler.Value._
-import mlang.compiler.semantic._
-import mlang.utils.{Benchmark, Name, debug}
+import mlang.utils._
+import Value._
+import mlang.compiler.Pattern
 
 import scala.collection.mutable
 import scala.util.{Failure, Success, Try}
 
-private case class Assumption(left: Long, right: Long, domain: Value, codomain: Value.Closure)
+private case class Assumption(left: Long, right: Long, domain: Value, codomain: Closure)
 
 private case class BreakException() extends Exception()
 
 object SolvableMetaForm {
-  def unapply(a: Value): Option[(Value.Meta, ValueConversion.MetaSpine)] = {
-    def rec(a: Value): Option[(Value.Meta, ValueConversion.MetaSpine)] = {
+  def unapply(a: Value): Option[(Meta, ValueConversion.MetaSpine)] = {
+    def rec(a: Value): Option[(Meta, ValueConversion.MetaSpine)] = {
       a match {
         case App(l, as) =>
           as match {
-            case g: Value.Generic => rec(l).map(pair => (pair._1, pair._2 :+ Left(g)))
+            case g: Generic => rec(l).map(pair => (pair._1, pair._2 :+ Left(g)))
             case _ => None
           }
         case PathApp(l, as) =>
@@ -36,7 +36,7 @@ object SolvableMetaForm {
 
 
 object ValueConversion {
-  type MetaSpine = Seq[Either[Value.Generic, Formula.Generic]]
+  type MetaSpine = Seq[Either[Generic, Formula.Generic]]
 }
 trait ValueConversion {
   protected def unifyTerm(typ: Value, t1: Value, t2: Value): Boolean = {
@@ -64,7 +64,7 @@ trait ValueConversion {
 
   private def recClosureGraph(selfValue: Value, n1: ClosureGraph, n2: ClosureGraph, mode: Int = 0): Boolean = {
     if (n1.size == n2.size && n1.dimSize == n2.dimSize) {
-      var gs = Seq.empty[Value.Generic]
+      var gs = Seq.empty[Generic]
       var g1 = n1
       var g2 = n2
       var eq = true
@@ -137,7 +137,7 @@ trait ValueConversion {
     dd1.ps.zip(dd2.ps).foldLeft(Some(dd1.typ): Option[Value]) { (tp, ds) =>
       tp match {
         case Some(v) =>
-          val func = v.whnf.asInstanceOf[Value.Function]
+          val func = v.whnf.asInstanceOf[Function]
           val d = func.domain
           if (recTerm(d, ds._1, ds._2)) {
             Some(func.codomain(ds._1))
@@ -163,7 +163,7 @@ trait ValueConversion {
   // FIXME is this handling of subtyping sound?
   def choose(d1: Value, d2: Value, mode: Int): Value = if (mode >= 0) d1 else d2
 
-  def forCompatibleAssignments[T](t: System[T], r1: System[T], r2: System[T])(handle: (Formula.Assignments, T, T, T) => Boolean): Boolean = {
+  def forCompatibleAssignments[T](t: System[T], r1: System[T], r2: System[T])(handle: (Assignments, T, T, T) => Boolean): Boolean = {
     val pht = Formula.phi(t.keys)
     val ph1 = Formula.phi(r1.keys)
     val ph2 = Formula.phi(r2.keys)
@@ -179,7 +179,7 @@ trait ValueConversion {
               for (a1 <- as1) {
                 for (a2 <- as2) {
                   val a = at ++ a1 ++ a2
-                  if (Formula.Assignments.satisfiable(a)) {
+                  if (Assignments.satisfiable(a)) {
                     // FIXME before we create a new layer, but now we don't, because we simply don't allow restriction on meta, think again if this is proper
                     // newSyntaxDirectedRestrictionLayer(a)
                     if (handle(a, ft._2, f1._2, f2._2)) {
@@ -199,7 +199,7 @@ trait ValueConversion {
     }
   }
 
-  def forCompatibleAssignments[T](r1: System[T], r2: System[T])(handle: (Formula.Assignments, T, T) => Boolean): Boolean = {
+  def forCompatibleAssignments[T](r1: System[T], r2: System[T])(handle: (Assignments, T, T) => Boolean): Boolean = {
     val ph1 = Formula.phi(r1.keys)
     val ph2 = Formula.phi(r2.keys)
     try {
@@ -211,7 +211,7 @@ trait ValueConversion {
             for (a1 <- as1) {
               for (a2 <- as2) {
                 val a = a1 ++ a2
-                if (Formula.Assignments.satisfiable(a)) {
+                if (Assignments.satisfiable(a)) {
                   // FIXME before we create a new layer, but now we don't, because we simply don't allow restriction on meta, think again if this is proper
                   // newSyntaxDirectedRestrictionLayer(a)
                   if (handle(a, f1._2, f2._2)) {

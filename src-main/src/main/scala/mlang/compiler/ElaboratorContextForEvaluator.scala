@@ -1,7 +1,8 @@
 package mlang.compiler
 
 import mlang.compiler.Layer.Layers
-import mlang.utils.Name
+import mlang.utils._
+import mlang.compiler.semantic.Value
 
 import scala.collection.mutable
 

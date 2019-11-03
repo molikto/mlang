@@ -1,13 +1,18 @@
 package mlang.compiler.semantic
 
+type Assignment = (Long, Boolean)
+type Assignments = Set[Assignment]
+object Assignments {
+  def satisfiable(rs: Assignments): Boolean = rs.map(_._1).size == rs.size
+}
 
 sealed trait Formula {
   import Formula._
   def names: Set[Long] = {
     this match {
-      case Formula.Generic(id) => if (id != 0) Set(id) else Set.empty // 0 is only used as a hack
-      case Formula.True => Set.empty
-      case Formula.False => Set.empty
+      case Generic(id) => if (id != 0) Set(id) else Set.empty // 0 is only used as a hack
+      case True => Set.empty
+      case False => Set.empty
       case And(left, right) => left.names ++ right.names
       case Or(left, right) => left.names ++ right.names
       case Neg(unit) => unit.names
@@ -26,7 +31,7 @@ sealed trait Formula {
     this match {
       case True => NormalForm.True
       case False => NormalForm.False
-      case Formula.Generic(id) => Set(Set((id, true)))
+      case Generic(id) => Set(Set((id, true)))
       case And(left, right) =>
         val ln = left.normalForm.toSeq
         val rn = right.normalForm.toSeq
@@ -34,7 +39,7 @@ sealed trait Formula {
       case Or(left, right) => merge(left.normalForm, right.normalForm)
       case Neg(unit) =>
         def negate(f: Formula): Formula = f match {
-          case g: Formula.Generic => Neg(g)
+          case g: Generic => Neg(g)
           case And(left, right) => Or(negate(left), negate(right))
           case Or(left, right) => And(negate(left), negate(right))
           case Neg(u2) => u2
@@ -42,26 +47,26 @@ sealed trait Formula {
           case False => True
         }
         unit match {
-          case Formula.Generic(id) => Set(Set((id, false)))
+          case Generic(id) => Set(Set((id, false)))
           case r => negate(r).normalForm
         }
     }
   }
 
   def fswap(w: Long, z: Formula): Formula = (this match {
-    case g:Formula.Generic => if (g.id == w) z else g
-    case Formula.True => Formula.True
-    case Formula.False => Formula.False
+    case g:Generic => if (g.id == w) z else g
+    case True => True
+    case False => False
     case And(left, right) => And(left.fswap(w, z), right.fswap(w, z))
     case Or(left, right) => Or(left.fswap(w, z), right.fswap(w, z))
     case Neg(unit) => Neg(unit.fswap(w, z))
   }).simplify
 
-  def restrict(lv: Formula.Assignments): Formula = if (lv.isEmpty) this else {
+  def restrict(lv: Assignments): Formula = if (lv.isEmpty) this else {
     val ret = this match {
-      case g:Formula.Generic => g.assign(lv)
-      case Formula.True => Formula.True
-      case Formula.False => Formula.False
+      case g:Generic => g.assign(lv)
+      case True => True
+      case False => False
       case And(left, right) => And(left.restrict(lv), right.restrict(lv))
       case Or(left, right) => Or(left.restrict(lv), right.restrict(lv))
       case Neg(unit) => Neg(unit.restrict(lv))
@@ -70,37 +75,37 @@ sealed trait Formula {
   }
 
   def simplify : Formula = this match {
-    case g:Formula.Generic => g
-    case Formula.True => Formula.True
-    case Formula.False => Formula.False
+    case g:Generic => g
+    case True => True
+    case False => False
     case And(left, right) =>
       val l = left.simplify
       val r = right.simplify
-      if (l == Formula.True) {
+      if (l == True) {
         r
-      } else if (r == Formula.True) {
+      } else if (r == True) {
         l
-      } else if (l == Formula.False || r == Formula.False) {
-        Formula.False
+      } else if (l == False || r == False) {
+        False
       } else {
         And(l, r)
       }
     case Or(left, right) =>
       val l = left.simplify
       val r = right.simplify
-      if (l == Formula.False) {
+      if (l == False) {
         r
-      } else if (r == Formula.False) {
+      } else if (r == False) {
         l
-      } else if (l == Formula.True || r == Formula.True) {
-        Formula.True
+      } else if (l == True || r == True) {
+        True
       } else {
         Or(l, r)
       }
     case Neg(unit) => unit.simplify match {
-      case Formula.False => Formula.True
-      case Formula.True => Formula.False
-      case Formula.Neg(c) => c
+      case False => True
+      case True => False
+      case Neg(c) => c
       case a => Neg(a)
     }
   }
@@ -110,18 +115,13 @@ sealed trait Formula {
 
 object Formula {
   def apply(nf: NormalForm): Formula = {
-    val ret = nf.foldLeft(Formula.False : Formula) {(f, z) =>
-      Formula.Or(f, z.foldLeft(Formula.True : Formula) { (t, y) => Formula.And(t, if (y._2) Formula.Generic(y._1) else Formula.Neg(Formula.Generic(y._1)))})}
+    val ret = nf.foldLeft(False : Formula) {(f, z) =>
+      Or(f, z.foldLeft(True : Formula) { (t, y) => And(t, if (y._2) Generic(y._1) else Neg(Generic(y._1)))})}
     ret.simplify
   }
 
 
   def phi(se: Iterable[Formula]) = se.flatMap(_.normalForm).toSet
-  type Assignment = (Long, Boolean)
-  type Assignments = Set[Assignment]
-  object Assignments {
-    def satisfiable(rs: Assignments): Boolean = rs.map(_._1).size == rs.size
-  }
   type NormalForm = Set[Assignments]
   object NormalForm {
     def elim(nf: NormalForm, value: Long) = nf.filter(!_.exists(_._1 == value))
@@ -142,7 +142,7 @@ object Formula {
   case class And(left: Formula, right: Formula) extends Formula
   object Or {
     def apply(fs: Iterable[Formula]): Formula = {
-      fs.foldLeft(Formula.False: Formula) {
+      fs.foldLeft(False: Formula) {
         (f, a) => Or(f, a)
       }
     }

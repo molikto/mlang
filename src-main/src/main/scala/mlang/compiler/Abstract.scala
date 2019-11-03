@@ -1,6 +1,5 @@
 package mlang.compiler
 
-import mlang.compiler.Value.ValueSystem
 import mlang.utils.Name
 
 case class Dependency(i: Int, meta: Boolean)

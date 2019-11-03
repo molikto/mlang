@@ -1,6 +1,7 @@
 package mlang.compiler
 
 import mlang.compiler.Abstract.Formula
+import mlang.compiler.semantic.Value
 import mlang.utils.{Benchmark, Name, debug}
 
 import scala.collection.mutable
@@ -15,14 +16,14 @@ trait Evaluator extends EvaluatorContext {
 
   protected def platformEval(value: Abstract): Value
 
-  protected def eval(a: Abstract.AbsClosure): Value.AbsClosure = {
+  protected def eval(a: Abstract.AbsClosure): semantic.AbsClosure = {
     eval(Abstract.PathLambda(a)).asInstanceOf[Value.PathLambda].body
   }
 
-  protected def eval(a: Abstract.ClosureGraph): Value.ClosureGraph = {
+  protected def eval(a: Abstract.ClosureGraph): semantic.ClosureGraph = {
     // TOOD this is ugly
     if (a.nodes.isEmpty && a.dims == 0) {
-      Value.ClosureGraph.empty
+      semantic.ClosureGraph.empty
     } else {
       eval(Abstract.Record(None, a.nodes.map(_ => Name.empty), a)).asInstanceOf[Value.Record].nodes
     }

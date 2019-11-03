@@ -1,5 +1,7 @@
 package mlang.compiler
 
+import mlang.compiler.semantic.Value
+
 // ideally the key/value of the value context should be defined at here, but now it is not
 trait EvaluatorContext {
 

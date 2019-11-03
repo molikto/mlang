@@ -4,7 +4,10 @@ import mlang.compiler.Concrete._
 import Declaration.Modifier
 import mlang.compiler.Abstract.{Inductively, MetaEnclosed}
 import mlang.compiler.Layer.Layers
-import mlang.compiler.Value.{ClosureGraph, PathLambda, PatternRedux, StableCanonical, UnstableCanonical}
+import mlang.compiler.semantic.Value
+import mlang.compiler.semantic.BuiltIn
+import Value.{PathLambda, PatternRedux, StableCanonical, UnstableCanonical}
+import semantic.ClosureGraph
 import mlang.utils._
 
 import scala.annotation.Annotation
@@ -54,15 +57,15 @@ class Elaborator private(protected override val layers: Layers)
         with ElaboratorContextRebind
         with ElaboratorContextForEvaluator
         with DebugPrettyPrinter
-        with Evaluator with PlatformEvaluator with MetaSolver {
+        with Evaluator with platform.PlatformEvaluator with MetaSolver {
 
 
   override type Self = Elaborator
   override protected implicit def create(a: Layers): Self = new Elaborator(a)
 
-  private def doForValidFormulaOrThrow[T](f: semantic.Formula, a: semantic.Formula.Assignments => T): T = {
+  private def doForValidFormulaOrThrow[T](f: semantic.Formula, a: semantic.Assignments => T): T = {
     val davn = f.normalForm
-    val valid = davn.filter(semantic.Formula.Assignments.satisfiable)
+    val valid = davn.filter(semantic.Assignments.satisfiable)
     if (valid.isEmpty) {
       throw ElaboratorException.RemoveStaticFalseOrUnsatisfiableFace()
     } else {
@@ -73,11 +76,11 @@ class Elaborator private(protected override val layers: Layers)
 
   private def checkCompatibleCapAndFaces(
                                   faces: Seq[Concrete.Face],
-                                  bt: Value.AbsClosure,
+                                  bt: semantic.AbsClosure,
                                   bv: Value
   ): Abstract.AbsClosureSystem = {
     import semantic.Formula
-    val nfs = mutable.ArrayBuffer.empty[semantic.Formula.Assignments]
+    val nfs = mutable.ArrayBuffer.empty[semantic.Assignments]
     val tms = mutable.ArrayBuffer.empty[Value]
     faces.indices.map { i =>
       val a = faces(i)
@@ -99,7 +102,7 @@ class Elaborator private(protected override val layers: Layers)
           // this might evaluate the dimensions to new values
           val dfv = asgn1 ++ asgn0
           // only used to test if this restriction is false face or not
-          if (semantic.Formula.Assignments.satisfiable(dfv)) {
+          if (semantic.Assignments.satisfiable(dfv)) {
             val ctx0 = newSyntaxDirectedRestrictionLayer(dfv)
             val (ctx1, dim) = ctx0.newDimensionLayer(Name.empty)
             if (!ctx1.unifyTerm(
@@ -116,7 +119,7 @@ class Elaborator private(protected override val layers: Layers)
   }
 
 
-  private def checkLine(a: Concrete, typ: Value.AbsClosure): (semantic.Formula.Generic, Abstract.AbsClosure) = {
+  private def checkLine(a: Concrete, typ: semantic.AbsClosure): (semantic.Formula.Generic, Abstract.AbsClosure) = {
     a match {
       case Concrete.Lambda(n, b, _, body) =>
         if (b) throw ElaboratorException.DimensionLambdaCannotBeImplicit()
@@ -251,7 +254,7 @@ class Elaborator private(protected override val layers: Layers)
       Abstract.Constructor(a._1, a._3))))
   }
 
-  def checkConstructApp(sumValue: Value, index: Int, nodes: Value.ClosureGraph, arguments: Seq[(Boolean, Concrete)]): Abstract = {
+  def checkConstructApp(sumValue: Value, index: Int, nodes: semantic.ClosureGraph, arguments: Seq[(Boolean, Concrete)]): Abstract = {
     val ns = arguments.take(nodes.size)
     val res1 = inferGraphValuesPart(nodes, ns)
     val ds = arguments.drop(nodes.size)
@@ -378,7 +381,7 @@ class Elaborator private(protected override val layers: Layers)
         val (tv, ta) = checkTypeLine(tp)
         val cl = eval(ta)
         val (ctx, dim) = newDimensionLayer(Name.empty)
-        val constant = dv.normalForm.filter(a => semantic.Formula.Assignments.satisfiable(a)).forall(asg => {
+        val constant = dv.normalForm.filter(a => semantic.Assignments.satisfiable(a)).forall(asg => {
           ctx.newSyntaxDirectedRestrictionLayer(asg).unifyTerm(Value.Universe(tv), cl(dim).restrict(asg), cl(semantic.Formula.False).restrict(asg))
         })
         if (!constant) {
@@ -395,7 +398,7 @@ class Elaborator private(protected override val layers: Layers)
       case Concrete.Hcomp(base, faces) =>
         val (bt, ba) = infer(base)
         val bv = eval(ba)
-        val rs = checkCompatibleCapAndFaces(faces, Value.AbsClosure(bt), bv)
+        val rs = checkCompatibleCapAndFaces(faces, semantic.AbsClosure(bt), bv)
         val btr = reify(bt.bestReifyValue)
         debug(s"infer hcom type $btr", 1)
         (bt, Abstract.Hcomp(btr, ba, rs))
@@ -588,7 +591,7 @@ class Elaborator private(protected override val layers: Layers)
     }
   }
 
-  private def inferGraphValuesPart(nodes: Value.ClosureGraph, arguments: Seq[(Boolean, Concrete)], accumulator: Seq[(Abstract, Value)] = Seq.empty): Seq[(Abstract, Value)] = {
+  private def inferGraphValuesPart(nodes: semantic.ClosureGraph, arguments: Seq[(Boolean, Concrete)], accumulator: Seq[(Abstract, Value)] = Seq.empty): Seq[(Abstract, Value)] = {
     val i = accumulator.size
     def implicitCase() = {
       val (mv, ma) = newMeta(nodes(i).independent.typ)
@@ -737,9 +740,9 @@ class Elaborator private(protected override val layers: Layers)
                     val body = doForValidFormulaOrThrow(f._1, asgn => {
                       val terms = mutable.Set.empty[Abstract.MetaEnclosed]
                       for (tf <- faces) {
-                        tf._1.normalForm.filter(semantic.Formula.Assignments.satisfiable).foreach(asgn2 => {
+                        tf._1.normalForm.filter(semantic.Assignments.satisfiable).foreach(asgn2 => {
                           val asg = asgn ++ asgn2
-                          if (semantic.Formula.Assignments.satisfiable(asg)) {
+                          if (semantic.Assignments.satisfiable(asg)) {
                             val ctx = newSyntaxDirectedRestrictionLayer(asg).newDimensionLayer(Name.empty)._1
                             val bd1 = tf._2.restrict(asg)
                             val res = ctx.check(f._3, Value.Projection(bd1, 0))
@@ -1064,7 +1067,7 @@ class Elaborator private(protected override val layers: Layers)
 
 
   // debug metthods
-  def loopType(a: Value.AbsClosure): Value = loopBase(a(semantic.Formula.Generic(-Random.nextLong(Long.MaxValue / 2))))
+  def loopType(a: semantic.AbsClosure): Value = loopBase(a(semantic.Formula.Generic(-Random.nextLong(Long.MaxValue / 2))))
   def loopBase(k: Value): Value = {
     k.whnf match {
       case h: Value.Hcomp =>

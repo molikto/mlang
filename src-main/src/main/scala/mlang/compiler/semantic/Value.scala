@@ -1,300 +1,20 @@
-package mlang.compiler
+package mlang.compiler.semantic
 
 import mlang.compiler.GenLong.Negative.{dgen, gen}
-import mlang.compiler.semantic.Formula.{Assignments, NormalForm}
-import mlang.compiler.semantic._
-import mlang.compiler.Value.{AbsClosure, AbsMultiClosureSystem, _}
-import mlang.utils.{Name, debug, warn}
+import mlang.utils._
+import mlang.compiler.Pattern
+import mlang.compiler.semantic.Formula
+import Formula.NormalForm
 
 import scala.annotation.Annotation
 import scala.collection.mutable
 
-private[compiler] class stuck_pos extends Annotation
-private[compiler] class type_annotation extends Annotation // see Readme about abstract-surface syntax mismatch
-private[compiler] class nominal_equality extends Annotation
-
 case class ImplementationLimitationCannotRestrictOpenMeta() extends Exception
 
-def (f: Formula) supportShallow(): Value.SupportShallow = Value.SupportShallow(f.names, Set.empty)
+def (f: Formula) supportShallow(): SupportShallow = SupportShallow(f.names, Set.empty)
 
-trait ObjWorker {
-  def supportShallow(func: AnyRef): Value.SupportShallow
-
-  def restrict(a: AnyRef, b: Assignments): AnyRef
-}
 // FIXME: move out whnf
 object Value {
-
-  var RESTRICT_OBJ: ObjWorker = null
-
-  implicit class MultiClosure(private val func: (Seq[Value], Seq[Formula]) => Value) extends AnyVal {
-    def eq(b: MultiClosure): Boolean = func.eq(b.func)
-    def supportShallow(): SupportShallow = RESTRICT_OBJ.supportShallow(func)
-    // def apply() = func(Seq.empty, Seq.empty)
-    def restrict(dav: Formula.Assignments): MultiClosure = MultiClosure(RESTRICT_OBJ.restrict(func, dav).asInstanceOf[(Seq[Value], Seq[Formula]) => Value])
-    def fswap(w: Long, z: Formula): MultiClosure = MultiClosure((d, k) => func(d, k).fswap(w, z))
-
-    def apply(seq: Seq[Value], ds: Seq[Formula]): Value = func(seq, ds)
-
-  }
-
-  object AbsMultiClosureSystem {
-    val empty = AbsMultiClosureSystem(_ => Map.empty)
-  }
-  implicit class AbsMultiClosureSystem(private val func: Seq[Formula] => MultiClosureSystem) extends AnyVal {
-    def eq(b: AbsMultiClosureSystem): Boolean = func.eq(b.func)
-    def supportShallow(): SupportShallow = RESTRICT_OBJ.supportShallow(func)
-    // def apply() = func(Seq.empty, Seq.empty)
-    def restrict(dav: Formula.Assignments): AbsMultiClosureSystem = AbsMultiClosureSystem(RESTRICT_OBJ.restrict(func, dav).asInstanceOf[Seq[Formula] => MultiClosureSystem])
-    def fswap(w: Long, z: Formula): AbsMultiClosureSystem =
-      AbsMultiClosureSystem(d => MultiClosureSystem.fswap(func(d), w, z))
-
-    def apply(ds: Seq[Formula]): MultiClosureSystem= func(ds)
-  }
-
-  implicit class Closure(private val func: Value => Value) extends AnyVal {
-    def eq(b: Closure): Boolean = func.eq(b.func)
-    def supportShallow(): SupportShallow = RESTRICT_OBJ.supportShallow(func)
-    def restrict(dav: Formula.Assignments): Closure = Closure(RESTRICT_OBJ.restrict(func, dav).asInstanceOf[Value => Value])
-    def fswap(w: Long, z: Formula): Closure = Closure(d => func(d).fswap(w, z))
-
-    def apply(seq: Value): Value = func(seq)
-  }
-
-  object Closure {
-    def apply(a: Value): Closure = Closure(_ => a)
-  }
-
-  object AbsClosure {
-    def apply(a: Value): AbsClosure = AbsClosure(_ => a)
-  }
-
-  // LATER make sure AnyVal classes is eliminated in bytecode
-  implicit class AbsClosure(private val func: Formula => Value) extends AnyVal {
-    def eq(b: AbsClosure): Boolean = func.eq(b.func)
-    def supportShallow(): SupportShallow = RESTRICT_OBJ.supportShallow(func)
-    def mapd(a: (Value, Formula) => Value): AbsClosure = AbsClosure(d => a(this(d), d))
-    def map(a: Value => Value): AbsClosure = AbsClosure(d => a(this(d)))
-    def restrict(dav: Formula.Assignments): AbsClosure = AbsClosure(RESTRICT_OBJ.restrict(func, dav).asInstanceOf[Formula => Value])
-    def fswap(w: Long, z: Formula): AbsClosure = AbsClosure(d => func(d).fswap(w, z))
-
-    def apply(seq: Formula): Value = func(seq)
-  }
-
-
-  trait ClosureGraph {
-    def apply(i: Int) = graph(i)
-    def graph: Seq[ClosureGraph.Node]
-    def size : Int = graph.size
-    def isEmpty: Boolean = size == 0
-
-    def dimSize: Int
-    def restrictions(): System[Value] // only in a fully reduced
-    def phi(): Set[Formula]
-
-    def reduce(ds: Seq[Formula]): ClosureGraph
-    def reduceAll(vs: Seq[Value]): ClosureGraph = {
-      assert(vs.size == graph.size)
-      vs.zipWithIndex.foldLeft(this) { (g, v) => g.reduce(v._2, v._1) }
-    }
-    def reduce(i: Int, a: Value): ClosureGraph
-    def get(name: Int, values: Int => Value): Value
-
-    def supportShallow(): SupportShallow
-    def restrict(dav: Formula.Assignments): ClosureGraph
-    def fswap(w: Long, z: Formula): ClosureGraph
-    def inferLevel(): Int
-
-
-  }
-
-
-  object ClosureGraph {
-
-    val empty: ClosureGraph = Impl(Seq.empty, 0, RestrictionsState.empty)
-
-    sealed trait Node {
-      def implicitt: Boolean
-      def dependencies: Seq[Int]
-      def independent: Independent = this.asInstanceOf[Independent]
-    }
-
-    sealed trait Dependent extends Node {
-    }
-
-    sealed trait Independent extends Node {
-      val typ: Value
-    }
-
-    private sealed trait Valued extends Independent {
-      val value: Value
-    }
-
-    private case class DependentWithMeta(implicitt: Boolean, dependencies: Seq[Int], metaCount: Int, closure: (Seq[Value], Seq[Value]) => (Seq[Value.Meta], Value)) extends Dependent
-    private case class IndependentWithMeta(implicitt: Boolean, dependencies: Seq[Int], metas: Seq[Value.Meta], typ: Value) extends Independent
-    private case class ValuedWithMeta(implicitt: Boolean, dependencies: Seq[Int], metas: Seq[Value.Meta], typ: Value, value: Value) extends Valued
-
-    sealed trait RestrictionsState
-    object RestrictionsState {
-      case class Abstract(tm: Seq[Formula] => System[(Seq[Value], Seq[Value]) => Value]) extends RestrictionsState
-      case class Concrete(tm: System[(Seq[Value], Seq[Value]) => Value]) extends RestrictionsState
-      case class Valued(tm: System[Value]) extends RestrictionsState
-      val empty = Valued(Map.empty)
-    }
-
-    def createMetaAnnotated(nodes: Seq[(Boolean, Seq[Int], Int, (Seq[Value], Seq[Value]) => (Seq[Value.Meta], Value))],
-                            dim: Int,
-                            tm: Seq[Formula] => System[(Seq[Value], Seq[Value]) => Value]): ClosureGraph = {
-      val gs = nodes.map(a => if (a._2.isEmpty) {
-        val t = a._4(Generic.HKS, Generic.HKS)
-        IndependentWithMeta(a._1, a._2, t._1, t._2)
-      } else {
-        DependentWithMeta(a._1, a._2, a._3, a._4)
-      })
-      ClosureGraph.Impl(gs, dim, if (dim == 0) RestrictionsState.empty else RestrictionsState.Abstract(tm))
-    }
-
-    private case class Impl(graph: Seq[ClosureGraph.Node], dimSize: Int, tm: RestrictionsState) extends ClosureGraph {
-
-
-
-      def supportShallow(): SupportShallow = {
-        val res = graph.map {
-          case IndependentWithMeta(ims, ds, ms, typ) =>
-            typ.supportShallow()
-          case DependentWithMeta(ims, ds, mc, c) =>
-            RESTRICT_OBJ.supportShallow(c)
-          case _ => logicError()
-        }
-        SupportShallow.flatten(res) ++
-          (if (dimSize == 0) SupportShallow.empty
-          else RESTRICT_OBJ.supportShallow(tm.asInstanceOf[RestrictionsState.Abstract]))
-      }
-
-      def fswap(w: Long, z: Formula): ClosureGraph.Impl = {
-        val gs = graph.map {
-          case IndependentWithMeta(ims, ds, ms, typ) =>
-            IndependentWithMeta(ims, ds, ms.map(_.fswap(w, z).asInstanceOf[Value.Meta]), typ.fswap(w, z))
-          case DependentWithMeta(ims, ds, mc, c) =>
-            DependentWithMeta(ims, ds, mc, (a, b) => {
-              val t = c(a, b); (t._1.map(_.fswap(w, z).asInstanceOf[Value.Meta]), t._2.fswap(w, z)) })
-          case _ => logicError()
-        }
-        val zz = if (dimSize == 0) tm else {
-          val clo = tm.asInstanceOf[RestrictionsState.Abstract].tm
-          RestrictionsState.Abstract(fs => clo(fs).map(pair => (pair._1.fswap(w, z), (v1: Seq[Value], v2: Seq[Value]) => pair._2(v1, v2).fswap(w, z))))
-        }
-        ClosureGraph.Impl(gs, dimSize, zz)
-      }
-
-      def restrict(lv: Formula.Assignments): ClosureGraph.Impl = {
-        val gs = graph.map {
-          case IndependentWithMeta(ims, ds, ms, typ) =>
-            IndependentWithMeta(ims, ds, ms.map(_.restrict(lv).asInstanceOf[Value.Meta]), typ.restrict(lv))
-          case DependentWithMeta(ims, ds, mc, c) =>
-            DependentWithMeta(ims, ds, mc, RESTRICT_OBJ.restrict(c, lv).asInstanceOf[(Seq[Value], Seq[Value]) => (Seq[Value.Meta], Value)])
-          case _ => logicError()
-        }
-        val zz = if (dimSize == 0) tm else {
-          val clo = tm.asInstanceOf[RestrictionsState.Abstract].tm
-          RestrictionsState.Abstract(RESTRICT_OBJ.restrict(clo, lv).asInstanceOf[Seq[Formula] => System[(Seq[Value], Seq[Value]) => Value]])
-        }
-        ClosureGraph.Impl(gs, dimSize, zz)
-      }
-
-
-
-
-      def inferLevel(): Int = {
-        var level = 0
-        var i = 0
-        var g = this
-        while (i < g.graph.size) {
-          val t = g.graph(i).independent.typ
-          level = t.inferLevel max level
-          val ge = Generic(gen(), t)
-          g = g.reduce(i, ge)
-          i += 1
-        }
-        level
-      }
-
-      override def phi(): Set[Formula] = tm match {
-        case RestrictionsState.Abstract(tm) => logicError()
-        case RestrictionsState.Concrete(tm) => tm.keySet
-        case RestrictionsState.Valued(tm) => tm.keySet
-      }
-
-      override def restrictions(): System[Value] = tm match {
-        case RestrictionsState.Valued(tm) => tm
-        case _ => logicError()
-      }
-
-      override def reduce(ds: Seq[Formula]): ClosureGraph = {
-        tm match {
-          case RestrictionsState.Abstract(tm) =>
-            assert(ds.size == dimSize)
-            val rs = RestrictionsState.Concrete(tm(ds))
-            Impl(graph, dimSize, tryReduceRestrictions(graph, rs))
-          case _ => logicError()
-        }
-      }
-
-      def tryReduceRestrictions(grapht: Seq[Node], rs: RestrictionsState): RestrictionsState = {
-        rs match {
-          case RestrictionsState.Abstract(_) => rs
-          case RestrictionsState.Concrete(tm) =>
-            if (grapht.forall(_.isInstanceOf[ValuedWithMeta])) {
-              val gs = grapht.map(_.asInstanceOf[ValuedWithMeta])
-              RestrictionsState.Valued(tm.view.mapValues(_.apply(gs.flatMap(_.metas), gs.map(_.value))).toMap)
-            } else {
-              rs
-            }
-          case RestrictionsState.Valued(_) => rs
-        }
-      }
-
-      def reduce(i: Int, a: Value): ClosureGraph.Impl = {
-        val from = graph
-        from(i) match {
-          case IndependentWithMeta(ims, ds, mss, typ) =>
-            val ns = ValuedWithMeta(ims, ds, mss, typ, a)
-            val mms: Seq[Value.Meta] = from.flatMap {
-              case DependentWithMeta(_, _, ms, _) => (0 until ms).map(_ => null)
-              case IndependentWithMeta(_, _, ms, _) => ms
-              case ValuedWithMeta(_, _, ms, _, _) => ms
-            }
-            val vs = from.indices.map(j => if (j == i) a else from(j) match {
-              case ValuedWithMeta(_, _, _, _, v) => v
-              case _ => null
-            })
-            val grapht = from.map {
-              case DependentWithMeta(ims, dss, _, c) if dss.forall(j => vs(j) != null) =>
-                val t = c(mms, vs)
-                IndependentWithMeta(ims, dss, t._1, t._2)
-              case i =>
-                i
-            }.updated(i, ns)
-            ClosureGraph.Impl(grapht, dimSize, tryReduceRestrictions(grapht, tm))
-          case _ => logicError()
-        }
-      }
-
-
-
-      // helper
-      def get(name: Int, values: Int => Value): Value = {
-        var i = 0
-        var g = this
-        while (i < name) {
-          g = g.reduce(i, values(i))
-          i += 1
-        }
-        g.graph(name).independent.typ
-      }
-    }
-  }
-
 
 
   // these serve the purpose of recovering syntax
@@ -319,9 +39,9 @@ object Value {
   sealed trait Referential extends Value {
     _from = this
     type Self <: Referential
-    private[Value] def getRestrict(asgs: Formula.Assignments): Self
+    private[Value] def getRestrict(asgs: Assignments): Self
     private[Value] def getFswap(w: Long, z: Formula): Self
-    def lookupChildren(v: Referential): Option[Formula.Assignments]
+    def lookupChildren(v: Referential): Option[Assignments]
     def referenced: Value
 
 }
@@ -331,23 +51,6 @@ object Value {
     var value: Value
     def referenced = value
 
-  }
-
-  case class Support(generic: Set[Generic], names: Set[Long], openMetas: Set[Meta])
-  object Support {
-    val empty: Support = Support(Set.empty, Set.empty, Set.empty)
-  }
-
-  case class SupportShallow(names: Set[Long], references: Set[Referential]) {
-    def ++(s: SupportShallow) = if (s == SupportShallow.empty) this else SupportShallow(names ++ s.names, references ++ s.references)
-    def ++(s: Set[Referential]) = if (s.isEmpty) this else  SupportShallow(names, references ++ s)
-    def +-(s: Set[Long]) = if (s.isEmpty) this else SupportShallow(names ++ s, references)
-  }
-
-  object SupportShallow {
-    val empty: SupportShallow = SupportShallow(Set.empty, Set.empty)
-    def flatten(ss: Seq[SupportShallow]): SupportShallow = SupportShallow(ss.flatMap(_.names).toSet, ss.flatMap(_.references).toSet)
-    def orEmpty(a: Option[SupportShallow]): SupportShallow = a.getOrElse(empty)
   }
 
   sealed trait LocalReferential extends Referential {
@@ -370,9 +73,9 @@ object Value {
 
     // LATER merge the two into one variable?? it is confusing though
     // only not null for parents
-    private var restrictedCache: mutable.Map[Formula.Assignments, LocalReferential] = null
+    private var restrictedCache: mutable.Map[Assignments, LocalReferential] = null
     // only not null for children
-    private var childRestricted: (LocalReferential, Formula.Assignments) = null
+    private var childRestricted: (LocalReferential, Assignments) = null
     private var fswapCache: mutable.Map[(Long, Formula), LocalReferential] = null
     protected def clearSavedAfterValueChange(): Unit = {
       if (childRestricted != null) logicError() // you don't want to do this
@@ -414,7 +117,7 @@ object Value {
       }
     }
 
-    private[Value] def getRestrict(assigments: Formula.Assignments): Self = {
+    private[Value] def getRestrict(assigments: Assignments): Self = {
       if (childRestricted != null) { // direct to parent
         childRestricted._1.asInstanceOf[Referential].getRestrict(childRestricted._2 ++ assigments).asInstanceOf[Self]
       } else {
@@ -442,7 +145,7 @@ object Value {
       }
     }
 
-    def lookupChildren(v: Referential): Option[Formula.Assignments] = {
+    def lookupChildren(v: Referential): Option[Assignments] = {
       if (this.eq(v)) {
         Some(Set.empty)
       } else {
@@ -493,7 +196,7 @@ object Value {
     override type Self = GlobalReference
     override private[Value] def getRestrict(asgs: Assignments): GlobalReference = this
     private[Value] def getFswap(w: Long, z: Formula): Self = this
-    def lookupChildren(v: Referential): Option[Formula.Assignments] = if (this.eq(v)) Some(Set.empty) else None
+    def lookupChildren(v: Referential): Option[Assignments] = if (this.eq(v)) Some(Set.empty) else None
     override def supportShallow(): SupportShallow = SupportShallow.empty
     override def support(): Support = Support.empty
 
@@ -520,8 +223,8 @@ object Value {
   }
 
   object Generic {
-    private[Value] val HK = Generic(0, null)
-    private[Value] val HKS = (0 until 40).map(_ => HK)
+    private[semantic] val HK = Generic(0, null)
+    private[semantic] val HKS = (0 until 40).map(_ => HK)
   }
   case class Generic(id: Long, @type_annotation @lateinit private var _typ: Value) extends LocalReferential {
 
@@ -671,7 +374,7 @@ object Value {
 
   sealed trait RecursiveType
   case class Inductively(@nominal_equality id: Long, @type_annotation typ: Value, ps: Seq[Value]) extends RecursiveType {
-    def restrict(lv: Formula.Assignments): Inductively = Inductively(id, typ.restrict(lv), ps.map(_.restrict(lv)))
+    def restrict(lv: Assignments): Inductively = Inductively(id, typ.restrict(lv), ps.map(_.restrict(lv)))
     def fswap(w: Long, z: Formula): Inductively = Inductively(id, typ.fswap(w, z), ps.map(_.fswap(w, z)))
     def supportShallow(): SupportShallow =  typ.supportShallow() ++ SupportShallow.flatten(ps.map(_.supportShallow()))
 
@@ -747,68 +450,6 @@ object Value {
     }
   }
 
-  type System[T] = Map[Formula, T]
-  object System {
-    def phi[T](a: System[T]) = Formula.phi(a.keys)
-  }
-  type ValueSystem = System[Value]
-  object ValueSystem {
-    def supportShallow(faces: ValueSystem): SupportShallow = {
-      SupportShallow.flatten(faces.toSeq.map(f => f._2.supportShallow() +- f._1.names))
-    }
-    def fswap(faces: ValueSystem, w: Long, z: Formula): ValueSystem = {
-      faces.toSeq.map(n => (n._1.fswap(w, z), n._2.fswap(w, z))).toMap
-    }
-    def restrict(faces: ValueSystem, lv: Formula.Assignments) = {
-      // you cannot remove faces here! it has bugs with derestricted!!
-      faces.toSeq.map(n => (n._1.restrict(lv), n._2.restrict(lv))).toMap
-    }
-  }
-
-  type ClosureSystem = System[Closure]
-  object ClosureSystem {
-    def supportShallow(faces: ClosureSystem): SupportShallow = {
-      SupportShallow.flatten(faces.toSeq.map(f => f._2.supportShallow() +- f._1.names))
-    }
-    def fswap(faces: ClosureSystem, w: Long, z: Formula): ClosureSystem = {
-      faces.toSeq.map(n => (n._1.fswap(w, z), n._2.fswap(w, z))).toMap
-    }
-    def restrict(faces: ClosureSystem, lv: Formula.Assignments) = {
-      // you cannot remove faces here! it has bugs with derestricted!!
-      faces.toSeq.map(n => (n._1.restrict(lv), n._2.restrict(lv))).toMap
-    }
-  }
-
-  type MultiClosureSystem = System[MultiClosure]
-  object MultiClosureSystem {
-    val empty: MultiClosureSystem = Map.empty
-
-    def supportShallow(faces: MultiClosureSystem): SupportShallow = {
-      SupportShallow.flatten(faces.toSeq.map(f => f._2.supportShallow() +- f._1.names))
-    }
-    def fswap(faces: MultiClosureSystem, w: Long, z: Formula): MultiClosureSystem = {
-      faces.toSeq.map(n => (n._1.fswap(w, z), n._2.fswap(w, z))).toMap
-    }
-    def restrict(faces: MultiClosureSystem, lv: Formula.Assignments) = {
-      // you cannot remove faces here! it has bugs with derestricted!!
-      faces.toSeq.map(n => (n._1.restrict(lv), n._2.restrict(lv))).toMap
-    }
-  }
-
-  type AbsClosureSystem = System[AbsClosure]
-  object AbsClosureSystem {
-    val empty: AbsClosureSystem = Map.empty
-    def supportShallow(faces: AbsClosureSystem): SupportShallow = {
-      SupportShallow.flatten(faces.toSeq.map(f => f._2.supportShallow() +- f._1.names))
-    }
-    def fswap(faces: AbsClosureSystem, w: Long, z: Formula): AbsClosureSystem = {
-      faces.toSeq.map(n => (n._1.fswap(w, z), n._2.fswap(w, z))).toMap
-    }
-    def restrict(faces: AbsClosureSystem, lv: Formula.Assignments) = {
-      // you cannot remove faces here! it has bugs with derestricted!!
-      faces.toSeq.map(n => (n._1.restrict(lv), n._2.restrict(lv))).toMap
-    }
-  }
 
   // create a path from base  => transp, tp is constant on phi
   def transpFill(i: Formula, phi: Formula, tp: AbsClosure, base: Value) =
@@ -856,7 +497,7 @@ object Value {
     AbsClosure(i => Transp(AbsClosure(j => A(Formula.Or(i, j))), Formula.Or(p, i), a(i)))
 
 
-  def transpFill(graph0: ClosureGraph, graph: Formula => ClosureGraph, phi: Formula, base: Int => Value): Seq[Value.AbsClosure] = {
+  def transpFill(graph0: ClosureGraph, graph: Formula => ClosureGraph, phi: Formula, base: Int => Value): Seq[AbsClosure] = {
     val closures = mutable.ArrayBuffer[AbsClosure]()
     for (i <- graph0.graph.indices) {
       val res = graph0(i) match {
@@ -976,7 +617,7 @@ object Value {
     // this is UnglueU in cubicaltt, the es0 is a system of path lambdas
     val v0 = Unglue(A0, u0, true, es0.view.mapValues(a => PathLambda(a)).toMap)
 
-    val faces_elim_dim = es.toSeq.map(a => (a._1.elim(dim.id), a._2)).filter(_._1.normalForm != Formula.NormalForm.False).toMap
+    val faces_elim_dim = es.toSeq.map(a => (a._1.elim(dim.id), a._2)).filter(_._1.normalForm != NormalForm.False).toMap
     val t1s = faces_elim_dim.view.mapValues(p => {
       Transp(AbsClosure(i => p(Formula.True).fswap(dim.id, i)), si, u0)
     }).toMap
@@ -1039,8 +680,8 @@ object Value {
       Projection(trueFace.fswap(dim.id, i), 0)
       }), u0)
     }
-    val faces_elim_dim = B.faces.toSeq.map(a => (a._1.elim(dim.id), a._2)).filter(_._1.normalForm != Formula.NormalForm.False).toMap
-    val B1_faces = B1.faces.filter(_._1.normalForm != Formula.NormalForm.False)
+    val faces_elim_dim = B.faces.toSeq.map(a => (a._1.elim(dim.id), a._2)).filter(_._1.normalForm != NormalForm.False).toMap
+    val B1_faces = B1.faces.filter(_._1.normalForm != NormalForm.False)
     def t1(trueFace: Value) = t_tide(trueFace, Formula.True)
     // a1: A(i/1) and is defined on both si and elim(i, phi)
     val a1 = gcomp(
@@ -1223,7 +864,7 @@ object Value {
             case u: Universe =>
               null // taken from new cubicaltt, we don't reduce here!
             case Hcomp(u: Universe, b, es) =>
-              val wts = es.map((pair: (Formula, Value.AbsClosure)) => {
+              val wts = es.map((pair: (Formula, AbsClosure)) => {
                 val al = pair._1
                 val eal = pair._2
                 val ret = AbsClosure(i =>
@@ -1231,7 +872,7 @@ object Value {
                 )
                 (al, ret)
               })
-              val t1s = es.map((pair: (Formula, Value.AbsClosure)) => {
+              val t1s = es.map((pair: (Formula, AbsClosure)) => {
                 val al = pair._1
                 val eal = pair._2
                 val ret = Hcomp(eal(Formula.True), u, faces)
@@ -1239,7 +880,7 @@ object Value {
               })
               val esmap = es.view.mapValues(a => PathLambda(a)).toMap
               val v = Unglue(b, u, true, esmap)
-              val vs = faces.map((pair: (Formula, Value.AbsClosure)) => {
+              val vs = faces.map((pair: (Formula, AbsClosure)) => {
                 val al = pair._1
                 val ual = pair._2
                 val ret = ual.map(v =>
@@ -1294,8 +935,10 @@ object Value {
   var NORMAL_FORM_MODEL = false
 }
 
+import Value._
 
 sealed trait Value {
+
   final override def equals(obj: Any): Boolean = (this, obj) match {
     case (r: Value, j: Value) => r.eq(j)
     case _ => logicError()
@@ -1430,7 +1073,7 @@ sealed trait Value {
 
 
 
-  def restrict(lv: Formula.Assignments): Value = if (lv.isEmpty) this else this match {
+  def restrict(lv: Assignments): Value = if (lv.isEmpty) this else this match {
     case u: Universe => u
     case Function(domain, im, codomain) =>
       Function(domain.restrict(lv), im, codomain.restrict(lv))
@@ -1718,10 +1361,4 @@ sealed trait Value {
     case Meta(c: MetaState.Closed) => c.v.deref()
     case _ => this
   }
-}
-
-object BuiltIn {
-  var equiv: Value = null
-  var fiber_at: Value = null
-  var equiv_of: Value = null
 }

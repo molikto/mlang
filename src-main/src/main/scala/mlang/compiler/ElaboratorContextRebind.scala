@@ -1,5 +1,8 @@
 package mlang.compiler
 
+import mlang.compiler.semantic.Value
+import mlang.utils._
+
 
 case class RebindNotFoundException() extends Exception
 

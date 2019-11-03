@@ -1,8 +1,9 @@
 package mlang.compiler
 
 import mlang.compiler.Layer.Layers
-import mlang.compiler.Value.{Referential}
-import mlang.utils.{Name, debug}
+import mlang.compiler.semantic.Value
+import Value.{Referential}
+import mlang.utils._
 
 import scala.collection.mutable
 
@@ -85,7 +86,7 @@ object Layer {
 
 
   case class HitDefinition(self: Value, branches: Seq[AlternativeGraph])
-  case class AlternativeGraph(name: Name, ps: Value.ClosureGraph)
+  case class AlternativeGraph(name: Name, ps: semantic.ClosureGraph)
 
   case class ParameterGraph(
     hit: Option[HitDefinition],
@@ -102,7 +103,7 @@ object Layer {
   }
 
   // no meta should be resolved here
-  case class Restriction(id: Long, res: semantic.Formula.Assignments, metas: MetasState) extends Layer
+  case class Restriction(id: Long, res: semantic.Assignments, metas: MetasState) extends Layer
   case class ReifierRestriction(metas: MetasState) extends Layer
 }
 
@@ -130,11 +131,11 @@ trait ElaboratorContextBase {
   }
 
   // these are just to be sure we got correct value out when reify
-  @inline protected def getAllRestrictions(support: => Set[Long], level: Int): semantic.Formula.Assignments = {
+  @inline protected def getAllRestrictions(support: => Set[Long], level: Int): semantic.Assignments = {
     val rs = layers.take(level).flatMap {
       case r: Layer.Restriction =>
         r.res
-      case _ => Set.empty[semantic.Formula.Assignment]
+      case _ => Set.empty[semantic.Assignment]
     }.toSet
     if (rs.isEmpty) {
       rs

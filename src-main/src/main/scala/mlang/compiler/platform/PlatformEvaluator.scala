@@ -1,13 +1,15 @@
-package mlang.compiler
+package mlang.compiler.platform
 
-import mlang.compiler.semantic.Formula.Assignments
-import mlang.compiler.Value.SupportShallow
+import mlang.compiler._
+import mlang.compiler.semantic._
+import mlang.compiler.semantic.Assignments
 import mlang.utils._
 
 import scala.collection.mutable
 // import scala.reflect.runtime.currentMirror
 // import scala.tools.reflect.ToolBox
 
+import mlang.compiler.semantic.Value
 
 
 trait Holder {
@@ -18,12 +20,12 @@ object ObjRestrict extends ObjWorker {
 
   var hashSet = new mutable.HashSet[AnyRef]()
 
-  override def supportShallow(v1: AnyRef): Value.SupportShallow = {
+  override def supportShallow(v1: AnyRef): SupportShallow = {
     hashSet.clear()
     supportShallow0(v1)
   }
 
-  def supportShallow0(v1: AnyRef): Value.SupportShallow = {
+  def supportShallow0(v1: AnyRef): SupportShallow = {
     val clz = v1.getClass
     val fs = clz.getDeclaredFields
     var ns = SupportShallow.empty
@@ -89,7 +91,7 @@ object ObjRestrict extends ObjWorker {
 
 trait PlatformEvaluator extends Evaluator {
 
-  Value.RESTRICT_OBJ = ObjRestrict
+  semantic.RESTRICT_OBJ = ObjRestrict
 
   val REDUCE= ""
   //val REDUCE= ".reduceUntilSelf()"

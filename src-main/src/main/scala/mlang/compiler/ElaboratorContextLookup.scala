@@ -2,6 +2,7 @@ package mlang.compiler
 
 
 import mlang.utils._
+import mlang.compiler.semantic.Value
 
 import scala.collection.mutable
 
@@ -16,7 +17,7 @@ sealed trait NameLookupResult
 object NameLookupResult {
   sealed trait Term extends NameLookupResult
   case class Typed(typ: Value, ref: Abstract) extends Term
-  case class Construct(self: Value, index: Int, closure: Value.ClosureGraph) extends Term
+  case class Construct(self: Value, index: Int, closure: semantic.ClosureGraph) extends Term
   case class Dimension(ref: Abstract.Formula) extends NameLookupResult
 }
 
