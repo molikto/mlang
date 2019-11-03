@@ -152,7 +152,7 @@ object Abstract {
 
   case class GlueType(tp: Abstract, faces: EnclosedSystem) extends Abstract
   case class Glue(base: Abstract, faces: EnclosedSystem) extends Abstract
-  case class Unglue(tp: Abstract, base: Abstract, faces: EnclosedSystem) extends Abstract
+  case class Unglue(tp: Abstract, base: Abstract, iu: Boolean, faces: EnclosedSystem) extends Abstract
 }
 
 
@@ -198,7 +198,7 @@ sealed trait Abstract {
     case Comp(tp, base, faces) => Comp(tp.diff(depth, x), base.diff(depth, x), AbsClosureSystem.diff(faces, depth, x))
     case GlueType(tp, faces) => GlueType(tp.diff(depth, x), EnclosedSystem.diff(faces, depth, x))
     case Glue(tp, faces) => Glue(tp.diff(depth, x), EnclosedSystem.diff(faces, depth, x))
-    case Unglue(tp, base, faces) => Unglue(tp.diff(depth, x), base.diff(depth, x), EnclosedSystem.diff(faces, depth, x))
+    case Unglue(tp, base, iu, faces) => Unglue(tp.diff(depth, x), base.diff(depth, x), iu, EnclosedSystem.diff(faces, depth, x))
   }
 
   def dependencies(i: Int): Set[Dependency] = this match {
@@ -226,7 +226,7 @@ sealed trait Abstract {
     case Comp(tp, base, faces) => tp.dependencies(i) ++ base.dependencies(i) ++ AbsClosureSystem.dependencies(faces, i)
     case GlueType(tp, faces) => tp.dependencies(i)  ++ EnclosedSystem.dependencies(faces, i)
     case Glue(base, faces) => base.dependencies(i) ++ EnclosedSystem.dependencies(faces, i)
-    case Unglue(tp, base, faces) => tp.dependencies(i) ++ base.dependencies(i) ++ EnclosedSystem.dependencies(faces, i)
+    case Unglue(tp, base, iu, faces) => tp.dependencies(i) ++ base.dependencies(i) ++ EnclosedSystem.dependencies(faces, i)
   }
 }
 
