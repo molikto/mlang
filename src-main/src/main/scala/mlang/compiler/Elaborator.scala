@@ -9,6 +9,7 @@ import mlang.compiler.semantic.BuiltIn
 import Value.{PathLambda, PatternRedux, StableCanonical, UnstableCanonical}
 import semantic.ClosureGraph
 import mlang.utils._
+import semantic.phi
 
 import scala.annotation.Annotation
 import scala.collection.mutable
@@ -65,7 +66,7 @@ class Elaborator private(protected override val layers: Layers)
 
   private def doForValidFormulaOrThrow[T](f: semantic.Formula, a: semantic.Assignments => T): T = {
     val davn = f.normalForm
-    val valid = davn.filter(semantic.Assignments.satisfiable)
+    val valid = davn.filter(_.satisfiable)
     if (valid.isEmpty) {
       throw ElaboratorException.RemoveStaticFalseOrUnsatisfiableFace()
     } else {
@@ -102,7 +103,7 @@ class Elaborator private(protected override val layers: Layers)
           // this might evaluate the dimensions to new values
           val dfv = asgn1 ++ asgn0
           // only used to test if this restriction is false face or not
-          if (semantic.Assignments.satisfiable(dfv)) {
+          if (dfv.satisfiable) {
             val ctx0 = newSyntaxDirectedRestrictionLayer(dfv)
             val (ctx1, dim) = ctx0.newDimensionLayer(Name.empty)
             if (!ctx1.unifyTerm(
@@ -381,7 +382,7 @@ class Elaborator private(protected override val layers: Layers)
         val (tv, ta) = checkTypeLine(tp)
         val cl = eval(ta)
         val (ctx, dim) = newDimensionLayer(Name.empty)
-        val constant = dv.normalForm.filter(a => semantic.Assignments.satisfiable(a)).forall(asg => {
+        val constant = dv.normalForm.filter(_.satisfiable).forall(asg => {
           ctx.newSyntaxDirectedRestrictionLayer(asg).unifyTerm(Value.Universe(tv), cl(dim).restrict(asg), cl(semantic.Formula.False).restrict(asg))
         })
         if (!constant) {
@@ -732,17 +733,17 @@ class Elaborator private(protected override val layers: Layers)
               case Concrete.Glue(base, fs) =>
                 val ba = check(base, ty)
                 val bv = eval(ba)
-                val phi1 = semantic.Formula.phi(faces.keys)
+                val phi1 = faces.phi
                 val ffs = fs.map(a => { val (f1, f2) = checkAndEvalFormula(a.dimension); (f1, f2, a.term) })
-                val phi2 =  semantic.Formula.phi(ffs.map(_._1))
+                val phi2 =  ffs.map(_._1).phi
                 if (phi1 == phi2) {
                   val fas = ffs.map(f => {
                     val body = doForValidFormulaOrThrow(f._1, asgn => {
                       val terms = mutable.Set.empty[Abstract.MetaEnclosed]
                       for (tf <- faces) {
-                        tf._1.normalForm.filter(semantic.Assignments.satisfiable).foreach(asgn2 => {
+                        tf._1.normalForm.filter(_.satisfiable).foreach(asgn2 => {
                           val asg = asgn ++ asgn2
-                          if (semantic.Assignments.satisfiable(asg)) {
+                          if (asg.satisfiable) {
                             val ctx = newSyntaxDirectedRestrictionLayer(asg).newDimensionLayer(Name.empty)._1
                             val bd1 = tf._2.restrict(asg)
                             val res = ctx.check(f._3, Value.Projection(bd1, 0))

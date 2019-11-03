@@ -1,16 +1,56 @@
 package mlang.compiler.semantic
 
 type Assignment = (Long, Boolean)
+
 type Assignments = Set[Assignment]
-object Assignments {
-  def satisfiable(rs: Assignments): Boolean = rs.map(_._1).size == rs.size
+
+given (rs: Assignments) {
+  def satisfiable: Boolean = rs.map(_._1).size == rs.size
+}
+
+// LATER this is not a good name in this package. but I am so lazy to came up with good ones now
+type NormalForm = Set[Assignments]
+object NormalForm {
+  val True: NormalForm = Set(Set.empty)
+  val False: NormalForm = Set.empty
+}
+given (nf: NormalForm) {
+  def elim(value: Long) = nf.filter(!_.exists(_._1 == value))
+  def satisfiable: Boolean = nf.exists(_.satisfiable)
+}
+
+object Formula {
+  case class Generic(id: Long) extends Formula {
+    def assign(asgs: Assignments): Formula = asgs.find(_._1 == id) match {
+      case Some(a) => if (a._2) True else False
+      case None => this
+    }
+  }
+  object True extends Formula
+  object False extends Formula
+  case class And(left: Formula, right: Formula) extends Formula
+  case class Or(left: Formula, right: Formula) extends Formula
+  object Or {
+    def apply(fs: Iterable[Formula]): Formula = {
+      fs.foldLeft(False: Formula) {
+        (f, a) => Or(f, a)
+      }
+    }
+  }
+  case class Neg(unit: Formula) extends Formula
+
+  def apply(nf: NormalForm): Formula = {
+    val ret = nf.foldLeft(False : Formula) {(f, z) =>
+      Or(f, z.foldLeft(True : Formula) { (t, y) => And(t, if (y._2) Generic(y._1) else Neg(Generic(y._1)))})}
+    ret.simplify
+  }
 }
 
 sealed trait Formula {
   import Formula._
   def names: Set[Long] = {
     this match {
-      case Generic(id) => if (id != 0) Set(id) else Set.empty // 0 is only used as a hack
+      case Generic(id) => Set(id)
       case True => Set.empty
       case False => Set.empty
       case And(left, right) => left.names ++ right.names
@@ -21,7 +61,7 @@ sealed trait Formula {
 
   def normalFormTrue = normalForm == NormalForm.True
 
-  def satisfiable: Boolean = NormalForm.satisfiable(normalForm)
+  def satisfiable: Boolean = normalForm.satisfiable
 
   def normalForm: NormalForm  = {
     def merge(a: NormalForm, b: NormalForm): NormalForm = {
@@ -31,7 +71,7 @@ sealed trait Formula {
     this match {
       case True => NormalForm.True
       case False => NormalForm.False
-      case Generic(id) => Set(Set((id, true)))
+      case Generic(id) => Set(Set(id -> true))
       case And(left, right) =>
         val ln = left.normalForm.toSeq
         val rn = right.normalForm.toSeq
@@ -81,27 +121,17 @@ sealed trait Formula {
     case And(left, right) =>
       val l = left.simplify
       val r = right.simplify
-      if (l == True) {
-        r
-      } else if (r == True) {
-        l
-      } else if (l == False || r == False) {
-        False
-      } else {
-        And(l, r)
-      }
+      if (l == True) r
+      else if (r == True) l
+      else if (l == False || r == False) False
+      else And(l, r)
     case Or(left, right) =>
       val l = left.simplify
       val r = right.simplify
-      if (l == False) {
-        r
-      } else if (r == False) {
-        l
-      } else if (l == True || r == True) {
-        True
-      } else {
-        Or(l, r)
-      }
+      if (l == False) r
+      else if (r == False) l
+      else if (l == True || r == True) True
+      else Or(l, r)
     case Neg(unit) => unit.simplify match {
       case False => True
       case True => False
@@ -110,44 +140,7 @@ sealed trait Formula {
     }
   }
 
-  def elim(i: Long): Formula = Formula(NormalForm.elim(normalForm, i))
+  def elim(i: Long): Formula = Formula(normalForm.elim(i))
 }
 
-object Formula {
-  def apply(nf: NormalForm): Formula = {
-    val ret = nf.foldLeft(False : Formula) {(f, z) =>
-      Or(f, z.foldLeft(True : Formula) { (t, y) => And(t, if (y._2) Generic(y._1) else Neg(Generic(y._1)))})}
-    ret.simplify
-  }
-
-
-  def phi(se: Iterable[Formula]) = se.flatMap(_.normalForm).toSet
-  type NormalForm = Set[Assignments]
-  object NormalForm {
-    def elim(nf: NormalForm, value: Long) = nf.filter(!_.exists(_._1 == value))
-
-    def satisfiable(_2: NormalForm): Boolean = _2.exists(Assignments.satisfiable)
-
-    val True: NormalForm = Set(Set.empty)
-    val False: NormalForm = Set.empty
-  }
-  case class Generic(id: Long) extends Formula {
-    def assign(asgs: Assignments): Formula = asgs.find(_._1 == id) match {
-      case Some(a) => if (a._2) True else False
-      case None => this
-    }
-  }
-  object True extends Formula
-  object False extends Formula
-  case class And(left: Formula, right: Formula) extends Formula
-  object Or {
-    def apply(fs: Iterable[Formula]): Formula = {
-      fs.foldLeft(False: Formula) {
-        (f, a) => Or(f, a)
-      }
-    }
-  }
-  case class Or(left: Formula, right: Formula) extends Formula
-  case class Neg(unit: Formula) extends Formula
-}
-
+def (se: Iterable[Formula]) phi: NormalForm =  se.flatMap(_.normalForm).toSet

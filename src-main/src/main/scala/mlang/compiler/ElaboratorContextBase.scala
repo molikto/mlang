@@ -135,7 +135,7 @@ trait ElaboratorContextBase {
     val rs = layers.take(level).flatMap {
       case r: Layer.Restriction =>
         r.res
-      case _ => Set.empty[semantic.Assignment]
+      case _ => Set.empty
     }.toSet
     if (rs.isEmpty) {
       rs

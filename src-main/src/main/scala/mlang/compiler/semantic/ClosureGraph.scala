@@ -22,12 +22,11 @@ trait ClosureGraph {
   def reduce(i: Int, a: Value): ClosureGraph
   def get(name: Int, values: Int => Value): Value
 
+  def inferLevel(): Int
+
   def supportShallow(): SupportShallow
   def restrict(dav: Assignments): ClosureGraph
   def fswap(w: Long, z: Formula): ClosureGraph
-  def inferLevel(): Int
-
-
 }
 
 
@@ -56,8 +55,8 @@ object ClosureGraph {
   private case class IndependentWithMeta(implicitt: Boolean, dependencies: Seq[Int], metas: Seq[Meta], typ: Value) extends Independent
   private case class ValuedWithMeta(implicitt: Boolean, dependencies: Seq[Int], metas: Seq[Meta], typ: Value, value: Value) extends Valued
 
-  sealed trait RestrictionsState
-  object RestrictionsState {
+  private sealed trait RestrictionsState
+  private object RestrictionsState {
     case class Abstract(tm: Seq[Formula] => System[(Seq[Value], Seq[Value]) => Value]) extends RestrictionsState
     case class Concrete(tm: System[(Seq[Value], Seq[Value]) => Value]) extends RestrictionsState
     case class Valued(tm: System[Value]) extends RestrictionsState
@@ -86,7 +85,7 @@ object ClosureGraph {
           RESTRICT_OBJ.supportShallow(c)
         case _ => logicError()
       }
-      SupportShallow.flatten(res) ++
+      res.merge ++
         (if (dimSize == 0) SupportShallow.empty
         else RESTRICT_OBJ.supportShallow(tm.asInstanceOf[RestrictionsState.Abstract]))
     }
@@ -198,9 +197,6 @@ object ClosureGraph {
       }
     }
 
-
-
-    // helper
     def get(name: Int, values: Int => Value): Value = {
       var i = 0
       var g = this

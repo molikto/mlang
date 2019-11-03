@@ -164,9 +164,9 @@ trait ValueConversion {
   def choose(d1: Value, d2: Value, mode: Int): Value = if (mode >= 0) d1 else d2
 
   def forCompatibleAssignments[T](t: System[T], r1: System[T], r2: System[T])(handle: (Assignments, T, T, T) => Boolean): Boolean = {
-    val pht = Formula.phi(t.keys)
-    val ph1 = Formula.phi(r1.keys)
-    val ph2 = Formula.phi(r2.keys)
+    val pht = t.phi
+    val ph1 = r1.phi
+    val ph2 = r2.phi
     assert(pht == ph1 && ph2 == pht)
     try {
       for (ft <- t) {
@@ -179,7 +179,7 @@ trait ValueConversion {
               for (a1 <- as1) {
                 for (a2 <- as2) {
                   val a = at ++ a1 ++ a2
-                  if (Assignments.satisfiable(a)) {
+                  if (a.satisfiable) {
                     // FIXME before we create a new layer, but now we don't, because we simply don't allow restriction on meta, think again if this is proper
                     // newSyntaxDirectedRestrictionLayer(a)
                     if (handle(a, ft._2, f1._2, f2._2)) {
@@ -200,8 +200,8 @@ trait ValueConversion {
   }
 
   def forCompatibleAssignments[T](r1: System[T], r2: System[T])(handle: (Assignments, T, T) => Boolean): Boolean = {
-    val ph1 = Formula.phi(r1.keys)
-    val ph2 = Formula.phi(r2.keys)
+    val ph1 = r1.phi
+    val ph2 = r2.phi
     try {
       if (ph1 == ph2) {
         for (f1 <- r1) {
@@ -211,7 +211,7 @@ trait ValueConversion {
             for (a1 <- as1) {
               for (a2 <- as2) {
                 val a = a1 ++ a2
-                if (Assignments.satisfiable(a)) {
+                if (a.satisfiable) {
                   // FIXME before we create a new layer, but now we don't, because we simply don't allow restriction on meta, think again if this is proper
                   // newSyntaxDirectedRestrictionLayer(a)
                   if (handle(a, f1._2, f2._2)) {

@@ -17,6 +17,12 @@ case class SupportShallow(names: Set[Long], references: Set[Referential]) {
 
 object SupportShallow {
   val empty: SupportShallow = SupportShallow(Set.empty, Set.empty)
-  def flatten(ss: Seq[SupportShallow]): SupportShallow = SupportShallow(ss.flatMap(_.names).toSet, ss.flatMap(_.references).toSet)
-  def orEmpty(a: Option[SupportShallow]): SupportShallow = a.getOrElse(empty)
+}
+
+given (sp: Seq[SupportShallow]) {
+  def merge: SupportShallow = SupportShallow(sp.flatMap(_.names).toSet, sp.flatMap(_.references).toSet)
+}
+
+given (sp: Option[SupportShallow]) {
+  def orEmpty: SupportShallow = sp.getOrElse(SupportShallow.empty)
 }

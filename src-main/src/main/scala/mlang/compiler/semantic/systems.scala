@@ -4,14 +4,12 @@ package mlang.compiler.semantic
 
 type System[T] = Map[Formula, T]
 
-object System {
-  def phi[T](a: System[T]) = Formula.phi(a.keys)
-}
+def [T] (a: System[T]) phi: NormalForm = a.keys.phi
 
 type ValueSystem = System[Value]
 given (faces: ValueSystem) {
   def supportShallow(): SupportShallow =
-    SupportShallow.flatten(faces.toSeq.map(f => f._2.supportShallow() +- f._1.names))
+    faces.toSeq.map(f => f._2.supportShallow() +- f._1.names).merge
   def fswap(w: Long, z: Formula): ValueSystem =
     faces.map(n => (n._1.fswap(w, z), n._2.fswap(w, z)))
   def restrict(lv: Assignments): ValueSystem =
@@ -21,7 +19,7 @@ given (faces: ValueSystem) {
 type ClosureSystem = System[Closure]
 given (faces: ClosureSystem) {
   def supportShallow(): SupportShallow =
-    SupportShallow.flatten(faces.toSeq.map(f => f._2.supportShallow() +- f._1.names))
+    faces.toSeq.map(f => f._2.supportShallow() +- f._1.names).merge
   def fswap(w: Long, z: Formula): ClosureSystem =
     faces.map(n => (n._1.fswap(w, z), n._2.fswap(w, z)))
   def restrict(lv: Assignments): ClosureSystem =
@@ -34,7 +32,7 @@ object MultiClosureSystem {
 }
 given (faces: MultiClosureSystem) {
   def supportShallow(): SupportShallow =
-    SupportShallow.flatten(faces.toSeq.map(f => f._2.supportShallow() +- f._1.names))
+    faces.toSeq.map(f => f._2.supportShallow() +- f._1.names).merge
   def fswap(w: Long, z: Formula): MultiClosureSystem =
     faces.map(n => (n._1.fswap(w, z), n._2.fswap(w, z)))
   def restrict(lv: Assignments): MultiClosureSystem =
@@ -47,7 +45,7 @@ object AbsClosureSystem {
 }
 given (faces: AbsClosureSystem) {
   def supportShallow(): SupportShallow =
-    SupportShallow.flatten(faces.toSeq.map(f => f._2.supportShallow() +- f._1.names))
+    faces.toSeq.map(f => f._2.supportShallow() +- f._1.names).merge
   def fswap(w: Long, z: Formula): AbsClosureSystem =
     faces.map(n => (n._1.fswap(w, z), n._2.fswap(w, z)))
   def restrict(lv: Assignments): AbsClosureSystem =

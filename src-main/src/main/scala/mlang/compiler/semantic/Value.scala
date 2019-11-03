@@ -4,7 +4,6 @@ import mlang.compiler.GenLong.Negative.{dgen, gen}
 import mlang.utils._
 import mlang.compiler.Pattern
 import mlang.compiler.semantic.Formula
-import Formula.NormalForm
 
 import scala.annotation.Annotation
 import scala.collection.mutable
@@ -376,7 +375,7 @@ object Value {
   case class Inductively(@nominal_equality id: Long, @type_annotation typ: Value, ps: Seq[Value]) extends RecursiveType {
     def restrict(lv: Assignments): Inductively = Inductively(id, typ.restrict(lv), ps.map(_.restrict(lv)))
     def fswap(w: Long, z: Formula): Inductively = Inductively(id, typ.fswap(w, z), ps.map(_.fswap(w, z)))
-    def supportShallow(): SupportShallow =  typ.supportShallow() ++ SupportShallow.flatten(ps.map(_.supportShallow()))
+    def supportShallow(): SupportShallow =  typ.supportShallow() ++ ps.map(_.supportShallow()).merge
 
     def typFinal: Value = ps.foldLeft(typ) { (t, p) => t.whnf.asInstanceOf[Function].codomain(p) }
   }
@@ -1015,14 +1014,14 @@ sealed trait Value {
     case Function(domain, impict, codomain) => domain.supportShallow() ++ codomain.supportShallow()
     case Lambda(closure) => closure.supportShallow()
     case PatternLambda(id, domain, typ, cases) =>
-      domain.supportShallow() ++ typ.supportShallow() ++ SupportShallow.flatten(cases.map(_.closure.supportShallow()))
+      domain.supportShallow() ++ typ.supportShallow() ++ cases.map(_.closure.supportShallow()).merge
     case Record(inductively, names, nodes) =>
-      SupportShallow.orEmpty(inductively.map(_.supportShallow())) ++ nodes.supportShallow()
-    case Make(values) => SupportShallow.flatten(values.map(_.supportShallow()))
+      inductively.map(_.supportShallow()).orEmpty ++ nodes.supportShallow()
+    case Make(values) => values.map(_.supportShallow()).merge
     case Construct(name, vs, ds, ty) =>
-      SupportShallow.flatten(vs.map(_.supportShallow()) ++ ds.map(_.supportShallow())) ++ ty.supportShallow()
+      (vs.map(_.supportShallow()) ++ ds.map(_.supportShallow())).merge ++ ty.supportShallow()
     case Sum(inductively, _, constructors) =>
-      SupportShallow.orEmpty(inductively.map(_.supportShallow())) ++ SupportShallow.flatten(constructors.map(a => a.nodes.supportShallow()))
+      inductively.map(_.supportShallow()).orEmpty ++ constructors.map(a => a.nodes.supportShallow()).merge
     case PathType(typ, left, right) =>
       typ.supportShallow() ++ left.supportShallow() ++ right.supportShallow()
     case PathLambda(body) => body.supportShallow()
