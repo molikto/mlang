@@ -187,8 +187,7 @@ object Value {
     override def toString: String = "Reference"
     var value: Value
     def referenced = value
-
-    override protected def getWhnf(): Value = referenced.getWhnf()
+    override protected def getWhnf(): Value = referenced.whnf
   }
 
   sealed trait LocalReferential extends Referential {
@@ -230,9 +229,6 @@ object Value {
         // these get cached...
         getRestrict(Set((w, z == Formula.True)))
       } else {
-        //      if (this.isInstanceOf[Value.Generic]) {
-        //        this.asInstanceOf[Self]
-        //      } else {
         val spt = support()
         if (spt.openMetas.nonEmpty) {
           throw ImplementationLimitationCannotRestrictOpenMeta()
@@ -327,7 +323,7 @@ object Value {
 
     override protected def getWhnf(): Value = _state match {
       case o: MetaState.Open => this
-      case MetaState.Closed(v) => v.getWhnf()
+      case MetaState.Closed(v) => v.whnf
     }
   }
 
@@ -412,6 +408,7 @@ object Value {
   def apps(maker: Value, values: Seq[Value]) : Value = values.foldLeft(maker) { (m: Value, v: Value) => Value.App(m, v) }
 
   case class Lambda(closure: Closure) extends StableCanonical
+  
   case class Case(pattern: Pattern, closure: MultiClosure) {
     private def extract(pattern: Pattern, v: Value): Option[(Seq[Value], Seq[Formula])] = {
       val vs = mutable.ArrayBuffer[Value]()
@@ -492,7 +489,7 @@ object Value {
         val ss = stuck.whnf
         if (ss == stuck) this else PatternRedux(lambda, ss)
       } else {
-        res.getWhnf()
+        res.whnf
       }
     }
   }
@@ -564,9 +561,9 @@ object Value {
     * whnf: left is whnf but not canonical, and dimension is not constant
     */
   case class PathApp(@stuck_pos left: Value, @stuck_pos dimension: Formula) extends UnstableOrRedux {
-    def getWhnf(): Value = left.whnf match {
+    override protected def getWhnf(): Value = left.whnf match {
       case PathLambda(c) =>
-        c(dimension).getWhnf()
+        c(dimension).whnf
       case canonical: StableCanonical => logicError()
       case a =>
         // I think both yacctt use open variables with types, and an `inferType` thing
@@ -596,136 +593,19 @@ object Value {
       phi: Formula,
       @stuck_pos base: Value // it stuck here on sum type sometimes
   ) extends UnstableOrRedux {
-
-    override def getWhnf(): Value = {
-      if (phi.nfTrue) {
-        base.getWhnf()
-      } else {
-        val dim = Formula.Generic(dgen())
-        tp.apply(dim).whnf match {
-          case _: Function =>
-            def tpr(i: Formula) = tp(i).whnf.asInstanceOf[Function]
-            Lambda(Closure(v => {
-              def w(i: Formula) = transpFill_inv(i, phi, AbsClosure(a => tpr(a).domain), v)
-              val w0 = transp_inv(phi, AbsClosure(a => tpr(a).domain), v)
-              Transp(AbsClosure(i => tpr(i).codomain(w(i))), phi, App(base, w0))
-            }))
-          case _: PathType =>
-            def tpr(i: Formula) = tp(i).whnf.asInstanceOf[PathType]
-            PathLambda(AbsClosure(dim => {
-              Comp(
-                AbsClosure(i => tpr(i).typ(dim)),
-                PathApp(base, dim),
-                Seq(
-                  (phi, AbsClosure(_ => PathApp(base, dim))),
-                  (Formula.Neg(dim), AbsClosure(a => tpr(a).left)),
-                  (dim, AbsClosure(a => tpr(a).right))
-                ).toMap)
-            }))
-          case r: Record =>
-            if (r.nodes.isEmpty) {
-              base.whnf
-            } else {
-              def tpr(i: Formula) = tp(i).whnf.asInstanceOf[Record].nodes
-              val closures = transpFill(r.nodes, tpr, phi, i => Projection(base, i))
-              Make(closures.map(_.apply(Formula.True)))
-            }
-          case s: Sum =>
-            if (s.noArgs) {
-              base.whnf
-            } else {
-              base.whnf match {
-                case Construct(c, vs, rs, d) =>
-                  def tpr(i: Formula) = tp(i).whnf.asInstanceOf[Sum].constructors(c)
-                  val cc = s.constructors(c)
-                  val theta = transpFill(cc.nodes, i => tpr(i).nodes, phi, vs)
-                  val w1p = Construct(c, theta.map(_.apply(Formula.True)), rs, d)
-                  val res = if (rs.isEmpty) {
-                    w1p
-                  } else {
-                    val item1 = (phi, AbsClosure(_ => base))
-                    def alpha(e: AbsClosure) = squeeze(tp, e, phi)
-                    val items = cc.nodes.reduce(rs).phi().toSeq.map(f => {
-                      val e = AbsClosure(i => tpr(i).nodes.reduceAll(theta.map(_.apply(i))).reduce(rs).restrictions().find(_._1 == f).get._2())
-                      val abs = AbsClosure(i => alpha(e)(Formula.Neg(i)))
-                      (f, abs)
-                    }).toMap.updated(item1._1, item1._2)
-                    Hcomp(tp(Formula.True), w1p, items)
-                  }
-                  res.getWhnf()
-                case Hcomp(hty, hbase, faces) =>
-                  val res = Hcomp(tp(Formula.True), Transp(tp, phi, hbase), faces.map(pr => (pr._1, pr._2.map(v => Transp(tp, phi, v)))))
-                  res.getWhnf()
-                case _: StableCanonical => logicError()
-                case a => if (a == base) this else Transp(tp, phi, a)
-              }
-            }
-          case g: GlueType =>
-            transpGlue(g, dim, phi, base).getWhnf()
-          case Hcomp(Universe(_), b0, faces) =>
-            transpHcompUniverse(b0, faces, dim, phi, base).getWhnf()
-          case _: Universe =>
-            base
-          case _ => this
-        }
-      }
-    }
+    override protected def getWhnf(): Value = this.whnfBody()
   }
 
   // FIXME when we have a syntax for partial values, these should be removed (or what? because Agda cannot compute the problem?)
   case class Comp(@stuck_pos tp: AbsClosure, base: Value, faces: AbsClosureSystem) extends Redux {
-    override def getWhnf(): Value = comp(tp, base, faces)
+    override protected def getWhnf(): Value = comp(tp, base, faces)
   }
 
   /**
     * whnf: tp is whnf and not canonical, or tp is sum or u, base is whnf
     */
   case class Hcomp(@type_annotation @stuck_pos tp: Value, base: Value, faces: AbsClosureSystem) extends Redux {
-
-    override def getWhnf(): Value = {
-      faces.find(_._1.nfTrue) match {
-        case Some(t) => t._2(Formula.True)
-        case None =>
-          val tp0 = tp.whnf
-           tp0 match {
-            case PathType(a, u, w) =>
-               PathLambda(AbsClosure(j => Hcomp(
-                 a(j),
-                 PathApp(base, j),
-                 faces.view.mapValues(_.map(v => PathApp(v, j))).toMap
-                   .updated(Formula.Neg(j), AbsClosure(_ => u))
-                   .updated(j, AbsClosure(_ => w))
-               )))
-            case Function(_, _, b) =>
-               Lambda(Closure(v => Hcomp( b(v), App(base, v), faces.view.mapValues(_.map(j => App(j, v))).toMap)))
-            case Record(_, _, cs) =>
-              Make(hcompGraph(cs, faces, base, (v, i) => Projection(v, i)))
-            case s@Sum(i, hit, cs) =>
-              if (!hit) {
-                base.whnf match {
-                  case cc@SimpleConstruct(c, vs) =>
-                    if (s.noArgs) { // FIXME this doesn't seems to be correct!!! how to judge if the term is open or not
-                      base
-                    } else {
-                      SimpleConstruct(c, hcompGraph(cs(c).nodes, faces, cc, (b, i) => b.whnf.asInstanceOf[SimpleConstruct].vs(i)))
-                    }
-                  case _: StableCanonical => logicError()
-                  case a => if (a == base && s == tp) this else Hcomp(s, a, faces)
-                }
-              } else {
-                val a = base.whnf
-                if (a == base && s == tp) this else Hcomp(s, a, faces)
-              }
-            case u: Universe =>
-              if (u == tp) this else Hcomp(u, base, faces)
-            case Hcomp(u: Universe, b, es) =>
-              hcompHcompUniverse(u, b, es, base, faces).getWhnf()
-            case g: GlueType =>
-              hcompGlue(g, base, faces).getWhnf()
-            case a => if (a == tp) this else Hcomp(a, base, faces)
-          }
-      }
-    }
+    override protected def getWhnf(): Value = this.whnfBody()
   }
 
   /**

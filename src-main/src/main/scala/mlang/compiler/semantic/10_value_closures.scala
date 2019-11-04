@@ -32,6 +32,13 @@ type classes
 
 */
 
+trait ObjWorker {
+  def supportShallow(func: AnyRef): SupportShallow
+  def restrict(a: AnyRef, b: Assignments): AnyRef
+}
+
+var RESTRICT_OBJ: ObjWorker = null
+
 
 given Nominal[Closure] {
   def (func: Closure) supportShallow(): SupportShallow = RESTRICT_OBJ.supportShallow(func)

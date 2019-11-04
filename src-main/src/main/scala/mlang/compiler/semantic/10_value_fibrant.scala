@@ -3,7 +3,129 @@ package mlang.compiler.semantic
 import Value._
 import mlang.compiler.GenLong.Negative.{dgen, gen}
 import scala.collection.mutable
+import mlang.utils._
 
+
+def (t: Transp) whnfBody(): Value = t match {
+  case Transp(tp, phi, base) =>
+    if (phi.nfTrue) {
+      base.whnf
+    } else {
+      val dim = Formula.Generic(dgen())
+      tp.apply(dim).whnf match {
+        case _: Function =>
+          def tpr(i: Formula) = tp(i).whnf.asInstanceOf[Function]
+          Lambda(Closure(v => {
+            def w(i: Formula) = transpFill_inv(i, phi, AbsClosure(a => tpr(a).domain), v)
+            val w0 = transp_inv(phi, AbsClosure(a => tpr(a).domain), v)
+            Transp(AbsClosure(i => tpr(i).codomain(w(i))), phi, App(base, w0))
+          }))
+        case _: PathType =>
+          def tpr(i: Formula) = tp(i).whnf.asInstanceOf[PathType]
+          PathLambda(AbsClosure(dim => {
+            Comp(
+              AbsClosure(i => tpr(i).typ(dim)),
+              PathApp(base, dim),
+              Seq(
+                (phi, AbsClosure(_ => PathApp(base, dim))),
+                (Formula.Neg(dim), AbsClosure(a => tpr(a).left)),
+                (dim, AbsClosure(a => tpr(a).right))
+              ).toMap)
+          }))
+        case r: Record =>
+          if (r.nodes.isEmpty) {
+            base.whnf
+          } else {
+            def tpr(i: Formula) = tp(i).whnf.asInstanceOf[Record].nodes
+            val closures = transpFill(r.nodes, tpr, phi, i => Projection(base, i))
+            Make(closures.map(_.apply(Formula.True)))
+          }
+        case s: Sum =>
+          if (s.noArgs) {
+            base.whnf
+          } else {
+            base.whnf match {
+              case Construct(c, vs, rs, d) =>
+                def tpr(i: Formula) = tp(i).whnf.asInstanceOf[Sum].constructors(c)
+                val cc = s.constructors(c)
+                val theta = transpFill(cc.nodes, i => tpr(i).nodes, phi, vs)
+                val w1p = Construct(c, theta.map(_.apply(Formula.True)), rs, d)
+                val res = if (rs.isEmpty) {
+                  w1p
+                } else {
+                  val item1 = (phi, AbsClosure(_ => base))
+                  def alpha(e: AbsClosure) = squeeze(tp, e, phi)
+                  val items = cc.nodes.reduce(rs).phi().toSeq.map(f => {
+                    val e = AbsClosure(i => tpr(i).nodes.reduceAll(theta.map(_.apply(i))).reduce(rs).restrictions().find(_._1 == f).get._2())
+                    val abs = AbsClosure(i => alpha(e)(Formula.Neg(i)))
+                    (f, abs)
+                  }).toMap.updated(item1._1, item1._2)
+                  Hcomp(tp(Formula.True), w1p, items)
+                }
+                res.whnf
+              case Hcomp(hty, hbase, faces) =>
+                val res = Hcomp(tp(Formula.True), Transp(tp, phi, hbase), faces.map(pr => (pr._1, pr._2.map(v => Transp(tp, phi, v)))))
+                res.whnf
+              case _: StableCanonical => logicError()
+              case a => if (a == base) t else Transp(tp, phi, a)
+            }
+          }
+        case g: GlueType =>
+          transpGlue(g, dim, phi, base).whnf
+        case Hcomp(Universe(_), b0, faces) =>
+          transpHcompUniverse(b0, faces, dim, phi, base).whnf
+        case _: Universe =>
+          base
+        case _ => t
+      }
+    }
+}
+
+def (t: Hcomp) whnfBody(): Value = t match {
+  case Hcomp(tp, base, faces) =>
+      faces.find(_._1.nfTrue) match {
+        case Some(t) => t._2(Formula.True)
+        case None =>
+          val tp0 = tp.whnf
+           tp0 match {
+            case PathType(a, u, w) =>
+               PathLambda(AbsClosure(j => Hcomp(
+                 a(j),
+                 PathApp(base, j),
+                 faces.view.mapValues(_.map(v => PathApp(v, j))).toMap
+                   .updated(Formula.Neg(j), AbsClosure(_ => u))
+                   .updated(j, AbsClosure(_ => w))
+               )))
+            case Function(_, _, b) =>
+               Lambda(Closure(v => Hcomp( b(v), App(base, v), faces.view.mapValues(_.map(j => App(j, v))).toMap)))
+            case Record(_, _, cs) =>
+              Make(hcompGraph(cs, faces, base, (v, i) => Projection(v, i)))
+            case s@Sum(i, hit, cs) =>
+              if (!hit) {
+                base.whnf match {
+                  case cc@SimpleConstruct(c, vs) =>
+                    if (s.noArgs) { // FIXME this doesn't seems to be correct!!! how to judge if the term is open or not
+                      base
+                    } else {
+                      SimpleConstruct(c, hcompGraph(cs(c).nodes, faces, cc, (b, i) => b.whnf.asInstanceOf[SimpleConstruct].vs(i)))
+                    }
+                  case _: StableCanonical => logicError()
+                  case a => if (a == base && s == tp) t else Hcomp(s, a, faces)
+                }
+              } else {
+                val a = base.whnf
+                if (a == base && s == tp) t else Hcomp(s, a, faces)
+              }
+            case u: Universe =>
+              if (u == tp) t else Hcomp(u, base, faces)
+            case Hcomp(u: Universe, b, es) =>
+              hcompHcompUniverse(u, b, es, base, faces).whnf
+            case g: GlueType =>
+              hcompGlue(g, base, faces).whnf
+            case a => if (a == tp) t else Hcomp(a, base, faces)
+          }
+      }
+}
 
 def hcompHcompUniverse(u: Universe, b: Value, es: AbsClosureSystem, base: Value, faces: AbsClosureSystem): Value = {
   val wts = es.map((pair: (Formula, AbsClosure)) => {
@@ -207,26 +329,6 @@ def gcomp(@stuck_pos tp: AbsClosure, base: Value, faces: AbsClosureSystem) = {
 
 
 
-def compGraph(cs0: ClosureGraph, cs: Formula => ClosureGraph, faces: AbsClosureSystem, base: Value, map: (Value, Int) => Value): Seq[Value] = {
-  val closures = mutable.ArrayBuffer[AbsClosure]()
-  for (i <- cs0.graph.indices) {
-    val res = cs0(i) match {
-      case _: ClosureGraph.Independent =>
-        fill(AbsClosure(j => cs(j)(i).asInstanceOf[ClosureGraph.Independent].typ), map(base, i),
-          faces.view.mapValues(_.map(a => map(a, i))).toMap
-        )
-      case _: ClosureGraph.Dependent =>
-        fill(
-          AbsClosure(k => cs(k).get(i, j => closures(j)(k))),
-          map(base, i),
-          faces.view.mapValues(_.map(a => map(a, i))).toMap
-        )
-    }
-    closures.append(res)
-  }
-  closures.toSeq.map(_.apply(Formula.True))
-}
-
 
 // create a path from base  => transp, tp is constant on phi
 def transpFill(i: Formula, phi: Formula, tp: AbsClosure, base: Value) =
@@ -300,6 +402,26 @@ def transpFill(graph0: ClosureGraph, graph: Formula => ClosureGraph, phi: Formul
   closures.toSeq
 }
 
+
+def compGraph(cs0: ClosureGraph, cs: Formula => ClosureGraph, faces: AbsClosureSystem, base: Value, map: (Value, Int) => Value): Seq[Value] = {
+  val closures = mutable.ArrayBuffer[AbsClosure]()
+  for (i <- cs0.graph.indices) {
+    val res = cs0(i) match {
+      case _: ClosureGraph.Independent =>
+        fill(AbsClosure(j => cs(j)(i).asInstanceOf[ClosureGraph.Independent].typ), map(base, i),
+          faces.view.mapValues(_.map(a => map(a, i))).toMap
+        )
+      case _: ClosureGraph.Dependent =>
+        fill(
+          AbsClosure(k => cs(k).get(i, j => closures(j)(k))),
+          map(base, i),
+          faces.view.mapValues(_.map(a => map(a, i))).toMap
+        )
+    }
+    closures.append(res)
+  }
+  closures.toSeq.map(_.apply(Formula.True))
+}
 
 def hcompGraph(cs: ClosureGraph, faces: AbsClosureSystem, base: Value, map: (Value, Int) => Value): Seq[Value] = {
   val closures = mutable.ArrayBuffer[AbsClosure]()
