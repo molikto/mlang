@@ -19,6 +19,7 @@ given (nf: NormalForm) {
   def satisfiable: Boolean = nf.exists(_.satisfiable)
 }
 
+
 object Formula {
   case class Generic(id: Long) extends Formula {
     def assign(asgs: Assignments): Formula = asgs.find(_._1 == id) match {
@@ -59,7 +60,7 @@ sealed trait Formula {
     }
   }
 
-  def normalFormTrue = normalForm == NormalForm.True
+  def nfTrue = normalForm == NormalForm.True
 
   def satisfiable: Boolean = normalForm.satisfiable
 
@@ -93,26 +94,6 @@ sealed trait Formula {
     }
   }
 
-  def fswap(w: Long, z: Formula): Formula = (this match {
-    case g:Generic => if (g.id == w) z else g
-    case True => True
-    case False => False
-    case And(left, right) => And(left.fswap(w, z), right.fswap(w, z))
-    case Or(left, right) => Or(left.fswap(w, z), right.fswap(w, z))
-    case Neg(unit) => Neg(unit.fswap(w, z))
-  }).simplify
-
-  def restrict(lv: Assignments): Formula = if (lv.isEmpty) this else {
-    val ret = this match {
-      case g:Generic => g.assign(lv)
-      case True => True
-      case False => False
-      case And(left, right) => And(left.restrict(lv), right.restrict(lv))
-      case Or(left, right) => Or(left.restrict(lv), right.restrict(lv))
-      case Neg(unit) => Neg(unit.restrict(lv))
-    }
-    ret.simplify
-  }
 
   def simplify : Formula = this match {
     case g:Generic => g
@@ -144,3 +125,30 @@ sealed trait Formula {
 }
 
 def (se: Iterable[Formula]) phi: NormalForm =  se.flatMap(_.normalForm).toSet
+
+given Nominal[Formula] {
+  import Formula._
+
+  def (f: Formula) supportShallow(): SupportShallow = SupportShallow(f.names, Set.empty)
+
+  def (t: Formula) fswap(w: Long, z: Formula): Formula = (t match {
+    case g:Generic => if (g.id == w) z else g
+    case True => True
+    case False => False
+    case And(left, right) => And(left.fswap(w, z), right.fswap(w, z))
+    case Or(left, right) => Or(left.fswap(w, z), right.fswap(w, z))
+    case Neg(unit) => Neg(unit.fswap(w, z))
+  }).simplify
+
+  def (t: Formula) restrict(lv: Assignments): Formula = if (lv.isEmpty) t else {
+    val ret = t match {
+      case g:Generic => g.assign(lv)
+      case True => True
+      case False => False
+      case And(left, right) => And(left.restrict(lv), right.restrict(lv))
+      case Or(left, right) => Or(left.restrict(lv), right.restrict(lv))
+      case Neg(unit) => Neg(unit.restrict(lv))
+    }
+    ret.simplify
+  }
+}

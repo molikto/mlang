@@ -2,46 +2,57 @@ package mlang.compiler.semantic
 
 
 type ValueClosure = () => Value
-given (func: ValueClosure) {
-  def supportShallow(): SupportShallow = RESTRICT_OBJ.supportShallow(func)
-  def restrict(dav: Assignments): ValueClosure =
-    RESTRICT_OBJ.restrict(func, dav).asInstanceOf[ValueClosure]
-  def fswap(w: Long, z: Formula): ValueClosure = () => func().fswap(w, z)
-}
 
 type Closure = Value => Value
 object Closure {
-  def apply(a: Value => Value): Closure = a
-  def apply(a: Value): Closure = _ => a
-}
-given (func: Closure) {
-  def supportShallow(): SupportShallow = RESTRICT_OBJ.supportShallow(func)
-  def restrict(dav: Assignments): Closure =
-    RESTRICT_OBJ.restrict(func, dav).asInstanceOf[Value => Value]
-  def fswap(w: Long, z: Formula): Closure = d => func(d).fswap(w, z)
+  inline def apply(a: Value => Value): Closure = a
+  inline def apply(a: Value): Closure = _ => a
 }
 
 type AbsClosure = Formula => Value
 object AbsClosure {
-  def apply(a: Value): AbsClosure = _ => a
-  def apply(a: Formula => Value): AbsClosure = a
+  inline def apply(a: Value): AbsClosure = _ => a
+  inline def apply(a: Formula => Value): AbsClosure = a
 }
 given (func: AbsClosure) {
-  def mapd(a: (Value, Formula) => Value): AbsClosure = d => a(func(d), d)
-  def map(a: Value => Value): AbsClosure = d => a(func(d))
-  def supportShallow(): SupportShallow = RESTRICT_OBJ.supportShallow(func)
-  def restrict(dav: Assignments): AbsClosure = 
-    RESTRICT_OBJ.restrict(func, dav).asInstanceOf[Formula => Value]
-  def fswap(w: Long, z: Formula): AbsClosure = d => func(d).fswap(w, z)
+  inline def mapd(a: (Value, Formula) => Value): AbsClosure = d => a(func(d), d)
+  inline def map(a: Value => Value): AbsClosure = d => a(func(d))
 }
 
 type MultiClosure = (Seq[Value], Seq[Formula]) => Value
 object MultiClosure {
-  def apply(a: Value): MultiClosure = (_, _) => a
-  def apply(a: (Seq[Value], Seq[Formula]) => Value): MultiClosure = a
+  inline def apply(a: Value): MultiClosure = (_, _) => a
+  inline def apply(a: (Seq[Value], Seq[Formula]) => Value): MultiClosure = a
 }
-given (func: MultiClosure) {
-  def supportShallow(): SupportShallow = RESTRICT_OBJ.supportShallow(func)
-  def restrict(dav: Assignments): MultiClosure = MultiClosure(RESTRICT_OBJ.restrict(func, dav).asInstanceOf[(Seq[Value], Seq[Formula]) => Value])
-  def fswap(w: Long, z: Formula): MultiClosure = MultiClosure((d, k) => func(d, k).fswap(w, z))
+
+
+/*
+
+type classes
+
+*/
+
+
+given Nominal[Closure] {
+  def (func: Closure) supportShallow(): SupportShallow = RESTRICT_OBJ.supportShallow(func)
+  def (func: Closure) restrict(dav: Assignments): Closure = RESTRICT_OBJ.restrict(func, dav).asInstanceOf[Closure]
+  def (func: Closure) fswap(w: Long, z: Formula): Closure = d => func(d).fswap(w, z)
+}
+
+given Nominal[ValueClosure] {
+  def (func: ValueClosure) supportShallow(): SupportShallow = RESTRICT_OBJ.supportShallow(func)
+  def (func: ValueClosure) restrict(dav: Assignments): ValueClosure = RESTRICT_OBJ.restrict(func, dav).asInstanceOf[ValueClosure]
+  def (func: ValueClosure) fswap(w: Long, z: Formula): ValueClosure = () => func().fswap(w, z)
+}
+given Nominal[AbsClosure] {
+  def (func: AbsClosure) supportShallow(): SupportShallow = RESTRICT_OBJ.supportShallow(func)
+  def (func: AbsClosure) restrict(dav: Assignments): AbsClosure = 
+    RESTRICT_OBJ.restrict(func, dav).asInstanceOf[Formula => Value]
+  def (func: AbsClosure) fswap(w: Long, z: Formula): AbsClosure = d => func(d).fswap(w, z)
+}
+
+given Nominal[MultiClosure] {
+  def (func: MultiClosure) supportShallow(): SupportShallow = RESTRICT_OBJ.supportShallow(func)
+  def (func: MultiClosure) restrict(dav: Assignments): MultiClosure = MultiClosure(RESTRICT_OBJ.restrict(func, dav).asInstanceOf[(Seq[Value], Seq[Formula]) => Value])
+  def (func: MultiClosure) fswap(w: Long, z: Formula): MultiClosure = MultiClosure((d, k) => func(d, k).fswap(w, z))
 }

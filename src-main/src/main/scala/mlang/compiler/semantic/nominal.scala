@@ -1,6 +1,5 @@
 package mlang.compiler.semantic
 
-
 import Value.{Meta, Referential, Generic}
 
 
@@ -27,4 +26,9 @@ given (sp: Option[SupportShallow]) {
   def orEmpty: SupportShallow = sp.getOrElse(SupportShallow.empty)
 }
 
-def (f: Formula) supportShallow(): SupportShallow = SupportShallow(f.names, Set.empty)
+
+trait Nominal[T] {
+  def (t: T) supportShallow(): SupportShallow
+  def (t: T) restrict(dav: Assignments): T
+  def (t: T) fswap(w: Long, z: Formula): T
+}

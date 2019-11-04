@@ -3,6 +3,7 @@ package mlang.compiler
 import mlang.compiler.Layer.Layers
 import mlang.utils._
 import mlang.compiler.semantic.Value
+import mlang.compiler.semantic.given
 
 import scala.collection.mutable
 

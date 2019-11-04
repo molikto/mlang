@@ -650,7 +650,7 @@ object Value {
   case class SimpleConstruct(name: Int, vs: Seq[Value]) extends StableCanonical
   case class HitConstruct(name: Int, vs: Seq[Value], @stuck_pos ds: Seq[Formula], @type_annotation ty: ValueSystem) extends Unstable {
     override protected def getWhnf() = 
-      ty.find(_._1.normalFormTrue) match {
+      ty.find(_._1.nfTrue) match {
         case Some(value) => value._2().whnf
         case None => this
       }
@@ -716,7 +716,7 @@ object Value {
   ) extends UnstableOrRedux {
 
     override def getWhnf(): Value = {
-      if (phi.normalFormTrue) {
+      if (phi.nfTrue) {
         base.getWhnf()
       } else {
         val dim = Formula.Generic(dgen())
@@ -801,7 +801,7 @@ object Value {
   case class Hcomp(@type_annotation @stuck_pos tp: Value, base: Value, faces: AbsClosureSystem) extends Redux {
 
     override def getWhnf(): Value = {
-      faces.find(_._1.normalFormTrue) match {
+      faces.find(_._1.nfTrue) match {
         case Some(t) => t._2(Formula.True)
         case None =>
           val tp0 = tp.whnf
@@ -850,14 +850,14 @@ object Value {
     * whnf: faces is not constant
     */
   case class GlueType(@type_annotation ty: Value, @stuck_pos faces: ValueSystem) extends Unstable {
-    override protected def getWhnf(): Value = faces.find(_._1.normalFormTrue).map(b => Projection(b._2(), 0).whnf).getOrElse(this)
+    override protected def getWhnf(): Value = faces.find(_._1.nfTrue).map(b => Projection(b._2(), 0).whnf).getOrElse(this)
   }
   /**
     * whnf: faces is not constant
     */
   case class Glue(m: Value, @stuck_pos faces: ValueSystem) extends Unstable {
     override protected def getWhnf() =
-      faces.find(_._1.normalFormTrue).map(_._2().whnf).getOrElse(this)
+      faces.find(_._1.nfTrue).map(_._2().whnf).getOrElse(this)
   }
   /**
     * whnf: faces is not constant, base is whnf, and base's whnf is not glue
@@ -867,7 +867,7 @@ object Value {
     */
   case class Unglue(ty: Value, base: Value, isU: Boolean, @stuck_pos faces: ValueSystem) extends Redux {
     override protected def getWhnf(): Value = {
-      val red = faces.find(_._1.normalFormTrue).map(b =>
+      val red = faces.find(_._1.nfTrue).map(b =>
         if (isU) transp_inv(Formula.False, b._2().whnf.asInstanceOf[PathLambda].body, base).whnf
         else App(Projection(Projection(b._2(), 1), 0), base).whnf
       )

@@ -1110,12 +1110,12 @@ class Elaborator private(protected override val layers: Layers)
             loopType(t.tp)
         }
       case t: Value.Glue =>
-        assert(!t.faces.exists(_._1.normalFormTrue))
+        assert(!t.faces.exists(_._1.nfTrue))
         loopBase(t.m)
       case v: Value.Unglue =>
         loopBase(v.base)
       case a: Value.GlueType =>
-        assert(!a.faces.exists(_._1.normalFormTrue))
+        assert(!a.faces.exists(_._1.nfTrue))
         k
       case Value.PathType(typ, left, right) =>
         k

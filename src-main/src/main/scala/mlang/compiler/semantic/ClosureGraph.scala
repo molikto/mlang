@@ -23,14 +23,12 @@ trait ClosureGraph {
   def get(name: Int, values: Int => Value): Value
 
   def inferLevel(): Int
-
-  def supportShallow(): SupportShallow
-  def restrict(dav: Assignments): ClosureGraph
-  def fswap(w: Long, z: Formula): ClosureGraph
 }
 
+export ClosureGraph.isNominal
 
 object ClosureGraph {
+
 
   val empty: ClosureGraph = Impl(Seq.empty, 0, RestrictionsState.empty)
 
@@ -207,5 +205,12 @@ object ClosureGraph {
       g.graph(name).independent.typ
     }
   }
+
+  given isNominal: Nominal[ClosureGraph] {
+    def (c: ClosureGraph) supportShallow() = c.asInstanceOf[ClosureGraph.Impl].supportShallow()
+    def (c: ClosureGraph) restrict(dav: Assignments) = c.asInstanceOf[ClosureGraph.Impl].restrict(dav)
+    def (c: ClosureGraph) fswap(w: Long, z: Formula) = c.asInstanceOf[ClosureGraph.Impl].fswap(w, z)
+  }
 }
+
 

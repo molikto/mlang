@@ -1,7 +1,7 @@
 package mlang.compiler.platform
 
 import mlang.compiler._
-import mlang.compiler.semantic._
+import mlang.compiler.semantic.{given, _}
 import mlang.compiler.semantic.Assignments
 import mlang.utils._
 
@@ -184,7 +184,7 @@ trait PlatformEvaluator extends Evaluator {
 
 
   def emitAbsClosureSystem(faces: Abstract.AbsClosureSystem, depth: Int) = {
-    if (faces.isEmpty) "AbsClosureSystem.empty" else s"Seq(${faces.toSeq.map(a => s"(${emit(a._1, depth)}, ${emitAbsClosure(a._2, depth + 1)})").mkString(", ")}).toMap"
+    if (faces.isEmpty) "Map.empty" else s"Seq(${faces.toSeq.map(a => s"(${emit(a._1, depth)}, ${emitAbsClosure(a._2, depth + 1)})").mkString(", ")}).toMap"
   }
 
 
