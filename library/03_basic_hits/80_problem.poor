@@ -26,10 +26,6 @@ define innerpath(i j: I): S2_hopf(test_0_to_4(i, j, 1)) =
 define __debug problem: int.pos(zero) ≡ int.pos(zero) =
   i → transp(j → S1_helix(innerpath(i ,j)), 0, int.pos(zero))
 
-// a.ref0.get.value.whnf.asInstanceOf[Value.PathLambda].body(semantic.Formula.Generic(991)).whnf.asInstanceOf[Value.Transp].tp(semantic.Formula.Generic(992)).whnf.asInstanceOf[Value.PatternRedux].stuck.asInstanceOf[Value.Transp].tp(semantic.Formula.Generic(993)).whnf
-
-// a.ref0.get.value.whnf.asInstanceOf[Value.PathLambda].body(semantic.Formula.Generic(991)).whnf.asInstanceOf[Value.Transp].tp(semantic.Formula.Generic(992)).whnf.asInstanceOf[Value.PatternRedux].stuck.asInstanceOf[Value.Transp].tp(semantic.Formula.Generic(993)).asInstanceOf[Value.App].argument.asInstanceOf[Value.PathApp].left.asInstanceOf[Value.PathApp].left.asInstanceOf[Value.PathApp].left.asInstanceOf[Value.PathApp].asInstanceOf[Value.Reference]
-
 
 
 
