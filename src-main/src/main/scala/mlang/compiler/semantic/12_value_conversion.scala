@@ -12,9 +12,11 @@ private case class Assumption(left: Long, right: Long, domain: Value, codomain: 
 
 private case class BreakException() extends Exception()
 
+type MetaSpine = Seq[Either[Generic, Formula.Generic]]
+
 object SolvableMetaForm {
-  def unapply(a: Value): Option[(Meta, ValueConversion.MetaSpine)] = {
-    def rec(a: Value): Option[(Meta, ValueConversion.MetaSpine)] = {
+  def unapply(a: Value): Option[(Meta, MetaSpine)] = {
+    def rec(a: Value): Option[(Meta, MetaSpine)] = {
       a match {
         case App(l, as) =>
           as match {
@@ -34,10 +36,6 @@ object SolvableMetaForm {
   }
 }
 
-
-object ValueConversion {
-  type MetaSpine = Seq[Either[Generic, Formula.Generic]]
-}
 trait ValueConversion {
   protected def unifyTerm(typ: Value, t1: Value, t2: Value): Boolean = {
     Benchmark.Unify {
@@ -181,7 +179,8 @@ trait ValueConversion {
                   val a = at ++ a1 ++ a2
                   if (a.satisfiable) {
                     // FIXME before we create a new layer, but now we don't, because we simply don't allow restriction on meta, think again if this is proper
-                    // newSyntaxDirectedRestrictionLayer(a)
+                    // same bellow
+                    // newSyntaxDirectedRestrictionLayer(a) 
                     if (handle(a, ft._2, f1._2, f2._2)) {
                     } else {
                       throw BreakException()
@@ -212,8 +211,6 @@ trait ValueConversion {
               for (a2 <- as2) {
                 val a = a1 ++ a2
                 if (a.satisfiable) {
-                  // FIXME before we create a new layer, but now we don't, because we simply don't allow restriction on meta, think again if this is proper
-                  // newSyntaxDirectedRestrictionLayer(a)
                   if (handle(a, f1._2, f2._2)) {
                   } else {
                     throw BreakException()
@@ -306,7 +303,7 @@ trait ValueConversion {
   }
 
 
-  protected def trySolve(m: Meta, vs: ValueConversion.MetaSpine, t20: Value): Option[Value]
+  protected def trySolve(m: Meta, vs: MetaSpine, t20: Value): Option[Value]
 
   private def recNeutral(tmm1: Value, tmm2: Value): Option[Value] = {
     (tmm1.whnf, tmm2.whnf) match {

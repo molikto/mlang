@@ -61,7 +61,7 @@ object ClosureGraph {
     val empty = Valued(Map.empty)
   }
 
-  def createMetaAnnotated(nodes: Seq[(Boolean, Seq[Int], Int, (Seq[Value], Seq[Value]) => (Seq[Meta], Value))],
+  def apply(nodes: Seq[(Boolean, Seq[Int], Int, (Seq[Value], Seq[Value]) => (Seq[Meta], Value))],
                           dim: Int,
                           tm: Seq[Formula] => System[(Seq[Value], Seq[Value]) => Value]): ClosureGraph = {
     val gs = nodes.map(a => if (a._2.isEmpty) {

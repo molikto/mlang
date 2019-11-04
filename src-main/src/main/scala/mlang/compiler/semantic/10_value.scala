@@ -17,7 +17,7 @@ sealed trait Value {
     case (r: Value, j: Value) => r.eq(j)
     case _ => logicError()
   }
-    // FIXME this is not that well defined, since some term will always whnf on arguments, some not
+
   private[Value] var _from: Value = _
   private[Value] var _whnfCache: Value = _
 
@@ -169,7 +169,6 @@ object Value {
   sealed trait StableCanonical extends Value {
     override protected def getWhnf(): Value = this
   }
-  // FIXME hcomp is either unstable canonical or redux, depending on the type
   sealed trait UnstableOrRedux extends Value
   sealed trait Unstable extends UnstableOrRedux
   sealed trait Redux extends UnstableOrRedux
@@ -408,7 +407,7 @@ object Value {
   def apps(maker: Value, values: Seq[Value]) : Value = values.foldLeft(maker) { (m: Value, v: Value) => Value.App(m, v) }
 
   case class Lambda(closure: Closure) extends StableCanonical
-  
+
   case class Case(pattern: Pattern, closure: MultiClosure) {
     private def extract(pattern: Pattern, v: Value): Option[(Seq[Value], Seq[Formula])] = {
       val vs = mutable.ArrayBuffer[Value]()
@@ -624,8 +623,6 @@ object Value {
   /**
     * whnf: faces is not constant, base is whnf, and base's whnf is not glue
     * LATER this is how the whnf is defined, so glue is considered canonical, but unglue is not
-    *
-    * FIXME it seems ty can be considered a type annotation? I am confused
     */
   case class Unglue(ty: Value, base: Value, isU: Boolean, @stuck_pos faces: ValueSystem) extends Redux {
     override protected def getWhnf(): Value = {

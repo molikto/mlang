@@ -1,7 +1,7 @@
 package mlang.compiler
 
-import mlang.compiler.semantic.Value
-import mlang.compiler.semantic.ValueConversion
+import mlang.compiler.semantic.given
+import mlang.compiler.semantic.{Value, ValueConversion, MetaSpine}
 import Value.{Reference => _, _}
 import mlang.utils._
 
@@ -16,8 +16,6 @@ case class UnificationFailedException(msg: String) extends Exception
 trait MetaSolver extends ValueConversion with Reifier with ElaboratorContextRebind with Evaluator {
 
   type Self  <: MetaSolver
-
-  import ValueConversion.MetaSpine
 
   private def error(s: String) = throw UnificationFailedException(s)
 
