@@ -1,7 +1,6 @@
 package mlang.compiler.semantic
 
 
-
 type System[T] = Map[Formula, T]
 
 def [T] (a: System[T]) phi: NormalForm = a.keys.phi

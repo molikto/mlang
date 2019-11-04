@@ -2,8 +2,10 @@ package mlang.compiler.semantic
 
 import Value.{Meta, Referential, Generic}
 
-
-type Support = Set[Long]
+case class Support(generic: Set[Generic], names: Set[Long], openMetas: Set[Meta])
+object Support {
+  val empty: Support = Support(Set.empty, Set.empty, Set.empty)
+}
 
 case class SupportShallow(names: Set[Long], references: Set[Referential]) {
   def ++(s: SupportShallow) = if (s == SupportShallow.empty) this else SupportShallow(names ++ s.names, references ++ s.references)

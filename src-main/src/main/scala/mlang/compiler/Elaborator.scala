@@ -4,8 +4,8 @@ import mlang.compiler.Concrete._
 import Declaration.Modifier
 import mlang.compiler.Abstract.{Inductively, MetaEnclosed}
 import mlang.compiler.Layer.Layers
-import mlang.compiler.semantic.Value
-import mlang.compiler.semantic.BuiltIn
+import mlang.compiler.semantic.{Value, BuiltIn}
+import mlang.compiler.semantic.given
 import Value.{PathLambda, PatternRedux, StableCanonical}
 import semantic.ClosureGraph
 import mlang.utils._
