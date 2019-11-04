@@ -88,6 +88,7 @@ object ClosureGraph {
         else RESTRICT_OBJ.supportShallow(tm.asInstanceOf[RestrictionsState.Abstract]))
     }
 
+    // FIXME rethink if these meta should call fswap
     def fswap(w: Long, z: Formula): ClosureGraph.Impl = {
       val gs = graph.map {
         case IndependentWithMeta(ims, ds, ms, typ) =>

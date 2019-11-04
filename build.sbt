@@ -5,6 +5,7 @@ lazy val `main` = project.in(file("src-main")).settings(
     ("com.lihaoyi" %% "fansi" % "0.2.7").withDottyCompat(scalaVersion.value),
     "ch.epfl.lamp" %% "dotty-staging" % scalaVersion.value,
     "scala-parser-combinators-dotty" %% "scala-parser-combinators-dotty" % "0.1.0",
+    "net.bytebuddy" % "byte-buddy" % "1.10.2"
   )
 )
 
