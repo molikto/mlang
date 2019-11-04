@@ -26,3 +26,5 @@ given (sp: Seq[SupportShallow]) {
 given (sp: Option[SupportShallow]) {
   def orEmpty: SupportShallow = sp.getOrElse(SupportShallow.empty)
 }
+
+def (f: Formula) supportShallow(): SupportShallow = SupportShallow(f.names, Set.empty)

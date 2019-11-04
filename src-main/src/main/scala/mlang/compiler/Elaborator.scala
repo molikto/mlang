@@ -6,7 +6,7 @@ import mlang.compiler.Abstract.{Inductively, MetaEnclosed}
 import mlang.compiler.Layer.Layers
 import mlang.compiler.semantic.Value
 import mlang.compiler.semantic.BuiltIn
-import Value.{PathLambda, PatternRedux, StableCanonical, UnstableCanonical}
+import Value.{PathLambda, PatternRedux, StableCanonical}
 import semantic.ClosureGraph
 import mlang.utils._
 import semantic.phi
@@ -26,7 +26,7 @@ private class IndState(val id: Long, typ: Abstract, var stop: Boolean, var top: 
     } else {
       val ret = Abstract.Inductively(id, typ, (0 until apps.size).map(i => Abstract.Reference(i, -1)).reverse)
       stop = true
-      Some((Value.Apps(top, apps), ret))
+      Some((Value.apps(top, apps), ret))
     }
   }
 
@@ -824,8 +824,8 @@ class Elaborator private(protected override val layers: Layers)
     else Value.LocalReference(v)
 
   def debugNv(whnf: Value): Value = whnf.whnf match {
-    case n: Value.Construct if n.ds.isEmpty =>
-      Value.Construct(n.name, n.vs.map(debugNv), n.ds, n.ty)
+    case Value.SimpleConstruct(n, vs)  =>
+      Value.SimpleConstruct(n, vs.map(debugNv))
     case a => a
   }
 
@@ -1119,7 +1119,9 @@ class Elaborator private(protected override val layers: Layers)
         k
       case Value.PathType(typ, left, right) =>
         k
-      case c: Value.Construct =>
+      case c: Value.SimpleConstruct =>
+        k
+      case c: Value.HitConstruct =>
         k
       case Value.Make(values) =>
         k
@@ -1139,7 +1141,9 @@ class Elaborator private(protected override val layers: Layers)
         b.whnf match {
           case h: Value.Hcomp =>
             h
-          case a: Value.Construct =>
+          case a: Value.SimpleConstruct =>
+            a
+          case a: Value.HitConstruct =>
             a
           case _ =>
             loopBase(b)
