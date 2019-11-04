@@ -17,10 +17,10 @@ def hcompHcompUniverse(u: Universe, b: Value, es: AbsClosureSystem, base: Value,
   val t1s = es.map((pair: (Formula, AbsClosure)) => {
     val al = pair._1
     val eal = pair._2
-    val ret = Hcomp(eal(Formula.True), u, faces)
+    val ret = () => Hcomp(eal(Formula.True), u, faces)
     (al, ret)
   })
-  val esmap = es.view.mapValues(a => PathLambda(a)).toMap
+  val esmap = es.view.mapValues(a => () => PathLambda(a)).toMap
   val v = Unglue(b, u, true, esmap)
   val vs = faces.map((pair: (Formula, AbsClosure)) => {
     val al = pair._1
@@ -42,7 +42,7 @@ def transpHcompUniverse(A: Value, es: AbsClosureSystem, dim: Formula.Generic, si
   val es1 = es.fswap(dim.id, Formula.True)
 
   // this is UnglueU in cubicaltt, the es0 is a system of path lambdas
-  val v0 = Unglue(A0, u0, true, es0.view.mapValues(a => PathLambda(a)).toMap)
+  val v0 = Unglue(A0, u0, true, es0.view.mapValues(a => () => PathLambda(a)).toMap)
 
   val faces_elim_dim = es.toSeq.map(a => (a._1.elim(dim.id), a._2)).filter(_._1.normalForm != NormalForm.False).toMap
   val t1s = faces_elim_dim.view.mapValues(p => {
@@ -66,24 +66,24 @@ def transpHcompUniverse(A: Value, es: AbsClosureSystem, dim: Formula.Generic, si
     val res = eq(dg).whnf match {
       case s: Sum if s.noArgs =>
         // because we know this is non-dependent
-        val p1 = Hcomp(eq(dg), b, as.view.mapValues(a => AbsClosure(_ => a)).toMap)
+        val p1 = () => Hcomp(eq(dg), b, as.view.mapValues(a => AbsClosure(_ => a)).toMap)
         val p2 = hfill(eq(dg), b, as.view.mapValues(a => AbsClosure(_ => a)).toMap)
-        (p1: Value, p2: AbsClosure)
+        (p1, p2: AbsClosure)
       case other =>
         val adwns = as.map((pair: (Formula, Value)) => {
           (pair._1, AbsClosure(j => transpFill_inv(j, Formula.False, eq, pair._2)))
         }).toMap
         val left = fill(eq, b, adwns)
-        val a = comp(eq, b, adwns)
+        val a = () => comp(eq, b, adwns)
         val right = AbsClosure(j =>
-          transpFill_inv(j, Formula.False, eq, a)
+          transpFill_inv(j, Formula.False, eq, a())
         )
         val p = AbsClosure(i =>
-          comp(AbsClosure(a => eq(Formula.Neg(a))), a,
+          comp(AbsClosure(a => eq(Formula.Neg(a))), a(),
             adwns.updated(Formula.Neg(i), left).updated(i, right).view.mapValues(v => AbsClosure(j => v(Formula.Neg(j)))).toMap
           )
         )
-        (a : Value, p: AbsClosure)
+        (a, p: AbsClosure)
     }
     (pair._1, res)
   }).toMap
@@ -116,9 +116,10 @@ def transpGlue(B: GlueType, dim: Formula.Generic, si: Formula, u0: Value): Value
     a0,
     faces_elim_dim.view.mapValues(tf => {
       AbsClosure(i => {
-        val EQi  = tf.fswap(dim.id, i)
+        val tf0 = tf()
+        val EQi  = tf0.fswap(dim.id, i)
         val w = Projection(EQi, 1)
-        App(Projection(w, 0), t_tide(tf, i))
+        App(Projection(w, 0), t_tide(tf0, i))
       })
     }).toMap.updated(si, AbsClosure(_ => a0))
   )
@@ -129,7 +130,7 @@ def transpGlue(B: GlueType, dim: Formula.Generic, si: Formula, u0: Value): Value
     ghcomp(apps(BuiltIn.fiber_at, Seq(Projection(trueFace, 0), A1, Projection(w, 0), a1)), Projection(compo, 0),
       faces_elim_dim.view.mapValues(tf => {
         AbsClosure(i => {
-          val u = Make(Seq(t1(tf), PathLambda(AbsClosure(_ => a1))))
+          val u = Make(Seq(t1(tf()), PathLambda(AbsClosure(_ => a1))))
           PathApp(App(Projection(compo, 1), u), i)
         })
       }).toMap.updated(si, AbsClosure(i => {
@@ -141,9 +142,9 @@ def transpGlue(B: GlueType, dim: Formula.Generic, si: Formula, u0: Value): Value
   val a1p = Hcomp(A1, a1,
       B1_faces.view.mapValues(bd => {
         // alpha is of type f(t1p) == a1
-        AbsClosure(j => PathApp(Projection(pair(bd), 1), Formula.Neg(j)) )
+        AbsClosure(j => PathApp(Projection(pair(bd()), 1), Formula.Neg(j)) )
       }).toMap.updated(si, AbsClosure(_ => a1)))
-    Glue(a1p, B1_faces.view.mapValues(bd => Projection(pair(bd), 0)).toMap)
+    Glue(a1p, B1_faces.view.mapValues(bd => () => Projection(pair(bd()), 0)).toMap)
 }
 
 def hcompGlue(B: GlueType, u0: Value, faces: AbsClosureSystem): Value = {
@@ -153,13 +154,14 @@ def hcompGlue(B: GlueType, u0: Value, faces: AbsClosureSystem): Value = {
   def t1(trueFace: Value) = t_tide(trueFace)(Formula.True)
   val a1 = Hcomp(B.ty, Unglue(B.ty, u0, false, B.faces),
     faces.view.mapValues(_.map(u => Unglue(B.ty, u, false, B.faces))).toMap ++
-    B.faces.view.mapValues(pair => AbsClosure(i => {
+    B.faces.view.mapValues(pair0 => AbsClosure(i => {
+      val pair = pair0()
       val w = Projection(pair, 1)
       val f = Projection(w, 0)
       App(f, t_tide(pair)(i))
     })).toMap
   )
-  Glue(a1, B.faces.view.mapValues(bd => t1(bd)).toMap)
+  Glue(a1, B.faces.view.mapValues(bd => () => t1(bd())).toMap)
 }
 
 

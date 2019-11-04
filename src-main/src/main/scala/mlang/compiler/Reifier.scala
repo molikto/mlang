@@ -58,7 +58,7 @@ private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorCon
       val ms = graph.reduce(ds).restrictions().toSeq.map(r => {
         (ctx.reify(r._1), {
           val ctx0 = ctx.newReifierRestrictionLayer(r._1)
-          val vv = ctx0.reify(r._2)
+          val vv = ctx0.reify(r._2())
           Abstract.MetaEnclosed(ctx0.reifyMetas(), vv)
         })
       }).toMap
@@ -118,7 +118,7 @@ private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorCon
     if (faces.isEmpty) Map.empty : Abstract.AbsClosureSystem else faces.toSeq.map(r => (reify(r._1), newReifierRestrictionLayer(r._1).reify(r._2))).toMap
 
   def reifyEnclosedSystem(faces: semantic.ValueSystem) =
-    if (faces.isEmpty) Map.empty : Abstract.EnclosedSystem else faces.toSeq.map(r => (reify(r._1), newReifierRestrictionLayer(r._1).reifyMetaEnclosed(r._2))).toMap
+    if (faces.isEmpty) Map.empty : Abstract.EnclosedSystem else faces.toSeq.map(r => (reify(r._1), newReifierRestrictionLayer(r._1).reifyMetaEnclosed(r._2()))).toMap
 
 
   def reify(v: Value): Abstract = {
@@ -166,7 +166,9 @@ private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorCon
         App(reify(lambda), reify(stuck))
       case Value.Make(vs) =>
         Make(vs.map(reify))
-      case Value.Construct(f, vs, ds, ty) =>
+      case Value.SimpleConstruct(f, vs) =>
+        Construct(f, vs.map(reify), Seq.empty, Map.empty)
+      case Value.HitConstruct(f, vs, ds, ty) =>
         Construct(f, vs.map(reify), ds.map(reify), reifyEnclosedSystem(ty))
       case Value.PathApp(left, stuck) =>
         PathApp(reify(left), reify(stuck))
@@ -265,7 +267,7 @@ trait Reifier extends ElaboratorContextBuilder with ElaboratorContextRebind {
       (rebindFormula(f._1),  {
         val l = debug_metasSize
         val c = newReifierRestrictionLayer(f._1).newParametersLayer()
-        val r = Abstract.MetaEnclosed(Seq.empty, c.asInstanceOf[Reifier].reify(f._2))
+        val r = Abstract.MetaEnclosed(Seq.empty, c.asInstanceOf[Reifier].reify(f._2()))
         assert(debug_metasSize == l) // we don't create meta in current layer!
         assert(c.debug_metasSize == 0) // also we don't create in that one!
         r

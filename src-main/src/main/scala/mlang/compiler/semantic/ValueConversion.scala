@@ -380,7 +380,7 @@ trait ValueConversion {
           if (u1) {
             val g = Formula.Generic(dgen())
             if (forCompatibleAssignments(f1, f2) { (a, b1, b2) =>
-              recType(PathApp(b1.restrict(a), g), PathApp(b2.restrict(a), g))
+              recType(PathApp(b1().restrict(a), g), PathApp(b2().restrict(a), g))
             }) {
               Some(t1)
             } else {
@@ -415,7 +415,7 @@ trait ValueConversion {
 
   def recValueSystem(t: Value, r1: ValueSystem, r2: ValueSystem): Boolean = {
     forCompatibleAssignments(r1, r2) { (a, b1, b2) =>
-      recTerm(t.restrict(a), b1.restrict(a), b2.restrict(a))
+      recTerm(t.restrict(a), b1().restrict(a), b2().restrict(a))
     }
   }
 
@@ -480,9 +480,9 @@ trait ValueConversion {
             val Glue(m2, r2) = a
             recTerm(g.ty, m1, m2) && forCompatibleAssignments(g.faces, r1, r2) { (a, bt, b1, b2) =>
               recTerm(
-                Projection(bt.restrict(a), 0),
-                b1.restrict(a),
-                b2.restrict(a)
+                Projection(bt().restrict(a), 0),
+                b1().restrict(a),
+                b2().restrict(a)
               )
             }
           }

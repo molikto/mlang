@@ -11,7 +11,7 @@ trait ClosureGraph {
   def isEmpty: Boolean = size == 0
 
   def dimSize: Int
-  def restrictions(): System[Value] // only in a fully reduced
+  def restrictions(): System[ValueClosure] // only in a fully reduced
   def phi(): Set[Formula]
 
   def reduce(ds: Seq[Formula]): ClosureGraph
@@ -59,7 +59,7 @@ object ClosureGraph {
   private object RestrictionsState {
     case class Abstract(tm: Seq[Formula] => System[(Seq[Value], Seq[Value]) => Value]) extends RestrictionsState
     case class Concrete(tm: System[(Seq[Value], Seq[Value]) => Value]) extends RestrictionsState
-    case class Valued(tm: System[Value]) extends RestrictionsState
+    case class Valued(tm: System[ValueClosure]) extends RestrictionsState
     val empty = Valued(Map.empty)
   }
 
@@ -142,7 +142,7 @@ object ClosureGraph {
       case RestrictionsState.Valued(tm) => tm.keySet
     }
 
-    override def restrictions(): System[Value] = tm match {
+    override def restrictions(): System[ValueClosure] = tm match {
       case RestrictionsState.Valued(tm) => tm
       case _ => logicError()
     }
@@ -163,7 +163,7 @@ object ClosureGraph {
         case RestrictionsState.Concrete(tm) =>
           if (grapht.forall(_.isInstanceOf[ValuedWithMeta])) {
             val gs = grapht.map(_.asInstanceOf[ValuedWithMeta])
-            RestrictionsState.Valued(tm.view.mapValues(_.apply(gs.flatMap(_.metas), gs.map(_.value))).toMap)
+            RestrictionsState.Valued(tm.view.mapValues(a => () => a.apply(gs.flatMap(_.metas), gs.map(_.value))).toMap)
           } else {
             rs
           }

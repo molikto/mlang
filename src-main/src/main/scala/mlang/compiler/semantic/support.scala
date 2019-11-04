@@ -19,7 +19,7 @@ object SupportShallow {
   val empty: SupportShallow = SupportShallow(Set.empty, Set.empty)
 }
 
-given (sp: Seq[SupportShallow]) {
+given (sp: Iterable[SupportShallow]) {
   def merge: SupportShallow = SupportShallow(sp.flatMap(_.names).toSet, sp.flatMap(_.references).toSet)
 }
 

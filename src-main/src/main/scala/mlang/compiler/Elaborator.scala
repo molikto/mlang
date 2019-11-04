@@ -481,7 +481,7 @@ class Elaborator private(protected override val layers: Layers)
         val (mt, ma) = infer(m)
         mt.whnf match {
           case Value.GlueType(ty, faces) =>
-            (ty, Abstract.Unglue(reify(ty.bestReifyValue), ma, false, reifyEnclosedSystem(faces.view.mapValues(_.bestReifyValue).toMap)))
+            (ty, Abstract.Unglue(reify(ty.bestReifyValue), ma, false, reifyEnclosedSystem(faces.view.mapValues(a => () => a().bestReifyValue).toMap)))
           case _ => throw ElaboratorException.UnglueCannotInfer()
         }
       case Concrete.Let(declarations, in) =>
@@ -745,7 +745,7 @@ class Elaborator private(protected override val layers: Layers)
                           val asg = asgn ++ asgn2
                           if (asg.satisfiable) {
                             val ctx = newSyntaxDirectedRestrictionLayer(asg).newDimensionLayer(Name.empty)._1
-                            val bd1 = tf._2.restrict(asg)
+                            val bd1 = tf._2.restrict(asg)()
                             val res = ctx.check(f._3, Value.Projection(bd1, 0))
                             val itemv = eval(res)
                             if (ctx.unifyTerm(ty.restrict(asg), bv.restrict(asg), Value.App(Value.Projection(bd1, 1), itemv))) {

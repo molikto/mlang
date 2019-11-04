@@ -651,7 +651,7 @@ object Value {
   case class HitConstruct(name: Int, vs: Seq[Value], @stuck_pos ds: Seq[Formula], @type_annotation ty: ValueSystem) extends Unstable {
     override protected def getWhnf() = 
       ty.find(_._1.normalFormTrue) match {
-        case Some(value) => value._2.whnf
+        case Some(value) => value._2().whnf
         case None => this
       }
   }
@@ -764,7 +764,7 @@ object Value {
                     val item1 = (phi, AbsClosure(_ => base))
                     def alpha(e: AbsClosure) = squeeze(tp, e, phi)
                     val items = cc.nodes.reduce(rs).phi().toSeq.map(f => {
-                      val e = AbsClosure(i => tpr(i).nodes.reduceAll(theta.map(_.apply(i))).reduce(rs).restrictions().find(_._1 == f).get._2)
+                      val e = AbsClosure(i => tpr(i).nodes.reduceAll(theta.map(_.apply(i))).reduce(rs).restrictions().find(_._1 == f).get._2())
                       val abs = AbsClosure(i => alpha(e)(Formula.Neg(i)))
                       (f, abs)
                     }).toMap.updated(item1._1, item1._2)
@@ -850,18 +850,14 @@ object Value {
     * whnf: faces is not constant
     */
   case class GlueType(@type_annotation ty: Value, @stuck_pos faces: ValueSystem) extends Unstable {
-    override protected def getWhnf(): Value = faces.find(_._1.normalFormTrue).map(b => Projection(b._2, 0).whnf).getOrElse(this)
+    override protected def getWhnf(): Value = faces.find(_._1.normalFormTrue).map(b => Projection(b._2(), 0).whnf).getOrElse(this)
   }
   /**
     * whnf: faces is not constant
     */
   case class Glue(m: Value, @stuck_pos faces: ValueSystem) extends Unstable {
-    override protected def getWhnf() = {
-      faces.find(_._1.normalFormTrue).map(_._2) match {
-        case Some(a) => a.getWhnf()
-        case None => this
-      }
-    }
+    override protected def getWhnf() =
+      faces.find(_._1.normalFormTrue).map(_._2().whnf).getOrElse(this)
   }
   /**
     * whnf: faces is not constant, base is whnf, and base's whnf is not glue
@@ -872,8 +868,8 @@ object Value {
   case class Unglue(ty: Value, base: Value, isU: Boolean, @stuck_pos faces: ValueSystem) extends Redux {
     override protected def getWhnf(): Value = {
       val red = faces.find(_._1.normalFormTrue).map(b =>
-        if (isU) transp_inv(Formula.False, b._2.whnf.asInstanceOf[PathLambda].body, base).whnf
-        else App(Projection(Projection(b._2, 1), 0), base).whnf
+        if (isU) transp_inv(Formula.False, b._2().whnf.asInstanceOf[PathLambda].body, base).whnf
+        else App(Projection(Projection(b._2(), 1), 0), base).whnf
       )
       red match {
         case Some(a) => a
