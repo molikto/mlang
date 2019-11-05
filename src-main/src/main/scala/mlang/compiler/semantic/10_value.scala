@@ -40,7 +40,6 @@ sealed trait Value {
     }
   }
 
-
   def bestReifyValue: Value = this match {
     case r: Reference => r
     case Meta(Value.MetaState.Closed(v)) =>
@@ -117,48 +116,7 @@ sealed trait Value {
   // easily, (again, not a bug, only dirtyness)
   // but I think we can currently
   // without fswap, the first problem dispears
-  def support(): Support = {
-    val tested = mutable.Set.empty[Referential]
-    val ss = this.supportShallow() // in case of reference, it will just put the reference here
-    val toTest = mutable.Set.from(ss.references)
-    val names = mutable.Set.from(ss.names)
-    while (toTest.nonEmpty) {
-      val candidate = toTest.head
-      toTest.remove(candidate)
-      candidate match {
-        case GlobalReference(value) => // skip global reference
-        case Generic(id, _typ) if id == 0 => // skip hack generic
-        case r: LocalReferential =>
-          tested.add(r)
-          val cached = r.supportCached()
-          if (cached != null) {
-            names.addAll(cached.names)
-            tested.addAll(cached.openMetas)
-          } else {
-            if (candidate.referenced != null) {
-              val SupportShallow(ns, rs) = candidate.referenced.supportShallow()
-              names.addAll(ns)
-              toTest.addAll(rs.filterNot(tested))
-            } else if (!candidate.isInstanceOf[Value.Generic]) {
-              // this is because we use null generic in various cases to look into a closure
-              if (candidate.isInstanceOf[Value.Reference]) {
-                warn("seems you are defining a recursive value inside a dimension context")
-              } else {
-                logicError()
-              }
-            }
-          }
-      }
-    }
-    val spt = Support(tested.flatMap {
-      case g: Generic => Some(g)
-      case _ => None
-    }.toSet, names.toSet, tested.flatMap {
-      case m@Meta(_: MetaState.Open) => Some(m)
-      case _ => None
-    }.toSet)
-    spt
-  }
+  def support(): Support = Nominal_support(this)
 }
 
 object Value {
