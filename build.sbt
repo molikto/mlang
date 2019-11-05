@@ -24,7 +24,7 @@ val sharedSettings = Seq(
     "-deprecation", // Emit warning and location for usages of deprecated APIs.
     "-feature", // Emit warning and location for usages of features that should be imported explicitly.
     "-unchecked", // Enable additional warnings where generated code depends on assumptions.
-    "-Yoverride-vars"
+    "-Yoverride-vars",
     //"-P:acyclic:force",
   ),
 //  autoCompilerPlugins := true,
