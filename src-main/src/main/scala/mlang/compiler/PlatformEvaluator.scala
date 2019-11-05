@@ -1,6 +1,5 @@
-package mlang.compiler.platform
+package mlang.compiler
 
-import mlang.compiler._
 import mlang.compiler.semantic.{given, _}
 import mlang.compiler.semantic.Assignments
 import mlang.utils._
@@ -23,8 +22,6 @@ trait Holder {
 
 
 trait PlatformEvaluator extends Evaluator {
-
-  semantic.RESTRICT_OBJ = ObjRestrict
 
   val REDUCE= ""
   //val REDUCE= ".reduceUntilSelf()"

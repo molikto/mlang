@@ -37,29 +37,29 @@ trait ObjWorker {
   def restrict(a: AnyRef, b: Assignments): AnyRef
 }
 
-var RESTRICT_OBJ: ObjWorker = null
+var PlatformNominal: ObjWorker = null
 
 
 given Nominal[Closure] {
-  def (func: Closure) supportShallow(): SupportShallow = RESTRICT_OBJ.supportShallow(func)
-  def (func: Closure) restrict(dav: Assignments): Closure = RESTRICT_OBJ.restrict(func, dav).asInstanceOf[Closure]
+  def (func: Closure) supportShallow(): SupportShallow = PlatformNominal.supportShallow(func)
+  def (func: Closure) restrict(dav: Assignments): Closure = PlatformNominal.restrict(func, dav).asInstanceOf[Closure]
   def (func: Closure) fswap(w: Long, z: Formula): Closure = d => func(d).fswap(w, z)
 }
 
 given Nominal[ValueClosure] {
-  def (func: ValueClosure) supportShallow(): SupportShallow = RESTRICT_OBJ.supportShallow(func)
-  def (func: ValueClosure) restrict(dav: Assignments): ValueClosure = RESTRICT_OBJ.restrict(func, dav).asInstanceOf[ValueClosure]
+  def (func: ValueClosure) supportShallow(): SupportShallow = PlatformNominal.supportShallow(func)
+  def (func: ValueClosure) restrict(dav: Assignments): ValueClosure = PlatformNominal.restrict(func, dav).asInstanceOf[ValueClosure]
   def (func: ValueClosure) fswap(w: Long, z: Formula): ValueClosure = () => func().fswap(w, z)
 }
 given Nominal[AbsClosure] {
-  def (func: AbsClosure) supportShallow(): SupportShallow = RESTRICT_OBJ.supportShallow(func)
+  def (func: AbsClosure) supportShallow(): SupportShallow = PlatformNominal.supportShallow(func)
   def (func: AbsClosure) restrict(dav: Assignments): AbsClosure = 
-    RESTRICT_OBJ.restrict(func, dav).asInstanceOf[Formula => Value]
+    PlatformNominal.restrict(func, dav).asInstanceOf[Formula => Value]
   def (func: AbsClosure) fswap(w: Long, z: Formula): AbsClosure = d => func(d).fswap(w, z)
 }
 
 given Nominal[MultiClosure] {
-  def (func: MultiClosure) supportShallow(): SupportShallow = RESTRICT_OBJ.supportShallow(func)
-  def (func: MultiClosure) restrict(dav: Assignments): MultiClosure = MultiClosure(RESTRICT_OBJ.restrict(func, dav).asInstanceOf[(Seq[Value], Seq[Formula]) => Value])
+  def (func: MultiClosure) supportShallow(): SupportShallow = PlatformNominal.supportShallow(func)
+  def (func: MultiClosure) restrict(dav: Assignments): MultiClosure = MultiClosure(PlatformNominal.restrict(func, dav).asInstanceOf[(Seq[Value], Seq[Formula]) => Value])
   def (func: MultiClosure) fswap(w: Long, z: Formula): MultiClosure = MultiClosure((d, k) => func(d, k).fswap(w, z))
 }

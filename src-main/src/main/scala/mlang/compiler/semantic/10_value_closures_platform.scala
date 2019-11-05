@@ -1,4 +1,4 @@
-package mlang.compiler.platform
+package mlang.compiler.semantic
 
 import mlang.compiler._
 import mlang.compiler.semantic.{given, _}
@@ -6,16 +6,16 @@ import mlang.compiler.semantic.Assignments
 import mlang.utils._
 import scala.collection.mutable
 
-object ObjRestrict extends ObjWorker {
+object PlatformNominal {
 
   var hashSet = new mutable.HashSet[AnyRef]()
 
-  override def supportShallow(v1: AnyRef): SupportShallow = {
+  def supportShallow(v1: AnyRef): SupportShallow = {
     hashSet.clear()
     supportShallow0(v1)
   }
 
-  def supportShallow0(v1: AnyRef): SupportShallow = {
+  private def supportShallow0(v1: AnyRef): SupportShallow = {
     val clz = v1.getClass
     val fs = clz.getDeclaredFields
     var ns = SupportShallow.empty
@@ -40,7 +40,7 @@ object ObjRestrict extends ObjWorker {
     ns
   }
 
-  override def restrict(v1: AnyRef, v2: Assignments): AnyRef = {
+  def restrict(v1: AnyRef, v2: Assignments): AnyRef = {
     val clz = v1.getClass
     val fs = clz.getDeclaredFields
     val ns = new Array[AnyRef](fs.size)

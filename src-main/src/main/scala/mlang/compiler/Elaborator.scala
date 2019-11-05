@@ -58,7 +58,7 @@ class Elaborator private(protected override val layers: Layers)
         with ElaboratorContextRebind
         with ElaboratorContextForEvaluator
         with DebugPrettyPrinter
-        with Evaluator with platform.PlatformEvaluator with MetaSolver {
+        with Evaluator with PlatformEvaluator with MetaSolver {
 
 
   override type Self = Elaborator

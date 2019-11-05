@@ -80,12 +80,12 @@ object ClosureGraph {
         case IndependentWithMeta(ims, ds, ms, typ) =>
           typ.supportShallow()
         case DependentWithMeta(ims, ds, mc, c) =>
-          RESTRICT_OBJ.supportShallow(c)
+          PlatformNominal.supportShallow(c)
         case _ => logicError()
       }
       res.merge ++
         (if (dimSize == 0) SupportShallow.empty
-        else RESTRICT_OBJ.supportShallow(tm.asInstanceOf[RestrictionsState.Abstract]))
+        else PlatformNominal.supportShallow(tm.asInstanceOf[RestrictionsState.Abstract]))
     }
 
     // FIXME rethink if these meta should call fswap
@@ -110,12 +110,12 @@ object ClosureGraph {
         case IndependentWithMeta(ims, ds, ms, typ) =>
           IndependentWithMeta(ims, ds, ms.map(_.restrict(lv).asInstanceOf[Meta]), typ.restrict(lv))
         case DependentWithMeta(ims, ds, mc, c) =>
-          DependentWithMeta(ims, ds, mc, RESTRICT_OBJ.restrict(c, lv).asInstanceOf[(Seq[Value], Seq[Value]) => (Seq[Meta], Value)])
+          DependentWithMeta(ims, ds, mc, PlatformNominal.restrict(c, lv).asInstanceOf[(Seq[Value], Seq[Value]) => (Seq[Meta], Value)])
         case _ => logicError()
       }
       val zz = if (dimSize == 0) tm else {
         val clo = tm.asInstanceOf[RestrictionsState.Abstract].tm
-        RestrictionsState.Abstract(RESTRICT_OBJ.restrict(clo, lv).asInstanceOf[Seq[Formula] => System[(Seq[Value], Seq[Value]) => Value]])
+        RestrictionsState.Abstract(PlatformNominal.restrict(clo, lv).asInstanceOf[Seq[Formula] => System[(Seq[Value], Seq[Value]) => Value]])
       }
       ClosureGraph.Impl(gs, dimSize, zz)
     }
