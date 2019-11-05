@@ -3,6 +3,7 @@ package mlang.compiler
 import scala.collection.mutable
 import mlang.compiler.semantic.Value
 import mlang.utils._
+import mlang.compiler.`abstract`.Abstract
 
 sealed trait ContextWithMetaOpsException extends CompilerException
 

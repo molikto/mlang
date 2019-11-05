@@ -21,6 +21,9 @@ val sharedSettings = Seq(
   ),
   sources in (Compile, doc) := Seq.empty,
   publishArtifact in (Compile, packageDoc) := false,
+  javacOptions ++= Seq(
+    "-Xdiags:verbose"
+  ),
   scalacOptions ++= Seq(
     "-language:implicitConversions",
     "-deprecation", // Emit warning and location for usages of deprecated APIs.

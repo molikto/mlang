@@ -2,7 +2,8 @@ package mlang.compiler
 
 import mlang.compiler.Concrete._
 import Declaration.Modifier
-import mlang.compiler.Abstract.{Inductively, MetaEnclosed}
+import mlang.compiler.`abstract`.given
+import mlang.compiler.`abstract`.{Abstract, Dependency, DependencyType}
 import mlang.compiler.Layer.Layers
 import mlang.compiler.semantic.{Value, BuiltIn}
 import mlang.compiler.semantic.given
@@ -79,7 +80,7 @@ class Elaborator private(protected override val layers: Layers)
                                   faces: Seq[Concrete.Face],
                                   bt: semantic.AbsClosure,
                                   bv: Value
-  ): Abstract.AbsClosureSystem = {
+  ): `abstract`.System = {
     import semantic.Formula
     val nfs = mutable.ArrayBuffer.empty[semantic.Assignments]
     val tms = mutable.ArrayBuffer.empty[Value]
@@ -120,38 +121,38 @@ class Elaborator private(protected override val layers: Layers)
   }
 
 
-  private def checkLine(a: Concrete, typ: semantic.AbsClosure): (semantic.Formula.Generic, Abstract.AbsClosure) = {
+  private def checkLine(a: Concrete, typ: semantic.AbsClosure): (semantic.Formula.Generic, `abstract`.Closure) = {
     a match {
       case Concrete.Lambda(n, b, _, body) =>
         if (b) throw ElaboratorException.DimensionLambdaCannotBeImplicit()
         val (ctx, dim) = newDimensionLayer(n)
         val ta = ctx.check(body, typ(dim))
-        (dim, Abstract.AbsClosure(ctx.finishReify(), ta))
+        (dim, `abstract`.Closure(ctx.finishReify(), ta))
       case _ =>
         val (ctx, dim) = newDimensionLayer(Name.empty) // it is ok to infer in this context, as the name is empty so it doesn't affect much
         val (tv, ta) = ctx.infer(a)
         tv.whnf match {
           case j@Value.PathType(_, _, _) =>
-            (dim, Abstract.AbsClosure(ctx.finishReify(), Abstract.PathApp(ta, Abstract.Formula.Reference(0, -1))))
+            (dim, `abstract`.Closure(ctx.finishReify(), Abstract.PathApp(ta, `abstract`.Formula.Reference(0, -1))))
           case _ => throw ElaboratorException.ExpectingLambdaTerm()
         }
     }
   }
 
-  private def checkTypeLine(a: Concrete): (Int, Abstract.AbsClosure) = {
+  private def checkTypeLine(a: Concrete): (Int, `abstract`.Closure) = {
     a match {
       case Concrete.Lambda(n, b, _, body) =>
         if (b) throw ElaboratorException.DimensionLambdaCannotBeImplicit()
         val ctx = newDimensionLayer(n)._1
         val (l, ta0) = ctx.inferLevel(body)
-        val ta = Abstract.AbsClosure(ctx.finishReify(), ta0)
+        val ta = `abstract`.Closure(ctx.finishReify(), ta0)
         (l, ta)
       case _ =>
         val ctx = newDimensionLayer(Name.empty)._1
         val (tv, ta) = ctx.infer(a)
         tv.whnf match {
           case j@Value.PathType(_, _, _) =>
-            val clo = Abstract.AbsClosure(ctx.finishReify(), Abstract.PathApp(ta, Abstract.Formula.Reference(0, -1)))
+            val clo = `abstract`.Closure(ctx.finishReify(), Abstract.PathApp(ta, `abstract`.Formula.Reference(0, -1)))
             (j.inferLevel, clo)
           case _ => throw ElaboratorException.ExpectingLambdaTerm()
         }
@@ -186,7 +187,7 @@ class Elaborator private(protected override val layers: Layers)
     (Value.Universe(fl), Abstract.Record(
       ind,
       fs.map(_._1),
-      Abstract.ClosureGraph(fs.map(a => Abstract.ClosureGraph.Node(a._2, a._3.term.termDependencies(0).toSeq.sorted, a._3)))))
+      `abstract`.ClosureGraph(fs.map(a => `abstract`.ClosureGraph.Node(a._2, a._3.term.dependencies(0).filter(a => a.x == 0 && a.typ == DependencyType.Value).map(_.i).toSeq.sorted, a._3)))))
   }
 
   def checkSum(tps: Option[(Value, Option[(Value, Abstract.Inductively)], Int)], sum: Concrete.Sum): (Value, Abstract) = {
@@ -211,9 +212,9 @@ class Elaborator private(protected override val layers: Layers)
       val iss = is.map(_._2)
       val (ll, tt, ctx0) = ctx.inferFlatLevel(tpd)
       ctx = ctx0
-      val valueGraph = tt.zipWithIndex.map(kk => Abstract.ClosureGraph.Node(kk._1._2, 0 until kk._2, kk._1._3))
+      val valueGraph = tt.zipWithIndex.map(kk => `abstract`.ClosureGraph.Node(kk._1._2, 0 until kk._2, kk._1._3))
       // FIXME check restrictions is compatible
-      def checkRestrictions(sv: Value): Seq[(Abstract.Formula, Abstract.MetaEnclosed)] = {
+      def checkRestrictions(sv: Value): Seq[(`abstract`.Formula, `abstract`.Closure)] = {
         // NOW: check extensions
         val (dimCtx, dims) = iss.foldLeft((ctx0, Seq.empty[Long])) { (ctx, n) =>
           val (c, l) = ctx._1.newDimension(n)
@@ -225,11 +226,11 @@ class Elaborator private(protected override val layers: Layers)
           val (dv, da) = ctx.checkAndEvalFormula(r.dimension)
           val rctx = ctx.newReifierRestrictionLayer(dv)
           val bd = rctx.check(r.term, sv)
-          val res = Abstract.MetaEnclosed(rctx.finishReify(), bd)
+          val res = `abstract`.Closure(rctx.finishReify(), bd)
           (da, res)
         })
       }
-      val es: Abstract.EnclosedSystem = if (is.nonEmpty) {
+      val es: `abstract`.System = if (is.nonEmpty) {
         selfValue match {
           case Some(sv) =>
             checkRestrictions(sv).toMap
@@ -240,7 +241,7 @@ class Elaborator private(protected override val layers: Layers)
         if (c.restrictions.nonEmpty) throw ElaboratorException.HitContainingExternalDimension()
         else Map.empty
       }
-      val closureGraph = Abstract.ClosureGraph(valueGraph, iss.size, es)
+      val closureGraph = `abstract`.ClosureGraph(valueGraph, iss.size, es)
       selfValue match {
         case Some(_) =>
           ctx = ctx.newConstructor(c.name, eval(closureGraph))
@@ -344,7 +345,7 @@ class Elaborator private(protected override val layers: Layers)
             if (closure.size != 0 || closure.dimSize != 0) {
               throw ElaboratorException.NotFullyAppliedConstructorNotSupportedYet()
             } else {
-              (self, Abstract.Construct(index, Seq.empty, Seq.empty, Abstract.EnclosedSystem.empty))
+              (self, Abstract.Construct(index, Seq.empty, Seq.empty, Map.empty))
             }
         }
       case Concrete.Hole =>
@@ -424,7 +425,7 @@ class Elaborator private(protected override val layers: Layers)
               case Some(t) =>
                 val ta = newDimensionLayer(Name.empty)._1.reify(t.bestReifyValue)
                 debug(s"infer path type $ta", 0)
-                (Value.Universe(t.inferLevel), Abstract.PathType(Abstract.AbsClosure(Seq.empty, ta), la, ra))
+                (Value.Universe(t.inferLevel), Abstract.PathType(`abstract`.Closure(Seq.empty, ta), la, ra))
               case None =>
                 throw ElaboratorException.InferPathEndPointsTypeNotMatching()
             }
@@ -472,7 +473,7 @@ class Elaborator private(protected override val layers: Layers)
             val ctx = newSyntaxDirectedRestrictionLayer(asgn).newDimensionLayer(Name.empty)._1 // this is currently a hack!
             // TODO here we checked by same level as ty.
             val bd = ctx.check(f.term, Value.App(BuiltIn.equiv_of, tv).restrict(asgn))
-            Abstract.MetaEnclosed(ctx.finishReify(), bd)
+            `abstract`.Closure(ctx.finishReify(), bd)
           })
           (formula._2, ba)
         }).toMap
@@ -494,35 +495,35 @@ class Elaborator private(protected override val layers: Layers)
     res
   }
 
-  private def checkAndEvalFormula(r: Concrete): (semantic.Formula, Abstract.Formula) = {
+  private def checkAndEvalFormula(r: Concrete): (semantic.Formula, `abstract`.Formula) = {
     val a = checkFormula(r)
     (eval(a), a)
   }
   // it always returns formulas with assignments inlined
-  private def checkFormula(r: Concrete): Abstract.Formula = {
+  private def checkFormula(r: Concrete): `abstract`.Formula = {
     r match {
       case Concrete.Reference(name) =>
          lookupDimension(name).ref
       case Concrete.And(left, right) =>
         val l = checkFormula(left)
         val r = checkFormula(right)
-        Abstract.Formula.And(l, r)
+        `abstract`.Formula.And(l, r)
       case Concrete.Or(left, right) =>
         val l = checkFormula(left)
         val r = checkFormula(right)
-        Abstract.Formula.Or(l, r)
+        `abstract`.Formula.Or(l, r)
       case Concrete.Neg(a) =>
         val r = checkFormula(a)
-        Abstract.Formula.Neg(r)
+        `abstract`.Formula.Neg(r)
       case Concrete.True =>
-        Abstract.Formula.True
+        `abstract`.Formula.True
       case Concrete.False =>
-        Abstract.Formula.False
+        `abstract`.Formula.False
       case _ => throw ElaboratorException.ExpectingFormula()
     }
   }
 
-  private def inferFlatLevel(fs: Concrete.NameType.FlatSeq): (Int, Seq[(Name, Boolean, Abstract.MetaEnclosed)], Self) = {
+  private def inferFlatLevel(fs: Concrete.NameType.FlatSeq): (Int, Seq[(Name, Boolean, `abstract`.Closure)], Self) = {
     var ctx = this
     var l = 0
     // FIXME it used be like this, but I forget what it is for
@@ -533,7 +534,7 @@ class Elaborator private(protected override val layers: Layers)
       val ms = ctx.freezeReify()
       val (ctx1, g) = ctx.newParameter(n._2, ctx.eval(fa))
       ctx = ctx1
-      (n._2, n._1, Abstract.MetaEnclosed(ms, fa))
+      (n._2, n._1, `abstract`.Closure(ms, fa))
     })
     (l, fas, ctx)
   }
@@ -548,17 +549,17 @@ class Elaborator private(protected override val layers: Layers)
             val ctx = newDimensionLayer(head._2)._1
             val (ta, va) = ctx.inferTelescope(tail, codomain, body)
             val ms = ctx.finishReify()
-            val cloa = Abstract.AbsClosure(ms, va)
+            val cloa = `abstract`.Closure(ms, va)
             val clov = eval(cloa)
             val left = clov(semantic.Formula.False)
             val right = clov(semantic.Formula.True)
-            (Abstract.PathType(Abstract.AbsClosure(ms, ta), reify(left.bestReifyValue), reify(right.bestReifyValue)), Abstract.PathLambda(cloa))
+            (Abstract.PathType(`abstract`.Closure(ms, ta), reify(left.bestReifyValue), reify(right.bestReifyValue)), Abstract.PathLambda(cloa))
           case _ =>
             val (_, da) = inferLevel(head._3)
             val ctx = newParameterLayer(head._2, eval(da))._1
             val (ta, va) = ctx.inferTelescope(tail, codomain, body)
             val ms = ctx.finishReify()
-            (Abstract.Function(da, head._1, Abstract.Closure(ms, ta)), Abstract.Lambda(Abstract.Closure(ms, va)))
+            (Abstract.Function(da, head._1, `abstract`.Closure(ms, ta)), Abstract.Lambda(`abstract`.Closure(ms, va)))
         }
       case Seq() =>
         codomain match {
@@ -584,7 +585,7 @@ class Elaborator private(protected override val layers: Layers)
             val (dl, da) = inferLevel(head._3)
             val ctx = newParameterLayer(head._2, eval(da))._1
             val (cl, ca) = ctx.inferTelescope(tail, codomain)
-            (dl max cl, Abstract.Function(da, head._1, Abstract.Closure(ctx.finishReify(), ca)))
+            (dl max cl, Abstract.Function(da, head._1, `abstract`.Closure(ctx.finishReify(), ca)))
         }
       case Seq() =>
         val (l, a) = inferLevel(codomain)
@@ -700,19 +701,19 @@ class Elaborator private(protected override val layers: Layers)
                 assert(!ensuredPath)
                 val (ctx, v) = newParameterLayer(n.nonEmptyOrElse(hint), domain)
                 val ba = ctx.check(body, codomain(v), tail, indState.app(v))
-                Abstract.Lambda(Abstract.Closure(ctx.finishReify(), ba))
+                Abstract.Lambda(`abstract`.Closure(ctx.finishReify(), ba))
               case Concrete.PatternLambda(limp, cases) if fimp == limp =>
                 val res = cases.map(c => {
                   val (ctx, v, pat) = newPatternLayer(c.pattern, domain)
                   val ba = ctx.check(c.body, codomain(v), tail)
-                  Abstract.Case(pat, Abstract.MultiClosure(ctx.finishReify(), ba))
+                  Abstract.Case(pat, `abstract`.Closure(ctx.finishReify(), ba))
                 })
                 Abstract.PatternLambda(Elaborator.pgen(), reify(domain.bestReifyValue), reify(codomain), res)
               case _ =>
                 if (fimp) {
                   val (ctx, v) = newParameterLayer(Name.empty, domain)
                   val ba = ctx.check(term, codomain(v), tail)
-                  Abstract.Lambda(Abstract.Closure(ctx.finishReify(), ba))
+                  Abstract.Lambda(`abstract`.Closure(ctx.finishReify(), ba))
                 } else {
                   fallback()
                 }
@@ -739,7 +740,7 @@ class Elaborator private(protected override val layers: Layers)
                 if (phi1 == phi2) {
                   val fas = ffs.map(f => {
                     val body = doForValidFormulaOrThrow(f._1, asgn => {
-                      val terms = mutable.Set.empty[Abstract.MetaEnclosed]
+                      val terms = mutable.Set.empty[`abstract`.Closure]
                       for (tf <- faces) {
                         tf._1.normalForm.filter(_.satisfiable).foreach(asgn2 => {
                           val asg = asgn ++ asgn2
@@ -749,7 +750,7 @@ class Elaborator private(protected override val layers: Layers)
                             val res = ctx.check(f._3, Value.Projection(bd1, 0))
                             val itemv = eval(res)
                             if (ctx.unifyTerm(ty.restrict(asg), bv.restrict(asg), Value.App(Value.Projection(bd1, 1), itemv))) {
-                              terms.add(Abstract.MetaEnclosed(ctx.finishReify(), res))
+                              terms.add(`abstract`.Closure(ctx.finishReify(), res))
                             } else {
                               throw ElaboratorException.GlueNotMatching()
                             }
@@ -777,7 +778,7 @@ class Elaborator private(protected override val layers: Layers)
                 val t1 = typ(dv)
                 import semantic.Formula._
                 val a1 = c1.check(body, t1, tail)
-                val ps = Abstract.AbsClosure(c1.finishReify(), a1)
+                val ps = `abstract`.Closure(c1.finishReify(), a1)
                 info("path body:"); print(Abstract.PathLambda(ps))
                 val pv = eval(ps)
                 val leftEq = unifyTerm(typ(False), pv(False), left)
@@ -849,7 +850,8 @@ class Elaborator private(protected override val layers: Layers)
         done.append(c)
         for (i <- mis.indices) {
           val m = mis(i)
-          val handle = Dependency(i, true)
+          // FIXME should we also consider meta here?
+          val handle = Dependency(i, 0, DependencyType.Meta)
           if (!done.contains(handle) && m.dependencies.contains(changed)) {
             m.t.state = Value.MetaState.Closed(ctx.eval(m.code))
             rec(handle)
@@ -857,7 +859,7 @@ class Elaborator private(protected override val layers: Layers)
         }
         for (i <- vis.indices) {
           val v = vis(i)
-          val handle = Dependency(i, false)
+          val handle = Dependency(i, 0, DependencyType.Value)
           if (!done.contains(handle)) {
             var needs = false
             if (v.typ.dependencies.contains(changed)) needs = true
@@ -916,7 +918,7 @@ class Elaborator private(protected override val layers: Layers)
             val ctx = newDefinitionChecked(index, name, ref)
             ref.value = ctx.eval(va)
             vis(index).code = Some(CodeInfo(va, ref))
-            reevalStuff(ctx, Dependency(index, false))
+            reevalStuff(ctx, Dependency(index, 0, DependencyType.Value))
             info(s"checked $name")
             ctx
           case None => t0 match {

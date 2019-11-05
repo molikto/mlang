@@ -13,10 +13,12 @@ case class ImplementationLimitationCannotRestrictOpenMeta() extends Exception
 import Value._
 
 sealed trait Value {
+  // we use referential equality for Value class, these is not the conversion checking, and only used by caching
   final override def equals(obj: Any): Boolean = (this, obj) match {
     case (r: Value, j: Value) => r.eq(j)
     case _ => logicError()
   }
+  final override def hashCode(): Int = java.lang.System.identityHashCode(this)
 
   private[Value] var _from: Value = _
   private[Value] var _whnfCache: Value = _

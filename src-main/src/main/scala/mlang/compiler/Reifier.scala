@@ -1,10 +1,11 @@
 package mlang.compiler
 
-import mlang.compiler.Abstract._
 import mlang.compiler.Layer.Layers
 import mlang.compiler.semantic.Value
 import Value.{MetaState}
 import mlang.utils.{Benchmark, Name, debug}
+import mlang.compiler.`abstract`.{given, _}
+import Abstract._
 
 import scala.collection.mutable
 
@@ -33,22 +34,22 @@ private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorCon
   }
 
 
-  def reify(graph0: semantic.ClosureGraph): Abstract.ClosureGraph = {
+  def reify(graph0: semantic.ClosureGraph): ClosureGraph = {
     var ctx: ReifierContext = newParametersLayer()
     var graph = graph0
-    var as =  Seq.empty[Abstract.ClosureGraph.Node]
+    var as =  Seq.empty[ClosureGraph.Node]
     for (i  <- graph0.graph.indices) {
       val n = graph(i)
       val it = n.independent.typ
       val ttt = ctx.reify(it)
-      val pair = Abstract.ClosureGraph.Node(n.implicitt, n.dependencies, Abstract.MetaEnclosed(ctx.reifyMetas(), ttt))
+      val pair = ClosureGraph.Node(n.implicitt, n.dependencies, Closure(ctx.reifyMetas(), ttt))
       as = as :+ pair
       val (ctx0, tm) = ctx.newParameter(Name.empty, null)
       ctx = ctx0
       graph = graph.reduce(i, tm)
     }
     if (graph0.dimSize == 0) {
-      Abstract.ClosureGraph(as, 0, Map.empty)
+      ClosureGraph(as, 0, Map.empty)
     } else {
       val ds = (0 until graph0.dimSize).map(_ => {
         val (ctx0, d) = ctx.newDimension(Name.empty)
@@ -59,29 +60,29 @@ private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorCon
         (ctx.reify(r._1), {
           val ctx0 = ctx.newReifierRestrictionLayer(r._1)
           val vv = ctx0.reify(r._2())
-          Abstract.MetaEnclosed(ctx0.reifyMetas(), vv)
+          Closure(ctx0.reifyMetas(), vv)
         })
       }).toMap
-      Abstract.ClosureGraph(as, graph0.dimSize, ms)
+      ClosureGraph(as, graph0.dimSize, ms)
     }
   }
 
-  def reify(v: semantic.Closure): Abstract.Closure = {
+  def reify(v: semantic.Closure): Closure = {
     val (ctx, tm) = newParameterLayer(Name.empty, null)
     val ta = ctx.reify(v(tm))
-    Abstract.Closure(ctx.reifyMetas(), ta)
+    Closure(ctx.reifyMetas(), ta)
   }
 
-  def reifyMetaEnclosed(v: Value): Abstract.MetaEnclosed = {
+  def reifyMetaEnclosed(v: semantic.ValueClosure): Closure = {
     val ctx = newDefinesLayer()
-    val ta = ctx.reify(v)
-    Abstract.MetaEnclosed(ctx.reifyMetas(), ta)
+    val ta = ctx.reify(v())
+    Closure(ctx.reifyMetas(), ta)
   }
 
-  def reify(v: semantic.AbsClosure): Abstract.AbsClosure = {
+  def reifyAbs(v: semantic.AbsClosure): `abstract`.Closure = {
     val (ctx, tm) = newDimensionLayer(Name.empty)
     val ta = ctx.reify(v(tm))
-    Abstract.AbsClosure(ctx.reifyMetas(), ta)
+    Closure(ctx.reifyMetas(), ta)
   }
 
   def mkContext(size: (Int, Int)) = {
@@ -101,10 +102,10 @@ private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorCon
     (ctx, vs.toSeq, ds.toSeq)
   }
 
-  def reify(size: (Int, Int), v: semantic.MultiClosure): Abstract.MultiClosure = {
+  def reify(size: (Int, Int), v: semantic.MultiClosure): Closure = {
     val (ctx, vs, ds) = mkContext(size)
     val ta = ctx.reify(v(vs, ds))
-    Abstract.MultiClosure(ctx.reifyMetas(), ta)
+    Closure(ctx.reifyMetas(), ta)
   }
 
   def reify(id: Option[Value.Inductively]): Option[Inductively] = {
@@ -115,10 +116,10 @@ private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorCon
   }
 
   def reifyAbsClosureSystem(faces: semantic.AbsClosureSystem) =
-    if (faces.isEmpty) Map.empty : Abstract.AbsClosureSystem else faces.toSeq.map(r => (reify(r._1), newReifierRestrictionLayer(r._1).reify(r._2))).toMap
+    if (faces.isEmpty) Map.empty : `abstract`.System else faces.toSeq.map(r => (reify(r._1), newReifierRestrictionLayer(r._1).reifyAbs(r._2))).toMap
 
   def reifyEnclosedSystem(faces: semantic.ValueSystem) =
-    if (faces.isEmpty) Map.empty : Abstract.EnclosedSystem else faces.toSeq.map(r => (reify(r._1), newReifierRestrictionLayer(r._1).reifyMetaEnclosed(r._2()))).toMap
+    if (faces.isEmpty) Map.empty : `abstract`.System else faces.toSeq.map(r => (reify(r._1), newReifierRestrictionLayer(r._1).reifyMetaEnclosed(r._2))).toMap
 
 
   def reify(v: Value): Abstract = {
@@ -133,13 +134,13 @@ private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorCon
         // TODO, you should be able to read the code directly from context
         Sum(reify(id), hit, constructors.map(c => Constructor(c.name, reify(c.nodes))))
       case Value.PathType(ty, left, right) =>
-        PathType(reify(ty), reify(left), reify(right))
+        PathType(reifyAbs(ty), reify(left), reify(right))
       case Value.Lambda(closure) =>
         Lambda(reify(closure))
       case Value.PatternLambda(id, dom, ty, cases) =>
         PatternLambda(id, reify(dom), reify(ty), cases.map(c => Case(c.pattern, reify(c.pattern.atomCount, c.closure))))
       case Value.PathLambda(body) =>
-        PathLambda(reify(body))
+        PathLambda(reifyAbs(body))
       case m: Value.Meta =>
         m.state match {
           case MetaState.Closed(c) =>
@@ -147,7 +148,7 @@ private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorCon
               case Some(k) => k
               case None =>
                 // TODO [issue 2] add to the level where it can be defined with minimal dependency
-                // find proper level, and use `Abstract.diff` to correct the dbi
+                // find proper level, and use `diff` to correct the dbi
                 metas.append(reify(c))
                 solvedMeta(m)
             }
@@ -173,11 +174,11 @@ private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorCon
       case Value.PathApp(left, stuck) =>
         PathApp(reify(left), reify(stuck))
       case Value.Transp(tp, dir, base) =>
-        Transp(reify(tp), reify(dir), reify(base))
+        Transp(reifyAbs(tp), reify(dir), reify(base))
       case Value.Hcomp(tp, base, faces) =>
         Hcomp(reify(tp), reify(base), reifyAbsClosureSystem(faces))
       case Value.Comp(tp, base, faces) =>
-        Comp(reify(tp), reify(base), reifyAbsClosureSystem(faces))
+        Comp(reifyAbs(tp), reify(base), reifyAbsClosureSystem(faces))
       case Value.GlueType(ty, faces) =>
         GlueType(reify(ty), reifyEnclosedSystem(faces))
       case Value.Glue(base, faces) =>
@@ -187,7 +188,7 @@ private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorCon
     }
   }
 
-  def reify(a: semantic.Formula): Abstract.Formula = {
+  def reify(a: semantic.Formula): Formula = {
     rebindFormula(a)
   }
 }
@@ -253,21 +254,21 @@ trait Reifier extends ElaboratorContextBuilder with ElaboratorContextRebind {
   protected def reify(v: Value): Abstract = Reifier.reify(v, layers)
 
   // FIXME the logic for base/top reify is confusing, try clean them up
-  protected def reify(v: semantic.Closure): Abstract.Closure = {
+  protected def reify(v: semantic.Closure): Closure = {
     val l = debug_metasSize
     val (c, t) = newParameterLayer(Name.empty, null)
-    val r = Abstract.Closure(Seq.empty, c.asInstanceOf[Reifier].reify(v(t)))
+    val r = Closure(Seq.empty, c.asInstanceOf[Reifier].reify(v(t)))
     assert(debug_metasSize == l) // we don't create meta in current layer!
     assert(c.debug_metasSize == 0) // also we don't create in that one!
     r
   }
 
-  protected def reifyEnclosedSystem(v: semantic.ValueSystem): Abstract.EnclosedSystem = {
+  protected def reifyEnclosedSystem(v: semantic.ValueSystem): System = {
     v.map(f => {
       (rebindFormula(f._1),  {
         val l = debug_metasSize
         val c = newReifierRestrictionLayer(f._1).newParametersLayer()
-        val r = Abstract.MetaEnclosed(Seq.empty, c.asInstanceOf[Reifier].reify(f._2()))
+        val r = `abstract`.Closure(Seq.empty, c.asInstanceOf[Reifier].reify(f._2()))
         assert(debug_metasSize == l) // we don't create meta in current layer!
         assert(c.debug_metasSize == 0) // also we don't create in that one!
         r

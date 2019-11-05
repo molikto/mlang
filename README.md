@@ -70,6 +70,8 @@ continue with a full-reduction mode. this might makes meta ugly, but this is ano
 also we can cleanup whnf code out of value, we can review all code in value, conversion checking and computation rules,
 these are the core of the theory
 
+* use shapeless to simplify implementation of Nominal
+* use macro to create a typechecked platform evaluator and implement
 * rationize cubicaltt's computation rules: cubicaltt has a complicated computation rule that is not as clear as in the paper
   
 

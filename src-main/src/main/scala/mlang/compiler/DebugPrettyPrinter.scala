@@ -1,18 +1,16 @@
 package mlang.compiler
 
-import mlang.compiler.Abstract.{AbsClosure, Formula}
-
 trait DebugPrettyPrinter extends ElaboratorContextBuilder {
   override type Self <: DebugPrettyPrinter
 
 
-  def print(a: Abstract): Unit =  {
-    // disabled now. has bugs
-    //println(debugPPrint(a))
-  }
+  // def print(a: Abstract): Unit =  {
+  //   // disabled now. has bugs
+  //   //println(debugPPrint(a))
+  // }
 
 //
-//  def debugPPrintInner(ms: Abstract.MetaEnclosedT): String = {
+//  def debugPPrintInner(ms: `abstract`.ClosureT): String = {
 //    if (ms.metas.isEmpty) debugPPrint(ms.term) else {
 //      val sb = new StringBuilder()
 //      sb.append("{\n")
@@ -29,7 +27,7 @@ trait DebugPrettyPrinter extends ElaboratorContextBuilder {
 //    }
 //  }
 //
-//  def debugPPrint(ast: Abstract.Formula): String = {
+//  def debugPPrint(ast: `abstract`.Formula): String = {
 //    ast match {
 //      case Formula.Reference(up) =>
 //        layers(up) match {
@@ -44,13 +42,13 @@ trait DebugPrettyPrinter extends ElaboratorContextBuilder {
 //    }
 //  }
 //
-//  def debugPPrintAbsClosure(ast: Abstract.AbsClosure): String = {
+//  def debugPPrintAbsClosure(ast: `abstract`.Closure): String = {
 //    val name = GenName()
 //    val ctx = newDimensionLayer(name, null)
 //    s"${name.main} → ${ctx.debugPPrintInner(ast)}"
 //  }
 //
-//  def debugPPrintClosure(ast: Abstract.Closure): String = debugPPrintAbsClosure(AbsClosure(ast.metas, ast.term))
+//  def debugPPrintClosure(ast: `abstract`.Closure): String = debugPPrintAbsClosure(AbsClosure(ast.metas, ast.term))
 //
 //  def debugPPrintMultiClosure(ast: Abstract.MultiClosure): String = debugPPrintAbsClosure(AbsClosure(ast.metas, ast.term))
 //

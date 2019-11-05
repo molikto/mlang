@@ -1,6 +1,6 @@
 package mlang.compiler
 
-import mlang.compiler.Abstract.Formula
+import mlang.compiler.`abstract`.{Formula, Abstract}
 import mlang.compiler.semantic.Value
 import mlang.utils.{Benchmark, Name, debug}
 
@@ -13,14 +13,13 @@ case class PlatformEvaluatorException(src: String, cause: Throwable)
 trait Evaluator extends EvaluatorContext {
 
 
-
   protected def platformEval(value: Abstract): Value
 
-  protected def eval(a: Abstract.AbsClosure): semantic.AbsClosure = {
+  protected def eval(a: `abstract`.Closure): semantic.AbsClosure = {
     eval(Abstract.PathLambda(a)).asInstanceOf[Value.PathLambda].body
   }
 
-  protected def eval(a: Abstract.ClosureGraph): semantic.ClosureGraph = {
+  protected def eval(a: `abstract`.ClosureGraph): semantic.ClosureGraph = {
     // TOOD this is ugly
     if (a.nodes.isEmpty && a.dims == 0) {
       semantic.ClosureGraph.empty
@@ -29,7 +28,7 @@ trait Evaluator extends EvaluatorContext {
     }
   }
 
-  protected def eval(a: Abstract.Formula): semantic.Formula = {
+  protected def eval(a: `abstract`.Formula): semantic.Formula = {
     a match {
       case Formula.Reference(up, index) => getDimension(up, index)
       case Formula.True => semantic.Formula.True

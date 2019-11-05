@@ -3,7 +3,8 @@ package mlang.compiler
 import mlang.compiler.semantic.{given, _}
 import mlang.utils._
 import scala.collection.mutable
-
+import scala.quoted._
+import mlang.compiler.`abstract`.{Abstract}
 
 trait Holder {
   def value(vs: Array[Any]): Value
@@ -16,41 +17,20 @@ private val clzgen = new GenLong.Positive()
 // inline def (mv: MethodVisitor) create[T <: Value](args: Any*): Unit = {
 //}
 
-class Run {
+
+object ByteCodeGeneratorRun {
+  private val descriptors = mutable.Map[String, String]()
+}
+class ByteCodeGeneratorRun(val root: Abstract) {
   import org.objectweb.asm._
   import Opcodes._
 
+  private val visitedInnerClasses = mutable.Set[String]()
+  private val mtdgen = new GenLong.Positive()
   val cw = new ClassWriter(ClassWriter.COMPUTE_MAXS)
-  cw.visit(V12, ACC_SUPER, s"mlang/generated/${clzgen()}", null, "java/lang/Object", Array("mlang/compiler/Holder"))
-  
-  cw.visitInnerClass("mlang/compiler/semantic/Value$Universe", "mlang/compiler/semantic/Value", "Universe", ACC_PUBLIC | ACC_STATIC);
-  cw.visitInnerClass("mlang/compiler/semantic/Value$Lambda", "mlang/compiler/semantic/Value", "Lambda", ACC_PUBLIC | ACC_STATIC);
-
+  val rootClzName = s"mlang/generated${clzgen()}"
+  cw.visit(V12, ACC_SUPER, rootClzName, null, "java/lang/Object", Array("mlang/compiler/Holder"))
   cw.visitInnerClass("java/lang/invoke/MethodHandles$Lookup", "java/lang/invoke/MethodHandles", "Lookup", ACC_PUBLIC | ACC_FINAL | ACC_STATIC);
-
-
-  inline def (mv: MethodVisitor) emit(l: Int): Unit = {
-    if (l == 0) mv.visitInsn(ICONST_0)
-    else if (l == 1) mv.visitInsn(ICONST_1)
-    else mv.visitLdcInsn(l)
-  }
-
-
-  def (mv: MethodVisitor) emit(term: Abstract, depth: Int): Unit = {
-    term match {
-      case Abstract.Universe(l) =>
-        mv.visitTypeInsn(NEW, "mlang/compiler/semantic/Value$Universe")
-        mv.visitInsn(DUP)
-        mv.emit(l)
-        mv.visitMethodInsn(INVOKESPECIAL, "mlang/compiler/semantic/Value$Universe", "<init>", "(I)V", false)
-      case Abstract.App(left, right) =>
-        mv.visitTypeInsn(NEW, "mlang/compiler/semantic/Value$App")
-        mv.visitInsn(DUP)
-        mv.emit(left, depth)
-        mv.emit(right, depth)
-        mv.visitMethodInsn(INVOKESPECIAL, "mlang/compiler/semantic/Value$App", "<init>", "(Lmlang/compiler/semantic/Value;Lmlang/compiler/semantic/Value;)V", false)
-    }
-  }
 
   {
     val mv = cw.visitMethod(0, "<init>", "()V", null, null)
@@ -61,317 +41,96 @@ class Run {
     mv.visitMaxs(0, 0)
     mv.visitEnd()
   }
+
   {
-    val mv = cw.visitMethod(ACC_PUBLIC, "value", "([Ljava/lang/Object;)Lmlang/compiler/semantic/Value;", null, null);
-    mv.visitCode();
-    mv.visitTypeInsn(NEW, "mlang/compiler/semantic/Value$Universe");
-    mv.visitInsn(DUP);
-    mv.visitInsn(ICONST_0);
-    mv.visitMethodInsn(INVOKESPECIAL, "mlang/compiler/semantic/Value$Universe", "<init>", "(I)V", false);
-    mv.visitVarInsn(ASTORE, 2);
-    mv.visitTypeInsn(NEW, "mlang/compiler/semantic/Value$Lambda");
-    mv.visitInsn(DUP);
-    mv.visitVarInsn(ALOAD, 2);
-    mv.visitInvokeDynamicInsn("apply",
-     "(Lmlang/compiler/semantic/Value;)Lscala/Function1;",
-      new Handle(Opcodes.H_INVOKESTATIC, "java/lang/invoke/LambdaMetafactory", "metafactory",
-      "(Ljava/lang/invoke/MethodHandles$Lookup;Ljava/lang/String;Ljava/lang/invoke/MethodType;Ljava/lang/invoke/MethodType;Ljava/lang/invoke/MethodHandle;Ljava/lang/invoke/MethodType;)Ljava/lang/invoke/CallSite;", false), 
-      Array[Object](Type.getType("(Ljava/lang/Object;)Ljava/lang/Object;"),
-       new Handle(Opcodes.H_INVOKESTATIC, "mlang/compiler/semantic/Test", "lambda$value$0", "(Lmlang/compiler/semantic/Value;Ljava/lang/Object;)Ljava/lang/Object;", false), 
-      Type.getType("(Ljava/lang/Object;)Ljava/lang/Object;")));
-    mv.visitMethodInsn(INVOKESPECIAL, "mlang/compiler/semantic/Value$Lambda", "<init>", "(Lscala/Function1;)V", false);
-    mv.visitVarInsn(ASTORE, 3);
-    mv.visitVarInsn(ALOAD, 2);
-    mv.visitInsn(ARETURN);
-    mv.visitMaxs(0, 0);
-    mv.visitEnd();
+    val mv = cw.visitMethod(ACC_PUBLIC, "value", "([Ljava/lang/Object;)Lmlang/compiler/semantic/Value;", null, null)
+    mv.visitCode()
+    mv.emit(root, -1)
+    mv.visitInsn(ARETURN)
+    mv.visitMaxs(0, 0)
+    mv.visitEnd()
   }
+
+  inline def (mv: MethodVisitor) emit(l: Int): Unit = {
+    if (l == 0) mv.visitInsn(ICONST_0)
+    else if (l == 1) mv.visitInsn(ICONST_1)
+    else mv.visitLdcInsn(l)
+  }
+
+  inline def (mv: MethodVisitor) create(name: String): Unit = {
+    val ds = ByteCodeGeneratorRun.descriptors
+    val clzName = "mlang/compiler/semantic/Value$" + name
+    val desc = ds.get(name) match {
+      case Some(a) => a
+      case None =>
+        val method = java.lang.Class.forName(clzName).getMethod("apply")
+        val a = mlang.utils.Runtime.getMethodDescriptor(method)
+        ds.put(name, a)
+        a
+    }
+    if (!visitedInnerClasses.contains(name)) {
+      cw.visitInnerClass(clzName, "mlang/compiler/semantic/Value", name, ACC_PUBLIC | ACC_STATIC)
+      visitedInnerClasses.add(name)
+    }
+    mv.visitMethodInsn(INVOKESTATIC, clzName, "apply", desc, false)
+  }
+
+
+  private val closureBootstrapHandle = new Handle(
+    Opcodes.H_INVOKESTATIC,
+    "java/lang/invoke/LambdaMetafactory",
+    "metafactory",
+    "(Ljava/lang/invoke/MethodHandles$Lookup;Ljava/lang/String;Ljava/lang/invoke/MethodType;Ljava/lang/invoke/MethodType;Ljava/lang/invoke/MethodHandle;Ljava/lang/invoke/MethodType;)Ljava/lang/invoke/CallSite;",
+    false
+  )
+  private val closureBootstrapArgs0 = Type.getType("(Ljava/lang/Object;)Ljava/lang/Object;")
+  /**
+  how do we translate a closure to invoke dynamic?
+  first, given the closure, we need to find out all the captured variables, 
+  and they are all in current frame!
+  */
+  def (mv: MethodVisitor) emit(closure: Closure, depth: Int): Unit = {
+    // load captured local variables to stack
+    // create the "function object"
+    mv.visitInvokeDynamicInsn(
+      "apply", 
+      "(Lmlang/compiler/semantic/Value;)Ldotty/runtime/function/JFunction1;", // captured variables => JFunction1
+      closureBootstrapHandle,
+      Array[Object](
+        closureBootstrapArgs0,
+        new Handle(
+          Opcodes.H_INVOKESTATIC,
+          rootClzName,
+          "value$$anonfun$1",
+          "(Lmlang/compiler/semantic/Value;)Lmlang/compiler/semantic/Value;", // captured variables + self variables => return type
+          false
+        ),
+        Type.getType("(Lmlang/compiler/semantic/Value;)Lmlang/compiler/semantic/Value;") // self variables => return type
+      )
+    )
+  }
+
+  def (mv: MethodVisitor) emit(term: Abstract, depth: Int): Unit = {
+    // LATER we might be able to macro/typeclass it, but i don't have time, compared to moving away form Scala code generation
+    term match {
+      case Abstract.Universe(l) =>
+        mv.emit(l)
+        mv.create("Universe")
+      case Abstract.App(left, right) =>
+        mv.emit(left, depth)
+        mv.emit(right, depth)
+        mv.create("App")
+      case Abstract.Lambda(closure) =>
+        //mv.emit(closure, depth)
+        mv.create("Lambda")
+    }
+  }
+
 }
 
 trait PlatformEvaluator extends Evaluator {
 
-  val REDUCE= ""
-  //val REDUCE= ".reduceUntilSelf()"
-  
-  private def compile[A](string: String): A = Benchmark.HoasCompile {
-    // try {
-    //   val toolbox = currentMirror.mkToolBox()
-    //   val tree = toolbox.parse(string)
-    //   toolbox.eval(tree).asInstanceOf[A]
-    // } catch {
-    //   case e: Throwable => throw PlatformEvaluatorException(string, e)
-    // }
-    null.asInstanceOf[A]
-  }
-
-  private def source(a: Name): String = "Name(\"" + a.main + "\")"
-
-    def emitInner(term: Abstract.MetaEnclosedT, d: Int): String = {
-      if (term.metas.isEmpty) {
-        emit(term.term, d)
-      } else {
-        s"{ " +
-          (for (r <- 0 until term.metas.size) yield s"val m${d}_$r = Meta(null); ").mkString +
-            s"${term.metas.zipWithIndex.map(a =>
-              s"m${d}_${a._2}.state = MetaState.Closed(${emit(a._1, d)}); ").mkString("")}" +
-            s"${emit(term.term, d)}; " +
-            s"}"
-      }
-    }
-
-  def emitClosure(c: Abstract.Closure, depth: Int): String = {
-    val d = depth + 1
-    s"Closure(r$d => ${emitInner(c, d)})"
-  }
-
-  def emitAbsClosure(c: Abstract.AbsClosure, depth: Int): String = {
-    val d = depth + 1
-    s"AbsClosure(dm$d => ${emitInner(c, d)})"
-  }
-
-  def emitMultiClosure(pattern: Pattern, c: Abstract.MultiClosure, depth: Int): String = {
-    val (rs, dms) = pattern.atomCount
-    val d = depth + 1
-    val emit = emitInner(c, d)
-    val inner = if (rs == 0 && dms == 0) {
-      emit
-    } else {
-      s"{${(0 until rs).map(i => s"val r${d}_$i = r${d}($i); ").mkString}${(0 until dms).map(i => s"val dm${d}_$i = dm${d}($i); ").mkString}$emit }"
-    }
-    s"MultiClosure((r$d,dm$d) => $inner)"
-  }
-
-
-    def emitGraph(grf: Abstract.ClosureGraph, depth: Int): String = {
-      val d = depth + 1
-      def declares(a: String, d: Int, count: Int) =
-        (0 until count).map(i => s"val $a${d}_$i = $a${d}($i); ").mkString
-      val res = grf.nodes.zipWithIndex.map(pair => {
-        val c = pair._1
-        val index = pair._2
-        val metasBefore = grf.nodes.take(index).map(_.typ.metas.size).sum
-        val metaBody =
-        s"{ val m$d = m${d}_.asInstanceOf[Seq[Meta]].toBuffer; " +
-          s"for (k <- 0 until ${c.typ.metas.size}) { assert(m$d(k + ${metasBefore}) == null); m$d(k + $metasBefore) = Meta(null)}; " +
-          declares("m", d, c.typ.metas.size + metasBefore) +
-          declares("r", d, index) +
-          s"${c.typ.metas.zipWithIndex.map(k => (k._1, k._2 + metasBefore)).map(a => s"m$d(${a._2}).state = MetaState.Closed(${emit(a._1, d)}); ").mkString("")}" +
-          s"(m$d.slice($metasBefore, ${metasBefore + c.typ.metas.size}).toSeq, ${emit(c.typ.term, d)})}"
-        s"(${c.implicitt}, Seq[Int](${c.deps.mkString(", ")}), ${c.typ.metas.size}, (m${d}_, r$d) => $metaBody)"
-      }).mkString(", ")
-      val kkk = s"Seq(${grf.restrictions.toSeq.map(a =>
-        s"(${emit(a._1, d)}, (m$d: Seq[Value], r$d: Seq[Value]) => {" +
-          s" ${declares("m", d, grf.nodes.map(_.typ.metas.size).sum)}" +
-          s" ${declares("r", d, grf.nodes.size)}" +
-          s" ${emitInner(a._2, d + 1)}" +
-          s" })").mkString(", ")}).toMap"
-      s"""ClosureGraph.createMetaAnnotated(Seq($res), ${grf.dims}, (dm$d: Seq[Formula]) => { ${declares("dm",d,  grf.dims)} $kkk })""".stripMargin
-    }
-
-  def emit(id: Option[Abstract.Inductively], depth: Int): String = {
-    id match {
-      case None => "None"
-      case Some(a) => s"Some(Inductively(${a.id}, ${emit(a.typ, depth)}, Seq[Value](${a.ps.map(k => emit(k, depth)).mkString(", ")})))"
-    }
-  }
-
-  private def emit(pair: Seq[Abstract.Formula], depth: Int): String = {
-    s"Seq(${pair.map(a => emit(a, depth)).mkString(", ")})"
-  }
-
-
-  def emitAbsClosureSystem(faces: Abstract.AbsClosureSystem, depth: Int) = {
-    if (faces.isEmpty) "Map.empty" else s"Seq(${faces.toSeq.map(a => s"(${emit(a._1, depth)}, ${emitAbsClosure(a._2, depth + 1)})").mkString(", ")}).toMap"
-  }
-
-
-  def emitEnclosedSystem(faces: Abstract.EnclosedSystem, depth: Int) = {
-    // it evals to a value system.
-    if (faces.isEmpty) "Map.empty" else s"Seq(${faces.toSeq.map(a => s"(${emit(a._1, depth)}, ${emitInner(a._2, depth + 2)})").mkString(", ")}).toMap"
-  }
-
-  def emitConstructor(c: Abstract.Constructor, depth: Int) = {
-    s"Constructor(" +
-      s"${source(c.name)}, " +
-      s"${emitGraph(c.params, depth)})"
-  }
-
-  def emit(term: Abstract, depth: Int): String = {
-      term match {
-        case Abstract.Universe(l) =>
-          s"Universe($l)"
-        case Abstract.Reference(up, index) =>
-          if (up > depth) {
-            s"${tunnel(getReference(up - depth - 1, index))}$REDUCE"
-          } else {
-            if (index == -1) s"r${depth - up}$REDUCE" else s"r${depth - up}_$index$REDUCE"
-          }
-        case Abstract.MetaReference(up, index) =>
-          if (up > depth) {
-            s"${tunnel(getMetaReference(up - depth - 1, index))}$REDUCE"
-          } else {
-            s"m${depth - up}_$index$REDUCE"
-          }
-        case Abstract.Let(metas, definitions, in) =>
-          if (metas.isEmpty && definitions.isEmpty) {
-            emit(in, depth + 1)
-          } else {
-            val d = depth + 1
-            s"{ " +
-              (for (r <- 0 until definitions.size) yield s"val r${d}_$r = LocalReference(null); ").mkString +
-              (for (r <- 0 until metas.size) yield s"val m${d}_$r = Meta(null); ").mkString +
-                s"${metas.zipWithIndex.map(a =>
-                  s"m${d}_${a._2}.state = MetaState.Closed(${emit(a._1, d)}); ").mkString("")}" +
-                s"${definitions.zipWithIndex.map(a =>
-                  s"r${d}_${a._2}.value = ${emit(a._1, d)}; ").mkString("")}" +
-                s"${emit(in, d)}" +
-                s"}"
-          }
-        case Abstract.Function(domain, impict, codomain) =>
-          s"Function(${emit(domain, depth)}, $impict, ${emitClosure(codomain, depth)})"
-        case Abstract.Lambda(closure) =>
-          s"Lambda(${emitClosure(closure, depth)})"
-        case Abstract.App(left, right) =>
-          s"App(${emit(left, depth)}, ${emit(right, depth)})$REDUCE"
-        case Abstract.Record(id, names, nodes) =>
-          s"""Record( ${emit(id, depth)}, Seq(${names.map(n => source(n)).mkString(", ")}), ${emitGraph(nodes, depth)})"""
-        case Abstract.Projection(left, field) =>
-          s"Projection(${emit(left, depth)}, $field)$REDUCE"
-        case Abstract.Sum(id, hit, constructors) =>
-          s"""Sum(${emit(id, depth)}, $hit, Seq(${constructors.map(c => emitConstructor(c, depth)).mkString(", ")}))"""
-        case Abstract.Make(vs) =>
-          s"Make(${vs.map(v => emit(v, depth))})"
-        case Abstract.Construct(name, vs, ds, ty) =>
-          s"Construct($name, ${vs.map(v => emit(v, depth))}, ${ds.map(d => emit(d, depth))}, ${emitEnclosedSystem(ty, depth)})"
-        case Abstract.PatternLambda(id, dom, codomain, cases) =>
-          s"PatternLambda($id, ${emit(dom, depth)}, ${emitClosure(codomain, depth)}, Seq(${cases.map(c => s"Case(${tunnel(c.pattern)}, ${emitMultiClosure(c.pattern, c.body, depth)})").mkString(", ")}))"
-        case Abstract.PathApp(left, right) =>
-          s"PathApp(${emit(left, depth)}, ${emit(right, depth)})$REDUCE"
-        case Abstract.PathLambda(body) =>
-          s"PathLambda(${emitAbsClosure(body, depth)})"
-        case Abstract.PathType(typ, left, right) =>
-          s"PathType(${emitAbsClosure(typ, depth)}, ${emit(left, depth)}, ${emit(right, depth)})"
-        case Abstract.Transp(tp, dir, base) =>
-          s"Transp(${emitAbsClosure(tp, depth)}, ${emit(dir, depth)}, ${emit(base, depth)})$REDUCE"
-        case Abstract.Hcomp(tp, base, faces) =>
-          s"Hcomp(" +
-              s"${emit(tp, depth)}, " +
-              s"${emit(base, depth)}, " +
-              emitAbsClosureSystem(faces, depth) +
-              s")$REDUCE"
-        case Abstract.Comp(tp, base, faces) =>
-          s"Comp(" +
-              s"${emitAbsClosure(tp, depth)}, " +
-              s"${emit(base, depth)}, " +
-              emitAbsClosureSystem(faces, depth) +
-              s")$REDUCE"
-        case Abstract.GlueType(tp, faces) =>
-          s"GlueType(" +
-              s"${emit(tp, depth)}, " +
-              emitEnclosedSystem(faces, depth) +
-              s")$REDUCE"
-        case Abstract.Glue(base, faces) =>
-          s"Glue(" +
-              s"${emit(base, depth)}, " +
-            emitEnclosedSystem(faces, depth) +
-              s")$REDUCE"
-        case Abstract.Unglue(tp, base, iu, faces) =>
-          s"Unglue(" +
-              s"${emit(tp, depth)}, " +
-              s"${emit(base, depth)}, " + iu + ", " +
-            emitEnclosedSystem(faces, depth) +
-              s")$REDUCE"
-      }
-    }
-
-
-  private def emit(pair: Seq[Boolean]): String = {
-    s"Seq(${pair.map(_.toString).mkString(", ")})"
-  }
-
-
-
-    private def emit(dim: Abstract.Formula, depth: Int): String = {
-      dim match {
-        case Abstract.Formula.Reference(up, index) =>
-          if (up > depth) {
-            tunnel(getDimension(up - depth - 1, index))
-          } else {
-            if (index == -1) s"dm${depth - up}" else s"dm${depth - up}($index)"
-          }
-        case Abstract.Formula.True =>
-          s"Formula.True"
-        case Abstract.Formula.False =>
-          s"Formula.False"
-        case Abstract.Formula.And(l, r) =>
-          s"Formula.And(${emit(l, depth)}, ${emit(r, depth)})"
-        case Abstract.Formula.Or(l, r) =>
-          s"Formula.Or(${emit(l, depth)}, ${emit(r, depth)})"
-        case Abstract.Formula.Neg(l) =>
-          s"Formula.Neg(${emit(l, depth)})"
-      }
-  }
-
-  private val vs = mutable.ArrayBuffer[Any]()
-  private val ns = mutable.ArrayBuffer[String]()
-
-  protected def extractFromHolder(h: Holder): Value = {
-    val res = h.value(vs.toArray)
-    ns.clear()
-    vs.clear()
-    res
-  }
-
-  private def tunnel(v: Any, str: String): String = {
-    val i = vs.size
-    vs += v
-    ns += str
-    s"vs$i"
-  }
-
-  protected def tunnel(v: semantic.Formula): String = {
-    tunnel(v, "Formula")
-  }
-
-  protected def tunnel(v: Value): String = {
-    tunnel(v, "Value")
-  }
-
-  protected def tunnel(v: Pattern): String = {
-    tunnel(v, "Pattern")
-  }
-
-  private def holderSrc(res: String): String = {
-      val defs = (0 until vs.size).map(i => s"val vs${i} = vs($i).asInstanceOf[${ns(i)}]").mkString("\n")
-      s"""
-         |import mlang.utils._
-         |import mlang.compiler._
-         |import mlang.compiler.Value._
-         |
-         |
-         |new Holder {
-         |  def value(vs: Seq[Any]): Value = {
-         |  $defs
-         |  val res = $res
-         |  res
-         |  }
-         |}
-         |""".stripMargin
-  }
-
-  private def holderBytes(): String = {
-    ""
-  }
-
-
   protected def platformEval(term: Abstract): Value = {
-    val res = emit(term, -1)
-    val src = holderSrc(res)
-    debug("==================")
-    debug(term)
-    debug("==================")
-    debug(res)
-    debug("==================")
-    extractFromHolder(compile[Holder](src))
+    ???
   }
 }

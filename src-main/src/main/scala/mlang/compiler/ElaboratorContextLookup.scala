@@ -3,6 +3,7 @@ package mlang.compiler
 
 import mlang.utils._
 import mlang.compiler.semantic.Value
+import mlang.compiler.`abstract`.Abstract
 
 import scala.collection.mutable
 
@@ -18,7 +19,7 @@ object NameLookupResult {
   sealed trait Term extends NameLookupResult
   case class Typed(typ: Value, ref: Abstract) extends Term
   case class Construct(self: Value, index: Int, closure: semantic.ClosureGraph) extends Term
-  case class Dimension(ref: Abstract.Formula) extends NameLookupResult
+  case class Dimension(ref: `abstract`.Formula) extends NameLookupResult
 }
 
 trait ElaboratorContextLookup extends ElaboratorContextBase {
@@ -60,7 +61,7 @@ trait ElaboratorContextLookup extends ElaboratorContextBase {
                 case p: ParameterBinder =>
                   binder = mkTyped(p.value, Abstract.Reference(up, ly.typedIndex(index)))
                 case d: DimensionBinder =>
-                  binder = NameLookupResult.Dimension(Abstract.Formula.Reference(up, ly.typedIndex(index)))
+                  binder = NameLookupResult.Dimension(`abstract`.Formula.Reference(up, ly.typedIndex(index)))
               }
             }
             i += 1
@@ -95,7 +96,7 @@ trait ElaboratorContextLookup extends ElaboratorContextBase {
           }
         case d: Layer.Dimension =>
           if (d.binder.name.by(name)) {
-            binder = NameLookupResult.Dimension(Abstract.Formula.Reference(up, -1))
+            binder = NameLookupResult.Dimension(`abstract`.Formula.Reference(up, -1))
           }
         case _ =>
       }

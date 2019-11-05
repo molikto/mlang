@@ -11,75 +11,160 @@ import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.TypePath;
-public class TestDump implements Opcodes {
+public class TestScalaDump implements Opcodes {
 
 public static byte[] dump () throws Exception {
 
 ClassWriter classWriter = new ClassWriter(0);
 FieldVisitor fieldVisitor;
-MethodVisitor mv;
+MethodVisitor methodVisitor;
 AnnotationVisitor annotationVisitor0;
 
-classWriter.visit(V12, ACC_SUPER, "mlang/compiler/semantic/Test", null, "java/lang/Object", new String[] { "mlang/compiler/Holder" });
+classWriter.visit(V1_8, ACC_PUBLIC | ACC_SUPER, "mlang/compiler/semantic/TestScala", null, "java/lang/Object", new String[] { "mlang/compiler/Holder" });
 
-classWriter.visitSource("Test.java", null);
+classWriter.visitSource("Test.scala", null);
 
-classWriter.visitInnerClass("mlang/compiler/semantic/Value$Universe", "mlang/compiler/semantic/Value", "Universe", ACC_PUBLIC | ACC_STATIC);
+// ATTRIBUTE Scala
+// ATTRIBUTE TASTY
+classWriter.visitInnerClass("mlang/compiler/semantic/Value$App", "mlang/compiler/semantic/Value", "App", ACC_PUBLIC | ACC_STATIC);
+
+classWriter.visitInnerClass("mlang/compiler/semantic/Value$App$", "mlang/compiler/semantic/Value", "App$", ACC_PUBLIC | ACC_FINAL | ACC_STATIC);
 
 classWriter.visitInnerClass("mlang/compiler/semantic/Value$Lambda", "mlang/compiler/semantic/Value", "Lambda", ACC_PUBLIC | ACC_STATIC);
 
-classWriter.visitInnerClass("java/lang/invoke/MethodHandles$Lookup", "java/lang/invoke/MethodHandles", "Lookup", ACC_PUBLIC | ACC_FINAL | ACC_STATIC);
+classWriter.visitInnerClass("mlang/compiler/semantic/Value$Lambda$", "mlang/compiler/semantic/Value", "Lambda$", ACC_PUBLIC | ACC_FINAL | ACC_STATIC);
+
+classWriter.visitInnerClass("mlang/compiler/semantic/Value$PathApp", "mlang/compiler/semantic/Value", "PathApp", ACC_PUBLIC | ACC_STATIC);
+
+classWriter.visitInnerClass("mlang/compiler/semantic/Value$PathApp$", "mlang/compiler/semantic/Value", "PathApp$", ACC_PUBLIC | ACC_FINAL | ACC_STATIC);
+
+classWriter.visitInnerClass("mlang/compiler/semantic/Value$PathLambda", "mlang/compiler/semantic/Value", "PathLambda", ACC_PUBLIC | ACC_STATIC);
+
+classWriter.visitInnerClass("mlang/compiler/semantic/Value$PathLambda$", "mlang/compiler/semantic/Value", "PathLambda$", ACC_PUBLIC | ACC_FINAL | ACC_STATIC);
+
+classWriter.visitInnerClass("mlang/compiler/semantic/Value$Universe", "mlang/compiler/semantic/Value", "Universe", ACC_PUBLIC | ACC_STATIC);
+
+classWriter.visitInnerClass("mlang/compiler/semantic/Value$Universe$", "mlang/compiler/semantic/Value", "Universe$", ACC_PUBLIC | ACC_FINAL | ACC_STATIC);
 
 {
-mv = classWriter.visitMethod(0, "<init>", "()V", null, null);
-mv.visitCode();
+methodVisitor = classWriter.visitMethod(ACC_PUBLIC, "<init>", "()V", null, null);
+methodVisitor.visitCode();
 Label label0 = new Label();
-mv.visitLabel(label0);
-mv.visitLineNumber(5, label0);
-mv.visitVarInsn(ALOAD, 0);
-mv.visitMethodInsn(INVOKESPECIAL, "java/lang/Object", "<init>", "()V", false);
-mv.visitInsn(RETURN);
-mv.visitMaxs(1, 1);
-mv.visitEnd();
-}
-{
-mv = classWriter.visitMethod(ACC_PUBLIC, "value", "([Ljava/lang/Object;)Lmlang/compiler/semantic/Value;", null, null);
-mv.visitCode();
-Label label0 = new Label();
-mv.visitLabel(label0);
-mv.visitLineNumber(8, label0);
-mv.visitTypeInsn(NEW, "mlang/compiler/semantic/Value$Universe");
-mv.visitInsn(DUP);
-mv.visitInsn(ICONST_0);
-mv.visitMethodInsn(INVOKESPECIAL, "mlang/compiler/semantic/Value$Universe", "<init>", "(I)V", false);
-mv.visitVarInsn(ASTORE, 2);
+methodVisitor.visitLabel(label0);
+methodVisitor.visitLineNumber(3, label0);
+methodVisitor.visitVarInsn(ALOAD, 0);
+methodVisitor.visitMethodInsn(INVOKESPECIAL, "java/lang/Object", "<init>", "()V", false);
+methodVisitor.visitInsn(RETURN);
 Label label1 = new Label();
-mv.visitLabel(label1);
-mv.visitLineNumber(9, label1);
-mv.visitTypeInsn(NEW, "mlang/compiler/semantic/Value$Lambda");
-mv.visitInsn(DUP);
-mv.visitVarInsn(ALOAD, 2);
-mv.visitInvokeDynamicInsn("apply", "(Lmlang/compiler/semantic/Value;)Lscala/Function1;", new Handle(Opcodes.H_INVOKESTATIC, "java/lang/invoke/LambdaMetafactory", "metafactory", "(Ljava/lang/invoke/MethodHandles$Lookup;Ljava/lang/String;Ljava/lang/invoke/MethodType;Ljava/lang/invoke/MethodType;Ljava/lang/invoke/MethodHandle;Ljava/lang/invoke/MethodType;)Ljava/lang/invoke/CallSite;", false), new Object[]{Type.getType("(Ljava/lang/Object;)Ljava/lang/Object;"), new Handle(Opcodes.H_INVOKESTATIC, "mlang/compiler/semantic/Test", "lambda$value$0", "(Lmlang/compiler/semantic/Value;Ljava/lang/Object;)Ljava/lang/Object;", false), Type.getType("(Ljava/lang/Object;)Ljava/lang/Object;")});
-mv.visitMethodInsn(INVOKESPECIAL, "mlang/compiler/semantic/Value$Lambda", "<init>", "(Lscala/Function1;)V", false);
-mv.visitVarInsn(ASTORE, 3);
-Label label2 = new Label();
-mv.visitLabel(label2);
-mv.visitLineNumber(10, label2);
-mv.visitVarInsn(ALOAD, 2);
-mv.visitInsn(ARETURN);
-mv.visitMaxs(3, 4);
-mv.visitEnd();
+methodVisitor.visitLabel(label1);
+methodVisitor.visitLocalVariable("this", "Lmlang/compiler/semantic/TestScala;", null, label0, label1, 0);
+methodVisitor.visitMaxs(1, 1);
+methodVisitor.visitEnd();
 }
 {
-mv = classWriter.visitMethod(ACC_PRIVATE | ACC_STATIC | ACC_SYNTHETIC, "lambda$value$0", "(Lmlang/compiler/semantic/Value;Ljava/lang/Object;)Ljava/lang/Object;", null, null);
-mv.visitCode();
+methodVisitor = classWriter.visitMethod(ACC_PUBLIC, "value", "([Ljava/lang/Object;)Lmlang/compiler/semantic/Value;", "([Ljava/lang/Object;)Lmlang/compiler/semantic/Value;", null);
+methodVisitor.visitCode();
 Label label0 = new Label();
-mv.visitLabel(label0);
-mv.visitLineNumber(9, label0);
-mv.visitVarInsn(ALOAD, 0);
-mv.visitInsn(ARETURN);
-mv.visitMaxs(1, 2);
-mv.visitEnd();
+methodVisitor.visitLabel(label0);
+methodVisitor.visitLineNumber(5, label0);
+methodVisitor.visitLineNumber(6, label0);
+methodVisitor.visitFieldInsn(GETSTATIC, "mlang/compiler/semantic/Value$", "MODULE$", "Lmlang/compiler/semantic/Value$;");
+methodVisitor.visitInsn(POP);
+methodVisitor.visitFieldInsn(GETSTATIC, "mlang/compiler/semantic/Value$Lambda$", "MODULE$", "Lmlang/compiler/semantic/Value$Lambda$;");
+Label label1 = new Label();
+methodVisitor.visitLabel(label1);
+methodVisitor.visitLineNumber(8, label1);
+methodVisitor.visitInvokeDynamicInsn("apply", "()Ldotty/runtime/function/JFunction1;", new Handle(Opcodes.H_INVOKESTATIC, "java/lang/invoke/LambdaMetafactory", "altMetafactory", "(Ljava/lang/invoke/MethodHandles$Lookup;Ljava/lang/String;Ljava/lang/invoke/MethodType;[Ljava/lang/Object;)Ljava/lang/invoke/CallSite;", false), new Object[]{Type.getType("(Ljava/lang/Object;)Ljava/lang/Object;"), new Handle(Opcodes.H_INVOKESTATIC, "mlang/compiler/semantic/TestScala", "value$$anonfun$1", "(Lmlang/compiler/semantic/Value;)Lmlang/compiler/semantic/Value;", false), Type.getType("(Lmlang/compiler/semantic/Value;)Lmlang/compiler/semantic/Value;"), new Integer(1)});
+methodVisitor.visitMethodInsn(INVOKEVIRTUAL, "mlang/compiler/semantic/Value$Lambda$", "apply", "(Lscala/Function1;)Lmlang/compiler/semantic/Value$Lambda;", false);
+methodVisitor.visitInsn(ARETURN);
+Label label2 = new Label();
+methodVisitor.visitLabel(label2);
+methodVisitor.visitLocalVariable("this", "Lmlang/compiler/semantic/TestScala;", null, label0, label2, 0);
+methodVisitor.visitLocalVariable("vs", "[Ljava/lang/Object;", null, label0, label2, 1);
+methodVisitor.visitMaxs(2, 2);
+methodVisitor.visitEnd();
+}
+{
+methodVisitor = classWriter.visitMethod(ACC_PRIVATE | ACC_FINAL | ACC_STATIC | ACC_SYNTHETIC, "value$$anonfun$2$$anonfun$1$$anonfun$1", "(Lmlang/compiler/semantic/Value;Lmlang/compiler/semantic/Formula;Lmlang/compiler/semantic/Value;)Lmlang/compiler/semantic/Value;", null, null);
+methodVisitor.visitCode();
+Label label0 = new Label();
+methodVisitor.visitLabel(label0);
+methodVisitor.visitLineNumber(7, label0);
+methodVisitor.visitFieldInsn(GETSTATIC, "mlang/compiler/semantic/Value$", "MODULE$", "Lmlang/compiler/semantic/Value$;");
+methodVisitor.visitInsn(POP);
+methodVisitor.visitFieldInsn(GETSTATIC, "mlang/compiler/semantic/Value$PathApp$", "MODULE$", "Lmlang/compiler/semantic/Value$PathApp$;");
+methodVisitor.visitVarInsn(ALOAD, 0);
+methodVisitor.visitVarInsn(ALOAD, 1);
+methodVisitor.visitMethodInsn(INVOKEVIRTUAL, "mlang/compiler/semantic/Value$PathApp$", "apply", "(Lmlang/compiler/semantic/Value;Lmlang/compiler/semantic/Formula;)Lmlang/compiler/semantic/Value$PathApp;", false);
+methodVisitor.visitInsn(ARETURN);
+Label label1 = new Label();
+methodVisitor.visitLabel(label1);
+methodVisitor.visitLocalVariable("v$2", "Lmlang/compiler/semantic/Value;", null, label0, label1, 0);
+methodVisitor.visitLocalVariable("d$1", "Lmlang/compiler/semantic/Formula;", null, label0, label1, 1);
+methodVisitor.visitLocalVariable("c", "Lmlang/compiler/semantic/Value;", null, label0, label1, 2);
+methodVisitor.visitMaxs(3, 3);
+methodVisitor.visitEnd();
+}
+{
+methodVisitor = classWriter.visitMethod(ACC_PRIVATE | ACC_FINAL | ACC_STATIC | ACC_SYNTHETIC, "value$$anonfun$3$$anonfun$2", "(Lmlang/compiler/semantic/Value;Lmlang/compiler/semantic/Formula;)Lmlang/compiler/semantic/Value;", null, null);
+methodVisitor.visitCode();
+Label label0 = new Label();
+methodVisitor.visitLabel(label0);
+methodVisitor.visitLineNumber(7, label0);
+methodVisitor.visitFieldInsn(GETSTATIC, "mlang/compiler/semantic/Value$", "MODULE$", "Lmlang/compiler/semantic/Value$;");
+methodVisitor.visitInsn(POP);
+methodVisitor.visitFieldInsn(GETSTATIC, "mlang/compiler/semantic/Value$Lambda$", "MODULE$", "Lmlang/compiler/semantic/Value$Lambda$;");
+methodVisitor.visitVarInsn(ALOAD, 0);
+methodVisitor.visitVarInsn(ALOAD, 1);
+methodVisitor.visitInvokeDynamicInsn("apply", "(Lmlang/compiler/semantic/Value;Lmlang/compiler/semantic/Formula;)Ldotty/runtime/function/JFunction1;", new Handle(Opcodes.H_INVOKESTATIC, "java/lang/invoke/LambdaMetafactory", "altMetafactory", "(Ljava/lang/invoke/MethodHandles$Lookup;Ljava/lang/String;Ljava/lang/invoke/MethodType;[Ljava/lang/Object;)Ljava/lang/invoke/CallSite;", false), new Object[]{Type.getType("(Ljava/lang/Object;)Ljava/lang/Object;"), new Handle(Opcodes.H_INVOKESTATIC, "mlang/compiler/semantic/TestScala", "value$$anonfun$2$$anonfun$1$$anonfun$1", "(Lmlang/compiler/semantic/Value;Lmlang/compiler/semantic/Formula;Lmlang/compiler/semantic/Value;)Lmlang/compiler/semantic/Value;", false), Type.getType("(Lmlang/compiler/semantic/Value;)Lmlang/compiler/semantic/Value;"), new Integer(1)});
+methodVisitor.visitMethodInsn(INVOKEVIRTUAL, "mlang/compiler/semantic/Value$Lambda$", "apply", "(Lscala/Function1;)Lmlang/compiler/semantic/Value$Lambda;", false);
+methodVisitor.visitInsn(ARETURN);
+Label label1 = new Label();
+methodVisitor.visitLabel(label1);
+methodVisitor.visitLocalVariable("v$1", "Lmlang/compiler/semantic/Value;", null, label0, label1, 0);
+methodVisitor.visitLocalVariable("d", "Lmlang/compiler/semantic/Formula;", null, label0, label1, 1);
+methodVisitor.visitMaxs(3, 2);
+methodVisitor.visitEnd();
+}
+{
+methodVisitor = classWriter.visitMethod(ACC_PRIVATE | ACC_FINAL | ACC_STATIC | ACC_SYNTHETIC, "value$$anonfun$1", "(Lmlang/compiler/semantic/Value;)Lmlang/compiler/semantic/Value;", null, null);
+methodVisitor.visitCode();
+Label label0 = new Label();
+methodVisitor.visitLabel(label0);
+methodVisitor.visitLineNumber(6, label0);
+methodVisitor.visitFieldInsn(GETSTATIC, "mlang/compiler/semantic/Value$", "MODULE$", "Lmlang/compiler/semantic/Value$;");
+methodVisitor.visitInsn(POP);
+methodVisitor.visitFieldInsn(GETSTATIC, "mlang/compiler/semantic/Value$App$", "MODULE$", "Lmlang/compiler/semantic/Value$App$;");
+methodVisitor.visitFieldInsn(GETSTATIC, "mlang/compiler/semantic/Value$", "MODULE$", "Lmlang/compiler/semantic/Value$;");
+methodVisitor.visitInsn(POP);
+methodVisitor.visitFieldInsn(GETSTATIC, "mlang/compiler/semantic/Value$Universe$", "MODULE$", "Lmlang/compiler/semantic/Value$Universe$;");
+methodVisitor.visitInsn(ICONST_0);
+methodVisitor.visitMethodInsn(INVOKEVIRTUAL, "mlang/compiler/semantic/Value$Universe$", "apply", "(I)Lmlang/compiler/semantic/Value$Universe;", false);
+methodVisitor.visitFieldInsn(GETSTATIC, "mlang/compiler/semantic/Value$", "MODULE$", "Lmlang/compiler/semantic/Value$;");
+methodVisitor.visitInsn(POP);
+methodVisitor.visitFieldInsn(GETSTATIC, "mlang/compiler/semantic/Value$PathLambda$", "MODULE$", "Lmlang/compiler/semantic/Value$PathLambda$;");
+Label label1 = new Label();
+methodVisitor.visitLabel(label1);
+methodVisitor.visitLineNumber(7, label1);
+methodVisitor.visitVarInsn(ALOAD, 0);
+methodVisitor.visitInvokeDynamicInsn("apply", "(Lmlang/compiler/semantic/Value;)Ldotty/runtime/function/JFunction1;", new Handle(Opcodes.H_INVOKESTATIC, "java/lang/invoke/LambdaMetafactory", "altMetafactory", "(Ljava/lang/invoke/MethodHandles$Lookup;Ljava/lang/String;Ljava/lang/invoke/MethodType;[Ljava/lang/Object;)Ljava/lang/invoke/CallSite;", false), new Object[]{Type.getType("(Ljava/lang/Object;)Ljava/lang/Object;"), new Handle(Opcodes.H_INVOKESTATIC, "mlang/compiler/semantic/TestScala", "value$$anonfun$3$$anonfun$2", "(Lmlang/compiler/semantic/Value;Lmlang/compiler/semantic/Formula;)Lmlang/compiler/semantic/Value;", false), Type.getType("(Lmlang/compiler/semantic/Formula;)Lmlang/compiler/semantic/Value;"), new Integer(1)});
+methodVisitor.visitMethodInsn(INVOKEVIRTUAL, "mlang/compiler/semantic/Value$PathLambda$", "apply", "(Lscala/Function1;)Lmlang/compiler/semantic/Value$PathLambda;", false);
+methodVisitor.visitMethodInsn(INVOKEVIRTUAL, "mlang/compiler/semantic/Value$App$", "apply", "(Lmlang/compiler/semantic/Value;Lmlang/compiler/semantic/Value;)Lmlang/compiler/semantic/Value$App;", false);
+methodVisitor.visitInsn(ARETURN);
+Label label2 = new Label();
+methodVisitor.visitLabel(label2);
+methodVisitor.visitLocalVariable("v", "Lmlang/compiler/semantic/Value;", null, label0, label2, 0);
+methodVisitor.visitMaxs(4, 1);
+methodVisitor.visitEnd();
+}
+{
+methodVisitor = classWriter.visitMethod(ACC_PRIVATE | ACC_STATIC | ACC_SYNTHETIC, "$deserializeLambda$", "(Ljava/lang/invoke/SerializedLambda;)Ljava/lang/Object;", null, null);
+methodVisitor.visitCode();
+methodVisitor.visitVarInsn(ALOAD, 0);
+methodVisitor.visitInvokeDynamicInsn("lambdaDeserialize", "(Ljava/lang/invoke/SerializedLambda;)Ljava/lang/Object;", new Handle(Opcodes.H_INVOKESTATIC, "scala/runtime/LambdaDeserialize", "bootstrap", "(Ljava/lang/invoke/MethodHandles$Lookup;Ljava/lang/String;Ljava/lang/invoke/MethodType;[Ljava/lang/invoke/MethodHandle;)Ljava/lang/invoke/CallSite;", false), new Object[]{new Handle(Opcodes.H_INVOKESTATIC, "mlang/compiler/semantic/TestScala", "value$$anonfun$1", "(Lmlang/compiler/semantic/Value;)Lmlang/compiler/semantic/Value;", false), new Handle(Opcodes.H_INVOKESTATIC, "mlang/compiler/semantic/TestScala", "value$$anonfun$2$$anonfun$1$$anonfun$1", "(Lmlang/compiler/semantic/Value;Lmlang/compiler/semantic/Formula;Lmlang/compiler/semantic/Value;)Lmlang/compiler/semantic/Value;", false), new Handle(Opcodes.H_INVOKESTATIC, "mlang/compiler/semantic/TestScala", "value$$anonfun$3$$anonfun$2", "(Lmlang/compiler/semantic/Value;Lmlang/compiler/semantic/Formula;)Lmlang/compiler/semantic/Value;", false)});
+methodVisitor.visitInsn(ARETURN);
+methodVisitor.visitMaxs(1, 1);
+methodVisitor.visitEnd();
 }
 classWriter.visitEnd();
 
