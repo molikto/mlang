@@ -1,25 +1,92 @@
 package mlang.compiler
 
 import mlang.compiler.semantic.{given, _}
-import mlang.compiler.semantic.Assignments
 import mlang.utils._
 import scala.collection.mutable
-// import scala.reflect.runtime.currentMirror
-// import scala.tools.reflect.ToolBox
-import scala.quoted._
-import scala.tasty._
-
-
-import mlang.compiler.semantic.Value
-
-import scala.quoted._
-import scala.quoted.staging._
 
 
 trait Holder {
-  def value(vs: Seq[Any]): Value
+  def value(vs: Array[Any]): Value
 }
 
+
+private val clzgen = new GenLong.Positive()
+
+
+// inline def (mv: MethodVisitor) create[T <: Value](args: Any*): Unit = {
+//}
+
+class Run {
+  import org.objectweb.asm._
+  import Opcodes._
+
+  val cw = new ClassWriter(ClassWriter.COMPUTE_MAXS)
+  cw.visit(V12, ACC_SUPER, s"mlang/generated/${clzgen()}", null, "java/lang/Object", Array("mlang/compiler/Holder"))
+  
+  cw.visitInnerClass("mlang/compiler/semantic/Value$Universe", "mlang/compiler/semantic/Value", "Universe", ACC_PUBLIC | ACC_STATIC);
+  cw.visitInnerClass("mlang/compiler/semantic/Value$Lambda", "mlang/compiler/semantic/Value", "Lambda", ACC_PUBLIC | ACC_STATIC);
+
+  cw.visitInnerClass("java/lang/invoke/MethodHandles$Lookup", "java/lang/invoke/MethodHandles", "Lookup", ACC_PUBLIC | ACC_FINAL | ACC_STATIC);
+
+
+  inline def (mv: MethodVisitor) emit(l: Int): Unit = {
+    if (l == 0) mv.visitInsn(ICONST_0)
+    else if (l == 1) mv.visitInsn(ICONST_1)
+    else mv.visitLdcInsn(l)
+  }
+
+
+  def (mv: MethodVisitor) emit(term: Abstract, depth: Int): Unit = {
+    term match {
+      case Abstract.Universe(l) =>
+        mv.visitTypeInsn(NEW, "mlang/compiler/semantic/Value$Universe")
+        mv.visitInsn(DUP)
+        mv.emit(l)
+        mv.visitMethodInsn(INVOKESPECIAL, "mlang/compiler/semantic/Value$Universe", "<init>", "(I)V", false)
+      case Abstract.App(left, right) =>
+        mv.visitTypeInsn(NEW, "mlang/compiler/semantic/Value$App")
+        mv.visitInsn(DUP)
+        mv.emit(left, depth)
+        mv.emit(right, depth)
+        mv.visitMethodInsn(INVOKESPECIAL, "mlang/compiler/semantic/Value$App", "<init>", "(Lmlang/compiler/semantic/Value;Lmlang/compiler/semantic/Value;)V", false)
+    }
+  }
+
+  {
+    val mv = cw.visitMethod(0, "<init>", "()V", null, null)
+    mv.visitCode()
+    mv.visitVarInsn(ALOAD, 0)
+    mv.visitMethodInsn(INVOKESPECIAL, "java/lang/Object", "<init>", "()V", false)
+    mv.visitInsn(RETURN)
+    mv.visitMaxs(0, 0)
+    mv.visitEnd()
+  }
+  {
+    val mv = cw.visitMethod(ACC_PUBLIC, "value", "([Ljava/lang/Object;)Lmlang/compiler/semantic/Value;", null, null);
+    mv.visitCode();
+    mv.visitTypeInsn(NEW, "mlang/compiler/semantic/Value$Universe");
+    mv.visitInsn(DUP);
+    mv.visitInsn(ICONST_0);
+    mv.visitMethodInsn(INVOKESPECIAL, "mlang/compiler/semantic/Value$Universe", "<init>", "(I)V", false);
+    mv.visitVarInsn(ASTORE, 2);
+    mv.visitTypeInsn(NEW, "mlang/compiler/semantic/Value$Lambda");
+    mv.visitInsn(DUP);
+    mv.visitVarInsn(ALOAD, 2);
+    mv.visitInvokeDynamicInsn("apply",
+     "(Lmlang/compiler/semantic/Value;)Lscala/Function1;",
+      new Handle(Opcodes.H_INVOKESTATIC, "java/lang/invoke/LambdaMetafactory", "metafactory",
+      "(Ljava/lang/invoke/MethodHandles$Lookup;Ljava/lang/String;Ljava/lang/invoke/MethodType;Ljava/lang/invoke/MethodType;Ljava/lang/invoke/MethodHandle;Ljava/lang/invoke/MethodType;)Ljava/lang/invoke/CallSite;", false), 
+      Array[Object](Type.getType("(Ljava/lang/Object;)Ljava/lang/Object;"),
+       new Handle(Opcodes.H_INVOKESTATIC, "mlang/compiler/semantic/Test", "lambda$value$0", "(Lmlang/compiler/semantic/Value;Ljava/lang/Object;)Ljava/lang/Object;", false), 
+      Type.getType("(Ljava/lang/Object;)Ljava/lang/Object;")));
+    mv.visitMethodInsn(INVOKESPECIAL, "mlang/compiler/semantic/Value$Lambda", "<init>", "(Lscala/Function1;)V", false);
+    mv.visitVarInsn(ASTORE, 3);
+    mv.visitVarInsn(ALOAD, 2);
+    mv.visitInsn(ARETURN);
+    mv.visitMaxs(0, 0);
+    mv.visitEnd();
+  }
+}
 
 trait PlatformEvaluator extends Evaluator {
 
@@ -249,7 +316,7 @@ trait PlatformEvaluator extends Evaluator {
   private val ns = mutable.ArrayBuffer[String]()
 
   protected def extractFromHolder(h: Holder): Value = {
-    val res = h.value(vs.toSeq)
+    val res = h.value(vs.toArray)
     ns.clear()
     vs.clear()
     res
@@ -290,6 +357,10 @@ trait PlatformEvaluator extends Evaluator {
          |  }
          |}
          |""".stripMargin
+  }
+
+  private def holderBytes(): String = {
+    ""
   }
 
 
