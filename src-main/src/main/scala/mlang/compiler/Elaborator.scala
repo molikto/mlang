@@ -21,11 +21,11 @@ class syntax_creation extends Annotation
 
 private class IndState(val id: Long, typ: Abstract, var stop: Boolean, var top: Value, var apps: Seq[Value] = Seq.empty) {
   // returns a value is self
-  def consume(level: Int): Option[(Value, Abstract.Inductively)] = {
+  def consume(level: Int): Option[(Value, dbi.Inductively)] = {
     if (stop) {
       None
     } else {
-      val ret = Abstract.Inductively(id, typ, (0 until apps.size).map(i => Abstract.Reference(i, -1)).reverse)
+      val ret = dbi.Inductively(id, typ, (0 until apps.size).map(i => Abstract.Reference(i, -1)).reverse)
       stop = true
       Some((Value.apps(top, apps), ret))
     }
@@ -170,7 +170,7 @@ class Elaborator private(protected override val layers: Layers)
   }
 
 
-  def checkRecord(ind: Option[Abstract.Inductively], r: Concrete.Record): (Value, Abstract) = {
+  def checkRecord(ind: Option[dbi.Inductively], r: Concrete.Record): (Value, Abstract) = {
     val Concrete.Record(fields) = r
     for (f <- fields) {
       if (f.names.isEmpty) throw ElaboratorException.MustBeNamed()
@@ -190,7 +190,7 @@ class Elaborator private(protected override val layers: Layers)
       dbi.ClosureGraph(fs.map(a => dbi.ClosureGraph.Node(a._2, a._3.term.dependencies(0).filter(a => a.x == 0 && a.typ == DependencyType.Value).map(_.i).toSeq.sorted, a._3)))))
   }
 
-  def checkSum(tps: Option[(Value, Option[(Value, Abstract.Inductively)], Int)], sum: Concrete.Sum): (Value, Abstract) = {
+  def checkSum(tps: Option[(Value, Option[(Value, dbi.Inductively)], Int)], sum: Concrete.Sum): (Value, Abstract) = {
     val Concrete.Sum(constructors) = sum
     for (i <- constructors.indices) {
       for (j <- (i + 1) until constructors.size) {
@@ -253,7 +253,7 @@ class Elaborator private(protected override val layers: Layers)
     val fl = tps.map(_._3).getOrElse(
       if (fs.isEmpty) throw ElaboratorException.EmptySumMustHaveTypeAnnotation() else fs.map(_._2).max)
     (Value.Universe(fl), Abstract.Sum(tps.flatMap(_._2.map(_._2)), isHit, fs.map(a =>
-      Abstract.Constructor(a._1, a._3))))
+      dbi.Constructor(a._1, a._3))))
   }
 
   def checkConstructApp(sumValue: Value, index: Int, nodes: semantic.ClosureGraph, arguments: Seq[(Boolean, Concrete)]): Abstract = {
@@ -706,7 +706,7 @@ class Elaborator private(protected override val layers: Layers)
                 val res = cases.map(c => {
                   val (ctx, v, pat) = newPatternLayer(c.pattern, domain)
                   val ba = ctx.check(c.body, codomain(v), tail)
-                  Abstract.Case(pat, dbi.Closure(ctx.finishReify(), ba))
+                  dbi.Case(pat, dbi.Closure(ctx.finishReify(), ba))
                 })
                 Abstract.PatternLambda(Elaborator.pgen(), reify(domain.bestReifyValue), reify(codomain), res)
               case _ =>
@@ -853,7 +853,7 @@ class Elaborator private(protected override val layers: Layers)
           // FIXME should we also consider meta here?
           val handle = Dependency(i, 0, DependencyType.Meta)
           if (!done.contains(handle) && m.dependencies.contains(changed)) {
-            m.t.state = Value.MetaState.Closed(ctx.eval(m.code))
+            m.t.state = semantic.MetaState.Closed(ctx.eval(m.code))
             rec(handle)
           }
         }

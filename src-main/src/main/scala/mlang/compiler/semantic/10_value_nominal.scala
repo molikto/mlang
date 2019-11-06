@@ -10,7 +10,7 @@ import Value._
 
 
 
-given Nominal[Value.Inductively] {
+given Nominal[Inductively] {
     def (i: Inductively) restrict(lv: Assignments): Inductively = Inductively(i.id, i.typ.restrict(lv), i.ps.map(_.restrict(lv)))
     def (i: Inductively) fswap(w: Long, z: Formula): Inductively = Inductively(i.id, i.typ.fswap(w, z), i.ps.map(_.fswap(w, z)))
     def (i: Inductively) supportShallow(): SupportShallow = i.typ.supportShallow() ++ i.ps.map(_.supportShallow()).merge

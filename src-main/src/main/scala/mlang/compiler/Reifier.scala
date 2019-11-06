@@ -2,7 +2,7 @@ package mlang.compiler
 
 import mlang.compiler.Layer.Layers
 import mlang.compiler.semantic.Value
-import Value.{MetaState}
+import semantic.{MetaState}
 import mlang.utils.{Benchmark, Name, debug}
 import mlang.compiler.dbi.{given, _}
 import Abstract._
@@ -108,7 +108,7 @@ private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorCon
     Closure(ctx.reifyMetas(), ta)
   }
 
-  def reify(id: Option[Value.Inductively]): Option[Inductively] = {
+  def reify(id: Option[semantic.Inductively]): Option[Inductively] = {
     id match {
       case Some(value) => Some(Inductively(value.id, reify(value.typ), value.ps.map(reify)))
       case None => None

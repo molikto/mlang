@@ -12,6 +12,63 @@ case class ImplementationLimitationCannotRestrictOpenMeta() extends Exception
 
 import Value._
 
+sealed trait MetaState
+object MetaState {
+  case class Closed(v: Value) extends MetaState
+  case class Open(id: Long, @type_annotation typ: Value) extends MetaState
+}
+
+case class Case(pattern: Pattern, closure: MultiClosure) {
+  private def extract(pattern: Pattern, v: Value): Option[(Seq[Value], Seq[Formula])] = {
+    val vs = mutable.ArrayBuffer[Value]()
+    val ds = mutable.ArrayBuffer[Formula]()
+    def rec(pattern: Pattern, v: Value): Boolean = {
+      pattern match {
+        case Pattern.GenericValue =>
+          vs.append(v)
+          true
+        case Pattern.GenericDimension => logicError()
+        case Pattern.Make(names) =>
+          v.whnf match {
+            case Make(values) =>
+              names.zip(values).forall(pair => rec(pair._1, pair._2))
+            case _ =>
+              false
+          }
+        case Pattern.Construct(name, pt) =>
+          v.whnf match {
+            case Construct(n, values, dms, _) if name == n =>
+              if (values.size + dms.size != pt.size) logicError()
+              val dps = pt.drop(values.size)
+              assert(dps.forall(_ == Pattern.GenericDimension))
+              val ret = pt.take(values.size).zip(values).forall(pair => rec(pair._1, pair._2))
+              ds.appendAll(dms)
+              ret
+            case _ =>
+              false
+          }
+      }
+    }
+    if (rec(pattern, v)) {
+      Some((vs.toSeq, ds.toSeq))
+    } else {
+      None
+    }
+  }
+  def tryApp(v: Value): Option[Value] = extract(pattern, v).map(a => closure(a._1, a._2))
+}
+
+sealed trait Recursively
+case class Inductively(@nominal_equality id: Long, @type_annotation typ: Value, ps: Seq[Value]) extends Recursively {
+  def typFinal: Value = ps.foldLeft(typ) { (t, p) => t.whnf.asInstanceOf[Function].codomain(p) }
+}
+
+case class Constructor(name: Name, nodes: ClosureGraph) {
+  def restrict(lv: Assignments): Constructor = Constructor(name, nodes.restrict(lv))
+  def fswap(w: Long, z: Formula): Constructor = Constructor(name, nodes.fswap(w, z))
+}
+
+
 sealed trait Value {
   // we use referential equality for Value class, these is not the conversion checking, and only used by caching
   final override def equals(obj: Any): Boolean = (this, obj) match {
@@ -44,7 +101,7 @@ sealed trait Value {
 
   def bestReifyValue: Value = this match {
     case r: Reference => r
-    case Meta(Value.MetaState.Closed(v)) =>
+    case Meta(MetaState.Closed(v)) =>
       v match {
         case r: Referential => r.bestReifyValue
         case _ => this
@@ -249,11 +306,6 @@ object Value {
     }
   }
 
-  sealed trait MetaState
-  object MetaState {
-    case class Closed(v: Value) extends MetaState
-    case class Open(id: Long, @type_annotation typ: Value) extends MetaState
-  }
   case class Meta(private var _state: MetaState) extends LocalReferential {
     def solved: Value = state.asInstanceOf[MetaState.Closed].v
     def isSolved: Boolean = state.isInstanceOf[MetaState.Closed]
@@ -368,45 +420,6 @@ object Value {
 
   case class Lambda(closure: Closure) extends StableCanonical
 
-  case class Case(pattern: Pattern, closure: MultiClosure) {
-    private def extract(pattern: Pattern, v: Value): Option[(Seq[Value], Seq[Formula])] = {
-      val vs = mutable.ArrayBuffer[Value]()
-      val ds = mutable.ArrayBuffer[Formula]()
-      def rec(pattern: Pattern, v: Value): Boolean = {
-        pattern match {
-          case Pattern.GenericValue =>
-            vs.append(v)
-            true
-          case Pattern.GenericDimension => logicError()
-          case Pattern.Make(names) =>
-            v.whnf match {
-              case Make(values) =>
-                names.zip(values).forall(pair => rec(pair._1, pair._2))
-              case _ =>
-                false
-            }
-          case Pattern.Construct(name, pt) =>
-            v.whnf match {
-              case Construct(n, values, dms, _) if name == n =>
-                if (values.size + dms.size != pt.size) logicError()
-                val dps = pt.drop(values.size)
-                assert(dps.forall(_ == Pattern.GenericDimension))
-                val ret = pt.take(values.size).zip(values).forall(pair => rec(pair._1, pair._2))
-                ds.appendAll(dms)
-                ret
-              case _ =>
-                false
-            }
-        }
-      }
-      if (rec(pattern, v)) {
-        Some((vs.toSeq, ds.toSeq))
-      } else {
-        None
-      }
-    }
-    def tryApp(v: Value): Option[Value] = extract(pattern, v).map(a => closure(a._1, a._2))
-  }
 
   // the reason we must have a domain here is because we support unordered pattern matching
   // so pattern redux can be stuck value when non of their arguments is stuck
@@ -454,11 +467,6 @@ object Value {
   }
 
 
-  sealed trait RecursiveType
-  case class Inductively(@nominal_equality id: Long, @type_annotation typ: Value, ps: Seq[Value]) extends RecursiveType {
-    def typFinal: Value = ps.foldLeft(typ) { (t, p) => t.whnf.asInstanceOf[Function].codomain(p) }
-  }
-  
   case class Record(
     inductively: Option[Inductively],
     names: Seq[Name],
@@ -504,10 +512,7 @@ object Value {
       if (ds.isEmpty) { assert(ty.isEmpty); SimpleConstruct(n, vs) }
       else HitConstruct(n, vs, ds, ty)
   }
-  case class Constructor(name: Name, nodes: ClosureGraph) {
-    def restrict(lv: Assignments): Constructor = Constructor(name, nodes.restrict(lv))
-    def fswap(w: Long, z: Formula): Constructor = Constructor(name, nodes.fswap(w, z))
-  }
+
 
   case class Sum(inductively: Option[Inductively], hit: Boolean, constructors: Seq[Constructor]) extends StableCanonical {
     def noArgs = inductively.forall(_.ps.isEmpty)

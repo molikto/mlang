@@ -73,6 +73,14 @@ given Dbi[ClosureGraph] {
   def (g: ClosureGraph) diff(depth: Int, x: Int): ClosureGraph = ClosureGraph(g.nodes.map(_.diff(depth, x)), g.dims, g.restrictions.diff(depth + 1, x))
 }
 
+  // LATER this is just a marker, we might have Record(recursive: Option[RecursiveType], ...) later
+sealed trait Recursively
+case class Inductively(id: Long, typ: Abstract, ps: Seq[Abstract]) extends Recursively
+
+// this restriction multi closure system lives 1 level bellow
+case class Constructor(name: Name, params: ClosureGraph)
+case class Case(pattern: Pattern, body: Closure)
+
 sealed trait Abstract
 object Abstract {
   case class Universe(i: Int) extends Abstract
@@ -86,18 +94,12 @@ object Abstract {
   case class PatternLambda(id: Long, domain: Abstract, typ: Closure, cases: Seq[Case]) extends Abstract
   case class App(left: Abstract, right: Abstract) extends Abstract
 
-  // LATER this is just a marker, we might have Record(recursive: Option[RecursiveType], ...) later
-  sealed trait RecursiveType
-  case class Inductively(id: Long, typ: Abstract, ps: Seq[Abstract]) extends RecursiveType
 
   case class Record(inductively: Option[Inductively], names: Seq[Name], graph: ClosureGraph) extends Abstract
   case class Projection(left: Abstract, field: Int) extends Abstract
   case class Make(vs: Seq[Abstract]) extends Abstract
 
-  // this restriction multi closure system lives 1 level bellow
-  case class Constructor(name: Name, params: ClosureGraph)
   case class Sum(inductively: Option[Inductively], hit: Boolean, constructors: Seq[Constructor]) extends Abstract
-  case class Case(pattern: Pattern, body: Closure)
   case class Construct(f: Int, vs: Seq[Abstract], ds: Seq[Formula], ty: System) extends Abstract
 
   case class PathLambda(body: Closure) extends Abstract
@@ -113,8 +115,6 @@ object Abstract {
   case class Glue(base: Abstract, faces: System) extends Abstract
   case class Unglue(tp: Abstract, base: Abstract, iu: Boolean, faces: System) extends Abstract
 }
-
-import Abstract.{Inductively, Constructor}
 
 given Dbi[Inductively] {
     def (d: Inductively) dependencies(depth: Int): Set[Dependency] = d.typ.dependencies(depth) ++ d.ps.flatMap(_.dependencies(depth))

@@ -52,7 +52,7 @@ trait DebugPrettyPrinter extends ElaboratorContextBuilder {
 //
 //  def debugPPrintMultiClosure(ast: Abstract.MultiClosure): String = debugPPrintAbsClosure(AbsClosure(ast.metas, ast.term))
 //
-//  def debugPPrint(cons: Abstract.Constructor): String = s"${cons.name} ${cons.params}"
+//  def debugPPrint(cons: dbi.Constructor): String = s"${cons.name} ${cons.params}"
 //
 //  def debugPPrint(pat: Pattern): String = {
 //    pat match {
@@ -62,7 +62,7 @@ trait DebugPrettyPrinter extends ElaboratorContextBuilder {
 //    }
 //  }
 //
-//  def debugPPrint(c: Abstract.Case): String = s"${debugPPrint(c.pattern)} ${debugPPrintMultiClosure(c.body)}"
+//  def debugPPrint(c: dbi.Case): String = s"${debugPPrint(c.pattern)} ${debugPPrintMultiClosure(c.body)}"
 //
 //  def debugPPrint[T](ast: Abstract.System[T]): String = {
 //    ast.map(a => s"| ${a.pair}: ${newReifierRestrictionLayer(semantic.Formula.True).debugPPrintAbsClosure(a.body)}").mkString("")

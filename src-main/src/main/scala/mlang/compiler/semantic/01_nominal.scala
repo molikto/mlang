@@ -66,7 +66,7 @@ private def Nominal_support[T](a: T)(given Nominal[T]): Support = {
       case g: Generic => Some(g)
       case _ => None
     }.toSet, names.toSet, tested.flatMap {
-      case m@Meta(_: Value.MetaState.Open) => Some(m)
+      case m@Meta(_: MetaState.Open) => Some(m)
       case _ => None
     }.toSet)
     spt

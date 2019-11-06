@@ -44,7 +44,7 @@ trait ElaboratorContextWithMetaOps extends ElaboratorContextBase {
 
   protected def newMeta(typ: Value): (Value.Meta, Abstract.MetaReference) = {
     val id = mgen()
-    val v = Value.Meta(Value.MetaState.Open(id, typ))
+    val v = Value.Meta(semantic.MetaState.Open(id, typ))
     val ms = layers.head.metas
     if (ms.debug_final) logicError()
     val index = ms.size

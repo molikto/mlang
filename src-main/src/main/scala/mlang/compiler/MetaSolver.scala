@@ -1,7 +1,7 @@
 package mlang.compiler
 
 import mlang.compiler.semantic.given
-import mlang.compiler.semantic.{Value, ValueConversion, MetaSpine}
+import mlang.compiler.semantic.{Value, ValueConversion, MetaSpine, MetaState}
 import mlang.compiler.dbi.given
 import mlang.compiler.dbi.Abstract
 import Value.{Reference => _, _}
@@ -93,7 +93,7 @@ trait MetaSolver extends ValueConversion with Reifier with ElaboratorContextRebi
     // FIXME type checking??
     debug(s"meta solved with $abs", 1)
     val v = ctx.eval(abs)
-    m.state = Value.MetaState.Closed(v)
+    m.state = MetaState.Closed(v)
     typ
   }
 
