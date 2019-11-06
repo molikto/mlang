@@ -4,10 +4,11 @@ import mlang.utils._
 import mlang.compiler.Pattern
 
 
-enum DependencyType {
-  case Value
-  case Meta
-  case Formula
+sealed trait DependencyType
+object DependencyType {
+  case object Value extends DependencyType
+  case object Meta extends DependencyType
+  case object Formula extends DependencyType
 }
 
 case class Dependency(x: Int, i: Int, typ: DependencyType) {
@@ -58,8 +59,8 @@ given Dbi[Closure] {
 type System = Map[Formula, Closure]
 given Dbi[System] {
   def (s: System) diff(depth: Int, x: Int): System =
-    s.map(a => (a._1.diff(depth, x), a._2.diff(depth, x)))
-  def (s: System) dependencies(i: Int): Set[Dependency] = s.values.flatten(_.dependencies(i)).toSet
+    s.map(a => (a._1.diff(depth, x), a._2.diff(depth + 1, x)))
+  def (s: System) dependencies(i: Int): Set[Dependency] = s.flatMap(a => a._1.dependencies(i) ++ a._2.dependencies(i + 1)).toSet
 }
 
 object ClosureGraph {
@@ -172,12 +173,12 @@ given Dbi[Abstract] {
     case Projection(left, _) => left.dependencies(i)
     case Sum(id, hit, constructors) =>  id.map(_.dependencies(i)).getOrElse(Set.empty) ++ constructors.flatMap(_.dependencies(i)).toSet
     case Make(vs) => vs.flatMap(_.dependencies(i)).toSet
-    case Construct(_, vs, fs, ty) => vs.flatMap(_.dependencies(i)).toSet ++ ty.dependencies(i)
+    case Construct(_, vs, fs, ty) => vs.flatMap(_.dependencies(i)).toSet ++ fs.flatMap(_.dependencies(i)) ++ ty.dependencies(i)
     case PatternLambda(_, dom, cd, cases) => dom.dependencies(i) ++ cd.dependencies(i) ++ cases.flatMap(_.body.dependencies(i)).toSet
     case PathLambda(body) => body.dependencies(i)
     case PathType(typ, left, right) => typ.dependencies(i) ++ left.dependencies(i) ++ right.dependencies(i)
-    case PathApp(lef, _) => lef.dependencies(i)
-    case Transp(tp, _, base) => tp.dependencies(i) ++ base.dependencies(i)
+    case PathApp(lef, right) => lef.dependencies(i) ++ right.dependencies(i)
+    case Transp(tp, dir, base) => tp.dependencies(i) ++ dir.dependencies(i) ++ base.dependencies(i)
     case Hcomp(tp, base, faces) => tp.dependencies(i) ++ base.dependencies(i) ++ faces.dependencies(i)
     case Comp(tp, base, faces) => tp.dependencies(i) ++ base.dependencies(i) ++ faces.dependencies(i)
     case GlueType(tp, faces) => tp.dependencies(i)  ++ faces.dependencies(i)

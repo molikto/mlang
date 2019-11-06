@@ -11,4 +11,6 @@ trait EvaluatorContext {
   def getReference(depth: Int, index: Int): Value
 
   def getDimension(depth: Int, index: Int): semantic.Formula
+
+  def getDependency(d: dbi.Dependency): Object
 }

@@ -4,6 +4,7 @@ import mlang.compiler.Layer.Layers
 import mlang.utils._
 import mlang.compiler.semantic.Value
 import mlang.compiler.semantic.given
+import dbi.{Dependency, DependencyType}
 
 import scala.collection.mutable
 
@@ -33,6 +34,15 @@ trait ElaboratorContextForEvaluator extends EvaluatorContext with ElaboratorCont
     case Layer.Defines(_, terms) => terms(index).ref
     case _ => logicError()
   }, depth)
+
+  def getDependency(d: Dependency): Object = {
+    // println("getting dependency " + d)
+    d.typ match {
+      case DependencyType.Value => getReference(d.x, d.i)
+      case DependencyType.Meta => getMetaReference(d.x, d.i)
+      case DependencyType.Formula => getDimension(d.x, d.i)
+    }
+  }
 
 
   def getDimension(depth: Int, index: Int): semantic.Formula =
