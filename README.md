@@ -72,6 +72,7 @@ these are the core of the theory
 
 * use shapeless to simplify implementation of Nominal
 * use macro to create a typechecked platform evaluator and implement
+* see what need in the closure
 * rationize cubicaltt's computation rules: cubicaltt has a complicated computation rule that is not as clear as in the paper
   
 

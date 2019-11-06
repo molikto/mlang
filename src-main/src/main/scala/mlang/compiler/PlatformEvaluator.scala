@@ -17,8 +17,7 @@ import Opcodes._
 
 class MethodRun(val mv: MethodVisitor) {
   export mv._
-  def lookup(d: Dependency): Int = ???
-  def put(d: Dependency, i: Int): Unit = ???
+  val lookup = mutable.Map[Dependency, Int]()
 }
 object ByteCodeGeneratorRun {
 
@@ -57,7 +56,8 @@ class ByteCodeGeneratorRun(val root: Abstract) {
   private val cw = new ClassWriter(ClassWriter.COMPUTE_MAXS)
   private val rootClzName = s"mlang/generated${clzgen()}"
   cw.visit(V12, ACC_SUPER, rootClzName, null, "java/lang/Object", Array("mlang/compiler/Holder"))
-  cw.visitInnerClass("java/lang/invoke/MethodHandles$Lookup", "java/lang/invoke/MethodHandles", "Lookup", ACC_PUBLIC | ACC_FINAL | ACC_STATIC);
+  cw.visitInnerClass("java/lang/invoke/MethodHandles$Lookup", "java/lang/invoke/MethodHandles", "Lookup", ACC_PUBLIC | ACC_FINAL | ACC_STATIC)
+  cw.visitInnerClass("mlang/compiler/semantic/Value$Meta", "mlang/compiler/semantic/Value", "Meta", ACC_PUBLIC | ACC_STATIC)
 
   private def visitMethod(name: String, des: String): MethodRun =
     new MethodRun(cw.visitMethod(ACC_PUBLIC, name, des, null, null))
@@ -76,6 +76,10 @@ class ByteCodeGeneratorRun(val root: Abstract) {
   private val deps = root.dependencies(0).toSeq
 
   def emit(): (Holder, Seq[Dependency]) = {
+    val f = new java.io.File("test.class")
+    val bos = new java.io.BufferedOutputStream(new java.io.FileOutputStream(f))
+    bos.write(cw.toByteArray)
+    bos.close() // You may end up with 0 bytes file if not calling close.
     (null, deps)
   }
 
@@ -96,14 +100,15 @@ class ByteCodeGeneratorRun(val root: Abstract) {
     else mv.visitLdcInsn(l)
   }
 
-  inline def (mv: MethodRun) create(name: String): Unit = {
+  // create a value
+  inline def (mv: MethodRun) create (name: String, method: String = "apply"): Unit = {
     val ds = ByteCodeGeneratorRun.descriptors
     val clzName = "mlang/compiler/semantic/Value$" + name
-    val desc = ds.get(name) match {
+    val desc = ds.get(name + method) match {
       case Some(a) => a
       case None =>
-        val method = java.lang.Class.forName(clzName).getMethod("apply")
-        val a = mlang.utils.Runtime.getMethodDescriptor(method)
+        val mtd = java.lang.Class.forName(clzName).getMethod(method)
+        val a = mlang.utils.Runtime.getMethodDescriptor(mtd)
         ds.put(name, a)
         a
     }
@@ -111,7 +116,12 @@ class ByteCodeGeneratorRun(val root: Abstract) {
       cw.visitInnerClass(clzName, "mlang/compiler/semantic/Value", name, ACC_PUBLIC | ACC_STATIC)
       visitedInnerClasses.add(name)
     }
-    mv.visitMethodInsn(INVOKESTATIC, clzName, "apply", desc, false)
+    mv.visitMethodInsn(INVOKESTATIC, clzName, method, desc, false)
+  }
+
+  // create a value
+  inline def (mv: MethodRun) metaInitalize (): Unit = {
+    mv.visitMethodInsn(INVOKEVIRTUAL, "mlang/compiler/semantic/Value$Meta", "initialize", "(Lmlang/compiler/semantic/Value;)Lmlang/compiler/semantic/Value", false)
   }
 
 
@@ -120,37 +130,45 @@ class ByteCodeGeneratorRun(val root: Abstract) {
   first, given the closure, we need to find out all the captured variables, 
   and they are all in current frame!
   */
-  private inline def (mv: MethodRun) closureBase(
+  private inline def (mv: MethodRun) closure(
     closure: dbi.Closure,
-    args: Seq[dbi.DependencyType],
-    selfDesSize: Int,
-    selfDes: String,
-    selfFunctionN: Int,
     depth: Int
   ): Unit = {
     // load captured local variables to stack
     // create the "function object"
-    val captured = closure.dependencies(0)
+    val captured = closure.dependencies(0).toSeq
+    val argsSize = 1
+    val frontSize = captured.size + argsSize
     val name = s"closure${mtdgen()}"
     val capturedDes = captured.map(_.typ.descriptor).mkString
-    val mthDesp = s"($capturedDes$selfDes)Lmlang/compiler/semantic/Value;" // captured variables + self variables => return type
+    val selfDesCompressed = "Lmlang/compiler/semantic/Value;"
+    val mthDesp = s"(${capturedDes}$selfDesCompressed)Lmlang/compiler/semantic/Value;"
     val mn = visitMethod(name, mthDesp)
+    // captured
+    for ((c, i) <- captured.zipWithIndex) mn.lookup.put(c, i)
+    // arguments
+    mn.lookup.put(Dependency(0, -1, DependencyType.Value), captured.size)
     mn.visitCode()
-    // stack: captured variables, parameters (maybe in seq form), 
-    // transform stack by expanding parameters
-
-    // put meta variables in local variables
-
+    for (i <- 0 until closure.metas.size) {
+      mn.create("Meta", "uninitalized")
+      mn.visitVarInsn(ASTORE, frontSize + i)
+    }
+    for ((m, i) <- closure.metas.zipWithIndex) {
+      mn.visitVarInsn(ALOAD, frontSize + i)
+      mn.emit(m, depth + 1)
+      mn.metaInitalize()
+    }
     mn.emit(closure.term, depth + 1)
     mn.visitInsn(ARETURN)
     mn.visitMaxs(0, 0)
     mn.visitEnd()
+    for (c <- captured) mv.visitVarInsn(ALOAD, mn.lookup(c.diff(-1)))
     mv.visitInvokeDynamicInsn(
       "apply", 
-      s"($capturedDes)Ldotty/runtime/function/JFunction${selfFunctionN};", 
+      s"($capturedDes)Ldotty/runtime/function/JFunction1;", 
       closureBootstrapHandle,
       Array[Object](
-        closureBootstrapArgs0(selfDesSize),
+        closureBootstrapArgs0(1),
         new Handle(
           Opcodes.H_INVOKESTATIC,
           rootClzName,
@@ -158,13 +176,9 @@ class ByteCodeGeneratorRun(val root: Abstract) {
           mthDesp,
           false
         ),
-        Type.getType(s"($selfDes)Lmlang/compiler/semantic/Value;") // self variables => return type
+        Type.getType(s"($selfDesCompressed)Lmlang/compiler/semantic/Value;")
       )
     )
-  }
-
-  private def (mv: MethodRun) emitClosure(c: dbi.Closure, depth: Int): Unit = {
-
   }
 
   private def (mv: MethodRun) emit(term: Abstract, depth: Int): Unit = {
@@ -178,8 +192,12 @@ class ByteCodeGeneratorRun(val root: Abstract) {
         mv.emit(right, depth)
         mv.create("App")
       case Abstract.Lambda(closure) =>
-        mv.emitClosure(closure, depth)
+        mv.closure(closure, depth)
         mv.create("Lambda")
+      case Abstract.Reference(x, i) =>
+        mv.visitVarInsn(ALOAD, mv.lookup(Dependency(x, i, DependencyType.Value)))
+      case _ => 
+        ???
     }
   }
 
@@ -187,7 +205,8 @@ class ByteCodeGeneratorRun(val root: Abstract) {
 
 trait PlatformEvaluator extends Evaluator {
 
-  protected def platformEval(term: Abstract): Value = {
+  protected def platformEval(t: Abstract): Value = {
+    val term = Abstract.Lambda(dbi.Closure(Seq.empty, Abstract.Lambda(dbi.Closure(Seq(Abstract.Universe(4)), Abstract.Reference(1, -1)))))
     val (hd, ds) = new ByteCodeGeneratorRun(term).emit()
     ???
   }

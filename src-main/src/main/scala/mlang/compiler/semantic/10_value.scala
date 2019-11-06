@@ -306,9 +306,19 @@ object Value {
     }
   }
 
+  object Meta {
+    def uninitalized(): Meta = Meta(null)
+  }
+
   case class Meta(private var _state: MetaState) extends LocalReferential {
+    def initialize(a: Value) = {
+      assert(_state == null)
+      _state = MetaState.Closed(a)
+    }
+
     def solved: Value = state.asInstanceOf[MetaState.Closed].v
     def isSolved: Boolean = state.isInstanceOf[MetaState.Closed]
+
     def state_=(a: MetaState) = {
       clearSavedAfterValueChange()
       _state = a

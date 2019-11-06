@@ -10,7 +10,9 @@ enum DependencyType {
   case Formula
 }
 
-case class Dependency(x: Int, i: Int, typ: DependencyType)
+case class Dependency(x: Int, i: Int, typ: DependencyType) {
+  def diff(j: Int): Dependency = Dependency(x + j, i, typ)
+}
 
 trait Dbi[T] {
   def (t: T) dependencies(depth: Int): Set[Dependency]
