@@ -10,7 +10,7 @@ trait DebugPrettyPrinter extends ElaboratorContextBuilder {
   // }
 
 //
-//  def debugPPrintInner(ms: `abstract`.ClosureT): String = {
+//  def debugPPrintInner(ms: dbi.ClosureT): String = {
 //    if (ms.metas.isEmpty) debugPPrint(ms.term) else {
 //      val sb = new StringBuilder()
 //      sb.append("{\n")
@@ -27,7 +27,7 @@ trait DebugPrettyPrinter extends ElaboratorContextBuilder {
 //    }
 //  }
 //
-//  def debugPPrint(ast: `abstract`.Formula): String = {
+//  def debugPPrint(ast: dbi.Formula): String = {
 //    ast match {
 //      case Formula.Reference(up) =>
 //        layers(up) match {
@@ -42,13 +42,13 @@ trait DebugPrettyPrinter extends ElaboratorContextBuilder {
 //    }
 //  }
 //
-//  def debugPPrintAbsClosure(ast: `abstract`.Closure): String = {
+//  def debugPPrintAbsClosure(ast: dbi.Closure): String = {
 //    val name = GenName()
 //    val ctx = newDimensionLayer(name, null)
 //    s"${name.main} → ${ctx.debugPPrintInner(ast)}"
 //  }
 //
-//  def debugPPrintClosure(ast: `abstract`.Closure): String = debugPPrintAbsClosure(AbsClosure(ast.metas, ast.term))
+//  def debugPPrintClosure(ast: dbi.Closure): String = debugPPrintAbsClosure(AbsClosure(ast.metas, ast.term))
 //
 //  def debugPPrintMultiClosure(ast: Abstract.MultiClosure): String = debugPPrintAbsClosure(AbsClosure(ast.metas, ast.term))
 //

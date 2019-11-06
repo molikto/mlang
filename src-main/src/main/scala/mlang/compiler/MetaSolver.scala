@@ -2,8 +2,8 @@ package mlang.compiler
 
 import mlang.compiler.semantic.given
 import mlang.compiler.semantic.{Value, ValueConversion, MetaSpine}
-import mlang.compiler.`abstract`.given
-import mlang.compiler.`abstract`.Abstract
+import mlang.compiler.dbi.given
+import mlang.compiler.dbi.Abstract
 import Value.{Reference => _, _}
 import mlang.utils._
 
@@ -77,13 +77,13 @@ trait MetaSolver extends ValueConversion with Reifier with ElaboratorContextRebi
     for (g <- vs) {
       g match {
         case Left(v) =>
-          abs = Abstract.Lambda(`abstract`.Closure(Seq.empty, abs))
+          abs = Abstract.Lambda(dbi.Closure(Seq.empty, abs))
           typ = typ.whnf match {
             case f: Value.Function => f.codomain(v)
             case _ => logicError()
           }
         case Right(v) =>
-          abs = Abstract.PathLambda(`abstract`.Closure(Seq.empty, abs))
+          abs = Abstract.PathLambda(dbi.Closure(Seq.empty, abs))
           typ = typ.whnf match {
             case f: Value.PathType => f.typ(v)
             case _ => logicError()

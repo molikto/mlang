@@ -2,7 +2,7 @@ package mlang.compiler
 
 import mlang.compiler.semantic.Value
 import mlang.utils._
-import mlang.compiler.`abstract`.Abstract
+import mlang.compiler.dbi.Abstract
 
 
 case class RebindNotFoundException() extends Exception
@@ -40,32 +40,32 @@ trait ElaboratorContextRebind extends ElaboratorContextBase {
   }
 
 
-  def rebindFormula(a: semantic.Formula): `abstract`.Formula = {
+  def rebindFormula(a: semantic.Formula): dbi.Formula = {
     a match {
       case semantic.Formula.Generic(stuck) =>
         rebindDimension(stuck)
-      case semantic.Formula.True => `abstract`.Formula.True
-      case semantic.Formula.False => `abstract`.Formula.False
-      case semantic.Formula.And(a, b) => `abstract`.Formula.And(rebindFormula(a), rebindFormula(b))
-      case semantic.Formula.Or(a, b) => `abstract`.Formula.Or(rebindFormula(a), rebindFormula(b))
-      case semantic.Formula.Neg(a) => `abstract`.Formula.Neg(rebindFormula(a))
+      case semantic.Formula.True => dbi.Formula.True
+      case semantic.Formula.False => dbi.Formula.False
+      case semantic.Formula.And(a, b) => dbi.Formula.And(rebindFormula(a), rebindFormula(b))
+      case semantic.Formula.Or(a, b) => dbi.Formula.Or(rebindFormula(a), rebindFormula(b))
+      case semantic.Formula.Neg(a) => dbi.Formula.Neg(rebindFormula(a))
     }
   }
 
 
-  def rebindDimension(id: Long): `abstract`.Formula.Reference = {
+  def rebindDimension(id: Long): dbi.Formula.Reference = {
     var up = 0
     var ls = layers
-    var binder: `abstract`.Formula.Reference = null
+    var binder: dbi.Formula.Reference = null
     while (ls.nonEmpty && binder == null) {
       ls.head match {
         case d: Layer.Dimension =>
           if (d.id == id) {
-            binder = `abstract`.Formula.Reference(up, -1)
+            binder = dbi.Formula.Reference(up, -1)
           }
         case d: Layer.Parameters =>
           d.dimensionBinders.zipWithIndex.find(_._1.value.id == id) match {
-            case Some(d) => binder = `abstract`.Formula.Reference(up, d._2)
+            case Some(d) => binder = dbi.Formula.Reference(up, d._2)
             case _ =>
           }
         case _ =>

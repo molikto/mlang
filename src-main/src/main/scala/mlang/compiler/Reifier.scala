@@ -4,7 +4,7 @@ import mlang.compiler.Layer.Layers
 import mlang.compiler.semantic.Value
 import Value.{MetaState}
 import mlang.utils.{Benchmark, Name, debug}
-import mlang.compiler.`abstract`.{given, _}
+import mlang.compiler.dbi.{given, _}
 import Abstract._
 
 import scala.collection.mutable
@@ -79,7 +79,7 @@ private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorCon
     Closure(ctx.reifyMetas(), ta)
   }
 
-  def reifyAbs(v: semantic.AbsClosure): `abstract`.Closure = {
+  def reifyAbs(v: semantic.AbsClosure): dbi.Closure = {
     val (ctx, tm) = newDimensionLayer(Name.empty)
     val ta = ctx.reify(v(tm))
     Closure(ctx.reifyMetas(), ta)
@@ -116,10 +116,10 @@ private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorCon
   }
 
   def reifyAbsClosureSystem(faces: semantic.AbsClosureSystem) =
-    if (faces.isEmpty) Map.empty : `abstract`.System else faces.toSeq.map(r => (reify(r._1), newReifierRestrictionLayer(r._1).reifyAbs(r._2))).toMap
+    if (faces.isEmpty) Map.empty : dbi.System else faces.toSeq.map(r => (reify(r._1), newReifierRestrictionLayer(r._1).reifyAbs(r._2))).toMap
 
   def reifyEnclosedSystem(faces: semantic.ValueSystem) =
-    if (faces.isEmpty) Map.empty : `abstract`.System else faces.toSeq.map(r => (reify(r._1), newReifierRestrictionLayer(r._1).reifyMetaEnclosed(r._2))).toMap
+    if (faces.isEmpty) Map.empty : dbi.System else faces.toSeq.map(r => (reify(r._1), newReifierRestrictionLayer(r._1).reifyMetaEnclosed(r._2))).toMap
 
 
   def reify(v: Value): Abstract = {
@@ -268,7 +268,7 @@ trait Reifier extends ElaboratorContextBuilder with ElaboratorContextRebind {
       (rebindFormula(f._1),  {
         val l = debug_metasSize
         val c = newReifierRestrictionLayer(f._1).newParametersLayer()
-        val r = `abstract`.Closure(Seq.empty, c.asInstanceOf[Reifier].reify(f._2()))
+        val r = dbi.Closure(Seq.empty, c.asInstanceOf[Reifier].reify(f._2()))
         assert(debug_metasSize == l) // we don't create meta in current layer!
         assert(c.debug_metasSize == 0) // also we don't create in that one!
         r

@@ -4,7 +4,7 @@ import mlang.compiler.semantic.{given, _}
 import mlang.utils._
 import scala.collection.mutable
 import scala.quoted._
-import mlang.compiler.`abstract`.{Abstract}
+import mlang.compiler.dbi.{Abstract}
 
 trait Holder {
   def value(vs: Array[Any]): Value
