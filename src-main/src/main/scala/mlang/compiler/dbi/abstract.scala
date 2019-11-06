@@ -6,8 +6,8 @@ import mlang.compiler.Pattern
 
 enum DependencyType {
   case Value
-  case Dimension
   case Meta
+  case Formula
 }
 
 case class Dependency(x: Int, i: Int, typ: DependencyType)
@@ -31,7 +31,7 @@ object Formula {
 given Dbi[Formula] {
     import Formula._
     def (f: Formula) dependencies(depth: Int): Set[Dependency] = f match {
-      case Reference(up, i) => if (up >= depth) Set(Dependency(up - depth, i, DependencyType.Dimension)) else Set.empty
+      case Reference(up, i) => if (up >= depth) Set(Dependency(up - depth, i, DependencyType.Formula)) else Set.empty
       case And(l, r) => l.dependencies(depth) ++ r.dependencies(depth)
       case Or(l, r) => l.dependencies(depth) ++ r.dependencies(depth)
       case Neg(l) => l.dependencies(depth)
