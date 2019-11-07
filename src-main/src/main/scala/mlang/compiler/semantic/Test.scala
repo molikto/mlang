@@ -1,5 +1,7 @@
 package mlang.compiler.semantic
 
+import scala.collection.immutable.ArraySeq
+
 
 class TestScala extends mlang.compiler.Holder {
 
@@ -31,7 +33,19 @@ class TestScala extends mlang.compiler.Holder {
     // val b = a(1)
     // Value.Make(Seq(Value.Record(None, mlang.compiler.ByteCodeGeneratorRun.getNames(0), null), Value.Record(Option(Inductively(1, null, null)), null, null)))
 
-    val a: scala.Function0[Value] = () => Value.Universe(0)
-    a()
+    // val a: scala.Function0[Value] = () => Value.Universe(0)
+    // a()
+
+    val a = Value.Record(null, null, ClosureGraph.apply(
+      Seq(
+        ClosureGraphArguments(false, ArraySeq.empty, 1, (a, b) => (Seq(Value.Meta(null), Value.Meta(null)), Value.Universe(7))),
+        ClosureGraphArguments(false, new ArraySeq.ofInt(Array[Int](0, 1,2)), 1, (a, b) => (Seq(Value.Meta(null), Value.Meta(null)), Value.Universe(7)))
+      ),
+      5,
+      fs => Seq(
+        (Formula.True, (vs: Seq[Value], ms: Seq[Value]) => vs(0))
+      ).toMap
+    ))
+    a
   }
 }

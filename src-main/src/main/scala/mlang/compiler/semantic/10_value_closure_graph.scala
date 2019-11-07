@@ -27,6 +27,9 @@ trait ClosureGraph {
 
 export ClosureGraph.isNominal
 
+
+case class ClosureGraphArguments(implict: Boolean, dependencies: Seq[Int], metaCount: Int, map: (Seq[Value], Seq[Value]) => (Seq[Meta], Value))
+
 object ClosureGraph {
 
 
@@ -61,14 +64,18 @@ object ClosureGraph {
     val empty = Valued(Map.empty)
   }
 
-  def apply(nodes: Seq[(Boolean, Seq[Int], Int, (Seq[Value], Seq[Value]) => (Seq[Meta], Value))],
+
+  private def nullValues = (0 until 40).map(_ => null: Value).toSeq
+
+  // implicit, dependencies, meta count, (values, metas) => (new_metas, new_value)
+  def apply(nodes: Seq[ClosureGraphArguments],
                           dim: Int,
                           tm: Seq[Formula] => System[(Seq[Value], Seq[Value]) => Value]): ClosureGraph = {
     val gs = nodes.map(a => if (a._2.isEmpty) {
-      val t = a._4(Generic.HKS, Generic.HKS)
-      IndependentWithMeta(a._1, a._2, t._1, t._2)
+      val t = a.map(nullValues, nullValues)
+      IndependentWithMeta(a.implict, a.dependencies, t._1, t._2)
     } else {
-      DependentWithMeta(a._1, a._2, a._3, a._4)
+      DependentWithMeta(a.implict, a.dependencies, a.metaCount, a.map)
     })
     ClosureGraph.Impl(gs, dim, if (dim == 0) RestrictionsState.empty else RestrictionsState.Abstract(tm))
   }
@@ -88,7 +95,6 @@ object ClosureGraph {
         else PlatformNominal.supportShallow(tm.asInstanceOf[RestrictionsState.Abstract]))
     }
 
-    // FIXME rethink if these meta should call fswap
     def fswap(w: Long, z: Formula): ClosureGraph.Impl = {
       val gs = graph.map {
         case IndependentWithMeta(ims, ds, ms, typ) =>

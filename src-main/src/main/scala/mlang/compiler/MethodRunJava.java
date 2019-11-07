@@ -2,6 +2,9 @@ package mlang.compiler;
 
 import org.objectweb.asm.*;
 
+
+
+// some hack, because dotty is buggy
 abstract class MethodRunJava {
     public abstract MethodVisitor mv();
     public void visitInvokeDynamic(

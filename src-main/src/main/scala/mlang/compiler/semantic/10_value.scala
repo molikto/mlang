@@ -380,10 +380,6 @@ object Value {
       s._value = value.fswap(w, z)
   }
 
-  object Generic {
-    private[semantic] val HK = Generic(0, null)
-    private[semantic] val HKS = (0 until 40).map(_ => HK)
-  }
   case class Generic(id: Long, @type_annotation @lateinit private var _typ: Value) extends LocalReferential {
 
     def typ_=(a: Value) = {
