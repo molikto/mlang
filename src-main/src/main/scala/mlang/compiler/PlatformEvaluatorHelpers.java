@@ -9,7 +9,7 @@ import java.util.*;
 
 
 // some hack, because dotty is buggy
-public abstract class MethodRunJava {
+public abstract class PlatformEvaluatorHelpers {
     public abstract MethodVisitor mv();
     public void visitInvokeDynamic(
         java.lang.String name,
@@ -26,7 +26,7 @@ public abstract class MethodRunJava {
     // Override defineClass (as it is protected) and define the class.
     Class clazz = null;
     try {
-      ClassLoader loader = MethodRunJava.class.getClassLoader();
+      ClassLoader loader = PlatformEvaluatorHelpers.class.getClassLoader();
       Class cls = Class.forName("java.lang.ClassLoader");
       java.lang.reflect.Method method =
           cls.getDeclaredMethod(

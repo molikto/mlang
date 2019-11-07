@@ -15,7 +15,7 @@ trait Holder {
 import org.objectweb.asm._
 import Opcodes._
 
-class MethodRun(val mv: MethodVisitor, val name: String = "") extends MethodRunJava {
+class MethodRun(val mv: MethodVisitor, val name: String = "") extends PlatformEvaluatorHelpers {
   export mv._
   val lookup = mutable.Map[Dependency, Int]()
 
@@ -126,7 +126,7 @@ class ByteCodeGeneratorRun(val root: Abstract) {
       fos.write(bc)
       fos.close()
     }
-    val clz = MethodRunJava.loadClass(rootClzName, bc).asInstanceOf[Class[Holder]]
+    val clz = PlatformEvaluatorHelpers.loadClass(rootClzName, bc).asInstanceOf[Class[Holder]]
     val ch = clz.getDeclaredConstructors()(0)
     ch.setAccessible(true)
     val hd = ch.newInstance(Array[Object](): _*).asInstanceOf[Holder]
@@ -633,8 +633,8 @@ class ByteCodeGeneratorRun(val root: Abstract) {
     mn.visitMaxs(0, 0)
     mn.visitEnd()
 
-    println(system)
-    println(captured)
+    // println(system)
+    // println(captured)
     for (c <- captured) mv.visitVarInsn(ALOAD, mv.lookup(c))
     mv.visitInvokeDynamic(
       "apply", 
