@@ -85,7 +85,7 @@ class ByteCodeGeneratorRun(val root: Abstract) {
   private val visitedInnerClasses = mutable.Set[String]()
   private val mtdgen = new GenLong.Positive()
   private val cw = new ClassWriter(ClassWriter.COMPUTE_MAXS)
-  private val rootClzName = s"mlang_generated${clzgen()}"
+  private val rootClzName = s"mlang_generated_${clzgen()}"
   cw.visit(V12, ACC_SUPER, rootClzName, null, "java/lang/Object", Array("mlang/compiler/Holder"))
   cw.visitInnerClass("java/lang/invoke/MethodHandles$Lookup", "java/lang/invoke/MethodHandles", "Lookup", ACC_PUBLIC | ACC_FINAL | ACC_STATIC)
   cw.visitInnerClass("mlang/compiler/semantic/Value$Meta", "mlang/compiler/semantic/Value", "Meta", ACC_PUBLIC | ACC_STATIC)
@@ -155,6 +155,10 @@ class ByteCodeGeneratorRun(val root: Abstract) {
   inline def (mv: MethodRun) emit(l: Int): Unit = {
     if (l == 0) mv.visitInsn(ICONST_0)
     else if (l == 1) mv.visitInsn(ICONST_1)
+    else if (l == 2) mv.visitInsn(ICONST_2)
+    else if (l == 3) mv.visitInsn(ICONST_3)
+    else if (l == 4) mv.visitInsn(ICONST_4)
+    else if (l == 5) mv.visitInsn(ICONST_5)
     else mv.visitLdcInsn(l)
   }
 
@@ -241,11 +245,11 @@ class ByteCodeGeneratorRun(val root: Abstract) {
   }
 
 
-  private def (mn: MethodRun) declareMetas(metas: Seq[Abstract], frontSize: Int): Unit = {
+  private def (mn: MethodRun) declareMetas(metas: Seq[Abstract], frontSize: Int, base: Int = 0): Unit = {
     for (i <- 0 until metas.size) {
       mn.create("Meta", "uninitalized")
       mn.visitVarInsn(ASTORE, frontSize + i)
-      mn.lookup.put(Dependency(0, i, DependencyType.Meta), frontSize + i)
+      mn.lookup.put(Dependency(0, base + i, DependencyType.Meta), frontSize + i)
     }
   }
   
@@ -257,8 +261,8 @@ class ByteCodeGeneratorRun(val root: Abstract) {
     }
   }
 
-  private def (mn: MethodRun) emitMetas(metas: Seq[Abstract], frontSize: Int): Unit = {
-    mn.declareMetas(metas, frontSize)
+  private def (mn: MethodRun) emitMetas(metas: Seq[Abstract], frontSize: Int, base: Int = 0): Unit = {
+    mn.declareMetas(metas, frontSize, base)
     mn.fillMetas(metas, frontSize)
   }
 
@@ -493,7 +497,7 @@ class ByteCodeGeneratorRun(val root: Abstract) {
     mn.visitInsn(POP)
 
     // these is used inside, but also is our result, they are put into local variables first
-    mn.emitMetas(closure.metas, captured.size + size._1 + size._2)
+    mn.emitMetas(closure.metas, captured.size + size._1 + size._2, size._2)
     // create a new seq of newly emited metas
     mn.createSeq(closure.metas.indices, "mlang/compiler/semantic/Value", i => mn.visitVarInsn(ALOAD, captured.size + size._1 + size._2 + i))
     mn.emit(closure.term)
@@ -522,19 +526,76 @@ class ByteCodeGeneratorRun(val root: Abstract) {
     )
   }
 
+  
+  private def (mv: MethodRun) createClosureGraphRestrictionsClosure(dsize: Int, vsize: Int, msize: Int, system: dbi.System): Unit = {
+    val captured = system.dependencies(0).toSeq
+    val argsSize = 1
+    val name = s"closure_graph_ris${mtdgen()}"
+    val capturedDes = captured.map(_.typ.descriptor).mkString
+    val selfDesCompressed = "Lscala/collection/immutable/Seq;"
+    val mthDesp = s"(${capturedDes}$selfDesCompressed)Lscala/collection/immutable/Map;"
+
+    val mn = visitMethod(name, mthDesp)
+    // captured
+    for ((c, i) <- captured.zipWithIndex) mn.lookup.put(c.diff(1), i)
+
+    mn.visitCode()
+    // arguments
+    mn.visitVarInsn(ALOAD, captured.size) // formula seq
+    for (i <- 0 until dsize) {
+      mn.visitInsn(DUP)
+      mn.emit(i)
+      mn.visitMethodInsn(INVOKEINTERFACE, "scala/collection/SeqOps", "apply", "(I)Ljava/lang/Object;", true);
+      mn.visitTypeInsn(CHECKCAST, "mlang/compiler/semantic/Formula");
+      val pos = captured.size + i
+      mn.visitVarInsn(ASTORE, pos)
+      mn.lookup.put(Dependency(0, i, DependencyType.Formula), pos)
+    }
+    mn.visitInsn(POP)
+
+    mn.visitInsn(ACONST_NULL)
+    // mn.createSystem(system, c => {
+    // })
+
+    mn.visitInsn(ARETURN)
+    mn.visitMaxs(0, 0)
+    mn.visitEnd()
+
+    for (c <- captured) mv.visitVarInsn(ALOAD, mv.lookup(c))
+    mv.visitInvokeDynamic(
+      "apply", 
+      s"($capturedDes)Lscala/Function1;", 
+      closureBootstrapHandle,
+      closureBootstrapArgs0(1),
+      new Handle(
+        Opcodes.H_INVOKESTATIC,
+        rootClzName,
+        name,
+        mthDesp,
+        false
+      ),
+      Type.getType(s"($selfDesCompressed)Lscala/collection/immutable/Map;")
+    )
+  }
+
   private def (mv: MethodRun) createClosureGraph(graph: dbi.ClosureGraph): Unit = {
+    mv.visitFieldInsn(GETSTATIC, "mlang/compiler/semantic/ClosureGraph$", "MODULE$", "Lmlang/compiler/semantic/ClosureGraph$;");
     var i = 0
+    var ms = 0
     mv.createSeq(graph.nodes, "mlang/compiler/semantic/ClosureGraphArguments", node => {
       mv.emit(node.implicitt)
       mv.createIntSeq(node.deps)
       mv.emit(node.typ.metas.size)
-      // we give the arguments as the values/metas before it
-      mv.createClosureGraphAgumentsClosure((i, graph.nodes.take(i).map(_.typ.metas.size).sum), node.typ)
+      // we give the arguments as the values/metas before current node
+      mv.createClosureGraphAgumentsClosure((i, ms), node.typ)
+      i += 1
+      ms += node.typ.metas.size
       mv.visitMethodInsn(INVOKESTATIC, "mlang/compiler/semantic/ClosureGraphArguments", "apply", "(ZLscala/collection/immutable/Seq;ILscala/Function2;)Lmlang/compiler/semantic/ClosureGraphArguments;", false)
     })
     mv.emit(graph.dims)
-    //mv.createClosureGraphRestrictionsClosure(graph.restrictions)
-    mv.visitMethodInsn(INVOKESTATIC, "mlang/compiler/semantic/ClosureGraph", "apply", "(Lscala/collection/immutable/Seq;ILscala/Function1;)Lmlang/compiler/semantic/ClosureGraph;", false);
+    // mv.createClosureGraphRestrictionsClosure(graph.dims, i, ms, graph.restrictions)
+    mv.visitInsn(ACONST_NULL)
+    mv.visitMethodInsn(INVOKEVIRTUAL, "mlang/compiler/semantic/ClosureGraph$", "apply", "(Lscala/collection/immutable/Seq;ILscala/Function1;)Lmlang/compiler/semantic/ClosureGraph;", false);
   }
 
 
@@ -595,7 +656,7 @@ class ByteCodeGeneratorRun(val root: Abstract) {
     }
   }
 
-  private def (mv: MethodRun) createIntSeq(vs: Seq[Int]): Unit = {
+  inline private def (mv: MethodRun) createIntSeq(vs: Seq[Int]): Unit = {
     if (vs.size == 0) {
       mv.visitFieldInsn(GETSTATIC, "scala/collection/immutable/ArraySeq$", "MODULE$", "Lscala/collection/immutable/ArraySeq$;")
       mv.visitFieldInsn(GETSTATIC, "scala/reflect/ClassTag$", "MODULE$", "Lscala/reflect/ClassTag$;")
@@ -611,14 +672,14 @@ class ByteCodeGeneratorRun(val root: Abstract) {
         mv.visitInsn(DUP)
         mv.emit(i)
         mv.emit(vs(i))
-        mv.visitInsn(AASTORE)
+        mv.visitInsn(IASTORE)
       }
       mv.visitTypeInsn(CHECKCAST, "[I");
       mv.visitMethodInsn(INVOKESPECIAL, "scala/collection/immutable/ArraySeq$ofInt", "<init>", "([I)V", false);
     }
   }
 
-  private def (mv: MethodRun) createSeq[T](vs: Seq[T], typ: String, emit: T => Unit): Unit = {
+  inline private def (mv: MethodRun) createSeq[T](vs: Seq[T], typ: String, emit: T => Unit): Unit = {
     if (vs.size == 0) {
       mv.visitFieldInsn(GETSTATIC, "scala/collection/immutable/ArraySeq$", "MODULE$", "Lscala/collection/immutable/ArraySeq$;");
       mv.visitFieldInsn(GETSTATIC, "scala/reflect/ClassTag$", "MODULE$", "Lscala/reflect/ClassTag$;");
@@ -645,7 +706,7 @@ class ByteCodeGeneratorRun(val root: Abstract) {
     mv.visitLdcInsn(term.id)
     mv.emit(term.typ)
     mv.createSeq(term.ps, "mlang/compiler/semantic/Value", a => mv.emit(a))
-    mv.visitMethodInsn(INVOKESTATIC, "mlang/compiler/semantic/Inductively", "apply", "(Lmlang/compiler/Pattern;Lscala/Function2)Lmlang/compiler/semantic/Inductively;", false)
+    mv.visitMethodInsn(INVOKESTATIC, "mlang/compiler/semantic/Inductively", "apply", "(JLmlang/compiler/semantic/Value;Lscala/collection/immutable/Seq;)Lmlang/compiler/semantic/Inductively;", false)
   }
 
   private def (mv: MethodRun) emit(term: Abstract): Unit = {
@@ -676,6 +737,7 @@ class ByteCodeGeneratorRun(val root: Abstract) {
       case Abstract.Record(id, names, nodes) =>
         mv.createOption(id, a => mv.emit(a))
         val i = tunnel(names)
+        mv.emit(i)
         mv.visitMethodInsn(INVOKESTATIC, "mlang/compiler/ByteCodeGeneratorRun", "getNames", "(I)Lscala/collection/immutable/Seq;", false);
         mv.createClosureGraph(nodes)
         mv.create("Record")
@@ -688,6 +750,7 @@ class ByteCodeGeneratorRun(val root: Abstract) {
         mv.emit(hit)
         mv.createSeq(constructors,  "mlang/compiler/semantic/Constructor", a => {
           val i = tunnel(a.name)
+          mv.emit(i)
           mv.visitMethodInsn(INVOKESTATIC, "mlang/compiler/ByteCodeGeneratorRun", "getName", "(I)Lmlang/utils/Name;", false)
           mv.createClosureGraph(a.params)
           mv.visitMethodInsn(INVOKESTATIC, "mlang/compiler/semantic/Constructor", "apply", "(Lmlang/utils/Name;Lmlang/compiler/semantic/ClosureGraph;)Lmlang/compiler/semantic/Constructor;", false)
@@ -716,8 +779,9 @@ class ByteCodeGeneratorRun(val root: Abstract) {
           mv.emit(id);
           mv.visitMethodInsn(INVOKESTATIC, "mlang/compiler/ByteCodeGeneratorRun", "getPattern", "(I)Lmlang/compiler/Pattern;", false)
           mv.createMultiClosure(a.pattern.atomCount, a.body)
-          mv.visitMethodInsn(INVOKESTATIC, "mlang/compiler/semantic/Case", "apply", "(Lmlang/compiler/Pattern;Lscala/Function2)Lmlang/compiler/semantic/Case;", false)
+          mv.visitMethodInsn(INVOKESTATIC, "mlang/compiler/semantic/Case", "apply", "(Lmlang/compiler/Pattern;Lscala/Function2;)Lmlang/compiler/semantic/Case;", false)
         })
+        mv.create("PatternLambda")
       case Abstract.PathApp(left, right) =>
         mv.emit(left)
         mv.emit(right)

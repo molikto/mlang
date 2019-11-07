@@ -11,7 +11,7 @@ class Printer(val prefix: String, val threshold: Int, val level: Int, color: Opt
     println(p.toString() + ": " + s)
   }
 }
-object debug extends Printer("debug", 1, 0, None)
+object debug extends Printer("debug", 2, 0, None)
 
 object info extends Printer("info",0, 0, Some(fansi.Color.LightBlue))
 

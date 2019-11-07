@@ -8,14 +8,22 @@ import scala.collection.mutable
 
 object PlatformNominal {
 
-  var hashSet = new mutable.HashSet[AnyRef]()
 
-  def supportShallow(v1: AnyRef): SupportShallow = {
-    hashSet.clear()
-    supportShallow0(v1)
+  private def allowedOtherRefs(a: AnyRef): Int = {
+    a match {
+      case f: scala.Function0[_] =>
+        1
+      case f: scala.Function1[_, _] =>
+        1
+      case f: scala.Function2[_, _, _] =>
+        1
+      case a =>
+        if (a.getClass.getName == "mlang.compiler.semantic.10_value_fibrant$package$") 0
+        else -1
+    }
   }
 
-  private def supportShallow0(v1: AnyRef): SupportShallow = {
+  def supportShallow(v1: AnyRef): SupportShallow = {
     val clz = v1.getClass
     val fs = clz.getDeclaredFields
     var ns = SupportShallow.empty
@@ -27,14 +35,11 @@ object PlatformNominal {
           ns = ns ++ v.supportShallow()
         case f: semantic.Formula =>
           ns = ns +- f.names
-        case p: Pattern =>
         case a =>
-          if (hashSet.contains(a)) {
-            val j = 1
-          } else {
-            hashSet.add(a)
-            ns = ns ++ supportShallow0(a)
-          }
+          val j = allowedOtherRefs(a)
+          if (j > 0) supportShallow(a)
+          else if (j == 0) a
+          else logicError(a.getClass.getName + " not supported ")
       }
     }
     ns
@@ -60,11 +65,11 @@ object PlatformNominal {
           val r = f.restrict(v2)
           ns(i) = r
           if (!f.eq(r)) changed = true
-        case p: Pattern =>
-          ns(i) = p
         case a =>
-          // this happens because of the code NOT GENERATED in `Value.scala` has more liberate ways of referring things
-          restrict(a, v2)
+          val j = allowedOtherRefs(a)
+          if (j > 0) restrict(a, v2)
+          else if (j == 0) a
+          else logicError(a.getClass.getName + " not supported ")
       }
       i += 1
     }

@@ -570,19 +570,25 @@ object Value {
       phi: Formula,
       @stuck_pos base: Value // it stuck here on sum type sometimes
   ) extends UnstableOrRedux {
-    override protected def getWhnf(): Value = this.whnfBody()
+    override protected def getWhnf(): Value = {
+      val t = this.whnfBody()
+      if (t == this) this else t.whnf
+    }
   }
 
   // FIXME when we have a syntax for partial values, these should be removed (or what? because Agda cannot compute the problem?)
   case class Comp(@stuck_pos tp: AbsClosure, base: Value, faces: AbsClosureSystem) extends Redux {
-    override protected def getWhnf(): Value = comp(tp, base, faces)
+    override protected def getWhnf(): Value = comp(tp, base, faces).whnf
   }
 
   /**
     * whnf: tp is whnf and not canonical, or tp is sum or u, base is whnf
     */
   case class Hcomp(@type_annotation @stuck_pos tp: Value, base: Value, faces: AbsClosureSystem) extends Redux {
-    override protected def getWhnf(): Value = this.whnfBody()
+    override protected def getWhnf(): Value = {
+      val t = this.whnfBody()
+      if (t == this) this else t.whnf
+    }
   }
 
   /**

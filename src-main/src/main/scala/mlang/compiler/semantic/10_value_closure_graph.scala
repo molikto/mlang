@@ -192,7 +192,7 @@ object ClosureGraph {
           })
           val grapht = from.map {
             case DependentWithMeta(ims, dss, _, c) if dss.forall(j => vs(j) != null) =>
-              val t = c(mms, vs)
+              val t = c(vs, mms)
               IndependentWithMeta(ims, dss, t._1, t._2)
             case i =>
               i
