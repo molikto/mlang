@@ -114,8 +114,9 @@ trait ElaboratorContextBase {
 
   protected def lookupMatched(ref: Referential, a: Referential, up: Int) = {
     ref.lookupChildren(a) match {
-      case a@Some(asgs) if getAllRestrictions(ref.support().names, up) == asgs =>
-        a
+      case a@Some(asgs) =>
+        if (getAllRestrictions(ref.support().names, up) == asgs) a
+        else logicError()
       case _ =>
         None
     }
@@ -130,6 +131,7 @@ trait ElaboratorContextBase {
     val asg = getAllRestrictions(v.names, level)
     v.restrict(asg)
   }
+
 
   // these are just to be sure we got correct value out when reify
   @inline protected def getAllRestrictions(support: => Set[Long], level: Int): semantic.Assignments = {
