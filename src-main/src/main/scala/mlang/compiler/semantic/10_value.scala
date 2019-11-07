@@ -356,7 +356,14 @@ object Value {
     def lookupChildren(v: Referential): Option[Assignments] = if (this == v) Some(Set.empty) else None
   }
 
+  object LocalReference {
+    def uninitalized(): LocalReference = LocalReference(null)
+  }
   case class LocalReference(@lateinit private var _value: Value) extends LocalReferential with Reference {
+    def initialize(v: Value): Unit = {
+      assert(_value == null)
+      _value = v
+    }
 
     override def value_=(a: Value): Unit = {
       clearSavedAfterValueChange()

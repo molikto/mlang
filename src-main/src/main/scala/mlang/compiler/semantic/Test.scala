@@ -1,5 +1,6 @@
 package mlang.compiler.semantic
 
+
 class TestScala extends mlang.compiler.Holder {
 
   override def value(vs: Array[Object]) = {
@@ -24,6 +25,13 @@ class TestScala extends mlang.compiler.Holder {
     //   a1
     // }))))
 
-    Value.Glue(null, Map((Formula.True, () => Value.Universe(0)), (Formula.False, () => Value.Universe(2))))
+    // Value.Glue(null, Map((Formula.True, () => Value.Universe(0)), (Formula.False, () => Value.Universe(2))))
+
+    // val a = Seq(Value.Universe(0), Value.Universe(1))
+    // val b = a(1)
+    // Value.Make(Seq(Value.Record(None, mlang.compiler.ByteCodeGeneratorRun.getNames(0), null), Value.Record(Option(Inductively(1, null, null)), null, null)))
+
+    val a: scala.Function0[Value] = () => Value.Universe(0)
+    a()
   }
 }

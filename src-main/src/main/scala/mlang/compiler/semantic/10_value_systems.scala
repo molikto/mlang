@@ -6,8 +6,6 @@ type System[T] = Map[Formula, T]
 def [T] (a: System[T]) phi: NormalForm = a.keys.phi
 
 type ValueSystem = System[ValueClosure]
-type ClosureSystem = System[Closure]
-type MultiClosureSystem = System[MultiClosure]
 type AbsClosureSystem = System[AbsClosure]
 
 given [T: Nominal]:  Nominal[System[T]] {
