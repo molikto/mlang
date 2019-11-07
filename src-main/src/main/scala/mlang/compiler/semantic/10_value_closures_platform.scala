@@ -54,6 +54,8 @@ object PlatformNominal {
                 a.asInstanceOf[Seq[Value]].map(_.supportShallow()).merge
               case f: Formula =>
                 a.asInstanceOf[Seq[Formula]].map(_.supportShallow()).merge
+              case _ =>
+                logicError()
             }
             ns = ns ++ r
           }
@@ -97,6 +99,8 @@ object PlatformNominal {
                 a.asInstanceOf[Seq[Value]].map(_.restrict(v2))
               case f: Formula =>
                 a.asInstanceOf[Seq[Formula]].map(_.restrict(v2))
+              case _ =>
+                logicError()
             }
             ns(i) = r
             if (!f.eq(r)) changed = true
