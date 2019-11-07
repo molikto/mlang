@@ -168,7 +168,9 @@ object ClosureGraph {
         case RestrictionsState.Concrete(tm) =>
           if (grapht.forall(_.isInstanceOf[ValuedWithMeta])) {
             val gs = grapht.map(_.asInstanceOf[ValuedWithMeta])
-            RestrictionsState.Valued(tm.view.mapValues(a => () => a.apply(gs.flatMap(_.metas), gs.map(_.value))).toMap)
+            val vs = gs.map(_.value)
+            val ms = gs.flatMap(_.metas)
+            RestrictionsState.Valued(tm.view.mapValues(a => () => a.apply(vs, ms)).toMap)
           } else {
             rs
           }

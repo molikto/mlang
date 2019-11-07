@@ -1,25 +1,35 @@
 package mlang.compiler.semantic
 
 import mlang.compiler._
-import mlang.compiler.semantic.{given, _}
-import mlang.compiler.semantic.Assignments
 import mlang.utils._
 import scala.collection.mutable
 
 object PlatformNominal {
 
 
-  private def allowedOtherRefs(a: AnyRef): Int = {
+  inline private def allowedOtherRefs(partent: AnyRef, a: AnyRef): Boolean = {
     a match {
       case f: scala.Function0[_] =>
-        1
+        true
       case f: scala.Function1[_, _] =>
-        1
+        true
       case f: scala.Function2[_, _, _] =>
-        1
+        true
+      case _: Long =>
+        // currently a big hack
+        if (partent.getClass.getName.contains("given_Nominal")) {
+          false
+        } else {
+          logicError("Long not supported")
+        }
       case a =>
-        if (a.getClass.getName == "mlang.compiler.semantic.10_value_fibrant$package$") 0
-        else -1
+        if (a.getClass.getName.endsWith("$")) false // it seems these are fine
+        else {
+          val pclz = partent.getClass
+          println(pclz.getName)
+          // mlang.compiler.MethodRunJava.printByteCode(pclz)
+          logicError(a.getClass.getName + " not supported ")
+        }
     }
   }
 
@@ -33,13 +43,22 @@ object PlatformNominal {
       o match {
         case v: Value =>
           ns = ns ++ v.supportShallow()
-        case f: semantic.Formula =>
+        case f: Formula =>
           ns = ns +- f.names
+        case g: ClosureGraph =>
+          ns = ns ++ g.supportShallow()
+        case a: Seq[_] =>
+          if (a.nonEmpty) {
+            val r = a.head match {
+              case Value =>
+                a.asInstanceOf[Seq[Value]].map(_.supportShallow()).merge
+              case f: Formula =>
+                a.asInstanceOf[Seq[Formula]].map(_.supportShallow()).merge
+            }
+            ns = ns ++ r
+          }
         case a =>
-          val j = allowedOtherRefs(a)
-          if (j > 0) supportShallow(a)
-          else if (j == 0) a
-          else logicError(a.getClass.getName + " not supported ")
+          if (allowedOtherRefs(v1, a)) ns = ns ++ supportShallow(a)
       }
     }
     ns
@@ -61,15 +80,31 @@ object PlatformNominal {
           val r = v.restrict(v2)
           ns(i) = r
           if (!v.eq(r)) changed = true
-        case f: semantic.Formula =>
+        case f: Formula =>
           val r = f.restrict(v2)
           ns(i) = r
           if (!f.eq(r)) changed = true
+        case g: ClosureGraph =>
+          val r = g.restrict(v2)
+          ns(i) = r
+          if (!f.eq(r)) changed = true
+        case a: Seq[_] =>
+          if (a.isEmpty) {
+            ns(i) = a
+          } else {
+            val r = a.head match {
+              case Value =>
+                a.asInstanceOf[Seq[Value]].map(_.restrict(v2))
+              case f: Formula =>
+                a.asInstanceOf[Seq[Formula]].map(_.restrict(v2))
+            }
+            ns(i) = r
+            if (!f.eq(r)) changed = true
+          }
         case a =>
-          val j = allowedOtherRefs(a)
-          if (j > 0) restrict(a, v2)
-          else if (j == 0) a
-          else logicError(a.getClass.getName + " not supported ")
+          val r = if (allowedOtherRefs(v1, a)) restrict(a, v2) else a
+          ns(i) = r
+          if (!f.eq(r)) changed = true
       }
       i += 1
     }

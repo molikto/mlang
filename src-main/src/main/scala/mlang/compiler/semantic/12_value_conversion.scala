@@ -147,7 +147,7 @@ trait ValueConversion {
     }
   }
 
-  @inline def maybeNominal(id1: Option[Inductively], id2: Option[Inductively], el: => Boolean): Boolean = {
+  def maybeNominal(id1: Option[Inductively], id2: Option[Inductively], el: => Boolean): Boolean = {
     (id1, id2) match {
       case (None, None) =>
         // structural
@@ -433,7 +433,7 @@ trait ValueConversion {
   }
 
 
-  @inline def recGraphValuePart(ns: ClosureGraph, t1: Int => Value, t2: Int => Value): Boolean = {
+  def recGraphValuePart(ns: ClosureGraph, t1: Int => Value, t2: Int => Value): Boolean = {
     ns.graph.indices.foldLeft(Some(ns) : Option[ClosureGraph]) { (as0, i) =>
       as0 match {
         case Some(as) =>

@@ -1,11 +1,15 @@
 package mlang.compiler;
 
 import org.objectweb.asm.*;
+import org.objectweb.asm.tree.*;
+import org.objectweb.asm.util.*;
+import java.io.*;
+import java.util.*;
 
 
 
 // some hack, because dotty is buggy
-abstract class MethodRunJava {
+public abstract class MethodRunJava {
     public abstract MethodVisitor mv();
     public void visitInvokeDynamic(
         java.lang.String name,
@@ -45,4 +49,44 @@ abstract class MethodRunJava {
     return clazz;
   }
 
+
+
+  public static byte[] getByteCodeOf(Class<?> c) throws IOException {
+    //in the following - c.getResourceAsStream will return null..
+    try (InputStream input = c.getResourceAsStream('/' + c.getName().replace('.', '/')+ ".class")){
+        byte[] result = new byte[input.available()];
+        input.read(result);
+        return result;
+    }
+  }
+
+   public static void printByteCode(Class<?> c) throws IOException {
+     print(getByteCodeOf(c));
+   }
+
+   public static void print(byte[] bytecode) throws IOException {
+        ClassReader reader = new ClassReader(bytecode);
+        ClassNode classNode = new ClassNode();
+        reader.accept(classNode,0);
+        @SuppressWarnings("unchecked")
+        final List<MethodNode> methods = classNode.methods;
+        for(MethodNode m: methods){
+             InsnList inList = m.instructions;
+             System.out.println(m.name);
+             for(int i = 0; i< inList.size(); i++){
+                 System.out.print(insnToString(inList.get(i)));
+             }
+        }
+    }
+
+    public static String insnToString(AbstractInsnNode insn){
+        insn.accept(mp);
+        StringWriter sw = new StringWriter();
+        printer.print(new PrintWriter(sw));
+        printer.getText().clear();
+        return sw.toString();
+    }
+
+    private static Printer printer = new Textifier();
+    private static TraceMethodVisitor mp = new TraceMethodVisitor(printer); 
 }

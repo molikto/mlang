@@ -224,7 +224,7 @@ class Elaborator private(protected override val layers: Layers)
         ctx = dimCtx
         c.restrictions.map(r => {
           val (dv, da) = ctx.checkAndEvalFormula(r.dimension)
-          val rctx = ctx.newReifierRestrictionLayer(dv)
+          val rctx = ctx.newReifierRestrictionLayer(dv) // remind me: why this is a reifier layer?
           val bd = rctx.check(r.term, sv)
           val res = dbi.Closure(rctx.finishReify(), bd)
           (da, res)
@@ -442,7 +442,7 @@ class Elaborator private(protected override val layers: Layers)
           throw ElaboratorException.CannotInferLambda()
         }
       case Concrete.App(lambda, arguments) =>
-        @inline def defaultCase(lt: Value, la: Abstract) = {
+        inline def defaultCase(lt: Value, la: Abstract) = {
           val (v1, v2) = inferApp(lt, la, arguments)
           reduceMore(v1, v2) // because inferApp stops when arguments is finished
         }

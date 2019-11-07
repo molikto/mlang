@@ -14,14 +14,14 @@ def (t: Transp) whnfBody(): Value = t match {
       val dim = Formula.Generic(dgen())
       tp.apply(dim).whnf match {
         case _: Function =>
-          def tpr(i: Formula) = tp(i).whnf.asInstanceOf[Function]
+          inline def tpr(i: Formula) = tp(i).whnf.asInstanceOf[Function]
           Lambda(Closure(v => {
             def w(i: Formula) = transpFill_inv(i, phi, AbsClosure(a => tpr(a).domain), v)
             val w0 = transp_inv(phi, AbsClosure(a => tpr(a).domain), v)
             Transp(AbsClosure(i => tpr(i).codomain(w(i))), phi, App(base, w0))
           }))
         case _: PathType =>
-          def tpr(i: Formula) = tp(i).whnf.asInstanceOf[PathType]
+          inline def tpr(i: Formula) = tp(i).whnf.asInstanceOf[PathType]
           PathLambda(AbsClosure(dim => {
             Comp(
               AbsClosure(i => tpr(i).typ(dim)),
@@ -46,7 +46,7 @@ def (t: Transp) whnfBody(): Value = t match {
           } else {
             base.whnf match {
               case Construct(c, vs, rs, d) =>
-                def tpr(i: Formula) = tp(i).whnf.asInstanceOf[Sum].constructors(c)
+                inline def tpr(i: Formula) = tp(i).whnf.asInstanceOf[Sum].constructors(c)
                 val cc = s.constructors(c)
                 val theta = transpFill(cc.nodes, i => tpr(i).nodes, phi, vs)
                 val w1p = Construct(c, theta.map(_.apply(Formula.True)), rs, d)
@@ -313,7 +313,7 @@ def comp(@stuck_pos tp: AbsClosure, base: Value, faces: AbsClosureSystem) = {
 //      case r: Record =>
 //        Make(compGraph(r.nodes, i => tp(i).whnf.asInstanceOf[Record].nodes, faces, base, (v, i) => Projection(v, i)))
     case s: Sum if !s.hit && s.noArgs =>
-      assert(!appd.support().names.contains(dim.id))
+      assert(!s.support().names.contains(dim.id))
       Hcomp(appd, base, faces)
     case _ =>
       default()

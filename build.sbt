@@ -6,9 +6,14 @@ lazy val `main` = project.in(file("src-main")).settings(
     "scala-parser-combinators-dotty" %% "scala-parser-combinators-dotty" % "0.1.0",
     // platform
     "org.ow2.asm" % "asm" % "7.2",
+    "org.ow2.asm" % "asm-util" % "7.2",
+    "org.ow2.asm" % "asm-tree" % "7.2",
     // utils
     ("com.lihaoyi" %% "fansi" % "0.2.7").withDottyCompat(scalaVersion.value),
-  )
+  ),
+  javaOptions += "-Xss1G",
+  fork in run := true,
+  baseDirectory in run := file("."),
 )
 
 

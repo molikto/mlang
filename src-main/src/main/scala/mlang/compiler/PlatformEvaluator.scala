@@ -369,6 +369,7 @@ class ByteCodeGeneratorRun(val root: Abstract) {
     val mn = visitMethod(name, mthDesp)
     // captured
     for ((c, i) <- captured.zipWithIndex) mn.lookup.put(c.diff(1), i)
+
     mn.emitClosureBody(closure, captured.size + argsSize)
     // println(name + " mn " + mn.lookup)
     for (c <- captured) mv.visitVarInsn(ALOAD, mv.lookup(c))
@@ -528,7 +529,18 @@ class ByteCodeGeneratorRun(val root: Abstract) {
 
   
   private def (mv: MethodRun) createClosureGraphRestrictionsClosure(dsize: Int, vsize: Int, msize: Int, system: dbi.System): Unit = {
-    val captured = system.dependencies(0).toSeq
+    /* for example set_trunc:
+    Lambda(Closure(List(),
+    Sum(Some(Inductively(5,Function(Universe(0),false,Closure(List(),Universe(0))),Vector(Reference(0,-1)))),true,List(
+      Constructor(in,ClosureGraph(List(Node(false,empty Range 0 until 0,Closure(List(),Reference(1,-1)))),0,Map())),
+      Constructor(squash,ClosureGraph(List(
+        Node(false,empty Range 0 until 0,Closure(List(),App(Reference(2,152),Reference(1,-1)))),
+        Node(false,Range 0 until 1,Closure(List(),App(Reference(2,152),Reference(1,-1))))
+        Node(false,Range 0 until 2,Closure(List(),PathType(Closure(List(),App(Reference(3,152),Reference(2,-1))),Reference(0,0),Reference(0,1)))),
+        Node(false,Range 0 until 3,Closure(List(),PathType(Closure(List(),App(Reference(3,152),Reference(2,-1))),Reference(0,0),Reference(0,1))))),2,
+          Map(Neg(Reference(0,0)) -> Closure(List(),PathApp(Reference(1,2),Reference(1,1))), Reference(0,0) -> Closure(List(),PathApp(Reference(1,3),Reference(1,1))), Neg(Reference(0,1)) -> Closure(List(),Reference(1,0)), Reference(0,1) -> Closure(List(),Reference(1,1)))))))))
+    */
+    val captured = system.dependencies(1).toSeq
     val argsSize = 1
     val name = s"closure_graph_ris${mtdgen()}"
     val capturedDes = captured.map(_.typ.descriptor).mkString
@@ -553,14 +565,76 @@ class ByteCodeGeneratorRun(val root: Abstract) {
     }
     mn.visitInsn(POP)
 
-    mn.visitInsn(ACONST_NULL)
-    // mn.createSystem(system, c => {
-    // })
+    mn.createSystem(system, c => {
+      // here is 1, because it doesn't include closure graph parameter and dimensions
+      val innerCaptured = c.dependencies(2).toSeq
+
+      val innerCapturedDes = innerCaptured.map(_.typ.descriptor).mkString
+      val dimensionsCaptured = (0 until dsize).map(_ => "Lmlang/compiler/semantic/Formula;").mkString
+      val innerSelfDesCompressed = "Lscala/collection/immutable/Seq;Lscala/collection/immutable/Seq;"
+      val innerMthDesp = s"(${innerCapturedDes}${dimensionsCaptured}$innerSelfDesCompressed)Lmlang/compiler/semantic/Value;"
+      val innerName = s"clsoure_graph_inner_${mtdgen()}"
+      val mm = visitMethod(innerName, innerMthDesp)
+      for ((cc, ii) <- innerCaptured.zipWithIndex) mm.lookup.put(cc.diff(2), ii)
+      for (i <- 0 until dsize) mm.lookup.put(Dependency(1, i, DependencyType.Formula), innerCaptured.size + i)
+      mm.visitCode()
+      val capturedTotalSize = innerCaptured.size + dsize
+      // process arguments -- flatten values from the array to local variables
+      mm.visitVarInsn(ALOAD, capturedTotalSize + 1) // meta seq
+      mm.visitVarInsn(ALOAD, capturedTotalSize) // value seq
+      for (i <- 0 until vsize) {
+        mm.visitInsn(DUP)
+        mm.emit(i)
+        mm.visitMethodInsn(INVOKEINTERFACE, "scala/collection/SeqOps", "apply", "(I)Ljava/lang/Object;", true);
+        mm.visitTypeInsn(CHECKCAST, "mlang/compiler/semantic/Value");
+        val pos = capturedTotalSize + i
+        mm.visitVarInsn(ASTORE, pos)
+        mm.lookup.put(Dependency(1, i, DependencyType.Value), pos)
+      }
+      mm.visitInsn(POP)
+      for (i <- 0 until msize) {
+        mm.visitInsn(DUP)
+        mm.emit(i)
+        mm.visitMethodInsn(INVOKEINTERFACE, "scala/collection/SeqOps", "apply", "(I)Ljava/lang/Object;", true);
+        mm.visitTypeInsn(CHECKCAST, "mlang/compiler/semantic/Value");
+        val pos = capturedTotalSize + i + vsize
+        mm.visitVarInsn(ASTORE, pos)
+        mm.lookup.put(Dependency(1, i, DependencyType.Meta), pos)
+      }
+      mm.visitInsn(POP)
+
+      mm.emitMetas(c.metas, innerCaptured.size + dsize + msize + vsize) // current layer's meta
+      mm.emit(c.term)
+      mm.visitInsn(ARETURN)
+      mm.visitMaxs(0, 0)
+      mm.visitEnd()
+
+      for (c <- innerCaptured) mn.visitVarInsn(ALOAD, mn.lookup(c))
+      for (i <- 0 until dsize) mn.visitVarInsn(ALOAD, mn.lookup(Dependency(0, i, DependencyType.Formula)))
+      val p = s"($innerSelfDesCompressed)Lmlang/compiler/semantic/Value;"
+      //println(p)
+      mn.visitInvokeDynamic(
+        "apply", 
+        s"(${innerCapturedDes}${dimensionsCaptured})Lscala/Function2;", 
+        closureBootstrapHandle,
+        closureBootstrapArgs0(2),
+        new Handle(
+          Opcodes.H_INVOKESTATIC,
+          rootClzName,
+          innerName,
+          innerMthDesp,
+          false
+        ),
+        Type.getType(s"($innerSelfDesCompressed)Lmlang/compiler/semantic/Value;")
+      )
+    })
 
     mn.visitInsn(ARETURN)
     mn.visitMaxs(0, 0)
     mn.visitEnd()
 
+    println(system)
+    println(captured)
     for (c <- captured) mv.visitVarInsn(ALOAD, mv.lookup(c))
     mv.visitInvokeDynamic(
       "apply", 
@@ -593,8 +667,8 @@ class ByteCodeGeneratorRun(val root: Abstract) {
       mv.visitMethodInsn(INVOKESTATIC, "mlang/compiler/semantic/ClosureGraphArguments", "apply", "(ZLscala/collection/immutable/Seq;ILscala/Function2;)Lmlang/compiler/semantic/ClosureGraphArguments;", false)
     })
     mv.emit(graph.dims)
-    // mv.createClosureGraphRestrictionsClosure(graph.dims, i, ms, graph.restrictions)
-    mv.visitInsn(ACONST_NULL)
+    if (graph.dims == 0) mv.visitInsn(ACONST_NULL)
+    else mv.createClosureGraphRestrictionsClosure(graph.dims, i, ms, graph.restrictions)
     mv.visitMethodInsn(INVOKEVIRTUAL, "mlang/compiler/semantic/ClosureGraph$", "apply", "(Lscala/collection/immutable/Seq;ILscala/Function1;)Lmlang/compiler/semantic/ClosureGraph;", false);
   }
 
