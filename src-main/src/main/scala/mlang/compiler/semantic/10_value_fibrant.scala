@@ -12,7 +12,8 @@ def (t: Transp) whnfBody(): Value = t match {
       base.whnf
     } else {
       val dim = Formula.Generic(dgen())
-      tp.apply(dim).whnf match {
+      val unreduced = tp.apply(dim)
+      unreduced.whnf match {
         case _: Function =>
           inline def tpr(i: Formula) = tp(i).whnf.asInstanceOf[Function]
           Lambda(Closure(v => {
@@ -71,12 +72,12 @@ def (t: Transp) whnfBody(): Value = t match {
           }
         case g: GlueType =>
           transpGlue(g, dim, phi, base).whnf
-        case Hcomp(Universe(_), b0, faces) =>
-          transpHcompUniverse(b0, faces, dim, phi, base).whnf
+        // case Hcomp(Universe(_), b0, faces) =>
+        //   transpHcompUniverse(b0, faces, dim, phi, base).whnf
         case _: Universe =>
           base
-        case _ =>
-           t
+        case other =>
+          t
       }
     }
 }
@@ -117,14 +118,15 @@ def (t: Hcomp) whnfBody(): Value = t match {
                 if (a == base && s == tp) t else Hcomp(s, a, faces)
               }
             case u: Universe =>
-              // GlueType(base, faces.view.mapValues({ f =>
-              //   val A = f(Formula.False)
-              //   val B = f(Formula.True)
-              //   () => Make(Seq(B, apps(BuiltIn.path_to_equiv, Seq(B, A, PathLambda(AbsClosure(a => f(Formula.Neg(a))))))))
-              // }).toMap)
-              if (u == tp) t else Hcomp(u, base, faces)
+              GlueType(base, faces.view.mapValues({ f =>
+                val A = f(Formula.False)
+                val B = f(Formula.True)
+                () => Make(Seq(B, apps(BuiltIn.path_to_equiv, Seq(B, A, PathLambda(AbsClosure(a => f(Formula.Neg(a))))))))
+              }).toMap)
+              //if (u == tp) t else Hcomp(u, base, faces)
             case Hcomp(u: Universe, b, es) =>
-              hcompHcompUniverse(u, b, es, base, faces)
+              logicError()
+              // hcompHcompUniverse(u, b, es, base, faces)
             case g: GlueType =>
               hcompGlue(g, base, faces)
             case a => if (a == tp) t else Hcomp(a, base, faces)
