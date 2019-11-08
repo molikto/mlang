@@ -12,7 +12,10 @@ lazy val `main` = crossProject(JSPlatform, JVMPlatform).in(file("src-main")).set
 ).jsConfigure(_.enablePlugins(ScalaJSPlugin)).jvmConfigure(_.settings(
   libraryDependencies ++= Seq(
     "org.scala-lang" % "scala-compiler" % scalaVersion.value
-  )
+  ),
+  javaOptions += "-Xss1G",
+  fork in run := true,
+  baseDirectory in run := file("."),
 ))
 
 lazy val `editor-web` = project.in(file("src-editor-web")).settings(

@@ -127,8 +127,8 @@ define S1_winding_tests = run {
 
   define test_i4: x_refl_type(i4) = x_refl(winding(double_loop(S1_loop2)))
   define test_i6: x_refl_type(i6) = x_refl(winding(triple_loop(S1_loop2)))
-  define test_i8: x_refl_type(i8) = x_refl(winding(double_loop(double_loop(S1_loop2))))
-  define test_i16: x_refl_type(i16) = x_refl(winding(double_loop(double_loop(double_loop(S1_loop2)))))
+//   define test_i8: x_refl_type(i8) = x_refl(winding(double_loop(double_loop(S1_loop2))))
+//   define test_i16: x_refl_type(i16) = x_refl(winding(double_loop(double_loop(double_loop(S1_loop2)))))
   // define __debug test_i32: x_refl_type(i32) = x_refl(winding(double_loop(double_loop(double_loop(double_loop(S1_loop2))))))
   unit.make
 }
