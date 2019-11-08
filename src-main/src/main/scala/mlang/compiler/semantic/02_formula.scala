@@ -1,5 +1,8 @@
 package mlang.compiler.semantic
 
+
+import mlang.utils._
+
 type Assignment = (Long, Boolean)
 
 type Assignments = Set[Assignment]
@@ -21,6 +24,10 @@ given (nf: NormalForm) {
 
 
 object Formula {
+  object Generic {
+    private [semantic] val HACK = Generic(0)
+    private [semantic] val HACKS = (0 until 20).map(_ => HACK)
+  }
   case class Generic(id: Long) extends Formula {
     def assign(asgs: Assignments): Formula = asgs.find(_._1 == id) match {
       case Some(a) => if (a._2) True else False
@@ -39,6 +46,9 @@ object Formula {
     }
   }
   case class Neg(unit: Formula) extends Formula
+  sealed trait Internal extends Formula
+  case class Derestricted(a: Formula, b: Assignments) extends Internal
+
 
   def apply(nf: NormalForm): Formula = {
     val ret = nf.foldLeft(False : Formula) {(f, z) =>
@@ -119,6 +129,7 @@ sealed trait Formula {
       case Neg(c) => c
       case a => Neg(a)
     }
+    case d@Formula.Derestricted(r, g) => d // FIXME because restrict seems to also call simplify, so we ignore it here
   }
 
   def elim(i: Long): Formula = Formula(normalForm.elim(i))
@@ -148,6 +159,7 @@ given Nominal[Formula] {
       case And(left, right) => And(left.restrict(lv), right.restrict(lv))
       case Or(left, right) => Or(left.restrict(lv), right.restrict(lv))
       case Neg(unit) => Neg(unit.restrict(lv))
+      case Formula.Derestricted(r, g) => if (g.subsetOf(lv)) r.restrict(lv -- g) else logicError()
     }
     ret.simplify
   }
