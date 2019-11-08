@@ -116,11 +116,16 @@ def (t: Hcomp) whnfBody(): Value = t match {
                 if (a == base && s == tp) t else Hcomp(s, a, faces)
               }
             case u: Universe =>
-              if (u == tp) t else Hcomp(u, base, faces)
+              GlueType(base, faces.view.mapValues({ f =>
+                val A = f(Formula.False)
+                val B = f(Formula.True)
+                () => Make(Seq(B, apps(BuiltIn.path_to_equiv, Seq(B, A, PathLambda(AbsClosure(a => f(Formula.Neg(a))))))))
+              }).toMap)
+              // if (u == tp) t else Hcomp(u, base, faces)
             case Hcomp(u: Universe, b, es) =>
-              hcompHcompUniverse(u, b, es, base, faces).whnf
+              hcompHcompUniverse(u, b, es, base, faces)
             case g: GlueType =>
-              hcompGlue(g, base, faces).whnf
+              hcompGlue(g, base, faces)
             case a => if (a == tp) t else Hcomp(a, base, faces)
           }
       }

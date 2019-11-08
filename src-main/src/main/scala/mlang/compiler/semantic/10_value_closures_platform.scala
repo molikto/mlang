@@ -17,7 +17,8 @@ object PlatformNominal {
         true
       case _: Long =>
         // currently a big hack
-        if (parent.getClass.getName.contains("given_Nominal")) {
+        val pn = parent.getClass.getName
+        if (pn.contains("given_Nominal") || pn.contains("ClosureGraph")) {
           false
         } else {
           logicError("Long not supported")
