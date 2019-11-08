@@ -205,7 +205,7 @@ private class ReifierContextBottom(layersBefore: Layers) extends ReifierContext 
   private val terms = new mutable.ArrayBuffer[DefineItem]()
   private var data = Seq.empty[(Int, Option[Abstract])]
   private val ms = createMetas()
-  override protected def layers: Layers = Layer.Defines(ms, terms.toSeq) +: layersBefore
+  override protected val layers: Layers = Layer.Defines(ms, new mlang.utils.UnmodifiableSeq(terms)) +: layersBefore
 
   private var self: Value = _
 

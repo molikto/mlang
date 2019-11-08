@@ -63,6 +63,7 @@ given Dbi[System] {
   def (s: System) dependencies(i: Int): Set[Dependency] = s.flatMap(a => a._1.dependencies(i) ++ a._2.dependencies(i + 1)).toSet
 }
 
+
 object ClosureGraph {
   case class Node(implicitt: Boolean, deps: Seq[Int], typ: Closure)
 }
@@ -71,9 +72,14 @@ given Dbi[ClosureGraph.Node] {
     def (n: ClosureGraph.Node) diff(depth: Int, x: Int): ClosureGraph.Node = ClosureGraph.Node(n.implicitt, n.deps, n.typ.diff(depth, x))
     def (n: ClosureGraph.Node) dependencies(i: Int): Set[Dependency]  = n.typ.dependencies(i)
 }
+object ClosureGraphRestrictionSystemDbi {
+  def diff(s: System, depth: Int, x: Int): System =
+    s.map(a => (a._1.diff(depth, x), a._2.diff(depth, x)))
+  def dependencies(s: System, i: Int): Set[Dependency] = s.flatMap(a => a._1.dependencies(i) ++ a._2.dependencies(i)).toSet
+}
 given Dbi[ClosureGraph] {
-  def (g: ClosureGraph) dependencies(i: Int): Set[Dependency]  = g.nodes.flatMap(_.dependencies(i)).toSet ++ g.restrictions.dependencies(i + 1)
-  def (g: ClosureGraph) diff(depth: Int, x: Int): ClosureGraph = ClosureGraph(g.nodes.map(_.diff(depth, x)), g.dims, g.restrictions.diff(depth + 1, x))
+  def (g: ClosureGraph) dependencies(i: Int): Set[Dependency]  = g.nodes.flatMap(_.dependencies(i)).toSet ++ ClosureGraphRestrictionSystemDbi.dependencies(g.restrictions, i + 1)
+  def (g: ClosureGraph) diff(depth: Int, x: Int): ClosureGraph = ClosureGraph(g.nodes.map(_.diff(depth, x)), g.dims, ClosureGraphRestrictionSystemDbi.diff(g.restrictions, depth + 1, x))
 }
 
   // LATER this is just a marker, we might have Record(recursive: Option[RecursiveType], ...) later
@@ -161,7 +167,9 @@ given Dbi[Abstract] {
   }
 
   def (a: Abstract) dependencies(i: Int): Set[Dependency] = a match {
-    case Reference(up, index) => if (up >= i) Set(Dependency(up - i, index, DependencyType.Value)) else Set.empty
+    case Reference(up, index) =>
+      // println(s"$i $up $index")
+       if (up >= i) Set(Dependency(up - i, index, DependencyType.Value)) else Set.empty
     case MetaReference(up, index) => if (up >= i) Set(Dependency(up - i, index, DependencyType.Meta)) else Set.empty
     case Let(metas, definitions, in) =>
       metas.flatMap(a => a.dependencies(i + 1)).toSet ++ definitions.flatMap(a => a.dependencies(i + 1)).toSet ++ in.dependencies(i + 1)

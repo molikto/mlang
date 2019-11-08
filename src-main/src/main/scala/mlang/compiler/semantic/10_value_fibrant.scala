@@ -36,8 +36,7 @@ def (t: Transp) whnfBody(): Value = t match {
           if (r.nodes.isEmpty) {
             base.whnf
           } else {
-            def tpr(i: Formula) = tp(i).whnf.asInstanceOf[Record].nodes
-            val closures = transpFill(r.nodes, tpr, phi, i => Projection(base, i))
+            val closures = transpFill(r.nodes, i => tp(i).whnf.asInstanceOf[Record].nodes, phi, i => Projection(base, i))
             Make(closures.map(_.apply(Formula.True)))
           }
         case s: Sum =>
@@ -376,24 +375,26 @@ def squeeze(A: AbsClosure, a: AbsClosure, p: Formula) =
   AbsClosure(i => Transp(AbsClosure(j => A(Formula.Or(i, j))), Formula.Or(p, i), a(i)))
 
 
-def transpFill(graph0: ClosureGraph, graph: Formula => ClosureGraph, phi: Formula, base: Int => Value): Seq[AbsClosure] = {
+inline def transpFill(graph0: ClosureGraph, graph: Formula => ClosureGraph, phi: Formula, base: Int => Value): Seq[AbsClosure] = {
   val closures = mutable.ArrayBuffer[AbsClosure]()
   for (i <- graph0.graph.indices) {
+    val basei = base(i)
     val res = graph0(i) match {
       case _: ClosureGraph.Independent =>
         AbsClosure(j => {
           transpFill(j,
             phi,
             AbsClosure(k => graph(k).graph(i).independent.typ),
-            base(i)
+            basei
           )
         })
       case _: ClosureGraph.Dependent =>
+        val closuresSeq = closures.toSeq
         AbsClosure(j => {
           transpFill(j,
             phi,
-            AbsClosure(k => {val tt = graph(k); tt.get(i, j => closures(j)(k))  }),
-            base(i)
+            AbsClosure(k => {val tt = graph(k); tt.get(i, j => closuresSeq(j)(k))  }),
+            basei
           )
         })
     }
@@ -403,7 +404,7 @@ def transpFill(graph0: ClosureGraph, graph: Formula => ClosureGraph, phi: Formul
 }
 
 
-def compGraph(cs0: ClosureGraph, cs: Formula => ClosureGraph, faces: AbsClosureSystem, base: Value, map: (Value, Int) => Value): Seq[Value] = {
+inline def compGraph(cs0: ClosureGraph, cs: Formula => ClosureGraph, faces: AbsClosureSystem, base: Value, map: (Value, Int) => Value): Seq[Value] = {
   val closures = mutable.ArrayBuffer[AbsClosure]()
   for (i <- cs0.graph.indices) {
     val res = cs0(i) match {
@@ -412,8 +413,9 @@ def compGraph(cs0: ClosureGraph, cs: Formula => ClosureGraph, faces: AbsClosureS
           faces.view.mapValues(_.map(a => map(a, i))).toMap
         )
       case _: ClosureGraph.Dependent =>
+        val closuresSeq = closures.toSeq
         fill(
-          AbsClosure(k => cs(k).get(i, j => closures(j)(k))),
+          AbsClosure(k => cs(k).get(i, j => closuresSeq(j)(k))),
           map(base, i),
           faces.view.mapValues(_.map(a => map(a, i))).toMap
         )
@@ -423,7 +425,7 @@ def compGraph(cs0: ClosureGraph, cs: Formula => ClosureGraph, faces: AbsClosureS
   closures.toSeq.map(_.apply(Formula.True))
 }
 
-def hcompGraph(cs: ClosureGraph, faces: AbsClosureSystem, base: Value, map: (Value, Int) => Value): Seq[Value] = {
+inline def hcompGraph(cs: ClosureGraph, faces: AbsClosureSystem, base: Value, map: (Value, Int) => Value): Seq[Value] = {
   val closures = mutable.ArrayBuffer[AbsClosure]()
   for (i <- cs.graph.indices) {
     val res = cs(i) match {
@@ -432,8 +434,9 @@ def hcompGraph(cs: ClosureGraph, faces: AbsClosureSystem, base: Value, map: (Val
           faces.view.mapValues(_.map(a => map(a, i))).toMap
         )
       case com: ClosureGraph.Dependent =>
+        val closuresSeq = closures.toSeq
         fill(
-          AbsClosure(k => cs.get(i, j => closures(j)(k))),
+          AbsClosure(k => cs.get(i, j => closuresSeq(j)(k))),
           map(base, i),
           faces.view.mapValues(_.map(a => map(a, i))).toMap
         )

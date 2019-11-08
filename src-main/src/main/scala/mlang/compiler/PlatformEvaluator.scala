@@ -116,6 +116,8 @@ class ByteCodeGeneratorRun(val root: Abstract) {
     mv.visitEnd()
   }
 
+  // println("root: " + root)
+
 
   private val deps = root.dependencies(0).toSeq
 
@@ -136,7 +138,7 @@ class ByteCodeGeneratorRun(val root: Abstract) {
   {
     val mv = visitMainMethod("value", "([Ljava/lang/Object;)Lmlang/compiler/semantic/Value;")
     mv.visitCode()
-    // println("root deps: " + root + " --- "  + deps)
+    // println("root deps: " + " --- "  + deps)
     // frame 0: this, 1: args
     for (i <- 0 until deps.size) {
       mv.visitVarInsn(ALOAD, 1) // args
@@ -540,7 +542,8 @@ class ByteCodeGeneratorRun(val root: Abstract) {
         Node(false,Range 0 until 3,Closure(List(),PathType(Closure(List(),App(Reference(3,152),Reference(2,-1))),Reference(0,0),Reference(0,1))))),2,
           Map(Neg(Reference(0,0)) -> Closure(List(),PathApp(Reference(1,2),Reference(1,1))), Reference(0,0) -> Closure(List(),PathApp(Reference(1,3),Reference(1,1))), Neg(Reference(0,1)) -> Closure(List(),Reference(1,0)), Reference(0,1) -> Closure(List(),Reference(1,1)))))))))
     */
-    val captured = system.dependencies(1).toSeq
+    val captured = dbi.ClosureGraphRestrictionSystemDbi.dependencies(system, 1)
+    /// println("first " + captured)
     val argsSize = 1
     val name = s"closure_graph_ris${mtdgen()}"
     val capturedDes = captured.map(_.typ.descriptor).mkString
@@ -549,7 +552,7 @@ class ByteCodeGeneratorRun(val root: Abstract) {
 
     val mn = visitMethod(name, mthDesp)
     // captured
-    for ((c, i) <- captured.zipWithIndex) mn.lookup.put(c.diff(1), i)
+    for ((c, i) <- captured.zipWithIndex) mn.lookup.put(c, i)
 
     mn.visitCode()
     // arguments
@@ -567,7 +570,8 @@ class ByteCodeGeneratorRun(val root: Abstract) {
 
     mn.createSystem(system, c => {
       // here is 1, because it doesn't include closure graph parameter and dimensions
-      val innerCaptured = c.dependencies(2).toSeq
+      val innerCaptured = c.dependencies(1).toSeq
+      // println("inner captured " + innerCaptured)
 
       val innerCapturedDes = innerCaptured.map(_.typ.descriptor).mkString
       val dimensionsCaptured = (0 until dsize).map(_ => "Lmlang/compiler/semantic/Formula;").mkString
@@ -908,7 +912,9 @@ trait PlatformEvaluator extends Evaluator {
     // val term = Abstract.Make(Seq(Abstract.PathApp(
     //   Abstract.Universe(23),
     //    dbi.Formula.Or(dbi.Formula.Neg(dbi.Formula.True), dbi.Formula.And(dbi.Formula.False, dbi.Formula.True))), Abstract.PathType(dbi.Closure(Seq.empty, Abstract.Universe(0)), Abstract.Universe(0), Abstract.Universe(0))))
-    val (hd, ds) = new ByteCodeGeneratorRun(term).emit()
+    val (hd, ds) = Benchmark.HoasCompile {
+      new ByteCodeGeneratorRun(term).emit()
+    }
     val args = new Array[Object](ds.size)
     for (i <- 0 until ds.size) {
       args(i) = getDependency(ds(i))
