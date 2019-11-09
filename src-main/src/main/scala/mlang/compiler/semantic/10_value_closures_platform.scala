@@ -4,6 +4,7 @@ import mlang.compiler._
 import mlang.utils._
 import scala.collection.mutable
 
+// 7bb567a is the commit that uses lazy restrict, it seems to be safer?
 object PlatformNominal {
 
 
