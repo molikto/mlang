@@ -42,12 +42,20 @@ object Benchmark {
         instance._t += (System.currentTimeMillis() - t0)
         res
       } finally {
+        println
         _current = p
       }
     }
   }
 
-  val HoasCompile = Phase("hoas compile")
+
+  val HoasBytecodeCompile = Phase("hoas bytecode compile by JVM")
+
+  val HoasBytecodeVisit = Phase("hoas bytecode visit using ASM API")
+
+  val HoasBytecodeEmit = Phase("hoas bytecode emit by ASM")
+
+  val HoasCompile = Phase("hoas compile", Seq(HoasBytecodeVisit, HoasBytecodeEmit, HoasBytecodeCompile))
 
   val Eval = Phase("eval", Seq(HoasCompile))
 

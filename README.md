@@ -12,6 +12,9 @@ see `library` and `tests` folder for sample code
 
 the status and the goal of this project is in constant flux now.
 
+
+2019-11-09 status: the new HOAS
+
 2019-10-30 status: we have implemented a cubical type theory with a core similar to cubicaltt, but with some elaboration to make it easier to use.
 we implemented Brunerie's number, but sadly it is not computing (just like all other ctt implementations).
 in the past the focus is to get it running to experiment with computation, so there are a fair share of bugs and dark corners.

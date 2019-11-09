@@ -121,19 +121,9 @@ class ByteCodeGeneratorRun(val root: Abstract) {
 
   private val deps = root.dependencies(0).toSeq
 
-  def emit(): (Holder, Seq[Dependency]) = {
-    val bc = cw.toByteArray
-    if (false) {
-      val fos = new java.io.FileOutputStream(new java.io.File(rootClzName + ".class"))
-      fos.write(bc)
-      fos.close()
-    }
-    val clz = PlatformEvaluatorHelpers.loadClass(rootClzName, bc).asInstanceOf[Class[Holder]]
-    val ch = clz.getDeclaredConstructors()(0)
-    ch.setAccessible(true)
-    val hd = ch.newInstance(Array[Object](): _*).asInstanceOf[Holder]
-    (hd, deps)
-  }
+  def visit(): (String, ClassWriter, Seq[Dependency]) = (rootClzName, cw, deps)
+
+
 
   {
     val mv = visitMainMethod("value", "([Ljava/lang/Object;)Lmlang/compiler/semantic/Value;")
@@ -908,12 +898,19 @@ class ByteCodeGeneratorRun(val root: Abstract) {
 
 trait PlatformEvaluator extends Evaluator {
 
-  protected def platformEval(term: Abstract): Value = {
-    // val term = Abstract.Make(Seq(Abstract.PathApp(
-    //   Abstract.Universe(23),
-    //    dbi.Formula.Or(dbi.Formula.Neg(dbi.Formula.True), dbi.Formula.And(dbi.Formula.False, dbi.Formula.True))), Abstract.PathType(dbi.Closure(Seq.empty, Abstract.Universe(0)), Abstract.Universe(0), Abstract.Universe(0))))
-    val (hd, ds) = Benchmark.HoasCompile {
-      new ByteCodeGeneratorRun(term).emit()
+  protected def platformEval(term: Abstract): Value = Benchmark.HoasCompile {
+    val (rootClzName, cw, ds) = Benchmark.HoasBytecodeVisit { new ByteCodeGeneratorRun(term).visit() }
+    val bytecode = Benchmark.HoasBytecodeEmit { cw.toByteArray }
+    if (false) {
+      val fos = new java.io.FileOutputStream(new java.io.File(rootClzName + ".class"))
+      fos.write(bytecode)
+      fos.close()
+    }
+    val hd = Benchmark.HoasBytecodeCompile {
+        val clz = PlatformEvaluatorHelpers.loadClass(rootClzName, bytecode).asInstanceOf[Class[Holder]]
+        val ch = clz.getDeclaredConstructors()(0)
+        ch.setAccessible(true)
+        ch.newInstance(Array[Object](): _*).asInstanceOf[Holder]
     }
     val args = new Array[Object](ds.size)
     for (i <- 0 until ds.size) {
