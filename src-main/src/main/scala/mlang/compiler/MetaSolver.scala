@@ -15,7 +15,7 @@ import GenLong.Negative.{gen, dgen}
 
 case class UnificationFailedException(msg: String) extends Exception
 
-trait MetaSolver extends ValueConversion with Reifier with ElaboratorContextRebind with Evaluator {
+trait MetaSolver extends ValueConversion with Reifier with ElaboratorContextRebind with Evaluator with CoreChecker {
 
   type Self  <: MetaSolver
 
@@ -28,6 +28,8 @@ trait MetaSolver extends ValueConversion with Reifier with ElaboratorContextRebi
           exception.printStackTrace()
         }
         exception match {
+          case _: CoreCheckFailedException =>
+            unifyFailed()
           case _: UnificationFailedException =>
             unifyFailed()
           case _: RebindNotFoundException =>
@@ -90,8 +92,7 @@ trait MetaSolver extends ValueConversion with Reifier with ElaboratorContextRebi
           }
       }
     }
-    // FIXME type checking??
-    debug(s"meta solved with $abs", 1)
+    check(abs, typ)
     val v = ctx.eval(abs)
     m.state = MetaState.Closed(v)
     typ

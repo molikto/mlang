@@ -33,18 +33,19 @@ object Benchmark {
     }
 
     @inline def apply[T](a: => T): T = {
-      val p = _current
-      try {
-        val instance = instances.find(_.parent.eq(_current)).get
-        _current = instance
-        val t0 = System.currentTimeMillis()
-        val res = a
-        instance._t += (System.currentTimeMillis() - t0)
-        res
-      } finally {
-        println
-        _current = p
-      }
+      a
+      // val p = _current
+      // try {
+      //   val instance = instances.find(_.parent.eq(_current)).get
+      //   _current = instance
+      //   val t0 = System.currentTimeMillis()
+      //   val res = a
+      //   instance._t += (System.currentTimeMillis() - t0)
+      //   res
+      // } finally {
+      //   println
+      //   _current = p
+      // }
     }
   }
 
@@ -64,7 +65,6 @@ object Benchmark {
   val Solve = Phase("solve", Seq(Reify, Eval))
 
   val Unify = Phase("unify", Seq(Solve))
-
 
   val TypeChecking = Phase("type checking", Seq(Eval, Unify, Reify))
 
