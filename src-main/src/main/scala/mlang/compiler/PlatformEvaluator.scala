@@ -86,7 +86,7 @@ class ByteCodeGeneratorRun(val root: Abstract) {
   private val mtdgen = new GenLong.Positive()
   private val cw = new ClassWriter(ClassWriter.COMPUTE_MAXS)
   private val rootClzName = s"mlang_generated_${clzgen()}"
-  cw.visit(V12, ACC_SUPER, rootClzName, null, "java/lang/Object", Array("mlang/compiler/Holder"))
+  cw.visit(V1_8, ACC_SUPER, rootClzName, null, "java/lang/Object", Array("mlang/compiler/Holder"))
   cw.visitInnerClass("java/lang/invoke/MethodHandles$Lookup", "java/lang/invoke/MethodHandles", "Lookup", ACC_PUBLIC | ACC_FINAL | ACC_STATIC)
   cw.visitInnerClass("mlang/compiler/semantic/Value$Meta", "mlang/compiler/semantic/Value", "Meta", ACC_PUBLIC | ACC_STATIC)
   cw.visitInnerClass("scala/collection/immutable/ArraySeq$ofRef", "scala/collection/immutable/ArraySeq", "ofRef", ACC_PUBLIC | ACC_FINAL | ACC_STATIC);

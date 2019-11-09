@@ -21,8 +21,13 @@ trait MetaSolver extends ValueConversion with Reifier with ElaboratorContextRebi
 
   private def error(s: String) = throw UnificationFailedException(s)
 
+  var solving = false
+
   protected def trySolve(m: Meta, vs: MetaSpine, t20: Value): Option[Value] = {
-    Try(solve(m, vs, t20)) match {
+    // FIXME(META) no recursive solving
+    if (solving) logicError("need to handle this")
+    solving = true
+    val res = Try(solve(m, vs, t20)) match {
       case Failure(exception) =>
         if (debug.enabled) {
           exception.printStackTrace()
@@ -40,6 +45,8 @@ trait MetaSolver extends ValueConversion with Reifier with ElaboratorContextRebi
       case Success(v) =>
         Some(v)
     }
+    solving = false
+    res
   }
 
 
@@ -92,7 +99,7 @@ trait MetaSolver extends ValueConversion with Reifier with ElaboratorContextRebi
           }
       }
     }
-    check(abs, typ)
+    ctx.check(abs, typ)
     val v = ctx.eval(abs)
     m.state = MetaState.Closed(v)
     typ

@@ -48,11 +48,12 @@ define winding(p: S1_loop_space): int = transport(i → S1_helix(p(i)), i0)
 
 define encode(x: S1, p: S1.base ≡ x): S1_helix(x) = subst(S1_helix, p, i0)
 
+// FIXME(MATA) this explicit and in decode_encode is ones that needs to check meta of type
 define int_loop: int ⇒ S1_loop_space =
 ┌ pos(zero) → refl
-├ pos(suc(n)) → path_compose(int_loop(_.pos(n)), S1_loop)
-├ negsuc(zero) → path_reverse(S1_loop)
-└ negsuc(suc(n)) → path_compose(int_loop(_.negsuc(n)), path_reverse(S1_loop))
+├ pos(suc(n)) → path_compose(@S1, @S1.base, @S1.base, @S1.base, int_loop(_.pos(n)), S1_loop)
+├ negsuc(zero) → path_reverse(@S1, @S1.base, @S1.base, S1_loop)
+└ negsuc(suc(n)) → path_compose(@S1, @S1.base, @S1.base, int_loop(_.negsuc(n)), path_reverse(@S1, @S1.base, S1_loop))
 
 define decode: (x: S1) ⇒ S1_helix(x) ⇒ S1.base ≡ x =
 ┌ base → int_loop
@@ -71,11 +72,11 @@ define decode: (x: S1) ⇒ S1_helix(x) ⇒ S1.base ≡ x =
 }
 
 define decode_encode(x: S1, p: S1.base ≡ x): decode(x, encode(x, p)) ≡ p =
-  J_rule(y → q → decode(y, encode(y, q)) ≡ q, x → refl, p)
+  J_rule(@S1, @S1.base, @x, y → q → decode(y, encode(y, q)) ≡ q, x → refl, p)
 
 define is_set_loop_S1: is_set(S1_loop_space) =
  p → q → r → s → j → i →
- hcomp(decode(S1.base, is_set_int(winding(p), winding(q), path_map(winding, r), path_map(winding, s), j, i))
+ hcomp(decode(S1.base, is_set_int(winding(p), winding(q), i → winding(r(i)), i → winding(s(i)), j, i))
   |~i: decode_encode(S1.base, p)
   | i: decode_encode(S1.base, q)
   |~j: decode_encode(S1.base, r(i))

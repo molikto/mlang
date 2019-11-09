@@ -15,8 +15,12 @@ trait Evaluator extends EvaluatorContext {
 
   protected def platformEval(value: Abstract): Value
 
-  protected def eval(a: dbi.Closure): semantic.AbsClosure = {
+  protected def evalAbsClosure(a: dbi.Closure): semantic.AbsClosure = {
     eval(Abstract.PathLambda(a)).asInstanceOf[Value.PathLambda].body
+  }
+
+  protected def evalClosure(a: dbi.Closure): semantic.Closure = {
+    eval(Abstract.Lambda(a)).asInstanceOf[Value.Lambda].closure
   }
 
   protected def eval(a: dbi.ClosureGraph): semantic.ClosureGraph = {

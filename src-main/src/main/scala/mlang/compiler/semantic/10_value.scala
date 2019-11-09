@@ -99,8 +99,18 @@ sealed trait Value {
     }
   }
 
-  def bestReifyValue: Value = this match {
-    case r: Reference => r
+  def simplify: Value = this match {
+    case Projection(Make(vs), i) => vs(i).simplify
+    case _ => this
+  }
+
+  def bestReifyValue: Value = (this match {
+    case r: Reference => 
+      r.value match {
+        case g: Reference => g.bestReifyValue
+        case _ => r
+      }
+    case Projection(Make(vs), i) => vs(i).bestReifyValue
     case Meta(MetaState.Closed(v)) =>
       v match {
         case r: Referential => r.bestReifyValue
@@ -108,7 +118,7 @@ sealed trait Value {
       }
     case v =>
       if (v._from == null) v else v._from
-  }
+  }).simplify
 
 
   // TODO as said bellow, infer on value can be probmatic, so maybe we should disable this functionality
@@ -314,6 +324,7 @@ object Value {
 
   object Meta {
     def uninitalized(): Meta = Meta(null)
+    def solved(a: Value) = Meta(MetaState.Closed(a))
   }
 
   case class Meta(private var _state: MetaState) extends LocalReferential {
