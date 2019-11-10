@@ -22,7 +22,7 @@ given Normal[Value] {
     case SimpleConstruct(name, vs) =>
       SimpleConstruct(name, vs.map(_.nf))
     case HitConstruct(name, vs, ds, ty) =>
-      HitConstruct(name, vs.map(_.nf), ds, ty.map(n => (n._1, n._2.nf)))
+      HitConstruct(name, vs.map(_.nf), ds, ty.filter(!_._1.nfFalse).map(n => (n._1, n._2.nf)))
     case s@Sum(inductively, _, constructors) =>
       s
     case PathType(typ, left, right) =>
@@ -40,13 +40,13 @@ given Normal[Value] {
     case Transp(tp, direction, base) =>
       Transp(tp.nf, direction, base.nf)
     case Hcomp(tp, base, faces) =>
-      Hcomp(tp.nf, base.nf,  faces.map(n => (n._1, n._2.nf)))
+      Hcomp(tp.nf, base.nf,  faces.filter(!_._1.nfFalse).map(n => (n._1, n._2.nf)))
     case GlueType(tp, faces) => 
-      GlueType(tp.nf,  faces.map(n => (n._1, n._2.nf)))
+      GlueType(tp.nf,  faces.filter(!_._1.nfFalse).map(n => (n._1, n._2.nf)))
     case Glue(base, faces) =>
-      Glue(base.nf,  faces.map(n => (n._1, n._2.nf)))
+      Glue(base.nf,  faces.filter(!_._1.nfFalse).map(n => (n._1, n._2.nf)))
     case Unglue(tp, base, iu, faces) =>
-      Unglue(tp.nf, base.nf, iu,  faces.map(n => (n._1, n._2.nf)))
+      Unglue(tp.nf, base.nf, iu,  faces.filter(!_._1.nfFalse).map(n => (n._1, n._2.nf)))
     case g: Generic => g
     case _ => logicError()
   }

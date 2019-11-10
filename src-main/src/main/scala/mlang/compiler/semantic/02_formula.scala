@@ -71,6 +71,7 @@ sealed trait Formula {
   }
 
   def nfTrue = normalForm == NormalForm.True
+  def nfFalse = normalForm == NormalForm.False
 
   def satisfiable: Boolean = normalForm.satisfiable
 
