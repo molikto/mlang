@@ -6,6 +6,7 @@ import Value._
 
 given Normal[Value] {
   // LATER seems faces.nf will error
+  // FIXME we are skipping record and sum
   def (v: Value) nf: Value = v.whnf match {
     case u: Universe => u
     case Function(domain, impict, codomain) =>
