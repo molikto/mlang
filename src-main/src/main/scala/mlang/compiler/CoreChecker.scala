@@ -9,6 +9,8 @@ import scala.collection.mutable
 case class CoreCheckFailedException() extends CompilerException
 
 // very very simple and non-complete checker!!
+// FIXME(META) think again what should be logic error and what should be exception (user facing)
+// FIXME make some traits given methods, in the elaborator mess
 trait CoreChecker extends ElaboratorContextBuilder
   with ElaboratorContextLookup
   with ElaboratorContextRebind

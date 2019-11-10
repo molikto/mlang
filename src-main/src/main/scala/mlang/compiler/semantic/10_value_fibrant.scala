@@ -95,11 +95,11 @@ def (t: Transp) whnfBody(): Value = t match {
         case _: Universe =>
           base
         case other =>
-          if (Value.NORMAL_FORM_MODEL) {
-           println(other)
-           val c = tp(null).whnf
-           logicError(other.getClass.getName)
-         }
+        //   if (Value.NORMAL_FORM_MODEL) {
+        //    println(other)
+        //    val c = tp(null).whnf
+        //    logicError(other.getClass.getName)
+        //  }
           t
       }
     }
@@ -146,10 +146,10 @@ def (t: Hcomp) whnfBody(): Value = t match {
               //   val B = f(Formula.True)
               //   () => Make(Seq(B, apps(BuiltIn.path_to_equiv, Seq(B, A, PathLambda(AbsClosure(a => f(Formula.Neg(a))))))))
               // }).toMap)
-              if (Value.NORMAL_FORM_MODEL) println("hcomp on universe")
+              // if (Value.NORMAL_FORM_MODEL) println("hcomp on universe")
               if (u == tp) t else Hcomp(u, base, faces)
             case Hcomp(u: Universe, b, es) =>
-              if (Value.NORMAL_FORM_MODEL) println("hcom hcomp on universe")
+              // if (Value.NORMAL_FORM_MODEL) println("hcom hcomp on universe")
               hcompHcompUniverse(u, b, es, base, faces)
             case g: GlueType =>
               hcompGlue(g, base, faces)
@@ -220,27 +220,27 @@ def transpHcompUniverse(A: Value, es: AbsClosureSystem, dim: Formula.Generic, si
     val res = eq(dg).whnf match {
       case s: Sum if s.noArgs =>
         // because we know this is non-dependent
-        if (Value.NORMAL_FORM_MODEL) println("da!!!")
+        // if (Value.NORMAL_FORM_MODEL) println("da!!!")
         val p1 = () => Hcomp(eq(dg), b, as.view.mapValues(a => AbsClosure(_ => a)).toMap)
         val p2 = hfill(eq(dg), b, as.view.mapValues(a => AbsClosure(_ => a)).toMap)
         (p1, p2: AbsClosure)
       case other =>
         val adwns = as.map((pair: (Formula, Value)) => {
           (pair._1, AbsClosure(j => {
-            if (Value.NORMAL_FORM_MODEL) println("adwns inside!!!")
+            // if (Value.NORMAL_FORM_MODEL) println("adwns inside!!!")
             transpFill_inv(j, Formula.False, eq, pair._2)}))
         }).toMap
-        if (Value.NORMAL_FORM_MODEL) println("what about" + other)
+        // if (Value.NORMAL_FORM_MODEL) println("what about" + other)
         val left = fill(eq, b, adwns)
         val a = () => comp(eq, b, adwns)
         val right = AbsClosure(j =>
           transpFill_inv(j, Formula.False, eq, a())
         )
-        val p = AbsClosure(i =>
+        val p = AbsClosure(i => {
           comp(AbsClosure(a => eq(Formula.Neg(a))), a(),
             adwns.updated(Formula.Neg(i), left).updated(i, right).view.mapValues(v => AbsClosure(j => v(Formula.Neg(j)))).toMap
           )
-        )
+        })
         (a, p: AbsClosure)
     }
     if (reduceFinished) println("eging finished")

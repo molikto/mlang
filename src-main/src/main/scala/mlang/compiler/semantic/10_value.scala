@@ -133,8 +133,6 @@ sealed trait Value {
     whnf match {
       case g: Generic =>
         g.typ
-      //      case Restricted(a, fs) =>
-      //        fs.foldLeft(infer(a)) { (t, r) => t.restrict(r) }
       case Universe(level) => Universe.suc(level)
       case Function(domain, _, codomain) =>
         (domain.infer, codomain(Generic(gen(), domain)).infer) match {
@@ -269,7 +267,6 @@ object Value {
           this.asInstanceOf[Self]
         } else {
           if (fswapCache == null) fswapCache = mutable.Map()
-          // debug(s"getting fswap value by $w, $z", 2)
           val key = (w, z)
           fswapCache.get(key) match {
             case Some(r) => r.asInstanceOf[Self]
@@ -526,7 +523,6 @@ object Value {
     }
   }
 
-  // ty == null when ds.isEmpty
   case class SimpleConstruct(name: Int, vs: Seq[Value]) extends StableCanonical
   case class HitConstruct(name: Int, vs: Seq[Value], @stuck_pos ds: Seq[Formula], @type_annotation ty: ValueSystem) extends Unstable {
     override protected def getWhnf() = 

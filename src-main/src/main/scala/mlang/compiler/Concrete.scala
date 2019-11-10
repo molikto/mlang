@@ -4,6 +4,7 @@ import mlang.utils.{Name, Text}
 
 sealed trait Concrete
 
+// TODO move to seperate package like dbi and semantic
 object Concrete {
 
   case class NameType(names: Seq[(Boolean, Name)], ty: Concrete)

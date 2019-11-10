@@ -99,7 +99,8 @@ trait MetaSolver extends ValueConversion with Reifier with ElaboratorContextRebi
           }
       }
     }
-    ctx.check(abs, typ)
+    // FIXME(META) enable core checking
+    // ctx.check(abs, typ)
     val v = ctx.eval(abs)
     m.state = MetaState.Closed(v)
     typ

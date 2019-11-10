@@ -110,13 +110,6 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
   }
 
 
-//  def newDefinition(name: Name, typ: Value, v: Value): Self = {
-//    layers.head.find(_.name.intersect(name)) match {
-//      case Some(_) => throw ContextBuilderException.AlreadyDeclared()
-//      case _ => (layers.head :+ Binder(gen(), name, typ, true, Some(v))) +: layers.tail
-//    }
-//  }
-
 
   def newParameterLayer(name: Name, typ: Value): (Self, Value) = {
     val g = Value.Generic(gen(), typ)

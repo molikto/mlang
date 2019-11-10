@@ -25,8 +25,7 @@ trait ElaboratorContextWithMetaOps extends ElaboratorContextBase {
   protected def createMetas(): MetasState = new MetasState(mutable.ArrayBuffer.empty, 0)
 
   protected def solvedMeta(meta: Value.Meta): Abstract.MetaReference = {
-    // TODO pretty print disabled this for now
-    //assert(meta.isSolved)
+    assert(meta.isSolved)
     val ms = layers.head.metas
     if (ms.debug_final) logicError()
     val index = ms.size
