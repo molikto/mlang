@@ -19,7 +19,7 @@ def (t: Transp) whnfBody(): Value = t match {
         case _: Function =>
           inline def tpr(i: Formula) = tp(i).whnf.asInstanceOf[Function]
           Lambda(Closure(v => {
-            def w(i: Formula) = transpFill_inv(i, phi, AbsClosure(a => tpr(a).domain), v)
+            inline def w(i: Formula) = transpFill_inv(i, phi, AbsClosure(a => tpr(a).domain), v)
             val w0 = transp_inv(phi, AbsClosure(a => tpr(a).domain), v)
             Transp(AbsClosure(i => tpr(i).codomain(w(i))), phi, App(base, w0))
           }))
