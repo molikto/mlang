@@ -435,14 +435,34 @@ object Value {
     */
   case class App(@stuck_pos lambda: Value, argument: Value) extends Redux {
     override protected def getWhnf(): Value = {
-      lambda.whnf match {
+      val lam = lambda.whnf
+      inline def default() = 
+          if (lam == lambda) this else App(lam, argument)
+      lam match {
         case Lambda(closure) =>
           closure(argument).whnf
         case p : PatternLambda =>
           PatternRedux(p, argument).whnf
-        case lam =>
-          if (lam == lambda) this
-          else App(lam, argument)
+        case Hcomp(tp, base, faces) =>
+          tp.whnf match {
+            case Function(d, i, c) =>
+              Hcomp(c(argument), App(base, argument), faces.view.mapValues(v => v.map(a => App(a, argument))).toMap)
+            case _ => default()
+          }
+        case Transp(tp, phi, base) =>
+          val dim = dgen()
+          tp.apply(Formula.Generic(dim)).whnf match {
+            case _: Function =>
+              inline def tpr(i: Formula) = tp(i).whnf.asInstanceOf[Function]
+              Transp(
+                i => tpr(i).codomain(transpFill_inv(i, phi, j => tpr(j).domain, argument)),
+                phi,
+                App(base, transp_inv(phi, i => tpr(i).domain, argument))
+              )
+            case _ => default()
+          }
+
+        case lam => default()
       }
     }
   }

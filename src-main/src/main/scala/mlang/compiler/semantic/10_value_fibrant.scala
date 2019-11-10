@@ -5,7 +5,7 @@ import mlang.compiler.GenLong.Negative.{dgen, gen}
 import scala.collection.mutable
 import mlang.utils._
 
-val HCOMP_UNIVERSE = false
+val HCOMP_UNIVERSE = true
 
 def (t: Transp) whnfBody(): Value = t match {
   case Transp(tp, phi, base) =>
