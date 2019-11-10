@@ -5,7 +5,7 @@ import mlang.utils._
 import mlang.compiler.dbi.Abstract
 
 
-case class RebindNotFoundException() extends Exception
+case class RebindNotFoundException(id: Long = 0) extends Exception(s"id: $id") with CompilerException
 
 trait ElaboratorContextRebind extends ElaboratorContextBase {
 
@@ -76,7 +76,7 @@ trait ElaboratorContextRebind extends ElaboratorContextBase {
       }
     }
     if (binder == null) {
-      throw RebindNotFoundException()
+      throw RebindNotFoundException(id)
     } else {
       binder
     }

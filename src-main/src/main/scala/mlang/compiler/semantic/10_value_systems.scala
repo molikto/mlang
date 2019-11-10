@@ -16,3 +16,7 @@ given [T: Nominal]:  Nominal[System[T]] {
   def (faces: System[T]) restrict(lv: Assignments): System[T] =
     faces.map(n => (n._1.restrict(lv), n._2.restrict(lv)))
 }
+
+given [T: Normal]: Normal[System[T]] {
+  def (faces: System[T]) nf: System[T] = faces.map(n => (n._1, n._2.nf))
+}

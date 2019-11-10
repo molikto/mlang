@@ -5,10 +5,7 @@ import mlang.compiler.GenLong.Negative.{dgen, gen}
 import scala.collection.mutable
 import mlang.utils._
 
-
-
-var firstReduce = false
-var reduceFinished = false
+val HCOMP_UNIVERSE = false
 
 def (t: Transp) whnfBody(): Value = t match {
   case Transp(tp, phi, base) =>
@@ -17,13 +14,7 @@ def (t: Transp) whnfBody(): Value = t match {
     } else {
       val dim = Formula.Generic(dgen())
       val unreduced = tp.apply(dim)
-      val first = firstReduce
-      firstReduce = false
       val reduced = unreduced.whnf
-      if (first && Value.NORMAL_FORM_MODEL) {
-        reduceFinished = true
-        println("reduce finished!!!")
-      }
       reduced match {
         case _: Function =>
           inline def tpr(i: Formula) = tp(i).whnf.asInstanceOf[Function]
@@ -84,22 +75,11 @@ def (t: Transp) whnfBody(): Value = t match {
         case g: GlueType =>
           transpGlue(g, dim, phi, base).whnf
         case Hcomp(Universe(_), b0, faces) =>
-          // println("transp hcomp universe!!")
-          if (reduceFinished) println("transp hcomp universe!")
-          val a = transpHcompUniverse(b0, faces, dim, phi, base).whnf
-          if (reduceFinished) println("transp hcomp universe! finished!!")
-          // if (a.isInstanceOf[Hcomp] && a.asInstanceOf[Hcomp].tp.isInstanceOf[Sum] && a.asInstanceOf[Hcomp].tp.asInstanceOf[Sum].hit) {
-          //   logicError()
-          // }
-          a
+          if (HCOMP_UNIVERSE) transpHcompUniverse(b0, faces, dim, phi, base).whnf
+          else logicError()
         case _: Universe =>
           base
         case other =>
-        //   if (Value.NORMAL_FORM_MODEL) {
-        //    println(other)
-        //    val c = tp(null).whnf
-        //    logicError(other.getClass.getName)
-        //  }
           t
       }
     }
@@ -141,16 +121,18 @@ def (t: Hcomp) whnfBody(): Value = t match {
                 if (a == base && s == tp) t else Hcomp(s, a, faces)
               }
             case u: Universe =>
-              // GlueType(base, faces.view.mapValues({ f =>
-              //   val A = f(Formula.False)
-              //   val B = f(Formula.True)
-              //   () => Make(Seq(B, apps(BuiltIn.path_to_equiv, Seq(B, A, PathLambda(AbsClosure(a => f(Formula.Neg(a))))))))
-              // }).toMap)
-              // if (Value.NORMAL_FORM_MODEL) println("hcomp on universe")
-              if (u == tp) t else Hcomp(u, base, faces)
+              if (HCOMP_UNIVERSE) {
+                if (u == tp) t else Hcomp(u, base, faces)
+              } else {
+                GlueType(base, faces.view.mapValues({ f =>
+                  val A = f(Formula.False)
+                  val B = f(Formula.True)
+                  () => Make(Seq(B, apps(BuiltIn.path_to_equiv, Seq(B, A, PathLambda(AbsClosure(a => f(Formula.Neg(a))))))))
+                }).toMap)
+              }
             case Hcomp(u: Universe, b, es) =>
-              // if (Value.NORMAL_FORM_MODEL) println("hcom hcomp on universe")
-              hcompHcompUniverse(u, b, es, base, faces)
+              if (HCOMP_UNIVERSE) hcompHcompUniverse(u, b, es, base, faces)
+              else logicError()
             case g: GlueType =>
               hcompGlue(g, base, faces)
             case a => if (a == tp) t else Hcomp(a, base, faces)
@@ -216,21 +198,18 @@ def transpHcompUniverse(A: Value, es: AbsClosureSystem, dim: Formula.Generic, si
     val b = v1
     val as = sys
     val dg = Formula.Generic(dgen())
-    if (reduceFinished) println("eging ")
-    val res = eq(dg).whnf match {
+    val unreduced = eq(dg)
+    val res = unreduced.whnf match {
       case s: Sum if s.noArgs =>
         // because we know this is non-dependent
-        // if (Value.NORMAL_FORM_MODEL) println("da!!!")
-        val p1 = () => Hcomp(eq(dg), b, as.view.mapValues(a => AbsClosure(_ => a)).toMap)
-        val p2 = hfill(eq(dg), b, as.view.mapValues(a => AbsClosure(_ => a)).toMap)
+        val p1 = () => Hcomp(unreduced, b, as.view.mapValues(a => AbsClosure(_ => a)).toMap)
+        val p2 = hfill(unreduced, b, as.view.mapValues(a => AbsClosure(_ => a)).toMap)
         (p1, p2: AbsClosure)
-      case other =>
+      case _ =>
         val adwns = as.map((pair: (Formula, Value)) => {
           (pair._1, AbsClosure(j => {
-            // if (Value.NORMAL_FORM_MODEL) println("adwns inside!!!")
             transpFill_inv(j, Formula.False, eq, pair._2)}))
         }).toMap
-        // if (Value.NORMAL_FORM_MODEL) println("what about" + other)
         val left = fill(eq, b, adwns)
         val a = () => comp(eq, b, adwns)
         val right = AbsClosure(j =>
@@ -243,12 +222,10 @@ def transpHcompUniverse(A: Value, es: AbsClosureSystem, dim: Formula.Generic, si
         })
         (a, p: AbsClosure)
     }
-    if (reduceFinished) println("eging finished")
     (pair._1, res)
   }).toMap
   val t1s_ = fibersys_.view.mapValues(_._1).toMap
   val v1_ = Hcomp(A1, v1, fibersys_.view.mapValues(_._2).toMap.updated(si, AbsClosure(_ => v1)))
-  if (reduceFinished) println(t1s_)
   Glue(v1_, t1s_)
 }
 
@@ -340,7 +317,7 @@ def comp(@stuck_pos tp: AbsClosure, base: Value, faces: AbsClosureSystem) = {
   val dim = Formula.Generic(dgen())
   val appd = tp.apply(dim)
   appd.whnf match {
-    case PathType(typ, left, right) =>
+    case _: PathType =>
       PathLambda(AbsClosure(i => {
         Comp(tp.map(a => a.whnf.asInstanceOf[PathType].typ(i)), PathApp(base, i),
           faces.view.mapValues(_.map(a => PathApp(a, i))).toMap

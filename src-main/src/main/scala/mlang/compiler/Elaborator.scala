@@ -824,11 +824,6 @@ class Elaborator private(protected override val layers: Layers)
     }
     else Value.LocalReference(v)
 
-  def debugNv(whnf: Value): Value = whnf.whnf match {
-    case Value.SimpleConstruct(n, vs)  =>
-      Value.SimpleConstruct(n, vs.map(debugNv))
-    case a => a
-  }
 
   // should we make sure type annotation is the minimal type?
   // ANS: we don't and we actually cannot
@@ -1001,30 +996,13 @@ class Elaborator private(protected override val layers: Layers)
         }
     }
     if (s.modifiers.contains(Declaration.Modifier.__Debug)) {
-      val a = ret.layers.head.asInstanceOf[Layer.Defines].terms.find(_.name == s.name).get
-      val kkk = a.ref0 match {
-        case Some(v) =>
-          Value.NORMAL_FORM_MODEL = true
-          val time  = System.currentTimeMillis()
-          def printRes(a: String, j: Value) = {
-            println(s"DEBUG used time: ${System.currentTimeMillis() - time}")
-            loopBase(j)
-            println(s"__DEBUG__ WHNF $a:")
-            println(j)
-          }
-          val k = debugNv(v.value.whnf)
-          k match {
-            case lambda: Value.PathLambda =>
-              val j = debugNv(lambda.body(semantic.Formula.Generic(2131)))
-              loopBase(j)
-              printRes("LAMBDA", j)
-            case _ =>
-              printRes("", k)
-          }
-          Value.NORMAL_FORM_MODEL = false
-          val a = 1
-        case _ =>
-      }
+      Value.NORMAL_FORM_MODEL = true
+      val a = ret.layers.head.asInstanceOf[Layer.Defines].terms.find(_.name == s.name).get.ref0.get.value
+      val time  = System.currentTimeMillis()
+      val k = reify(a.nf)
+      println(s"DEBUG used time: ${System.currentTimeMillis() - time}")
+      println(k)
+      Value.NORMAL_FORM_MODEL = false
     }
     ret
   }

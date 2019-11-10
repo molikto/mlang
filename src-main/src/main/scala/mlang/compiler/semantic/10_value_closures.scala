@@ -50,7 +50,7 @@ given Nominal[AbsClosure] {
   def (func: AbsClosure) supportShallow(): SupportShallow = 
     func(Formula.Generic.HACK).supportShallow()
   def (func: AbsClosure) restrict(dav: Assignments): AbsClosure = 
-    AbsClosure(d => func(Formula.Derestricted(d, dav)).restrict(dav))
+    d => func(Formula.Derestricted(d, dav)).restrict(dav)
   def (func: AbsClosure) fswap(w: Long, z: Formula): AbsClosure = d => func(d).fswap(w, z)
 }
 
@@ -59,3 +59,20 @@ given Nominal[MultiClosure] {
   def (func: MultiClosure) restrict(dav: Assignments): MultiClosure = MultiClosure((v, d) => func(v.map(a => Value.Derestricted(a, dav)), d.map(a => Formula.Derestricted(a, dav))).restrict(dav))
   def (func: MultiClosure) fswap(w: Long, z: Formula): MultiClosure = MultiClosure((d, k) => func(d, k).fswap(w, z))
 }
+
+given Normal[Closure] {
+  def (func: Closure) nf: Closure = v => func(v).nf
+}
+
+given Normal[ValueClosure] {
+  def (func: ValueClosure) nf: ValueClosure = () => func().nf
+}
+
+given Normal[AbsClosure] {
+  def (func: AbsClosure) nf: AbsClosure = v => func(v).nf
+}
+
+given Normal[MultiClosure] {
+  def (func: MultiClosure) nf: MultiClosure = (v1, v2) => func(v1, v2).nf
+}
+
