@@ -22,8 +22,13 @@ define test_0_to_4: loop_space_3(S2_pointed).A =
 define innerpath(i j: I): S2_hopf(test_0_to_4(i, j, 1)) =
   transp(k → S2_hopf(test_0_to_4(i, j, k)), 0, S1.base)
 
-// put __debug after define to normalize it
-define __debug problem: int.pos(zero) ≡ int.pos(zero) =
+define problem_01(k j: I) = test_0_to_4(k, j, k)
+
+define __debug problempath(j: I) =
+  transp(k → S2_hopf(test_0_to_4(k, j, k)), 0, S1.base)
+
+// put _debug after define to normalize it
+define problem: int.pos(zero) ≡ int.pos(zero) =
   i → transp(j → S1_helix(innerpath(i ,j)), 0, int.pos(zero))
 
 

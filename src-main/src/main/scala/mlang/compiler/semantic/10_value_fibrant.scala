@@ -5,7 +5,7 @@ import mlang.compiler.GenLong.Negative.{dgen, gen}
 import scala.collection.mutable
 import mlang.utils._
 
-val HCOMP_UNIVERSE = true
+val HCOMP_UNIVERSE = false
 
 def (t: Transp) whnfBody(): Value = t match {
   case Transp(tp, phi, base) =>
@@ -51,18 +51,22 @@ def (t: Transp) whnfBody(): Value = t match {
                 inline def tpr(i: Formula) = tp(i).whnf.asInstanceOf[Sum].constructors(c)
                 val cc = s.constructors(c)
                 val theta = transpFill(cc.nodes, i => tpr(i).nodes, phi, vs)
-                val w1p = Construct(c, theta.map(_.apply(Formula.True)), rs, d)
+                val tele = theta.map(_.apply(Formula.True))
                 val res = if (rs.isEmpty) {
-                  w1p
+                  Construct(c, tele, rs, d)
                 } else {
-                  val item1 = (phi, AbsClosure(_ => base))
-                  def alpha(e: AbsClosure) = squeeze(tp, e, phi)
-                  val items = cc.nodes.reduce(rs).phi().toSeq.map(f => {
-                    val e = AbsClosure(i => tpr(i).nodes.reduceAll(theta.map(_.apply(i))).reduce(rs).restrictions().find(_._1 == f).get._2())
-                    val abs = AbsClosure(i => alpha(e)(Formula.Neg(i)))
-                    (f, abs)
-                  }).toMap.updated(item1._1, item1._2)
-                  Hcomp(tp(Formula.True), w1p, items)
+                  // rules from the HIT paper
+                  // val w1p = Construct(c, tele, rs, d)
+                  // val item1 = (phi, AbsClosure(_ => base))
+                  // def alpha(e: AbsClosure) = squeeze(tp, e, phi)
+                  // val items = cc.nodes.reduce(rs).phi().toSeq.map(f => {
+                  //   val e = AbsClosure(i => tpr(i).nodes.reduceAll(theta.map(_.apply(i))).reduce(rs).restrictions().find(_._1 == f).get._2())
+                  //   val abs = AbsClosure(i => alpha(e)(Formula.Neg(i)))
+                  //   (f, abs)
+                  // }).toMap.updated(item1._1, item1._2)
+                  // Hcomp(tp(Formula.True), w1p, items)
+                  // with this rule changed, it goes from ~10s to , both without hcomp_universe
+                  Construct(c, tele, rs, tp(Formula.True).whnf.asInstanceOf[Sum].constructors(c).nodes.reduceAll(tele).reduce(rs).restrictions())
                 }
                 res.whnf
               case Hcomp(hty, hbase, faces) =>
@@ -75,6 +79,7 @@ def (t: Transp) whnfBody(): Value = t match {
         case g: GlueType =>
           transpGlue(g, dim, phi, base).whnf
         case Hcomp(Universe(_), b0, faces) =>
+          println("transp hcomp universe")
           if (HCOMP_UNIVERSE) transpHcompUniverse(b0, faces, dim, phi, base).whnf
           else logicError()
         case _: Universe =>
@@ -131,6 +136,7 @@ def (t: Hcomp) whnfBody(): Value = t match {
                 }).toMap)
               }
             case Hcomp(u: Universe, b, es) =>
+              println("hcomp hcomp universe")
               if (HCOMP_UNIVERSE) hcompHcompUniverse(u, b, es, base, faces)
               else logicError()
             case g: GlueType =>
@@ -330,7 +336,7 @@ def comp(@stuck_pos tp: AbsClosure, base: Value, faces: AbsClosureSystem) = {
     case s: Sum if !s.hit && s.noArgs =>
       assert(!s.support().names.contains(dim.id))
       Hcomp(appd, base, faces)
-    case _ =>
+    case a =>
       default()
   }
 }

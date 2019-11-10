@@ -9,6 +9,7 @@ import Abstract._
 
 import scala.collection.mutable
 
+var hcompCount = 0
 
 // FIXME this implicitly uses positive generated ids, also unification, becasue they modify the layers, this is not a problem because we don't use positive/negative difference, but it defeats the design
 private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorContextRebind {
@@ -176,6 +177,10 @@ private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorCon
       case Value.Transp(tp, dir, base) =>
         Transp(reifyAbs(tp), reify(dir), reify(base))
       case Value.Hcomp(tp, base, faces) =>
+        if (Value.NORMAL_FORM_MODEL) {
+          hcompCount += 1
+          println("hcomp count " + hcompCount)
+        }
         Hcomp(reify(tp), reify(base), reifyAbsClosureSystem(faces))
       case Value.Comp(tp, base, faces) =>
         Comp(reifyAbs(tp), reify(base), reifyAbsClosureSystem(faces))

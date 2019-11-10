@@ -32,7 +32,9 @@ given Normal[Value] {
     case App(lambda, argument) =>
       App(lambda.nf, argument.nf)
     case PatternRedux(lambda, stuck) =>
-      PatternRedux(lambda.nf.asInstanceOf[PatternLambda], stuck.nf)
+      println(stuck.nf)
+      logicError()
+      // PatternRedux(lambda.nf.asInstanceOf[PatternLambda], stuck.nf)
     case Projection(make, field) =>
       Projection(make.nf, field)
     case PathApp(left, dimension) =>

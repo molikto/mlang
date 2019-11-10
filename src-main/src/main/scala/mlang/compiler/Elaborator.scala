@@ -964,7 +964,7 @@ class Elaborator private(protected override val layers: Layers)
               // term without type
               info(s"infer $name")
               val (ta, va) = inferTelescope(NameType.flatten(ps), t0, v)
-              // info("type:"); print(ta)
+              // info("type:" + ta)
               // info("body:"); print(va)
               appendMetas(freeze())
               val ref = newReference(eval(va), name = name)
@@ -999,7 +999,8 @@ class Elaborator private(protected override val layers: Layers)
       Value.NORMAL_FORM_MODEL = true
       val a = ret.layers.head.asInstanceOf[Layer.Defines].terms.find(_.name == s.name).get.ref0.get.value
       val time  = System.currentTimeMillis()
-      val k = reify(a.nf)
+      val nf = a.nf
+      val k = reify(nf)
       println(s"DEBUG used time: ${System.currentTimeMillis() - time}")
       println(k)
       Value.NORMAL_FORM_MODEL = false
