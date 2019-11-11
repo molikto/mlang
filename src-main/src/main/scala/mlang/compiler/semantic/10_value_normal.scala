@@ -4,6 +4,25 @@ import mlang.utils._
 
 import Value._
 
+
+def normalFaceV(sys: ValueSystem): ValueSystem = {
+  sys.toSeq.flatMap(pair => pair._1.normalForm.map(a => (a, pair._2))).map(pair => {
+    val a = pair._1
+    val formula = Formula(Set(pair._1))
+    val bd = pair._2.restrict(pair._1)
+    (formula, bd.nf)
+  }).toMap
+}
+
+def normalFace(sys: AbsClosureSystem): AbsClosureSystem = {
+  sys.toSeq.flatMap(pair => pair._1.normalForm.map(a => (a, pair._2))).map(pair => {
+    val a = pair._1
+    val formula = Formula(Set(pair._1))
+    val bd = pair._2.restrict(pair._1)
+    (formula, bd.nf)
+  }).toMap
+}
+
 given Normal[Value] {
   // LATER seems faces.nf will error
   // FIXME we are skipping record and sum
@@ -22,7 +41,7 @@ given Normal[Value] {
     case SimpleConstruct(name, vs) =>
       SimpleConstruct(name, vs.map(_.nf))
     case HitConstruct(name, vs, ds, ty) =>
-      HitConstruct(name, vs.map(_.nf), ds, ty.filter(!_._1.nfFalse).map(n => (n._1, n._2.nf)))
+      HitConstruct(name, vs.map(_.nf), ds, normalFaceV(ty))
     case s@Sum(inductively, _, constructors) =>
       s
     case PathType(typ, left, right) =>
@@ -38,17 +57,17 @@ given Normal[Value] {
     case Projection(make, field) =>
       Projection(make.nf, field)
     case PathApp(left, dimension) =>
-      PathApp(left.nf, dimension)
+      PathApp(left.nf, dimension.simplify)
     case Transp(tp, direction, base) =>
-      Transp(tp.nf, direction, base.nf)
+      Transp(tp.nf, direction.simplify, base.nf)
     case Hcomp(tp, base, faces) =>
-      Hcomp(tp.nf, base.nf,  faces.filter(!_._1.nfFalse).map(n => (n._1, n._2.nf)))
+      Hcomp(tp.nf, base.nf, normalFace(faces))
     case GlueType(tp, faces) => 
-      GlueType(tp.nf,  faces.filter(!_._1.nfFalse).map(n => (n._1, n._2.nf)))
+      GlueType(tp.nf,  normalFaceV(faces))
     case Glue(base, faces) =>
-      Glue(base.nf,  faces.filter(!_._1.nfFalse).map(n => (n._1, n._2.nf)))
+      Glue(base.nf, normalFaceV(faces))
     case Unglue(tp, base, iu, faces) =>
-      Unglue(tp.nf, base.nf, iu,  faces.filter(!_._1.nfFalse).map(n => (n._1, n._2.nf)))
+      Unglue(tp.nf, base.nf, iu, normalFaceV(faces))
     case g: Generic => g
     case _ => logicError()
   }

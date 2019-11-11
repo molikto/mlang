@@ -124,6 +124,7 @@ private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorCon
 
 
   def reify(v: Value): Abstract = {
+    if (Value.NORMAL_FORM_MODEL) println(v.getClass.getName)
     v match {
       case Value.Universe(level) =>
         Universe(level)

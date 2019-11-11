@@ -5,7 +5,7 @@ import mlang.compiler.GenLong.Negative.{dgen, gen}
 import scala.collection.mutable
 import mlang.utils._
 
-val HCOMP_UNIVERSE = false
+val HCOMP_UNIVERSE = true
 
 def (t: Transp) whnfBody(): Value = t match {
   case Transp(tp, phi, base) =>
@@ -136,8 +136,7 @@ def (t: Hcomp) whnfBody(): Value = t match {
                 }).toMap)
               }
             case Hcomp(u: Universe, b, es) =>
-              println("hcomp hcomp universe")
-              if (HCOMP_UNIVERSE) hcompHcompUniverse(u, b, es, base, faces)
+              if (HCOMP_UNIVERSE) hcompHcompUniverse(b, es, base, faces)
               else logicError()
             case g: GlueType =>
               hcompGlue(g, base, faces)
@@ -146,30 +145,22 @@ def (t: Hcomp) whnfBody(): Value = t match {
       }
 }
 
-def hcompHcompUniverse(u: Universe, b: Value, es: AbsClosureSystem, base: Value, faces: AbsClosureSystem): Value = {
+def hcompHcompUniverse(b: Value, es: AbsClosureSystem, u: Value, us: AbsClosureSystem): Value = {
   val wts = es.map((pair: (Formula, AbsClosure)) => {
-    val al = pair._1
     val eal = pair._2
-    val ret = AbsClosure(i =>
-      transp_inv(Formula.False, eal, hfill(eal( Formula.True), base, faces).apply(i))
-    )
-    (al, ret)
+    (pair._1, AbsClosure(i =>
+      transp_inv(Formula.False, eal, hfill(eal( Formula.True), u, us).apply(i))
+    ))
   })
   val t1s = es.map((pair: (Formula, AbsClosure)) => {
-    val al = pair._1
-    val eal = pair._2
-    val ret = () => Hcomp(eal(Formula.True), u, faces)
-    (al, ret)
+    (pair._1, () => Hcomp(pair._2(Formula.True), u, us))
   })
   val esmap = es.view.mapValues(a => () => PathLambda(a)).toMap
   val v = Unglue(b, u, true, esmap)
-  val vs = faces.map((pair: (Formula, AbsClosure)) => {
-    val al = pair._1
-    val ual = pair._2
-    val ret = ual.map(v =>
+  val vs = us.map((pair: (Formula, AbsClosure)) => {
+    (pair._1, pair._2.map(v => {
       Unglue(b, v, true, esmap)
-    )
-    (al, ret)
+    }))
   })
   val v1 = Hcomp(b, v, vs ++ wts)
   Glue(v1, t1s)
