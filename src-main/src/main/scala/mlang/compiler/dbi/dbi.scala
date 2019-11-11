@@ -108,7 +108,9 @@ object Abstract {
   case class Projection(left: Abstract, field: Int) extends Abstract
   case class Make(vs: Seq[Abstract]) extends Abstract
 
-  case class Sum(inductively: Option[Inductively], hit: Boolean, constructors: Seq[Constructor]) extends Abstract
+  case class Sum(inductively: Option[Inductively], hit: Boolean, constructors: Seq[Constructor]) extends Abstract {
+    override def toString = s"SUM(${constructors.map(_.name)})"
+  }
   case class Construct(f: Int, vs: Seq[Abstract], ds: Seq[Formula], ty: System) extends Abstract
 
   case class PathLambda(body: Closure) extends Abstract

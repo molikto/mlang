@@ -136,6 +136,7 @@ def (t: Hcomp) whnfBody(): Value = t match {
                 }).toMap)
               }
             case Hcomp(u: Universe, b, es) =>
+              println("hcomp hcomp universe")
               if (HCOMP_UNIVERSE) hcompHcompUniverse(b, es, base, faces)
               else logicError()
             case g: GlueType =>

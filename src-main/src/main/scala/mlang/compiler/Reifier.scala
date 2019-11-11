@@ -124,7 +124,6 @@ private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorCon
 
 
   def reify(v: Value): Abstract = {
-    if (Value.NORMAL_FORM_MODEL) println(v.getClass.getName)
     v match {
       case Value.Universe(level) =>
         Universe(level)
@@ -178,10 +177,6 @@ private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorCon
       case Value.Transp(tp, dir, base) =>
         Transp(reifyAbs(tp), reify(dir), reify(base))
       case Value.Hcomp(tp, base, faces) =>
-        if (Value.NORMAL_FORM_MODEL) {
-          hcompCount += 1
-          println("hcomp count " + hcompCount)
-        }
         Hcomp(reify(tp), reify(base), reifyAbsClosureSystem(faces))
       case Value.Comp(tp, base, faces) =>
         Comp(reifyAbs(tp), reify(base), reifyAbsClosureSystem(faces))
