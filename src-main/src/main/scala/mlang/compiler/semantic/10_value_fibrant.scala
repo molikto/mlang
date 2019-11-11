@@ -153,7 +153,8 @@ def hcompHcompUniverse(b: Value, es: AbsClosureSystem, u: Value, us: AbsClosureS
     ))
   })
   val t1s = es.map((pair: (Formula, AbsClosure)) => {
-    (pair._1, () => Hcomp(pair._2(Formula.True), u, us))
+    val els = pair._2
+    (pair._1, () => Hcomp(els(Formula.True), u, us))
   })
   val esmap = es.view.mapValues(a => () => PathLambda(a)).toMap
   val v = Unglue(b, u, true, esmap)
@@ -182,9 +183,10 @@ def transpHcompUniverse(A: Value, es: AbsClosureSystem, dim: Formula.Generic, si
   }).toMap
   val v1 = gcomp(AbsClosure(i => A.fswap(dim.id, i)), v0,
     faces_elim_dim.map((pair: (Formula, AbsClosure)) => {
+      val els = pair._2
       val abs = AbsClosure(i => {
-        transp_inv(Formula.False, pair._2.fswap(dim.id, i),
-          transpFill(i, si, AbsClosure(i => pair._2(Formula.True).fswap(dim.id, i)), u0)
+        transp_inv(Formula.False, els.fswap(dim.id, i),
+          transpFill(i, si, AbsClosure(i => els(Formula.True).fswap(dim.id, i)), u0)
         )
       })
       (pair._1, abs)
@@ -204,8 +206,9 @@ def transpHcompUniverse(A: Value, es: AbsClosureSystem, dim: Formula.Generic, si
         (p1, p2: AbsClosure)
       case _ =>
         val adwns = as.map((pair: (Formula, Value)) => {
+          val els = pair._2
           (pair._1, AbsClosure(j => {
-            transpFill_inv(j, Formula.False, eq, pair._2)}))
+            transpFill_inv(j, Formula.False, eq, els)}))
         }).toMap
         val left = fill(eq, b, adwns)
         val a = () => comp(eq, b, adwns)
