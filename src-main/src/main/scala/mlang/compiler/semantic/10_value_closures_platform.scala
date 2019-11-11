@@ -54,7 +54,7 @@ object PlatformNominal {
         case f: Formula =>
           ns = ns +- f.names
         case g: ClosureGraph =>
-          ns = ns ++ g.supportShallow()
+          // ns = ns ++ g.supportShallow()
         case a: Map[_, _] =>
           if (a.nonEmpty) {
             val seq = a.toSeq
@@ -81,7 +81,8 @@ object PlatformNominal {
               case _: scala.Function1[_, _] =>
                 a.asInstanceOf[Seq[scala.Function1[_, _]]].map(a => supportShallow(a)).merge
               case _ =>
-                logicError()
+                SupportShallow.empty
+                // logicError()
             }
             ns = ns ++ r
           }
@@ -130,7 +131,7 @@ object PlatformNominal {
                   case _: scala.Function1[_, _] =>
                     a.asInstanceOf[System[AbsClosure]].restrict(v2)
                   case _ =>
-                    logicError()
+                    a
                 }
               case _ => logicError()
             }
@@ -148,7 +149,7 @@ object PlatformNominal {
               case _: scala.Function1[_, _] =>
                 a.asInstanceOf[Seq[scala.Function1[_, _]]].map(a => restrict(a, v2))
               case _ =>
-                logicError()
+                a
             }
             ns(i) = r
             if (!f.eq(r)) changed = true

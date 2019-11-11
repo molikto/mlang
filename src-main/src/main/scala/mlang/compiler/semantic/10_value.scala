@@ -198,12 +198,6 @@ object Value {
   sealed trait Unstable extends UnstableOrRedux
   sealed trait Redux extends UnstableOrRedux
 
-  sealed trait Internal extends Value
-  case class Derestricted(a: Value, asgn: Assignments) extends Internal {
-    def getWhnf() = logicError()
-  }
-
-
   sealed trait Referential extends Value {
     _from = this
     type Self <: Referential
@@ -394,10 +388,6 @@ object Value {
       s._value = value.fswap(w, z)
   }
 
-  object Generic {
-    private[semantic] val HACK = Generic(0, null)
-    private[semantic] val HACKS = (0 until 20).map(_ => HACK)
-  }
   case class Generic(id: Long, @type_annotation @lateinit private var _typ: Value) extends LocalReferential {
 
     def typ_=(a: Value) = {
