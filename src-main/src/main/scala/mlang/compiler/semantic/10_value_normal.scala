@@ -5,6 +5,7 @@ import mlang.utils._
 import Value._
 
 
+// FIXME these are buggy, only reliable on simple construct/makes
 def normalFaceV(sys: ValueSystem): ValueSystem = {
   sys.toSeq.flatMap(pair => pair._1.normalForm.map(a => (a, pair._2))).map(pair => {
     val a = pair._1

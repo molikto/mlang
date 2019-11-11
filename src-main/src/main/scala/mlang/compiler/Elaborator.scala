@@ -58,7 +58,6 @@ class Elaborator private(protected override val layers: Layers)
         with ElaboratorContextLookup
         with ElaboratorContextRebind
         with ElaboratorContextForEvaluator
-        with DebugPrettyPrinter
         with Evaluator with PlatformEvaluator with MetaSolver {
 
 

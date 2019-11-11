@@ -32,14 +32,14 @@ define problempath00(j k: I) =
 define problempath_simple(i: I) =
   transp(k → S2_hopf(hcomp(S2.surf(i, k) |~k: ─ → S2.base |k: ─ → S2.base)), 0, S1.base)
 
-define problempath0(j: I) =
+define __debug problempath0(j: I) =
   transp(k → S2_hopf(test_0_to_4(k, j, k)), 0, S1.base)
 
 define problempath(j: I) =
   S1_helix(transp(k → S2_hopf(test_0_to_4(k, j, k)), 0, S1.base))
 
 // put _debug after define to normalize it
-define __debug problem: int.pos(zero) ≡ int.pos(zero) =
+define problem: int.pos(zero) ≡ int.pos(zero) =
   i → transp(j → S1_helix(innerpath(i ,j)), 0, int.pos(zero))
 
 
