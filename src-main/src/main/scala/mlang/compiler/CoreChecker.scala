@@ -16,7 +16,6 @@ trait CoreChecker extends ElaboratorContextBuilder
   with ElaboratorContextRebind
   with ElaboratorContextForEvaluator
   with ElaboratorContextWithMetaOps
-  with DebugPrettyPrinter
   with semantic.ValueConversion
   with Evaluator {
 
