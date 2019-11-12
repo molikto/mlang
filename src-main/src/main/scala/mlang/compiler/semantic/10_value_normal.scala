@@ -62,7 +62,7 @@ given Normal[Value] {
     case Hcomp(tp, base, faces) =>
       Hcomp(tp.nf, base.nf, normalFace(faces))
     case GlueType(tp, faces) => 
-      GlueType(tp.nf,  normalFaceV(faces))
+      GlueType(tp,  faces)
     case Glue(base, faces) =>
       Glue(base.nf, normalFaceV(faces))
     case Unglue(tp, base, iu, faces) =>

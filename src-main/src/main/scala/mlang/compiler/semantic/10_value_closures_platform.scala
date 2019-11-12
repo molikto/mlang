@@ -25,7 +25,7 @@ object PlatformNominal {
           logicError("Long not supported")
         }
       case _: Int =>
-        if (parent.getClass.getName.contains("value_fibrant")) { // these are indexes
+        if (parent.getClass.getName.contains("ValueFibrant")) { // these are indexes
           false
         } else {
           logicError("Int not supported")
