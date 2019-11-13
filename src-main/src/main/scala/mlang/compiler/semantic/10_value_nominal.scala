@@ -124,6 +124,13 @@ given Nominal[Value] {
       Glue(base.restrict(lv), faces.restrict(lv))
     case Unglue(tp, base, iu, faces) =>
       Unglue(tp.restrict(lv), base.restrict(lv), iu, faces.restrict(lv))
+    case Derestricted(v, lv0) =>
+      if (lv0.subsetOf(lv)) {
+        v.restrict(lv -- lv0)
+      } else {
+        logicError()
+      }
+
     case g: Referential =>
       g.getRestrict(lv)
   }

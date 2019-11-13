@@ -34,26 +34,29 @@ type classes
 
 
 given Nominal[Closure] {
-  def (func: Closure) supportShallow(): SupportShallow = PlatformNominal.supportShallow(func)
-  def (func: Closure) restrict(dav: Assignments): Closure = PlatformNominal.restrict(func, dav).asInstanceOf[Closure]
+  def (func: Closure) supportShallow(): SupportShallow = func(Value.Generic.HACK).supportShallow()
+  def (func: Closure) restrict(dav: Assignments): Closure = Closure(d => func(Value.Derestricted(d, dav)).restrict(dav))
   def (func: Closure) fswap(w: Long, z: Formula): Closure = d => func(d).fswap(w, z)
 }
 
 given Nominal[ValueClosure] {
-  def (func: ValueClosure) supportShallow(): SupportShallow = PlatformNominal.supportShallow(func)
-  def (func: ValueClosure) restrict(dav: Assignments): ValueClosure = PlatformNominal.restrict(func, dav).asInstanceOf[ValueClosure]
+  def (func: ValueClosure) supportShallow(): SupportShallow = 
+    func().supportShallow()
+  def (func: ValueClosure) restrict(dav: Assignments): ValueClosure = 
+    () => func().restrict(dav)
   def (func: ValueClosure) fswap(w: Long, z: Formula): ValueClosure = () => func().fswap(w, z)
 }
 given Nominal[AbsClosure] {
-  def (func: AbsClosure) supportShallow(): SupportShallow = PlatformNominal.supportShallow(func)
+  def (func: AbsClosure) supportShallow(): SupportShallow = 
+    func(Formula.Generic.HACK).supportShallow()
   def (func: AbsClosure) restrict(dav: Assignments): AbsClosure = 
-    PlatformNominal.restrict(func, dav).asInstanceOf[Formula => Value]
+    d => func(Formula.Derestricted(d, dav)).restrict(dav)
   def (func: AbsClosure) fswap(w: Long, z: Formula): AbsClosure = d => func(d).fswap(w, z)
 }
 
 given Nominal[MultiClosure] {
-  def (func: MultiClosure) supportShallow(): SupportShallow = PlatformNominal.supportShallow(func)
-  def (func: MultiClosure) restrict(dav: Assignments): MultiClosure = MultiClosure(PlatformNominal.restrict(func, dav).asInstanceOf[(Seq[Value], Seq[Formula]) => Value])
+  def (func: MultiClosure) supportShallow(): SupportShallow =func(Value.Generic.HACKS, Formula.Generic.HACKS).supportShallow()
+  def (func: MultiClosure) restrict(dav: Assignments): MultiClosure = MultiClosure((v, d) => func(v.map(a => Value.Derestricted(a, dav)), d.map(a => Formula.Derestricted(a, dav))).restrict(dav))
   def (func: MultiClosure) fswap(w: Long, z: Formula): MultiClosure = MultiClosure((d, k) => func(d, k).fswap(w, z))
 }
 
