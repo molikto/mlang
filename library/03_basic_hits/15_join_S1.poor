@@ -15,7 +15,7 @@ define join_S1_facek01(i j k: I): join_S1 =
   )(i)
 
 // TODO support border k or, or expressions in partial elements
-this is the Agda version
+// this is the Agda version
 define join_S1_border_contraction(i j k: I): join_S1 =
   hcomp(join_S1.push(S1.loop(j), S1.loop(k), i)
   |~i: l → join_S1_facek01(1, j, l)
@@ -50,7 +50,6 @@ define join_S1_border_contraction(i j k: I): join_S1 = run {
   | i: l → _.push(_.base, _.base, k ∧ (~l))
   )
 }
-
 
 
 

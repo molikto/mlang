@@ -158,12 +158,12 @@ object ValueFibrant {
 
     if (NORMAL_FORM_MODEL) println("unglue created transp hcomp 1")
     // this is UnglueU in cubicaltt, the es0 is a system of path lambdas
-    if (u0.isInstanceOf[Transp] && u0.asInstanceOf[Transp].base.isInstanceOf[SimpleConstruct]) {
+    if (u0.isInstanceOf[Transp] && !u0.whnf.isInstanceOf[Glue] && !es0.contains(Formula.True)) {
       val a = 1
     }
     val v0 = Unglue(A0, u0, true, es0.view.mapValues(a => () => PathLambda(a)).toMap)
 
-    val faces_elim_dim = es.toSeq.map(a => (a._1.elim(dim.id), a._2)).filter(_._1.normalForm != NormalForm.False).toMap
+    val faces_elim_dim = es.toSeq.map(a => (a._1.elim(dim.id), a._2)).filter(!_._1.nfFalse).toMap
     val t1s = faces_elim_dim.view.mapValues(p => {
       Transp(AbsClosure(i => p(Formula.True).fswap(dim.id, i)), si, u0)
     }).toMap
@@ -187,13 +187,15 @@ object ValueFibrant {
       val res = unreduced.whnf match {
         case s: Sum if s.noArgs =>
           // because we know this is non-dependent
-          val p1 = () => Hcomp(unreduced, b, as.view.mapValues(a => AbsClosure(_ => a)).toMap)
-          val p2 = hfill(unreduced, b, as.view.mapValues(a => AbsClosure(_ => a)).toMap)
+          val asm = as.view.mapValues(a => AbsClosure(_ => a)).toMap
+          val p1 = () => Hcomp(unreduced, b, asm)
+          val p2 = hfill(unreduced, b, asm)
           (p1, p2: AbsClosure)
         case _ =>
           val adwns = as.map((pair: (Formula, Value)) => {
+            val fs = pair._1
             val els = pair._2
-            (pair._1, AbsClosure(j => {
+            (fs, AbsClosure(j => {
               transpFill_inv(j, Formula.False, eq, els)}))
           }).toMap
           val left = fill(eq, b, adwns)
@@ -255,7 +257,7 @@ object ValueFibrant {
       Projection(trueFace.fswap(dim.id, i), 0)
       }), u0)
     }
-    val faces_elim_dim = B.faces.toSeq.map(a => (a._1.elim(dim.id), a._2)).filter(_._1.normalForm != NormalForm.False).toMap
+    val faces_elim_dim = B.faces.toSeq.map(a => (a._1.elim(dim.id), a._2)).filter(!_._1.nfFalse).toMap
     val B1_faces = B1.faces.filter(_._1.normalForm != NormalForm.False)
     def t1(trueFace: Value) = t_tide(trueFace, Formula.True)
     // a1: A(i/1) and is defined on both si and elim(i, phi)
