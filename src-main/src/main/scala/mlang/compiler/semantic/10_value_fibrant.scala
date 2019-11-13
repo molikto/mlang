@@ -5,7 +5,7 @@ import mlang.compiler.GenLong.Negative.{dgen, gen}
 import scala.collection.mutable
 import mlang.utils._
 
-val HCOMP_UNIVERSE = true
+val HCOMP_UNIVERSE = false
 
 
 // currently put in a object, becasue this enables us to debug these
@@ -165,7 +165,8 @@ object ValueFibrant {
 
     val faces_elim_dim = es.toSeq.map(a => (a._1.elim(dim.id), a._2)).filter(!_._1.nfFalse).toMap
     val t1s = faces_elim_dim.view.mapValues(p => {
-      Transp(AbsClosure(i => p(Formula.True).fswap(dim.id, i)), si, u0)
+      val tp = p(Formula.True)
+      Transp(AbsClosure(i => tp.fswap(dim.id, i)), si, u0)
     }).toMap
     val v1 = gcomp(AbsClosure(i => A.fswap(dim.id, i)), v0,
       faces_elim_dim.map((pair: (Formula, AbsClosure)) => {
@@ -177,7 +178,7 @@ object ValueFibrant {
         })
         (pair._1, abs)
       }).updated(si, AbsClosure(_ => v0)))
-    val sys = t1s.updated(si, u0)
+    val sys = t1s.updated(si, u0).filterKeys(!_.nfFalse)
     val fibersys_ = es1.map((pair: (Formula, AbsClosure)) => {
       val eq = pair._2
       val b = v1
@@ -187,9 +188,8 @@ object ValueFibrant {
       val res = unreduced.whnf match {
         case s: Sum if s.noArgs =>
           // because we know this is non-dependent
-          val asm = as.view.mapValues(a => AbsClosure(_ => a)).toMap
-          val p1 = () => Hcomp(unreduced, b, asm)
-          val p2 = hfill(unreduced, b, asm)
+          val p1 = () => Hcomp(unreduced, b,  as.view.mapValues(a => AbsClosure(_ => a)).toMap)
+          val p2 = hfill(unreduced, b,  as.view.mapValues(a => AbsClosure(_ => a)).toMap)
           (p1, p2: AbsClosure)
         case _ =>
           val adwns = as.map((pair: (Formula, Value)) => {

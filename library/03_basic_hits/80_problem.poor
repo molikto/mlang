@@ -23,12 +23,31 @@ define innerpath(i j: I): S2_hopf(test_0_to_4(i, j, 1)) =
   transp(k → S2_hopf(test_0_to_4(i, j, k)), 0, S1.base)
 
 
-define problempath000_nf(a b: I) =
+define proklempjth000_nf(j k: I) =
  hcomp(
   hcomp(
     hcomp(
-      S2.surf(b, a)
-      |~a: k → S2.base
+      S2.surf(k, j)
+      |~j: z → S2.base
+      |j: z → S2.surf(k, z)
+    )
+    |~k: z → hcomp(S2.base |~j: ─ → S2.base | j: ─ → S2.base)
+    |j: z → S2.base
+    |~j: z → S2.base
+    |k: z → hcomp(S2.surf(~z, j) |~j: ─ → S2.base | j: z2 → S2.surf(z, z2))
+  )
+  |j: z → hcomp(S2.base | z: ─ → S2.base |~z: ─ → S2.base)
+  |k: z → hcomp(S2.base |~j: ─ → S2.base |z: ─ → S2.base |j∧(~z): ─ → S2.base)
+  |~k: z → hcomp(S2.base |~j: ─ → S2.base | z: ─ → S2.base |j∧ (~z): ─ → S2.base)
+  |~j: ─ → S2.base
+  )
+
+define problempath000_nf_cubicaltt(j k: I) =
+ hcomp(
+  hcomp(
+    hcomp(
+      S2.surf(j, k)
+      |~k: ─ → S2.base
       |a: k → S2.surf(b, k)
     )
     |~b: k → hcomp(S2.base |~a: ─ → S2.base | a: ─ → S2.base)
@@ -46,7 +65,7 @@ define problempath000_nf(a b: I) =
 define problempath000(j k: I) =
   test_0_to_4(k, j, k)
 
-// define problempath000_test: problempath000_nf ≡ problempath000 = ─ → problempath000
+define problempath000_test: problempath000_nf ≡ problempath000 = ─ → problempath000
   
 define problempath00(j k: I) =
   S2_hopf(test_0_to_4(k, j, k))
@@ -54,14 +73,14 @@ define problempath00(j k: I) =
 define problempath_simple(i: I) =
   transp(k → S2_hopf(hcomp(S2.surf(i, k) |~k: ─ → S2.base |k: ─ → S2.base)), 0, S1.base)
 
-define __debug problempath0(j: I) =
-  transp(k → S2_hopf(problempath000_nf(j, k)), 0, S1.base)
+define problempath0(j: I) =
+  transp(k → S2_hopf(test_0_to_4(k, j, k)), 0, S1.base)
 
 define problempath(j: I) =
-  S1_helix(transp(k → S2_hopf(test_0_to_4(k, j, k)), 0, S1.base))
+  S1_helix(transp(k → S2_hopf(problempath000_nf(j, k)), 0, S1.base))
 
 // put _debug after define to normalize it
-define problem: int.pos(zero) ≡ int.pos(zero) =
+define __debug problem: int.pos(zero) ≡ int.pos(zero) =
   i → transp(j → S1_helix(innerpath(i ,j)), 0, int.pos(zero))
 
 

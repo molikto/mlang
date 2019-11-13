@@ -623,7 +623,7 @@ object Value {
     */
   case class Hcomp(@type_annotation @stuck_pos tp: Value, base: Value, faces: AbsClosureSystem) extends Redux {
     val i = index2
-    if (i == 17056) {
+    if (i == 17155) {
       val a = 1
     }
     index2 += 1

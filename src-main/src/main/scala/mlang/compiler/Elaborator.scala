@@ -997,11 +997,16 @@ class Elaborator private(protected override val layers: Layers)
     if (s.modifiers.contains(Declaration.Modifier.__Debug)) {
       Value.NORMAL_FORM_MODEL = true
       val a = ret.layers.head.asInstanceOf[Layer.Defines].terms.find(_.name == s.name).get.ref0.get.value
+      val tp = ret.layers.head.asInstanceOf[Layer.Defines].terms.find(_.name == s.name).get.typ
+      println(reify(tp))
       val time  = System.currentTimeMillis()
-      val nf = a.nf
-      val k = reify(nf)
+      println(reify(a.nf))
+      // val nf = a.whnf.asInstanceOf[PathLambda].body(semantic.Formula.Generic(-1)).whnf
+      // val fs = nf.asInstanceOf[Value.Hcomp].faces
+      // val pair = fs.toSeq.head
+      // val res = pair._2(semantic.Formula.Generic(-2)).restrict(pair._1.normalForm.head).whnf
+      // println(res)
       println(s"DEBUG used time: ${System.currentTimeMillis() - time}")
-      println(k)
       Value.NORMAL_FORM_MODEL = false
     }
     ret
