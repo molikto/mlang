@@ -256,27 +256,22 @@ object Value {
     protected def fswapAndInitContent(s: Self, w: Long, z: Formula): Unit
 
     private[semantic] def getFswap(w: Long, z: Formula): Self = {
-      if (z == Formula.True || z == Formula.False) {
-        // these get cached...
-        getRestrict(Set((w, z == Formula.True)))
+      val spt = support()
+      if (spt.openMetas.nonEmpty) {
+        throw ImplementationLimitationCannotRestrictOpenMeta()
+      }
+      if (!spt.names.contains(w)) {
+        this.asInstanceOf[Self]
       } else {
-        val spt = support()
-        if (spt.openMetas.nonEmpty) {
-          throw ImplementationLimitationCannotRestrictOpenMeta()
-        }
-        if (!spt.names.contains(w)) {
-          this.asInstanceOf[Self]
-        } else {
-          if (fswapCache == null) fswapCache = mutable.Map()
-          val key = (w, z)
-          fswapCache.get(key) match {
-            case Some(r) => r.asInstanceOf[Self]
-            case None =>
-              val n = createNewEmpty()
-              fswapCache.put(key, n)
-              fswapAndInitContent(n, w, z)
-              n
-          }
+        if (fswapCache == null) fswapCache = mutable.Map()
+        val key = (w, z)
+        fswapCache.get(key) match {
+          case Some(r) => r.asInstanceOf[Self]
+          case None =>
+            val n = createNewEmpty()
+            fswapCache.put(key, n)
+            fswapAndInitContent(n, w, z)
+            n
         }
       }
     }
