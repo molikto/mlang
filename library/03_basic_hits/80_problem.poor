@@ -16,6 +16,7 @@ define test_0_to_3: loop_space_3(join_S1_pointed).A =
 define f4: loop_space_3(join_S1_pointed).A ⇒ loop_space_3(S2_pointed).A =
   p → i → j → k → alpha(p(i, j, k))
 
+// turns out this has different canonical form with cubicaltt, but it should works?
 define test_0_to_4: loop_space_3(S2_pointed).A =
   f4(test_0_to_3)
 
@@ -23,7 +24,15 @@ define innerpath(i j: I): S2_hopf(test_0_to_4(i, j, 1)) =
   transp(k → S2_hopf(test_0_to_4(i, j, k)), 0, S1.base)
 
 
-define proklempjth000_nf(j k: I) =
+// in cubicaltt seems it is this:
+/*
+problempath000 :
+  PathP (<a> Path S2 (test0To4 @ 0 @ 0 @ a) (test0To4 @ 1 @ 1 @ a))
+  (<a> (test0To4 @ a @ a @ 0))
+  (<a> (test0To4 @ a @ a @ 1)) =
+  <a b> (test0To4 @ b @ b @ a)
+*/
+define problempath000_nf(j k: I) =
  hcomp(
   hcomp(
     hcomp(
@@ -48,17 +57,17 @@ define problempath000_nf_cubicaltt(j k: I) =
     hcomp(
       S2.surf(j, k)
       |~k: ─ → S2.base
-      |a: k → S2.surf(b, k)
+      |k: ─ → S2.base
     )
-    |~b: k → hcomp(S2.base |~a: ─ → S2.base | a: ─ → S2.base)
-    |a: k → S2.base
-    |~a: k → S2.base
-    |b: k → hcomp(S2.surf(~k, a) |~a: ─ → S2.base | a: k2 → S2.surf(k, k2))
+    |~j: z → hcomp(S2.base |~k: ─ → S2.base | k: y → S2.surf(~z, y))
+    |j: z → hcomp(S2.base |~k: ─ → S2.base |k: k2 → S2.surf(~z, k2))
+    |~k: k → S2.base
+    |k: k → S2.base
   )
-  |a: k → hcomp(S2.base | k: ─ → S2.base |~k: ─ → S2.base)
-  |b: k → hcomp(S2.base |~a: ─ → S2.base |k: ─ → S2.base |a∧(~k): ─ → S2.base)
-  |~b: k → hcomp(S2.base |~a: ─ → S2.base | k: ─ → S2.base |a∧ (~k): ─ → S2.base)
-  |~a: ─ → S2.base
+  |j:  z → hcomp(S2.base |~k: ─ → S2.base |z: ─ → S2.base |k∧(~z): ─ → S2.base)
+  |~j: z → hcomp(S2.base |~k: ─ → S2.base |z: ─ → S2.base |k∧(~z): ─ → S2.base)
+  |~k: ─ → S2.base
+  |k: z → hcomp(S2.base | z: ─ → S2.base |~z: ─ → S2.base)
   )
 
   
@@ -74,13 +83,13 @@ define problempath_simple(i: I) =
   transp(k → S2_hopf(hcomp(S2.surf(i, k) |~k: ─ → S2.base |k: ─ → S2.base)), 0, S1.base)
 
 define problempath0(j: I) =
-  transp(k → S2_hopf(test_0_to_4(k, j, k)), 0, S1.base)
+  transp(k → S2_hopf(problempath000_nf(j, k)), 0, S1.base)
 
 define problempath(j: I) =
   S1_helix(transp(k → S2_hopf(problempath000_nf(j, k)), 0, S1.base))
 
 // put _debug after define to normalize it
-define __debug problem: int.pos(zero) ≡ int.pos(zero) =
+define problem: int.pos(zero) ≡ int.pos(zero) =
   i → transp(j → S1_helix(innerpath(i ,j)), 0, int.pos(zero))
 
 

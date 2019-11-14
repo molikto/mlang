@@ -5,7 +5,7 @@ import mlang.compiler.GenLong.Negative.{dgen, gen}
 import scala.collection.mutable
 import mlang.utils._
 
-val HCOMP_UNIVERSE = false
+val HCOMP_UNIVERSE = true
 
 
 // currently put in a object, becasue this enables us to debug these
@@ -82,7 +82,6 @@ object ValueFibrant {
           case g: GlueType =>
             transpGlue(g, dim, phi, base).whnf
           case Hcomp(Universe(_), b0, faces) =>
-            println("transp hcomp universe")
             if (HCOMP_UNIVERSE) transpHcompUniverse(b0, faces, dim, phi, base).whnf
             else logicError()
           case _: Universe =>
@@ -139,7 +138,6 @@ object ValueFibrant {
                   }).toMap)
                 }
               case Hcomp(u: Universe, b, es) =>
-                println("hcomp hcomp universe")
                 if (HCOMP_UNIVERSE) hcompHcompUniverse(b, es, base, faces)
                 else logicError()
               case g: GlueType =>
@@ -155,12 +153,6 @@ object ValueFibrant {
     val A1 = A.fswap(dim.id, Formula.True)
     val es0 = es.fswap(dim.id, Formula.False)
     val es1 = es.fswap(dim.id, Formula.True)
-
-    if (NORMAL_FORM_MODEL) println("unglue created transp hcomp 1")
-    // this is UnglueU in cubicaltt, the es0 is a system of path lambdas
-    if (u0.isInstanceOf[Transp] && !u0.whnf.isInstanceOf[Glue] && !es0.contains(Formula.True)) {
-      val a = 1
-    }
     val v0 = Unglue(A0, u0, true, es0.view.mapValues(a => () => PathLambda(a)).toMap)
 
     val faces_elim_dim = es.toSeq.map(a => (a._1.elim(dim.id), a._2)).filter(!_._1.nfFalse).toMap
@@ -203,6 +195,12 @@ object ValueFibrant {
           val right = AbsClosure(j =>
             transpFill_inv(j, Formula.False, eq, a)
           )
+      // Hcomp(
+      //   tp(Formula.True),
+      //   Transp(tp, Formula.False, base),
+      //   faces.view.mapValues(f => AbsClosure(i => forward(tp, i, f(i)))).toMap)
+  // def forward(A: AbsClosure, r: Formula, u: Value) =
+  //   Transp(AbsClosure(i => A(Formula.Or(i, r))), r, u)
           val p = AbsClosure(i => {
             comp(AbsClosure(a => eq(Formula.Neg(a))), a,
               adwns.updated(Formula.Neg(i), left).updated(i, right).view.mapValues(v => AbsClosure(j => v(Formula.Neg(j)))).toMap
@@ -229,11 +227,9 @@ object ValueFibrant {
       (pair._1, () => Hcomp(els(Formula.True), u, us))
     })
     val esmap = es.view.mapValues(a => () => PathLambda(a)).toMap
-      if (NORMAL_FORM_MODEL) println("unglue created hcomp hcomp 1")
     val v = Unglue(b, u, true, esmap)
     val vs = us.map((pair: (Formula, AbsClosure)) => {
       (pair._1, pair._2.map(v => {
-        if (NORMAL_FORM_MODEL) println("unglue created hcomp hcomp 2")
         Unglue(b, v, true, esmap)
       }))
     })
@@ -249,7 +245,6 @@ object ValueFibrant {
     val A1 = B1.ty
     val A0 = B0.ty
     // a0: A(i/0)
-    if (NORMAL_FORM_MODEL) println("unglue created transp glue 1")
     val a0 = Unglue(A0, u0, false, B0.faces)
     // defined in phi_elim_i
     def t_tide(trueFace: Value, i: Formula) = {
@@ -302,10 +297,8 @@ object ValueFibrant {
       hfill(Projection(trueFace, 0), u0, faces)
     }
     def t1(trueFace: Value) = t_tide(trueFace)(Formula.True)
-    if (NORMAL_FORM_MODEL) println("unglue created hcomp glue 1")
     val a1 = Hcomp(B.ty, Unglue(B.ty, u0, false, B.faces),
       faces.view.mapValues(_.map(u => {
-        if (NORMAL_FORM_MODEL) println("unglue created hcomp glue 2")
         Unglue(B.ty, u, false, B.faces)
       })).toMap ++
       B.faces.view.mapValues(pair0 => AbsClosure(i => {
@@ -395,7 +388,7 @@ object ValueFibrant {
 
   // here base is of type tp(1), the result is transp_inv(...) => base
   def transpFill_inv(i: Formula, phi: Formula, tp: AbsClosure, base: Value) =
-    Transp(AbsClosure(j => tp(Formula.And(Formula.Neg(i), Formula.Neg(j)))), Formula.Or(i, phi), base)
+    Transp(j => tp(Formula.Neg(Formula.And(Formula.Neg(i), j))), Formula.Or(phi, i), base)
 
   // where i|- A, u: A(i/r), it's type is A(i/1)
   def forward(A: AbsClosure, r: Formula, u: Value) =
