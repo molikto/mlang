@@ -601,7 +601,6 @@ object Value {
   }
 
 
-  var index = 0
   /**
     * whnf: tp on a generic value cannot reduce to a canonical, or base is not canonical in case sum type
     */
@@ -610,11 +609,6 @@ object Value {
       phi: Formula,
       @stuck_pos base: Value // it stuck here on sum type sometimes
   ) extends UnstableOrRedux {
-    val i = index
-    if (i == 7070) {
-      val a = 1
-    }
-    index += 1
     override protected def getWhnf(): Value = {
       val t = transpBody(this)
       if (t == this) this else t.whnf
@@ -627,16 +621,10 @@ object Value {
   }
 
 
-  var index2 = 0
   /**
     * whnf: tp is whnf and not canonical, or tp is sum or u, base is whnf
     */
   case class Hcomp(@type_annotation @stuck_pos tp: Value, base: Value, faces: AbsClosureSystem) extends Redux {
-    val i = index2
-    if (i == 17056) {
-      val a = 1
-    }
-    index2 += 1
     override protected def getWhnf(): Value = {
       val t = hcompBody(this)
       if (t == this) this else t.whnf
@@ -663,7 +651,6 @@ object Value {
   case class Unglue(ty: Value, base: Value, isU: Boolean, @stuck_pos faces: ValueSystem) extends Redux {
     override protected def getWhnf(): Value = {
       val red = faces.find(_._1.nfTrue).map(b => {
-        if (NORMAL_FORM_MODEL) println(s"unglue removed by faces ${isU}")
         if (isU) transp_inv(Formula.False, b._2().whnf.asInstanceOf[PathLambda].body, base).whnf
         else App(Projection(Projection(b._2(), 1), 0), base).whnf
       })
@@ -673,7 +660,6 @@ object Value {
           val bf = base.whnf
           bf match {
             case Glue(b, _) =>
-               if (NORMAL_FORM_MODEL) println(s"unglue removed by glue ${isU}")
                b.whnf
             case _ =>
               if (bf == base) this else Unglue(ty, bf, isU, faces)
