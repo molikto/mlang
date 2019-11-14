@@ -139,9 +139,8 @@ define nat_is_even =
 ┌ zero → bool.true
 └ suc(m) → nat_is_odd(m)
 
-
-
-define inj_suc(#m #n: nat, p: nat.suc(m) ≡ nat.suc(n)): m ≡ n = path_map(nat_pred, p)
+// FIXME(META) when use path_map, it results in a core type check error
+define inj_suc(#m #n: nat, p: nat.suc(m) ≡ nat.suc(n)): m ≡ n = i → nat_pred(p(i))
 
 define discrete_nat: discrete(nat) = a → b → run {
   define znots(n: nat): negate(nat.zero ≡ nat.suc(n)) = eq → run {
@@ -159,7 +158,7 @@ define discrete_nat: discrete(nat) = a → b → run {
   }
 
   define mat(m n: nat): decidable(m ≡ n) ⇒ decidable(suc(m) ≡ suc(n)) =
-  ┌ yes(p) → _.yes(path_map(suc, p))
+  ┌ yes(p) → _.yes(i → suc(p(i)))
   └ no(p) → _.no(x → p(inj_suc(x)))
 
   define rec: (ab: pair(nat, nat)) ⇒ decidable(ab.a ≡ ab.b) =

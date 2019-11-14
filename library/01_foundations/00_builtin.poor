@@ -1,4 +1,3 @@
-
 define is_contr(A: type): type = record {
   field center: A
   field to_center: (a: A) ⇒ center ≡ a
@@ -24,7 +23,7 @@ define equiv_of(A: type): type = record {
 }
 
 // adapted from cubical agda
-define path_to_equiv_not_using__(#A #B: type, E: A ≡ B): equiv(A, B) = run {
+define path_to_equiv(#A #B: type, E: A ≡ B): equiv(A, B) = run {
   define Ei: B ≡ A = i → E(~i)
   define f(x: A): B = transp(E, 0, x)
   define g(y: B): A = transp(i → E(~i), 0, y)

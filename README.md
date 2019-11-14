@@ -10,7 +10,12 @@ see `library` and `tests` folder for sample code
 
 ## current status
 
+cubicaltt: path0 156, path 72
+mlang: path0 69, 
+
 the status and the goal of this project is in constant flux now.
+
+2019-11-09 status: the new HOAS
 
 2019-10-30 status: we have implemented a cubical type theory with a core similar to cubicaltt, but with some elaboration to make it easier to use.
 we implemented Brunerie's number, but sadly it is not computing (just like all other ctt implementations).
@@ -18,17 +23,23 @@ in the past the focus is to get it running to experiment with computation, so th
 
 ## build & run & debug & editor setup
 
-the project is written in Scala and is a standard SBT project. it can be cross compiled to Scala.js and Scala JVM. currently we are only compiling on JVM.
+the project is written in Scala (it use [Dotty](http://dotty.epfl.ch/), future Scala 3) and is a standard SBT project. ~~it can be cross compiled to Scala.js and Scala JVM. currently we are only compiling on JVM.~~
 
-to compile use `sbt mainJVM/compile`
+to compile use ~~`sbt mainJVM/compile`~~ `sbt main/compile`
 
-the project can be imported into IntelliJ IDEA, and to run/debug, just setup a profile to run `mlang.poorparser.Main` with classpath of module `jvm-main`. currently you also need to add vm options `-Xss1G`
+to typecheck the standard library, run ~~`sbt mainJVM/run`~~ `sbt main/run`
 
-if you have trouble compiling inside IntelliJ IDEA (because it has bad cross platform compilation support), you can setup a terminal compile watch with `sbt` then inside it `~mainJVM/compile`, and disable compilation in IntelliJ IDEA's run target.
+~~the project can be imported into IntelliJ IDEA, and to run/debug, just setup a profile to run `mlang.poorparser.Main` with classpath of module `jvm-main`. currently you also need to add vm options `-Xss1G`~~
+
+~~if you have trouble compiling inside IntelliJ IDEA (because it has bad cross platform compilation support), you can setup a terminal compile watch with `sbt` then inside it `~mainJVM/compile`, and disable compilation in IntelliJ IDEA's run target.~~
+
+Dotty lacks IntelliJ IDEA support now, so you need to use VS Code as IDE: run `sbt launchIDE`
+
+### libray code editing
 
 we currently have a `.poor` syntax (because we want a better syntax: a structural editor). it uses some wired unicode characters, so to write library code, import `settings.zip` to IntelliJ IDEA, it defines some "Live Templates", or key shortcuts to input certain characters
 
-thanks to [@ice1000](https://github.com/ice1000), we have syntax highlighting in IntellIJ IDEA, install this plugin: https://github.com/owo-lang/intellij-dtlc
+thanks to [@ice1000](https://github.com/ice1000), we have syntax highlighting for `.poor` files in IntellIJ IDEA, install this plugin: https://github.com/owo-lang/intellij-dtlc
 
 ## help wanted
 
@@ -61,17 +72,6 @@ so some improvements:
     * make the syntax more like in concrete syntax (for example application syntax)
 * pretty print to HTML with clear AST delimitation/boundary, layout it properly, might print it like a tree (see Lamdu project)
 
-
-### new evaluation core
-
-the plan is implement new nominal values so we get rid of the hacky `Derestricted`, also this enables us to 
-continue with a full-reduction mode. this might makes meta ugly, but this is another story
-
-also we can cleanup whnf code out of value, we can review all code in value, conversion checking and computation rules,
-these are the core of the theory
-
-* rationize cubicaltt's computation rules: cubicaltt has a complicated computation rule that is not as clear as in the paper
-  
 
 ## roadmap
 
@@ -173,7 +173,7 @@ we use cumulative universes, done in syntax layer, with `up` operator
 
 ### dbi core syntax `Abstract`
 
-this class is just core syntax in de bruijn index. it is elaborated from concrete syntax. we don't do any manipulation on it, it is just used to eval to values. the conversion from `Abstract` to `Value` is called `eval`, we have currently a compiler by using the Scala compiler directly
+this class is just core syntax in de bruijn index. it is elaborated from concrete syntax. we don't do any manipulation on it, it is just used to eval to values. the conversion from `Abstract` to `Value` is called `eval`, we have currently a compiler by dynamically emitting JVM bytecode.
 
 abstract and values is "type free", let expressions don't have types, etc. the context will have the types when needed. this is natural in a type directed way
 
