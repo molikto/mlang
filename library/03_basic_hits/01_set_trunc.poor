@@ -24,6 +24,6 @@ define elim_set_trunc(
 Bs(
      elim_set_trunc(Bs, g, x),
      elim_set_trunc(Bs, g, y),
-     path_map(elim_set_trunc(Bs, g), p),
-     path_map(elim_set_trunc(Bs, g), q),
+     i → elim_set_trunc(Bs, g)(p(i)),
+     i → elim_set_trunc(Bs, g)(q(i)),
      i, j)

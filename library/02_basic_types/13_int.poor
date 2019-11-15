@@ -87,11 +87,11 @@ define discrete_int: discrete(int) = a → b → run {
   }
 
   define map_pos(m n: nat):  decidable(m ≡ n) ⇒ decidable(int.pos(m) ≡ int.pos(n)) =
-  ┌ yes(p) → _.yes(path_map(pos, p))
+  ┌ yes(p) → _.yes(i → pos(p(i)))
   └ no(p) → _.no(x → p(inj_pos(x)))
 
   define map_negsuc(m n: nat):  decidable(m ≡ n) ⇒ decidable(int.negsuc(m) ≡ int.negsuc(n)) =
-  ┌ yes(p) → _.yes(path_map(negsuc, p))
+  ┌ yes(p) → _.yes(i → negsuc(p(i)))
   └ no(p) → _.no(x → p(inj_negsuc(x)))
   define rec: (ab: pair(int, int)) ⇒ decidable(ab.a ≡ ab.b) =
    ┌ (pos(n), pos(m)) → map_pos(n, m, discrete_nat(n, m))

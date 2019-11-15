@@ -1,4 +1,3 @@
-
 define is_contr(A: type): type = record {
   field center: A
   field to_center: (a: A) ⇒ center ≡ a
