@@ -1,0 +1,83 @@
+
+
+/*
+
+define contextual_base = record {
+  associated_type field A: type
+}
+
+define law_of_association = /* contextual */contextual_base + record {
+  field op: A ⇒ A ⇒ A
+}
+
+define has_identy = law_of_aasociation + record {
+  field id: A
+  field id_left(g: A): g ≡ op(id, g)
+  field id_right(g: A): g ≡ op(g, id)
+}
+
+define has_inverse = has_identity + record {
+  ..
+  ..
+  ..
+}
+
+define id_unique(m n: monoid(!A, !op)): m.id ≡ r.id = {
+
+}
+
+open (m: monoid) {
+  define id_unique(r: monoid(A, op)): r.id ≡ id =
+    path_compose()
+}
+
+define is_unique(#G: group, )
+
+*/
+
+define group = record {
+    field A: type
+    field op: A  ⇒ A ⇒ A
+    field op_associ: (g h k: A) ⇒ op(op(g, h), k) ≡ op(g, op(h, k))
+    field id: A
+    field id_left: (g: A) ⇒ op(id, g) ≡ g
+    field id_right: (g: A) ⇒ op(g, id) ≡ g
+    field inverse: A ⇒ record { r: A, r_left: ..., r_right: ...}
+}
+
+
+define identity_is_unique(
+  #G: group,
+  e: G.A,
+  e_id_left: (g: G.A) ⇒ (G.op(e, g) ≡ g),
+  e_id_right: (g: G.A) ⇒ (G.op(g, e) ≡ g)
+): e ≡ G.id =
+  path_compose(path_reverse(G.id_right(e)), e_id_left(G.id))
+
+
+define inverse_is_unique(
+  #G: group,
+  g h: G.A,
+  il: G.op(g, h) ≡ G.id,
+  ir: G.op(h, g) ≡ G.id
+): h ≡ G.inverse(g) = run {
+  define g_ = G.inverse(g)
+  define t1(i: I) = G.op(h, G.inverse_right(g)(i))
+  // h* (g * g-1)
+  define t2 = path_reverse(path_compose(t1, G.id_right(h)))
+  // h * g * g-1
+  define t3 = path_compose(t2, path_reverse(G.op_associ(h, g, g_)))
+  define t4(i: I) = G.op(ir(i), g_)
+  define t5 = path_compose(t3, t4)
+  define t6 = path_compose(t5, G.id_left(g_))
+  t6
+}
+
+define group_cancellation_right(
+  #G: group,
+  a g h: G.A,
+  G.op(g, a) ≡ G.op(h, a)
+): g ≡ h =
+  // g = g * id = g * (a * a_) = (g * a) * a_ = h * a * a_ = h * (a * a_) = h * id = h
+
+define abort: group = ???

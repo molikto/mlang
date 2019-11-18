@@ -88,40 +88,44 @@ so some improvements:
     * composition structure (hcomp, transp)
     * glue type and univalence, fibrant universe
     * sum type's composition structure, higher inductive types
-* cumulative universe with "lift" operator for global definitions (see [here](https://mazzo.li/epilogue/index.html%3Fp=857&cpage=1.html))
-* think how we can have a syntax for partial elements and dimension
-* think how we can incorporate XTT or/and two level system
-* ~~~~~~~~
-* `match` expressions
-* user defined eliminations
-    * constant projection `square.constant`
-    * projection `1.is_even`
-    * user defined patterns
-    * user defined implicit right form
-* implicit conversions
-* HTML pretty print with inferred types, cross links
-* record calculus (one problem is dependency graph introduces syntax stuff in equality)
-* **SOUNDNESS** core checker, so we check meta solutions. also as a double check of elaboration
-* **SOUNDNESS** positivity checker
-* **SOUNDNESS** coverage & confluence checker for overlapping patterns and for hits
-* **SOUNDNESS** termination checking: currently you don't need modifier `inductively` to write a recursive type, with termination checking, you should not be able to do this
-    * relax the syntax check for inductive definitions
-* more recursive types
-    * inductive families of two flavor
-    * inductive-inductive
-    * inductive-recursive
-    * is [this](https://arend.readthedocs.io/en/latest/language-reference/definitions/hits/#conditions) sound?
-    * coinductive types?
-* usability
-    * disallow or warn naming shadowing
-    * better error reporting
-* structural editor
-    * modules and compile unit
-    * editor diractives and name sortcuts
-* testing
+* CORE THEORY EXTENSIONS
+    * **RESEARCH** cumulative universe with "lift" operator for global definitions (see [here](https://mazzo.li/epilogue/index.html%3Fp=857&cpage=1.html)) and subtyping
+        * how we can incorporate XTT or/and two level system, or Arend style, or even both
+    * **RESEARCH** think how we can have a theory/syntax for partial elements and dimension
+    * **RESEARCH** efficient computation for Brunerie's number
+    * more recursive types
+        * inductive families of two flavor
+        * inductive-inductive
+        * inductive-recursive
+        * is [this](https://arend.readthedocs.io/en/latest/language-reference/definitions/hits/#conditions) sound?
+        * coinductive types?
+* MORE ELABORATION
+    * `match` expressions
+    * **RESEARCH** calculus of elaboration
+        * refactor implicit arguments
+        * implicit projection *for example group has inverse defined as a record of element with properties, `g.inverse`, `g.inverse::left`, `g.inverse::`*
+        * constant projection `square.constant`
+        * projection `1.is_even`
+        * user defined patterns (this might be simple!)
+        * user defined implicit right form
+    * implicit conversions
+    * record calculus (one problem is dependency graph introduces syntax stuff in equality)
+* SOUNDNESS
+    * core checker, so we check meta solutions. also as a double check of elaboration
+    * positivity checker
+    * coverage & confluence checker for overlapping patterns and for hits
+    * termination checking: currently you don't need modifier `inductively` to write a recursive type, with termination checking, you should not be able to do this
+* USABILITY
+    * HTML pretty print with inferred types, cross links, elaborated information, cross-linked core term
+    * error reporting
+        * disallow or warn naming shadowing
+        * better error reporting
+    * structural editor
+        * modules and compile unit
+        * editor diractives and name sortcuts
+* TESTING
     * translate to Agda to do correctness checking
-    * core type checker and core type check 
-* math
+* MATH
     * quick sort and properties
     * symmetry book
     * cubical Agda

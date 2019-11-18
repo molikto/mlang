@@ -676,6 +676,7 @@ class Elaborator private(protected override val layers: Layers)
       val (tt, ta) = infer(term)
       if (subTypeOf(tt, cp)) ta
       else {
+        info(term.toString)
         info(s"${reify(tt.whnf)}")
         info(s"${reify(cp.whnf)}")
         if (debug.enabled) {
