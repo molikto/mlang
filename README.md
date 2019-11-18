@@ -105,6 +105,7 @@ so some improvements:
         * is [this](https://arend.readthedocs.io/en/latest/language-reference/definitions/hits/#conditions) sound?
         * coinductive types?
 * MORE ELABORATION
+    * record calculus (one problem is dependency graph introduces syntax stuff in equality)
     * `match` expressions
     * **RESEARCH** calculus of elaboration
         * refactor implicit arguments
@@ -114,16 +115,17 @@ so some improvements:
         * projection `1.is_even`
         * user defined patterns (this might be simple!)
         * user defined implicit right form
+        * `g: G` typing notation with context-association
     * implicit conversions
-    * record calculus (one problem is dependency graph introduces syntax stuff in equality)
 * USABILITY
     * HTML pretty print with inferred types, cross links, elaborated information, cross-linked core term
     * error reporting
         * disallow or warn naming shadowing
         * better error reporting
+    * modules and compile unit
     * structural editor
-        * modules and compile unit
         * editor diractives and name sortcuts
+    * compilation
 * TESTING
     * translate to Agda to do correctness checking
 * MATH
@@ -330,3 +332,13 @@ we have `hcom`, `coe` as eliminations, in a normalized closed value, they should
 how to verify computation rules: they must preserve types, they must preserve properties of kan ops (stationary hcom/coe and face hcom)
 
 
+
+## other pls
+
+
+* Coq
+* Agda
+* Lean
+* Idris
+* cubicaltt
+* red-tt
