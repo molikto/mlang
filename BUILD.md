@@ -12,7 +12,7 @@ to typecheck the standard library, run ~~`sbt mainJVM/run`~~ `sbt main/run`
 
 Dotty lacks IntelliJ IDEA support now, so you need to use VS Code as IDE: run `sbt launchIDE`
 
-# Edit mlang code
+## Edit mlang code
 
 we currently have a `.poor` syntax (because we want a better syntax: a structural editor). it uses some wired unicode characters, so to write library code, import `settings.zip` to IntelliJ IDEA, it defines some "Live Templates", or key shortcuts to input certain characters
 
