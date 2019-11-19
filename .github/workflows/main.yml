@@ -1,5 +1,3 @@
-name: build & typecheck
-
 on: [push]
 
 jobs:
