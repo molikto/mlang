@@ -14,4 +14,4 @@ jobs:
       with:
         java-version: 1.8
     - name: Type check library
-      run: sbt main/run library
+      run: sbt main/run
