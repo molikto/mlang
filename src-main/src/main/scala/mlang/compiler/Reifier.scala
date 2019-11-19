@@ -17,12 +17,10 @@ private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorCon
 
   override type Self <: ReifierContext
 
-  val metas = mutable.ArrayBuffer.empty[Abstract]
-
   protected def reifyMetas(): Seq[Abstract] = {
-    val res = metas.toSeq.drop(layers.head.metas.freezeSize)
+    val res = layers.head.metas.metas.drop(layers.head.metas.freezeSize)
     freeze()
-    res
+    res.map(_.code).toSeq
   }
 
   def reifyReference(r: Value.Reference): Abstract.Reference = {
@@ -153,7 +151,9 @@ private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorCon
                 solvedMeta(m, reify(c))
             }
           case _: MetaState.Open =>
-            rebindOrAddMeta(m, null)
+            val t = rebindMetaOpt(m)
+            assert(t.isDefined)
+            t.get
         }
       case g: Value.Generic =>
         rebindGeneric(g)

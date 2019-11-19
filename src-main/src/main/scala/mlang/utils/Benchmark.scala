@@ -33,19 +33,21 @@ object Benchmark {
     }
 
     @inline def apply[T](a: => T): T = {
-      a
-      // val p = _current
-      // try {
-      //   val instance = instances.find(_.parent.eq(_current)).get
-      //   _current = instance
-      //   val t0 = System.currentTimeMillis()
-      //   val res = a
-      //   instance._t += (System.currentTimeMillis() - t0)
-      //   res
-      // } finally {
-      //   println
-      //   _current = p
-      // }
+       val p = _current
+       try {
+         instances.find(_.parent.eq(_current)) match {
+           case Some(instance) =>
+             _current = instance
+             val t0 = System.currentTimeMillis()
+             val res = a
+             instance._t += (System.currentTimeMillis() - t0)
+             res
+           case None =>
+             logicError()
+         }
+       } finally {
+         _current = p
+       }
     }
   }
 

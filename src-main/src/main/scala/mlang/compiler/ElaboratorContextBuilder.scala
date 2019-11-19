@@ -54,7 +54,7 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
     (ctx, v)
   }
 
-  def newReference(v: Value = null, name: Name = null): Value.Reference =
+  private def newReference(v: Value = null, name: Name = null): Value.Reference =
     if (layers.size == 1) {
       val g = Value.GlobalReference(v)
       g.name = name
@@ -93,16 +93,17 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
   }
 
   // declare first, used possiblely by a recursive definition, or declaration only, which then used by other recursive definitions
-  def newDeclaration(name: Name, typ: Value) : (Self, Int, Value.Generic) = {
+  def newDeclaration(name: Name, typ: Value, isAxiom: Boolean = false) : (Self, Int, Value.Generic) = {
     layers.head match {
       case Layer.Defines(metas, defines) =>
         defines.find(_.name.intersect(name)) match {
           case Some(_) => logicError()
           case _ =>
+            if (isAxiom && layers.size != 1) logicError()
             val g = Value.Generic(gen(), typ)
             val p = ParameterBinder(name, g)
             val r = newReference(g)
-            (Layer.Defines(metas, defines :+ DefineItem(p, r, null)) +: layers.tail, defines.size, g)
+            (Layer.Defines(metas, defines :+ DefineItem(p, r, null, isAxiom)) +: layers.tail, defines.size, g)
         }
       case _ => logicError()
     }
@@ -112,10 +113,11 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
     layers.head match {
       case Layer.Defines(metas, defines) =>
         defines(index) match {
-          case DefineItem(typ0, r, c) =>
+          case DefineItem(typ0, r, c, ia) =>
             assert(typ0.name == name)
             assert(r.value == typ0.value)
             assert(null == c)
+            assert(!ia)
             r.value = v
             (Layer.Defines(metas, defines.updated(index, DefineItem(typ0, r, code))) +: layers.tail, r)
         }

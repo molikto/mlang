@@ -21,13 +21,12 @@ object Main extends Parser {
         } else {
           ""
         }
-        var cause: Exception = null
-        try {
-          Elaborator.topLevel().check(module)
-        } catch {
-          case e: Exception =>
-            cause = e
+        var cause: Throwable = null
+        scala.util.Try(Elaborator.topLevel().check(module)) match {
+          case scala.util.Success(v) =>
+          case scala.util.Failure(e) =>
             fails = e.getClass.getSimpleName
+            cause = e
         }
         if (fails != exp) {
           val msg = if (shouldFails) {

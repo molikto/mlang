@@ -33,7 +33,7 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
     override def whitespaceChar: Parser[Char] = elem("", _ == '│') | super.whitespaceChar
   }
 
-  lexical.reserved ++= List("define", "declare", "const_projections", "parameters", "case", "__debug", "as", "transp", "hcomp", "comp", "hfill", "fill", "field", "ignored", "match", "record", "type", "sum", "inductively", "run", "with_constructors", "I", "_", "make", "glue_type", "glue", "unglue")
+  lexical.reserved ++= List("without_define", "define", "declare", "const_projections", "parameters", "case", "__debug", "as", "transp", "hcomp", "comp", "hfill", "fill", "field", "ignored", "match", "record", "type", "sum", "inductively", "run", "with_constructors", "I", "_", "make", "glue_type", "glue", "unglue")
   lexical.delimiters ++= List("{", "}", "[", "]", ":", ",", "(", ")", "#", "≡", "─", "???", "┬", "┌", "⊏", "└", "├", "⇒", "→", "+", "-", ";", "=", "@", "\\", ".", "|", "^", "∨", "∧", "~")
 
   def delimited[T](a: String, t: Parser[T], b: String): Parser[T] = a ~> t <~ b
@@ -43,6 +43,7 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
 
   lazy val defineModifiers: PackratParser[Seq[Declaration.Modifier]] =
     rep(
+      keyword("without_define") ^^ { _ => Declaration.Modifier.WithoutDefine : Declaration.Modifier } |
       keyword("inductively") ^^ { _ => Declaration.Modifier.Inductively : Declaration.Modifier } |
       keyword("with_constructor") ^^ { _ => Declaration.Modifier.WithConstructor} |
       keyword("__debug") ^^ { _ => Declaration.Modifier.__Debug }

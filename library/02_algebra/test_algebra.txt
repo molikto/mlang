@@ -1,5 +1,7 @@
 
 
+define test = type
+
 /*
 
 define contextual_base = record {
@@ -33,7 +35,6 @@ open (m: monoid) {
 
 define is_unique(#G: group, )
 
-*/
 
 define group = record {
     field A: type
@@ -42,7 +43,7 @@ define group = record {
     field id: A
     field id_left: (g: A) ⇒ op(id, g) ≡ g
     field id_right: (g: A) ⇒ op(g, id) ≡ g
-    field inverse: A ⇒ record { r: A, r_left: ..., r_right: ...}
+    //field inverse: A ⇒ record { r: A, r_left: ..., r_right: ...}
 }
 
 
@@ -73,7 +74,6 @@ define inverse_is_unique(
   t6
 }
 
-/*
 define group_cancellation_right(
   #G: group,
   a g h: G.A,

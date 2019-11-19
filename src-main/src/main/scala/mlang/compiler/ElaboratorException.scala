@@ -68,6 +68,8 @@ object ElaboratorException {
 
   case class AlreadyDeclared() extends ElaboratorException
   case class AlreadyDefined() extends ElaboratorException
+  case class TryingToDefineAxiom() extends ElaboratorException
+  case class AxiomCanOnlyBeInTopLevel() extends ElaboratorException
   case class NotDeclared() extends ElaboratorException
   case class SeparateDefinitionCannotHaveTypesNow() extends ElaboratorException
   case class DimensionLambdaCannotBeImplicit() extends ElaboratorException

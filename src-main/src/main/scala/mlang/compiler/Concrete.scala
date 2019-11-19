@@ -104,6 +104,7 @@ object Concrete {
       case object WithConstructor extends Modifier
       case object Inductively extends Modifier
       case object __Debug extends Modifier
+      case object WithoutDefine extends Modifier
     }
 
     sealed trait Single extends Declaration  {

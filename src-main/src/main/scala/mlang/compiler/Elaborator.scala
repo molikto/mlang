@@ -835,6 +835,9 @@ class Elaborator private(protected override val layers: Layers)
         //        if (ms.contains(Modifier.WithConstructor)) {
         //        }
         // a inductive type definition
+        if (ms.contains(Modifier.WithoutDefine)) {
+          throw ElaboratorException.ForbiddenModifier()
+        }
         var inductively: IndState = IndState.stop
         def rememberInductivelyBy(ty: Abstract, self: Value) = {
           inductively = if (ms.contains(Modifier.Inductively)) {
@@ -850,6 +853,8 @@ class Elaborator private(protected override val layers: Layers)
           case Some((index, item)) =>
             if (item.isDefined) {
               throw ElaboratorException.AlreadyDefined()
+            } else if (item.isAxiom) {
+              throw ElaboratorException.TryingToDefineAxiom()
             }
             info(s"check defined $name")
             if (ps.nonEmpty || t0.nonEmpty) throw ElaboratorException.SeparateDefinitionCannotHaveTypesNow()
@@ -918,13 +923,17 @@ class Elaborator private(protected override val layers: Layers)
             throw ElaboratorException.AlreadyDeclared()
           case None =>
             info(s"declare $name")
-            if (ms.exists(_ != Modifier.__Debug)) throw ElaboratorException.ForbiddenModifier()
+            if (ms.exists(_ != Modifier.WithoutDefine)) throw ElaboratorException.ForbiddenModifier()
+            val isAxiom = ms.contains(Modifier.WithoutDefine)
+            if (isAxiom && !topLevel) {
+              throw ElaboratorException.AxiomCanOnlyBeInTopLevel()
+            }
             val (_, ta) = inferTelescope(NameType.flatten(ps), t)
             // info("type:"); print(ta)
             freeze()
             val tv = eval(ta)
-            val (ctx, index, generic) = newDeclaration(name, tv)
-            info(s"declared $name")
+            val (ctx, index, generic) = newDeclaration(name, tv, isAxiom)
+            info(s"declared ${if (isAxiom) "axiom " else ""}$name")
             ctx
         }
     }
@@ -966,7 +975,7 @@ class Elaborator private(protected override val layers: Layers)
     if (layer.metas.metas.exists(_.code == null)) {
       logicError()
     }
-    if (layer.terms.exists(!_.isDefined)) {
+    if (layer.terms.exists(a => !a.isDefined && !a.isAxiom)) {
       throw ElaboratorException.DeclarationWithoutDefinition()
     }
     (ctx, layer.metas.metas.map(_.code).toSeq, layer.terms.map(_.code))

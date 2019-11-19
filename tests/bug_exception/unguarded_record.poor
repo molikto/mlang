@@ -2,6 +2,7 @@
 
 // this loops, just like Agda, eta for recursive record, maybe we should mark non-guarded records and just say they are empty
 
+// FIXME unguarded record
 define err: type = record {
   field a: err
 }
