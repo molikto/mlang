@@ -31,6 +31,7 @@ object Main extends Parser {
         }
         if (fails != exp) {
           val msg = if (shouldFails) {
+            if (cause != null) cause.printStackTrace()
             if (fails == "") {
               "expecting to fail"
             } else {

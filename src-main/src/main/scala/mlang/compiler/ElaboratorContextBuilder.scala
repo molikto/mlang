@@ -54,6 +54,14 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
     (ctx, v)
   }
 
+  def newReference(v: Value = null, name: Name = null): Value.Reference =
+    if (layers.size == 1) {
+      val g = Value.GlobalReference(v)
+      g.name = name
+      g
+    }
+    else Value.LocalReference(v)
+
   def lookupDefined(a: Name): Option[(Int, DefineItem)] = layers.head match {
     case Layer.Defines(_, defines) =>
       val index = defines.indexWhere(_.name.intersect(a))
@@ -66,35 +74,25 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
     case _ => logicError()
   }
 
+
   def newDefinesLayer(): Self = Layer.Defines(createMetas(), Seq.empty) +: layers
 
-  def newDefinition(name: Name, typ: Value, v: Value.Reference) : (Self, Int, Value.Generic) = {
+  // give a definition with body
+  def newDefinition(name: Name, typ: Value, v: Value, code: dbi.Abstract) : (Self, Int, Value.Generic) = {
     layers.head match {
       case Layer.Defines(metas, defines) =>
         defines.find(_.name.intersect(name)) match {
           case Some(_) => logicError()
           case _ =>
             val g = Value.Generic(gen(), typ)
-            (Layer.Defines(metas, defines :+ DefineItem(ParameterBinder(name, g), Some(v))) +: layers.tail, defines.size, g)
+            val r = newReference(v)
+            (Layer.Defines(metas, defines :+ DefineItem(ParameterBinder(name, g), r, code)) +: layers.tail, defines.size, g)
         }
       case _ => logicError()
     }
   }
 
-  def newDefinitionChecked(index: Int, name: Name, v: Value.Reference) : Self = {
-    layers.head match {
-      case Layer.Defines(metas, defines) =>
-        defines(index) match {
-          case DefineItem(typ0, None) =>
-            assert(typ0.name == name)
-            Layer.Defines(metas, defines.updated(index, DefineItem(typ0, Some(v)))) +: layers.tail
-          case _ =>
-            logicError()
-        }
-      case _ => logicError()
-    }
-  }
-
+  // declare first, used possiblely by a recursive definition, or declaration only, which then used by other recursive definitions
   def newDeclaration(name: Name, typ: Value) : (Self, Int, Value.Generic) = {
     layers.head match {
       case Layer.Defines(metas, defines) =>
@@ -103,11 +101,28 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
           case _ =>
             val g = Value.Generic(gen(), typ)
             val p = ParameterBinder(name, g)
-            (Layer.Defines(metas, defines :+ DefineItem(p, None)) +: layers.tail, defines.size, g)
+            val r = newReference(g)
+            (Layer.Defines(metas, defines :+ DefineItem(p, r, null)) +: layers.tail, defines.size, g)
         }
       case _ => logicError()
     }
   }
+
+  def newDefinitionChecked(index: Int, name: Name, v: Value, code: dbi.Abstract) : (Self, Value.Reference) = {
+    layers.head match {
+      case Layer.Defines(metas, defines) =>
+        defines(index) match {
+          case DefineItem(typ0, r, c) =>
+            assert(typ0.name == name)
+            assert(r.value == typ0.value)
+            assert(null == c)
+            r.value = v
+            (Layer.Defines(metas, defines.updated(index, DefineItem(typ0, r, code))) +: layers.tail, r)
+        }
+      case _ => logicError()
+    }
+  }
+
 
 
 

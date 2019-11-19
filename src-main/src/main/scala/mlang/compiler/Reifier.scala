@@ -150,11 +150,10 @@ private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorCon
               case None =>
                 // TODO [issue 2] add to the level where it can be defined with minimal dependency
                 // find proper level, and use `diff` to correct the dbi
-                metas.append(reify(c))
-                solvedMeta(m)
+                solvedMeta(m, reify(c))
             }
           case _: MetaState.Open =>
-            rebindOrAddMeta(m)
+            rebindOrAddMeta(m, null)
         }
       case g: Value.Generic =>
         rebindGeneric(g)
@@ -214,7 +213,7 @@ private class ReifierContextBottom(layersBefore: Layers) extends ReifierContext 
   def saveOutOfScopeValue(r: Value.Reference): Unit = {
     val index = terms.size
     debug(s"out of scope value saved??", 2)
-    terms.append(DefineItem(ParameterBinder(Name.empty, Value.Generic(GenLong.Negative.gen(), null)), Some(r)))
+    terms.append(DefineItem(ParameterBinder(Name.empty, Value.Generic(GenLong.Negative.gen(), null)), r, null))
     val abs = if (r.value == self) {
       None : Option[Abstract]
     } else {

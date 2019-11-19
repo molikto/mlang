@@ -9,7 +9,9 @@ import mlang.utils._
 import scala.collection.mutable
 
 
-class MetasState(val metas: mutable.ArrayBuffer[(Name, Value.Meta)], var frozen: Int) {
+case class MetaBinder(name: Name, value: Value.Meta, var code: dbi.Abstract /* is null when value is open */)
+
+class MetasState(val metas: mutable.ArrayBuffer[MetaBinder], var frozen: Int) {
   def debug_allFrozen: Boolean = metas.size == frozen
 
   def freeze(): Seq[Value.Meta] = {
@@ -29,9 +31,9 @@ class MetasState(val metas: mutable.ArrayBuffer[(Name, Value.Meta)], var frozen:
   def nonEmpty: Boolean = metas.nonEmpty
   def head: Value.Meta = metas.head._2
 
-  def append(a: Value.Meta): Unit = {
+  def append(a: Value.Meta, code: dbi.Abstract): Unit = {
     if (debug_final) logicError()
-    metas.append((GenName(), a))
+    metas.append(MetaBinder(GenName(), a, null))
   }
 }
 
@@ -47,13 +49,14 @@ case class DimensionBinder(name: Name, value: semantic.Formula.Generic) extends 
   def id: Long = value.id
 }
 
-// a defined term acts like a parameter when it doesn't have a body
-case class DefineItem(typ0: ParameterBinder, ref0: Option[Value.Reference]) {
+// a defined term acts like a reference to parameter when it doesn't have a body
+// the parameter will read back to the reference again
+// so afterwards, we change the body of the reference and all is good silently
+case class DefineItem(typ0: ParameterBinder, ref: Value.Reference, code: dbi.Abstract) {
   def typ: Value = typ0.value.typ
   def id: Long = typ0.id
   def name: Name = typ0.name
-  def isDefined = ref0.isDefined
-  def ref = ref0.getOrElse(typ0.value)
+  def isDefined = ref.value != typ0.value
 }
 
 sealed trait Layer {

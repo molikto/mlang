@@ -25,7 +25,7 @@ trait CoreChecker extends ElaboratorContextBuilder
   def newMetas(abs: Seq[Abstract]): Self = {
     // FIXME(META) should do this recursively
     abs.foreach(a => {
-      solvedMeta(Value.Meta.solved(eval(a)))
+      solvedMeta(Value.Meta.solved(eval(a)), a)
     })
     this.asInstanceOf[Self]
   }

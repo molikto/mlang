@@ -20,7 +20,7 @@ trait ElaboratorContextRebind extends ElaboratorContextBase {
         case d: Layer.Defines =>
           var ll = d.terms
           while (ll.nonEmpty && binder == null) {
-            ll.head.ref0.flatMap(a => lookupMatched(a, v, up)) match {
+            lookupMatched(ll.head.ref, v, up) match {
               case Some(asgs) =>
                 index = i
                 binder = Abstract.Reference(up, index)

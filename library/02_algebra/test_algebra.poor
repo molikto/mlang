@@ -73,6 +73,7 @@ define inverse_is_unique(
   t6
 }
 
+/*
 define group_cancellation_right(
   #G: group,
   a g h: G.A,
@@ -80,4 +81,7 @@ define group_cancellation_right(
 ): g ≡ h =
   // g = g * id = g * (a * a_) = (g * a) * a_ = h * a * a_ = h * (a * a_) = h * id = h
 
+
 define abort: group = ???
+
+*/

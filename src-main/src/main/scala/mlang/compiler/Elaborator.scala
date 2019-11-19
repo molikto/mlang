@@ -816,72 +816,20 @@ class Elaborator private(protected override val layers: Layers)
     }
   }
 
-  private def newReference(v: Value = null, name: Name = null): Value.Reference =
-    if (layers.size == 1) {
-      val g = Value.GlobalReference(v)
-      g.name = name
-      g
-    }
-    else Value.LocalReference(v)
+
 
 
   // should we make sure type annotation is the minimal type?
   // ANS: we don't and we actually cannot
   private def checkDeclaration(
       s: Declaration.Single,
-      mis: mutable.ArrayBuffer[CodeInfo[Value.Meta]],
-      vis: mutable.ArrayBuffer[DefinitionInfo], topLevel: Boolean): Self = {
+       topLevel: Boolean): Self = {
     // @syntax_creation
     def wrapBody(t: Concrete, imp: Seq[Boolean]): Concrete = if (imp.isEmpty) t else wrapBody(Concrete.Lambda(Name.empty, imp.last, false, t), imp.dropRight(1))
-    def appendMetas(ms: Seq[Value.Meta]): Unit = {
-      for (m <- ms) {
-        mis.append(CodeInfo(reify(m.solved), m))
-      }
-    }
-    def reevalStuff(ctx: Elaborator, changed: Dependency): Unit = {
-      val done = mutable.ArrayBuffer.empty[Dependency]
-      // the reason it needs to rec, is that we have whnf remembered
-      def rec(c: Dependency): Unit = {
-        done.append(c)
-        for (i <- mis.indices) {
-          val m = mis(i)
-          // FIXME should we also consider meta here?
-          val handle = Dependency(i, 0, DependencyType.Meta)
-          if (!done.contains(handle) && m.dependencies.contains(changed)) {
-            m.t.state = semantic.MetaState.Closed(ctx.eval(m.code))
-            rec(handle)
-          }
-        }
-        for (i <- vis.indices) {
-          val v = vis(i)
-          val handle = Dependency(i, 0, DependencyType.Value)
-          if (!done.contains(handle)) {
-            var needs = false
-            if (v.typ.dependencies.contains(changed)) needs = true
-            v.code match {
-              case Some(value) => // if references to self, already handled
-                if (value.dependencies.contains(changed)) needs = true
-              case _ =>
-            }
-            if (needs) {
-              info(s"re-eval dependency ${ctx.layers.head.asInstanceOf[Layer.Defines].terms(i).name}")
-              v.typ.t.typ = ctx.eval(v.typ.code)
-              v.code match {
-                case Some(value) => // if references to self, already handled
-                  value.t.value = ctx.eval(value.code)
-                case _ =>
-              }
-              rec(handle)
-            }
-          }
-        }
-      }
-      rec(changed)
-    }
     if (s.modifiers.contains(Declaration.Modifier.__Debug)) {
       val a = 1
     }
-    val ret = s match {
+    val ret: Elaborator = s match {
       case Declaration.Define(ms, name, ps, t0, v) =>
         // TODO implement with constructor
         //        if (ms.contains(Modifier.WithConstructor)) {
@@ -898,7 +846,7 @@ class Elaborator private(protected override val layers: Layers)
           } else IndState.stop
           inductively
         }
-        val ret = lookupDefined(name) match {
+        val ret: Elaborator = lookupDefined(name) match {
           case Some((index, item)) =>
             if (item.isDefined) {
               throw ElaboratorException.AlreadyDefined()
@@ -908,12 +856,9 @@ class Elaborator private(protected override val layers: Layers)
             // FIXME it is an example why define layers should also save all code, this way the reify bellow is not necessary
             val va = check(v, item.typ, Seq.empty, rememberInductivelyBy(reify(item.typ), item.ref))
             // info("body:"); print(va)
-            appendMetas(freeze())
-            val ref = newReference(name = name)
-            val ctx = newDefinitionChecked(index, name, ref)
-            ref.value = ctx.eval(va)
-            vis(index).code = Some(CodeInfo(va, ref))
-            reevalStuff(ctx, Dependency(index, 0, DependencyType.Value))
+            freeze()
+            val (ctx, _) = newDefinitionChecked(index, name, eval(va), va)
+            // reevalStuff(ctx, Dependency(index, 0, DependencyType.Value))
             info(s"checked $name")
             ctx
           case None => t0 match {
@@ -923,11 +868,9 @@ class Elaborator private(protected override val layers: Layers)
               val pps = NameType.flatten(ps)
               val (_, ta) = inferTelescope(pps, t)
               // info("type:"); print(ta)
-              appendMetas(freeze())
+              freeze()
               val tv = eval(ta)
               val (ctx, index, generic) = newDeclaration(name, tv) // allows recursive definitions
-              fillTo(vis, index); assert(vis(index) == null)
-              vis.update(index, DefinitionInfo(None, CodeInfo(ta, generic)))
               val lambdaNameHints = pps.map(_._2) ++ (t match {
                 case Concrete.Function(d, _) =>
                   NameType.flatten(d).map(_._2)
@@ -935,28 +878,23 @@ class Elaborator private(protected override val layers: Layers)
               })
               val va = ctx.check(wrapBody(v, pps.map(_._1)), tv, lambdaNameHints, rememberInductivelyBy(ta, generic))
               // info("body:"); print(va)
-              appendMetas(ctx.freeze())
-              val ref = newReference(name = name)
-              val ctx2 = ctx.newDefinitionChecked(index, name, ref)
-              ref.value = ctx2.eval(va) // we want to eval it under the context with reference to itself
-              vis(index).code = Some(CodeInfo(va, ref))
-              // you don't need to reevaluate stuff here, no one reference me now!
-
+              ctx.freeze()
+              val (ctx2, ref) = ctx.newDefinitionChecked(index, name, ctx.eval(va), va)
               // some definition is specially treated, they are defined in code, but we need to reference them in evaluator.
               // these definition should not have re-eval behaviour.
               // TODO add a primitive modifier so that no error happens with this
               if (name == Name(Text("fiber_at"))) {
                 assert(BuiltIn.fiber_at == null)
-                BuiltIn.fiber_at = ref.value
+                BuiltIn.fiber_at = ref
               } else if (name == Name(Text("equiv"))) {
                 assert(BuiltIn.equiv == null)
-                BuiltIn.equiv = ref.value
+                BuiltIn.equiv = ref
               } else if (name == Name(Text("equiv_of"))) {
                 assert(BuiltIn.equiv_of == null)
-                BuiltIn.equiv_of = ref.value
+                BuiltIn.equiv_of = ref
               } else if (name == Name(Text("path_to_equiv"))) {
                 assert(BuiltIn.path_to_equiv == null)
-                BuiltIn.path_to_equiv = ref.value
+                BuiltIn.path_to_equiv = ref
               }
               info(s"defined $name")
               ctx2
@@ -966,11 +904,8 @@ class Elaborator private(protected override val layers: Layers)
               val (ta, va) = inferTelescope(NameType.flatten(ps), t0, v)
               // info("type:" + ta)
               // info("body:"); print(va)
-              appendMetas(freeze())
-              val ref = newReference(eval(va), name = name)
-              val (ctx, index, generic) = newDefinition(name, eval(ta), ref)
-              fillTo(vis, index); assert(vis(index) == null)
-              vis.update(index, DefinitionInfo(Some(CodeInfo(va, ref)), CodeInfo(ta, generic)))
+              freeze()
+              val (ctx, index, generic) = newDefinition(name, eval(ta), eval(va), va)
               info(s"inferred $name")
               ctx
           }
@@ -986,18 +921,16 @@ class Elaborator private(protected override val layers: Layers)
             if (ms.exists(_ != Modifier.__Debug)) throw ElaboratorException.ForbiddenModifier()
             val (_, ta) = inferTelescope(NameType.flatten(ps), t)
             // info("type:"); print(ta)
-            appendMetas(freeze())
+            freeze()
             val tv = eval(ta)
             val (ctx, index, generic) = newDeclaration(name, tv)
-            fillTo(vis, index); assert(vis(index) == null)
-            vis.update(index, DefinitionInfo(None, CodeInfo(ta, generic)))
             info(s"declared $name")
             ctx
         }
     }
     if (s.modifiers.contains(Declaration.Modifier.__Debug)) {
       Value.NORMAL_FORM_MODEL = true
-      val a = ret.layers.head.asInstanceOf[Layer.Defines].terms.find(_.name == s.name).get.ref0.get.value
+      val a = ret.layers.head.asInstanceOf[Layer.Defines].terms.find(_.name == s.name).get.ref.value
       val time  = System.currentTimeMillis()
       println(reify(a.whnf))
       // val nf = a.whnf.asInstanceOf[PathLambda].body(semantic.Formula.Generic(-1)).whnf
@@ -1025,16 +958,18 @@ class Elaborator private(protected override val layers: Layers)
     }
     val seq = seq0.flatMap(a => flatten(a, Seq.empty))
     var ctx = this
-    val ms = mutable.ArrayBuffer.empty[CodeInfo[Value.Meta]]
-    val vs = mutable.ArrayBuffer.empty[DefinitionInfo]
     for (s <- seq) {
-      val ctx0 = ctx.checkDeclaration(s, ms, vs, topLevel)
+      val ctx0 = ctx.checkDeclaration(s, topLevel)
       ctx = ctx0
     }
-    if (vs.exists(a => a.code.isEmpty)) {
+    val layer = ctx.layers.head.asInstanceOf[Layer.Defines]
+    if (layer.metas.metas.exists(_.code == null)) {
+      logicError()
+    }
+    if (layer.terms.exists(!_.isDefined)) {
       throw ElaboratorException.DeclarationWithoutDefinition()
     }
-    (ctx, ms.map(_.code).toSeq, vs.map(_.code.get.code).toSeq)
+    (ctx, layer.metas.metas.map(_.code).toSeq, layer.terms.map(_.code))
   }
 
 
@@ -1053,108 +988,4 @@ class Elaborator private(protected override val layers: Layers)
   def check(m: Module): Elaborator = Benchmark.TypeChecking {
     checkDeclarations(m.declarations, true)._1
   }
-
-
-  // debug metthods
-  def loopType(a: semantic.AbsClosure): Value = loopBase(a(semantic.Formula.Generic(-Random.nextLong(Long.MaxValue / 2))))
-  def loopBase(k: Value): Value = {
-    k.whnf match {
-      case h: Value.Hcomp =>
-        h.tp.whnf match {
-          case a: Value.Sum =>
-            if (a.hit) {
-              loopBase(h.base)
-            } else {
-              loopBase(h.base)
-            }
-          case a: Value.Function =>
-            logicError()
-          case a: Value.PathType =>
-            logicError()
-          case a: Value.Record =>
-            logicError()
-          case a: Value.GlueType =>
-            logicError()
-          case _ =>
-            loopBase(h.tp)
-        }
-      case t: Value.Transp =>
-        t.tp(semantic.Formula.Generic(-Random.nextLong(Long.MaxValue / 2))).whnf match {
-          case _: Value.Sum =>
-            loopBase(t.base)
-          case a: Value.Function =>
-            logicError()
-          case a: Value.PathType =>
-            logicError()
-          case a: Value.Record =>
-            logicError()
-          case a: Value.GlueType =>
-            logicError()
-          case a: Value.Universe =>
-            logicError()
-          case Value.Hcomp(v: Value.Universe, _, _) =>
-            logicError()
-          case a =>
-            loopType(t.tp)
-        }
-      case t: Value.Glue =>
-        assert(!t.faces.exists(_._1.nfTrue))
-        loopBase(t.m)
-      case v: Value.Unglue =>
-        loopBase(v.base)
-      case a: Value.GlueType =>
-        assert(!a.faces.exists(_._1.nfTrue))
-        k
-      case Value.PathType(typ, left, right) =>
-        k
-      case c: Value.SimpleConstruct =>
-        k
-      case c: Value.HitConstruct =>
-        k
-      case Value.Make(values) =>
-        k
-      case PathLambda(body) =>
-        k
-      case a: Value.Function =>
-        k
-      case a: Value.Record =>
-        k
-      case a: Value.Universe =>
-        k
-      case a: Value.Lambda =>
-        k
-      case a: Value.PatternLambda =>
-        k
-      case Value.PatternRedux(a, b) =>
-        b.whnf match {
-          case h: Value.Hcomp =>
-            h
-          case a: Value.SimpleConstruct =>
-            a
-          case a: Value.HitConstruct =>
-            a
-          case _ =>
-            loopBase(b)
-        }
-      case Value.Projection(a, b) =>
-        loopBase(a)
-      case g: Value.Generic =>
-        k
-      case Value.PathApp(a, _) =>
-        loopBase(a)
-    }
-  }
 }
-
-
-private case class CodeInfo[T](
-    code: Abstract,
-    t: T) {
-  val dependencies = code.dependencies(0)
-}
-private case class DefinitionInfo(
-    var code: Option[CodeInfo[Value.Reference]],
-    typ: CodeInfo[Value.Generic])
-
-
-
