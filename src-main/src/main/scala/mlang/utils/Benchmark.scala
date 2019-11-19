@@ -64,7 +64,11 @@ object Benchmark {
 
   val Reify = Phase("reify")
 
-  val Solve = Phase("solve", Seq(Reify, Eval))
+  val CoreConversion = Phase("core conversion")
+
+  val CoreChecker = Phase("core checker", Seq(CoreConversion, Eval))
+
+  val Solve = Phase("solve", Seq(Reify, Eval, CoreChecker))
 
   val Unify = Phase("unify", Seq(Solve))
 

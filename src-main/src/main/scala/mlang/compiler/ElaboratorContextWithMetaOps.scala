@@ -33,12 +33,12 @@ trait ElaboratorContextWithMetaOps extends ElaboratorContextBase {
     mb.code = code
   }
 
-  protected def solvedMeta(meta: Value.Meta, code: dbi.Abstract): Abstract.MetaReference = {
+  protected def solvedMeta(meta: Value.Meta, typ: Value, code: dbi.Abstract): Abstract.MetaReference = {
     assert(meta.isSolved)
     val ms = layers.head.metas
     if (ms.debug_final) logicError()
     val index = ms.size
-    ms.append(meta, code)
+    ms.append(meta, typ, code)
     Abstract.MetaReference(0, index)
   }
 
@@ -56,7 +56,7 @@ trait ElaboratorContextWithMetaOps extends ElaboratorContextBase {
     val ms = layers.head.metas
     if (ms.debug_final) logicError()
     val index = ms.size
-    ms.append(v, null)
+    ms.append(v, typ, null)
     (v, Abstract.MetaReference(0, index))
   }
 
@@ -71,12 +71,6 @@ trait ElaboratorContextWithMetaOps extends ElaboratorContextBase {
 
   protected def rebindMetaOpt(meta: Value.Meta): Option[Abstract.MetaReference] = {
     Option(rebindMeta0(meta))
-  }
-
-  protected def rebindOrAddMeta(meta: Value.Meta, code: dbi.Abstract): Abstract.MetaReference = {
-    val ret = rebindMeta0(meta)
-    if (ret == null) solvedMeta(meta, code)
-    else ret
   }
 
   private def rebindMeta0(meta: Value.Meta): Abstract.MetaReference = {

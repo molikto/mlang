@@ -17,16 +17,13 @@ case class UnificationFailedException(msg: String) extends Exception
 
 trait MetaSolver extends ValueConversion with Reifier with ElaboratorContextRebind with Evaluator with CoreChecker {
 
+  val Phase = Benchmark.Unify
+
   type Self  <: MetaSolver
 
   private def error(s: String) = throw UnificationFailedException(s)
 
-  var solving = false
-
   protected def trySolve(m: Meta, vs: MetaSpine, t20: Value): Option[Value] = {
-    // FIXME(META) no recursive solving
-    if (solving) logicError("need to handle this")
-    solving = true
     val res = Try(solve(m, vs, t20)) match {
       case Failure(exception) =>
         if (debug.enabled) {
@@ -45,7 +42,6 @@ trait MetaSolver extends ValueConversion with Reifier with ElaboratorContextRebi
       case Success(v) =>
         Some(v)
     }
-    solving = false
     res
   }
 
@@ -100,7 +96,7 @@ trait MetaSolver extends ValueConversion with Reifier with ElaboratorContextRebi
       }
     }
     // FIXME(META) enable core checking
-    // ctx.check(abs, typ)
+    ctx.check(abs, typ)
     debug(s"META solved with $abs", 1)
     val v = ctx.eval(abs)
     ctx.solveMeta(index, v, abs)

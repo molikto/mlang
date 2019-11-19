@@ -148,7 +148,7 @@ private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorCon
               case None =>
                 // TODO [issue 2] add to the level where it can be defined with minimal dependency
                 // find proper level, and use `diff` to correct the dbi
-                solvedMeta(m, reify(c))
+                solvedMeta(m, null, reify(c))
             }
           case _: MetaState.Open =>
             val t = rebindMetaOpt(m)

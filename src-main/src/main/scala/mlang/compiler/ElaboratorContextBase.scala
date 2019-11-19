@@ -9,7 +9,7 @@ import mlang.utils._
 import scala.collection.mutable
 
 
-case class MetaBinder(name: Name, value: Value.Meta, var code: dbi.Abstract /* is null when value is open */)
+case class MetaBinder(name: Name, value: Value.Meta, typ: Value, var code: dbi.Abstract /* is null when value is open */)
 
 class MetasState(val metas: mutable.ArrayBuffer[MetaBinder], var frozen: Int) {
   def debug_allFrozen: Boolean = metas.size == frozen
@@ -32,9 +32,9 @@ class MetasState(val metas: mutable.ArrayBuffer[MetaBinder], var frozen: Int) {
   def nonEmpty: Boolean = metas.nonEmpty
   def head: Value.Meta = metas.head.value
 
-  def append(a: Value.Meta, code: dbi.Abstract): Unit = {
+  def append(a: Value.Meta, typ: Value, code: dbi.Abstract): Unit = {
     if (debug_final) logicError()
-    metas.append(MetaBinder(GenName(), a, code))
+    metas.append(MetaBinder(GenName(), a, typ, code))
   }
 }
 

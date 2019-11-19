@@ -37,14 +37,15 @@ object SolvableMetaForm {
 }
 
 trait ValueConversion {
-  protected def unifyTerm(typ: Value, t1: Value, t2: Value): Boolean = {
-    Benchmark.Unify {
+  val Phase: Benchmark.Phase
+  def unifyTerm(typ: Value, t1: Value, t2: Value): Boolean = {
+    Phase {
       recTerm(typ, t1, t2)
     }
   }
 
-  protected def subTypeOf(tm1: Value, tm2: Value): Boolean = {
-    Benchmark.Unify {
+  def subTypeOf(tm1: Value, tm2: Value): Boolean = {
+    Phase {
       recType(tm1, tm2, mode = 1)
     }
   }

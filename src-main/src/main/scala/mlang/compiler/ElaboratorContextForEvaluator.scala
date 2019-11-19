@@ -17,7 +17,7 @@ trait ElaboratorContextForEvaluator extends EvaluatorContext with ElaboratorCont
   }
 
   def getMetaReferenceType(depth: Int, index: Int): Value = {
-    getRestricted(layers(depth).metas(index), depth)
+    getRestricted(layers(depth).metas.metas(index).typ, depth)
   }
 
   def getReferenceType(depth: Int, index: Int): Value = getRestricted(layers(depth) match {
