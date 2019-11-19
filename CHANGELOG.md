@@ -1,6 +1,6 @@
-# Status
+# Changelog
 
-the status and the goal of this project is in constant flux now.
+the status and the goal of this project is in constant flux now. so before it is minimally-useable to not anyone other than the mantainers, only a status report will be here, not all the small changes.
 
 2019-11-09 status: we ported the project to Dotty, so toolchain is a little bit a mess. we got new HOAS compiler by emitting JVM bytecode, so typechecking is much faster now. we implemented `VHcompU` and other things to make it more similar to cubicaltt, and this also makes `problem` computes much faster, currently it is 200ms on my machine compared to cubicaltt's 40ms, Cubical Agda cannot compute this now (at least last time I checked)
 
