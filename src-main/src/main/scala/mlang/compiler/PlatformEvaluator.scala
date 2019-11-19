@@ -7,7 +7,7 @@ import mlang.compiler.dbi.given
 import mlang.utils._
 import scala.collection.mutable
 
-// FIXME it seems this is slower than before, which goes though Scala compiler. wait when Dotty has self compiler and port that one to here!
+// TODO it seems this is slower than before in terms of compiled bytecode performance, which goes though Scala compiler. wait when Dotty has self compiler and port that one to here!
 trait Holder {
   def value(vs: Array[Object]): Value
 }

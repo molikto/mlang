@@ -16,7 +16,7 @@
     * composition structure (hcomp, transp)
     * glue type and univalence, fibrant universe
     * sum type's composition structure, higher inductive types
-* SOUNDNESS
+* SOUNDNESS *to reject codes, not actually providing new features!*
     * core checker, so we check meta solutions. also as a double check of elaboration
     * positivity checker
     * coverage & confluence checker for overlapping patterns and for hits

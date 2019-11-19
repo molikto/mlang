@@ -20,10 +20,10 @@ trait CoreChecker extends ElaboratorContextBuilder
   with Evaluator {
 
   type Self  <: CoreChecker
-  // FIXME this also seems support solving meta??
+  // FIXME(META) the trait system seems to make core check solving metas in it's way, consider if it is ok
 
   def newMetas(abs: Seq[Abstract]): Self = {
-    // FIXME should do this recursively
+    // FIXME(META) should do this recursively
     abs.foreach(a => {
       solvedMeta(Value.Meta.solved(eval(a)))
     })

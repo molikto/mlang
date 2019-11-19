@@ -4,8 +4,14 @@ import mlang.utils._
 
 import Value._
 
+//
+// TODO(NORMAL) these are buggy, only reliable on simple construct/makes
+// currently the normalizer is only used to check normal forms for debugging usage
+// 
 
-// FIXME these are buggy, only reliable on simple construct/makes
+
+
+
 def normalFaceV(sys: ValueSystem): ValueSystem = {
   sys.toSeq.flatMap(pair => pair._1.normalForm.map(a => (a, pair._2))).map(pair => {
     val a = pair._1
@@ -26,7 +32,7 @@ def normalFace(sys: AbsClosureSystem): AbsClosureSystem = {
 
 given Normal[Value] {
   // LATER seems faces.nf will error
-  // FIXME we are skipping record and sum
+  // TODO(NORMAL) we are skipping record and sum
   def (v: Value) nf: Value = v.whnf match {
     case u: Universe => u
     case Function(domain, impict, codomain) =>

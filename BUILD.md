@@ -14,7 +14,7 @@ Dotty lacks IntelliJ IDEA support now, so you need to use VS Code as IDE: run `s
 
 ## Edit mlang code
 
-we currently have a `.poor` syntax (because we want a better syntax: a structural editor). it uses some wired unicode characters, so to write library code, import `settings.zip` to IntelliJ IDEA, it defines some "Live Templates", or key shortcuts to input certain characters
+we currently have a `.poor` syntax (because we want a better syntax: a structural editor). it uses some wired unicode characters, so to write library code, import `settings.zip` to IntelliJ IDEA, it defines some "Live Templates", or key shortcuts to input certain characters. the syntax is defined in `Parser.scala` for now.
 
 thanks to [@ice1000](https://github.com/ice1000), we have syntax highlighting for `.poor` files in IntellIJ IDEA, install this plugin: https://github.com/owo-lang/intellij-dtlc
 

@@ -525,8 +525,8 @@ class Elaborator private(protected override val layers: Layers)
   private def inferFlatLevel(fs: Concrete.NameType.FlatSeq): (Int, Seq[(Name, Boolean, dbi.Closure)], Self) = {
     var ctx = this
     var l = 0
-    // FIXME it used be like this, but I forget what it is for
-    // if (fs.map(_._2).toSet.size != fs.size) throw ElaboratorException.AlreadyDeclared()
+    // disallow name shadowing in same concrete flat seq
+    if (fs.map(_._2).toSet.size != fs.size) throw ElaboratorException.AlreadyDeclared()
     val fas = fs.map(n => {
       val (fl, fa) = ctx.inferLevel(n._3)
       l = l max fl

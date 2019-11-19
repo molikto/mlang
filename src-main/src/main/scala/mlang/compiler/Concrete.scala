@@ -37,7 +37,6 @@ object Concrete {
 
 
   case object Type extends Concrete
-  // FIXME should we have a sort system of dimensions/partial elements
   case object I extends Concrete
   case object True extends Concrete
   case object False extends Concrete
@@ -115,7 +114,7 @@ object Concrete {
     // depending on our algorithm, recursive ones might not need to declare first
     case class Declare(modifiers: Seq[Modifier], name: Name, parameters: Seq[NameType], typ: Concrete) extends Single
 
-    // FIXME(PATTERN) this is kind of wired now, it only generalize the parameters but not the applications
+    // FIXME(SYNTAX) this is kind of wired now, it only generalize the parameters but not the applications
     case class Parameters(parameters: Seq[NameType], items: Seq[Declaration]) extends Declaration
   }
 
