@@ -105,15 +105,14 @@ trait ElaboratorContextWithMetaOps extends ElaboratorContextBase {
     binder
   }
 
-  protected def finish(): Seq[Value.Meta] = {
+  protected def finish(): Seq[dbi.Abstract] = {
     val ret = freeze()
     layers.head.metas.debug_final = true
     ret
   }
 
-  protected def freeze(): Seq[Value.Meta] = {
+  protected def freeze(): Seq[dbi.Abstract] = {
     val vs = layers.head.metas.freeze()
-    if (!vs.forall(_.isSolved)) throw ContextWithMetaOpsException.MetaNotSolved()
     vs
   }
 

@@ -126,13 +126,13 @@ class Elaborator private(protected override val layers: Layers)
         if (b) throw ElaboratorException.DimensionLambdaCannotBeImplicit()
         val (ctx, dim) = newDimensionLayer(n)
         val ta = ctx.check(body, typ(dim))
-        (dim, dbi.Closure(ctx.finishReify(), ta))
+        (dim, dbi.Closure(ctx.finish(), ta))
       case _ =>
         val (ctx, dim) = newDimensionLayer(Name.empty) // it is ok to infer in this context, as the name is empty so it doesn't affect much
         val (tv, ta) = ctx.infer(a)
         tv.whnf match {
           case j@Value.PathType(_, _, _) =>
-            (dim, dbi.Closure(ctx.finishReify(), Abstract.PathApp(ta, dbi.Formula.Reference(0, -1))))
+            (dim, dbi.Closure(ctx.finish(), Abstract.PathApp(ta, dbi.Formula.Reference(0, -1))))
           case _ => throw ElaboratorException.ExpectingLambdaTerm()
         }
     }
@@ -144,14 +144,14 @@ class Elaborator private(protected override val layers: Layers)
         if (b) throw ElaboratorException.DimensionLambdaCannotBeImplicit()
         val ctx = newDimensionLayer(n)._1
         val (l, ta0) = ctx.inferLevel(body)
-        val ta = dbi.Closure(ctx.finishReify(), ta0)
+        val ta = dbi.Closure(ctx.finish(), ta0)
         (l, ta)
       case _ =>
         val ctx = newDimensionLayer(Name.empty)._1
         val (tv, ta) = ctx.infer(a)
         tv.whnf match {
           case j@Value.PathType(_, _, _) =>
-            val clo = dbi.Closure(ctx.finishReify(), Abstract.PathApp(ta, dbi.Formula.Reference(0, -1)))
+            val clo = dbi.Closure(ctx.finish(), Abstract.PathApp(ta, dbi.Formula.Reference(0, -1)))
             (j.inferLevel, clo)
           case _ => throw ElaboratorException.ExpectingLambdaTerm()
         }
@@ -225,7 +225,7 @@ class Elaborator private(protected override val layers: Layers)
           val (dv, da) = ctx.checkAndEvalFormula(r.dimension)
           val rctx = ctx.newReifierRestrictionLayer(dv) // remind me: why this is a reifier layer?
           val bd = rctx.check(r.term, sv)
-          val res = dbi.Closure(rctx.finishReify(), bd)
+          val res = dbi.Closure(rctx.finish(), bd)
           (da, res)
         })
       }
@@ -472,7 +472,7 @@ class Elaborator private(protected override val layers: Layers)
             val ctx = newSyntaxDirectedRestrictionLayer(asgn).newDimensionLayer(Name.empty)._1 // this is currently a hack!
             // TODO here we checked by same level as ty.
             val bd = ctx.check(f.term, Value.App(BuiltIn.equiv_of, tv).restrict(asgn))
-            dbi.Closure(ctx.finishReify(), bd)
+            dbi.Closure(ctx.finish(), bd)
           })
           (formula._2, ba)
         }).toMap
@@ -487,7 +487,7 @@ class Elaborator private(protected override val layers: Layers)
       case Concrete.Let(declarations, in) =>
         val (ctx, ms, da) = newDefinesLayer().checkDeclarations(declarations, false)
         val (it, ia) = ctx.infer(in)
-        val ms0 = ctx.freezeReify()
+        val ms0 = ctx.freeze()
         (it, Abstract.Let(ms ++ ms0, da, ia))
     }
     debug(s"infer result ${res._2}")
@@ -530,7 +530,7 @@ class Elaborator private(protected override val layers: Layers)
     val fas = fs.map(n => {
       val (fl, fa) = ctx.inferLevel(n._3)
       l = l max fl
-      val ms = ctx.freezeReify()
+      val ms = ctx.freeze()
       val (ctx1, g) = ctx.newParameter(n._2, ctx.eval(fa))
       ctx = ctx1
       (n._2, n._1, dbi.Closure(ms, fa))
@@ -547,7 +547,7 @@ class Elaborator private(protected override val layers: Layers)
             if (head._1) throw ElaboratorException.DimensionLambdaCannotBeImplicit()
             val ctx = newDimensionLayer(head._2)._1
             val (ta, va) = ctx.inferTelescope(tail, codomain, body)
-            val ms = ctx.finishReify()
+            val ms = ctx.finish()
             val cloa = dbi.Closure(ms, va)
             val clov = evalAbsClosure(cloa)
             val left = clov(semantic.Formula.False)
@@ -557,7 +557,7 @@ class Elaborator private(protected override val layers: Layers)
             val (_, da) = inferLevel(head._3)
             val ctx = newParameterLayer(head._2, eval(da))._1
             val (ta, va) = ctx.inferTelescope(tail, codomain, body)
-            val ms = ctx.finishReify()
+            val ms = ctx.finish()
             (Abstract.Function(da, head._1, dbi.Closure(ms, ta)), Abstract.Lambda(dbi.Closure(ms, va)))
         }
       case Seq() =>
@@ -584,7 +584,7 @@ class Elaborator private(protected override val layers: Layers)
             val (dl, da) = inferLevel(head._3)
             val ctx = newParameterLayer(head._2, eval(da))._1
             val (cl, ca) = ctx.inferTelescope(tail, codomain)
-            (dl max cl, Abstract.Function(da, head._1, dbi.Closure(ctx.finishReify(), ca)))
+            (dl max cl, Abstract.Function(da, head._1, dbi.Closure(ctx.finish(), ca)))
         }
       case Seq() =>
         val (l, a) = inferLevel(codomain)
@@ -691,7 +691,7 @@ class Elaborator private(protected override val layers: Layers)
       case Concrete.Let(declarations, bd) =>
         val (ctx, ms, da) = newDefinesLayer().checkDeclarations(declarations, false)
         val ba = ctx.check(bd, cp)
-        val ms0 = ctx.freezeReify()
+        val ms0 = ctx.freeze()
         Abstract.Let(ms ++ ms0, da, ba)
       case _ =>
         cp.whnf match {
@@ -701,19 +701,19 @@ class Elaborator private(protected override val layers: Layers)
                 assert(!ensuredPath)
                 val (ctx, v) = newParameterLayer(n.nonEmptyOrElse(hint), domain)
                 val ba = ctx.check(body, codomain(v), tail, indState.app(v))
-                Abstract.Lambda(dbi.Closure(ctx.finishReify(), ba))
+                Abstract.Lambda(dbi.Closure(ctx.finish(), ba))
               case Concrete.PatternLambda(limp, cases) if fimp == limp =>
                 val res = cases.map(c => {
                   val (ctx, v, pat) = newPatternLayer(c.pattern, domain)
                   val ba = ctx.check(c.body, codomain(v), tail)
-                  dbi.Case(pat, dbi.Closure(ctx.finishReify(), ba))
+                  dbi.Case(pat, dbi.Closure(ctx.finish(), ba))
                 })
                 Abstract.PatternLambda(Elaborator.pgen(), reify(domain.bestReifyValue), reify(codomain), res)
               case _ =>
                 if (fimp) {
                   val (ctx, v) = newParameterLayer(Name.empty, domain)
                   val ba = ctx.check(term, codomain(v), tail)
-                  Abstract.Lambda(dbi.Closure(ctx.finishReify(), ba))
+                  Abstract.Lambda(dbi.Closure(ctx.finish(), ba))
                 } else {
                   fallback()
                 }
@@ -750,7 +750,7 @@ class Elaborator private(protected override val layers: Layers)
                             val res = ctx.check(f._3, Value.Projection(bd1, 0))
                             val itemv = eval(res)
                             if (ctx.unifyTerm(ty.restrict(asg), bv.restrict(asg), Value.App(Value.Projection(bd1, 1), itemv))) {
-                              terms.add(dbi.Closure(ctx.finishReify(), res))
+                              terms.add(dbi.Closure(ctx.finish(), res))
                             } else {
                               throw ElaboratorException.GlueNotMatching()
                             }
@@ -778,7 +778,7 @@ class Elaborator private(protected override val layers: Layers)
                 val t1 = typ(dv)
                 import semantic.Formula._
                 val a1 = c1.check(body, t1, tail)
-                val ps = dbi.Closure(c1.finishReify(), a1)
+                val ps = dbi.Closure(c1.finish(), a1)
                 // info("path body:"); print(Abstract.PathLambda(ps))
                 val pv = evalAbsClosure(ps)
                 val leftEq = unifyTerm(typ(False), pv(False), left)

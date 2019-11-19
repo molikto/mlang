@@ -14,22 +14,23 @@ case class MetaBinder(name: Name, value: Value.Meta, var code: dbi.Abstract /* i
 class MetasState(val metas: mutable.ArrayBuffer[MetaBinder], var frozen: Int) {
   def debug_allFrozen: Boolean = metas.size == frozen
 
-  def freeze(): Seq[Value.Meta] = {
+  def freeze(): Seq[dbi.Abstract] = {
     val vs = metas.slice(frozen, metas.size)
+    if (!vs.forall(_.value.isSolved)) throw ContextWithMetaOpsException.MetaNotSolved()
     frozen = metas.size
-    vs.map(_._2).toSeq
+    vs.map(_.code).toSeq
   }
 
   def freezeSize = frozen
 
-  def apply(i: Int): Value.Meta = metas(i)._2
+  def apply(i: Int): Value.Meta = metas(i).value
 
   var debug_final = false
   def size: Int = metas.size
 
   def isEmpty: Boolean = metas.isEmpty
   def nonEmpty: Boolean = metas.nonEmpty
-  def head: Value.Meta = metas.head._2
+  def head: Value.Meta = metas.head.value
 
   def append(a: Value.Meta, code: dbi.Abstract): Unit = {
     if (debug_final) logicError()

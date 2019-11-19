@@ -174,7 +174,7 @@ we don't explicitly present metas in value world, like we have direct references
 
 #### context representation
 
-we make sure all meta is solved when a context is closed, this way the solved meta can generate abstract properly. see `finishReify` usages
+we make sure all meta is solved when a context is closed, this way the solved meta can generate abstract properly. see `finish` usages
 
 #### in value world
 
@@ -187,7 +187,7 @@ also adding a new meta is direct mutate the context.
 
 having mutable metas and mutable context means our values is mutable.
 
-this means: unification and type checking is side-effecting. this means one need to be careful when writing these code. call order maters. you should `finishReify` at the last thing you do in this context.
+this means: unification and type checking is side-effecting. this means one need to be careful when writing these code. call order maters. you should `finish` at the last thing you do in this context.
 
 also this means whnf is not stable in some cases. this seems to be transparent to outside of `Value.scala`
 

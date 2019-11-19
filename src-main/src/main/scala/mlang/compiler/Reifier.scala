@@ -276,14 +276,4 @@ trait Reifier extends ElaboratorContextBuilder with ElaboratorContextRebind {
     })
   }
 
-  protected def freezeReify(): Seq[Abstract] = {
-    val vs = freeze()
-    vs.map(a => reify(a.solved))
-  }
-
-  protected def finishReify(): Seq[Abstract] = {
-    val vs = finish()
-    vs.map(a => reify(a.solved))
-  }
-
 }
