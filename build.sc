@@ -1,6 +1,8 @@
 // build.sc
 import mill._, scalalib._
 
+import coursier.maven.MavenRepository
+
 
 trait MlangModule extends SbtModule {
   def scalaVersion = "0.20.0-RC1"
@@ -14,8 +16,11 @@ trait MlangModule extends SbtModule {
 }
 object main extends MlangModule {
   def millSourcePath = os.pwd / "src-main"
+  def repositories = super.repositories ++ Seq(
+    MavenRepository("https://jitpack.io")
+  )
   def ivyDeps = Agg(
-    ivy"scala-parser-combinators-dotty::scala-parser-combinators-dotty:0.1.0",
+    ivy"com.github.molikto::scala-parser-combinators-dotty:0.1",
     // platform
     ivy"org.ow2.asm:asm:7.2",
     ivy"org.ow2.asm:asm-util:7.2",

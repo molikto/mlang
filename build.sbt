@@ -3,7 +3,7 @@ lazy val `main` = project.in(file("src-main")).settings(
   sharedSettings,
   libraryDependencies ++= Seq(
     //parsing
-    "scala-parser-combinators-dotty" %% "scala-parser-combinators-dotty" % "0.1.0",
+    "com.github.molikto" % "scala-parser-combinators-dotty" % "0.1",
     // platform
     "org.ow2.asm" % "asm" % "7.2",
     "org.ow2.asm" % "asm-util" % "7.2",
@@ -23,6 +23,7 @@ val sharedSettings = Seq(
     "Sonatype OSS Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots/",
     Resolver.jcenterRepo,
     Resolver.sonatypeRepo("releases"),
+    "jitpack" at "https://jitpack.io" // this is for the custom built parser combinator library
   ),
   sources in (Compile, doc) := Seq.empty,
   publishArtifact in (Compile, packageDoc) := false,
