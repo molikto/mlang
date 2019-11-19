@@ -7,7 +7,7 @@ A cubical type theory implementation with implicit arguments, structural record 
 
 see `library` and `tests` folder for sample code.
 
-+ [Build & Run & Debug & Editor setup](HACKING.md)
++ [Build & Run & Debug & Editor setup](BUILD.md)
 + [Roadmap](ROADMAP.md)
 + [Changelog](CHANGELOG.md)
 + [Internals & Help Wanted](HACKING.md)
