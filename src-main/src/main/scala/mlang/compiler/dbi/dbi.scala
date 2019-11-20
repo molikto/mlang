@@ -92,31 +92,36 @@ case class Case(pattern: Pattern, body: Closure)
 
 sealed trait Abstract
 object Abstract {
+  // universes
   case class Universe(i: Int) extends Abstract
 
+  // reference and let
   case class Reference(up: Int, index: Int) extends Abstract
   case class MetaReference(up: Int, index: Int) extends Abstract
   case class Let(metas: Seq[Abstract], definitions: Seq[Abstract], in: Abstract) extends Abstract
 
+  // function types
   case class Function(domain: Abstract, impict: Boolean, codomain: Closure) extends Abstract
   case class Lambda(closure: Closure) extends Abstract
-  case class PatternLambda(id: Long, domain: Abstract, typ: Closure, cases: Seq[Case]) extends Abstract
   case class App(left: Abstract, right: Abstract) extends Abstract
 
 
+  // data types
   case class Record(inductively: Option[Inductively], names: Seq[Name], graph: ClosureGraph) extends Abstract
-  case class Projection(left: Abstract, field: Int) extends Abstract
   case class Make(vs: Seq[Abstract]) extends Abstract
-
   case class Sum(inductively: Option[Inductively], hit: Boolean, constructors: Seq[Constructor]) extends Abstract {
     override def toString = s"SUM(${constructors.map(_.name)})"
   }
   case class Construct(f: Int, vs: Seq[Abstract], ds: Seq[Formula], ty: System) extends Abstract
+  case class Projection(left: Abstract, field: Int) extends Abstract
+  case class PatternLambda(id: Long, domain: Abstract, typ: Closure, cases: Seq[Case]) extends Abstract
 
+  // path types
   case class PathLambda(body: Closure) extends Abstract
   case class PathType(typ: Closure, left: Abstract, right: Abstract) extends Abstract
   case class PathApp(let: Abstract, r: Formula) extends Abstract
 
+  // composition
   case class Transp(tp: Closure, direction: Formula, base: Abstract) extends Abstract
   case class Hcomp(tp: Abstract, base: Abstract, faces: System) extends Abstract
 
