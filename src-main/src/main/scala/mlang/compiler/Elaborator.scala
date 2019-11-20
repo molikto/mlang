@@ -679,9 +679,6 @@ class Elaborator private(protected override val layers: Layers)
         info(term.toString)
         info(s"${reify(tt.whnf)}")
         info(s"${reify(cp.whnf)}")
-        if (debug.enabled) {
-          val ignore = subTypeOf(tt, cp)
-        }
         throw ElaboratorException.TypeMismatch()
       }
     }
