@@ -105,6 +105,7 @@ sealed trait Value {
     case _ => this
   }
 
+  // this can be considered a inverse of whnf
   def bestReifyValue: Value = (this match {
     case r: Reference => 
       r.value match {
@@ -122,55 +123,38 @@ sealed trait Value {
   }).simplify
 
 
-  // TODO as said bellow, infer on value can be probmatic, so maybe we should disable this functionality
-  def inferLevel: Int = infer match {
-    case Universe(l) => l
+  private[Value] def inferEndpoint(b: Boolean): Value = inferHelper.whnf match {
+    case PathType(_, left, right) =>
+      (if (b) right else left)
     case _ => logicError()
   }
 
-  // it is like in type directed conversion checking, this works because we always call infer on whnf, so neutural values
-  // can infer it's type
-  private[Value] def infer: Value = {
+  private def inferHelper: Value = {
     whnf match {
       case g: Generic =>
         g.typ
-      case Universe(level) => Universe.suc(level)
-      case Function(domain, _, codomain) =>
-        (domain.infer, codomain(Generic(gen(), domain)).infer) match {
-          case (Universe(l1), Universe(l2)) => Universe(l1 max l2)
-          case _ => logicError()
-        }
-      case r: Record =>
-        r.inductively.map(_.typFinal).getOrElse(Universe(r.nodes.inferLevel()))
-      case s: Sum =>
-        s.inductively.map(_.typFinal).getOrElse(
-          Universe(if (s.constructors.isEmpty) 0 else s.constructors.map(c => c.nodes.inferLevel()).max))
-      case PathType(typ, _, _) =>
-        typ.apply(Formula.Generic(dgen())).infer
       case App(l1, a1) =>
         // l1 cannot be a actual lambda, the real blocker of whnf is only open reference/meta
-        l1.infer.whnf match {
+        l1.inferHelper.whnf match {
           case Function(_, _, c) =>
             c(a1)
           case _ => logicError()
         }
       case Projection(m1, f1) =>
-        m1.infer.whnf match {
+        m1.inferHelper.whnf match {
           case rr: Record  => rr.projectedType(m1, f1)
           case _ => logicError()
         }
       case PatternRedux(l1, s1) =>
         l1.typ(s1)
       case PathApp(l1, d1) =>
-        l1.infer.whnf match {
+        l1.inferHelper.whnf match {
           case PathType(typ, _, _) => typ(d1)
           case _ => logicError()
         }
       case h: Hcomp => h.tp
       case t: Transp => t.tp(Formula.True)
       case h: Comp => h.tp(Formula.True)
-      case GlueType(ty, pos) =>
-        ty.infer // FIXME NOW this seems wrong, what if we annotate the level? generally we want to make sure this is working as intent
       case Unglue(ty, _, _, _) => ty
       case _ => logicError()
     }
@@ -577,18 +561,11 @@ object Value {
       case canonical: StableCanonical => logicError()
       case a =>
         // I think both yacctt use open variables with types, and an `inferType` thing
-        def constantCase(isOne: Boolean) = {
-          a.infer.whnf match {
-            case PathType(_, left, right) =>
-              (if (isOne) right else left).whnf
-            case _ => logicError()
-          }
-        }
         dimension.normalForm match {
           case NormalForm.True =>
-            constantCase(true)
+            a.inferEndpoint(true).whnf
           case NormalForm.False =>
-            constantCase(false)
+            a.inferEndpoint(false).whnf
           case _ =>
             if (a == left) this else PathApp(a, dimension.simplify)
         }

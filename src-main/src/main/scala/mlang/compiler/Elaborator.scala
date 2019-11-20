@@ -150,9 +150,10 @@ class Elaborator private(protected override val layers: Layers)
         val ctx = newDimensionLayer(Name.empty)._1
         val (tv, ta) = ctx.infer(a)
         tv.whnf match {
-          case j@Value.PathType(_, _, _) =>
+          case j@Value.PathType(u, _, _) =>
             val clo = dbi.Closure(ctx.finish(), Abstract.PathApp(ta, dbi.Formula.Reference(0, -1)))
-            (j.inferLevel, clo)
+            val lvl = u(semantic.Formula.Generic(ElaboratorContextBuilder.dgen())).whnf.asInstanceOf[Value.Universe].level
+            (lvl, clo)
           case _ => throw ElaboratorException.ExpectingLambdaTerm()
         }
     }
@@ -422,9 +423,10 @@ class Elaborator private(protected override val layers: Layers)
             } else None
             ttt match {
               case Some(t) =>
-                val ta = newDimensionLayer(Name.empty)._1.reify(t.bestReifyValue)
+                val ctx = newDimensionLayer(Name.empty)._1
+                val ta = ctx.reify(t.bestReifyValue)
                 debug(s"infer path type $ta", 0)
-                (Value.Universe(t.inferLevel), Abstract.PathType(dbi.Closure(Seq.empty, ta), la, ra))
+                (Value.Universe(ctx.cinferLevel(ta)), Abstract.PathType(dbi.Closure(Seq.empty, ta), la, ra))
               case None =>
                 throw ElaboratorException.InferPathEndPointsTypeNotMatching()
             }

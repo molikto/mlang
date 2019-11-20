@@ -22,8 +22,6 @@ trait ClosureGraph {
   }
   def reduce(i: Int, a: Value): ClosureGraph
   def get(name: Int, values: Int => Value): Value
-
-  def inferLevel(): Int
 }
 
 export ClosureGraph.isNominal
@@ -134,21 +132,6 @@ object ClosureGraph {
           (pair._1.restrict(lv), (v1: Seq[Value], v2: Seq[Value]) => pair._2(v1.map(v => Value.Derestricted(v, lv)), v2.map(v => Value.Derestricted(v, lv))).restrict(lv))))
       }
       ClosureGraph.Impl(gs, dimSize, zz)
-    }
-
-
-    def inferLevel(): Int = {
-      var level = 0
-      var i = 0
-      var g = this
-      while (i < g.graph.size) {
-        val t = g.graph(i).independent.typ
-        level = t.inferLevel max level
-        val ge = Generic(gen(), t)
-        g = g.reduce(i, ge)
-        i += 1
-      }
-      level
     }
 
     override def phi(): Set[Formula] = tm match {

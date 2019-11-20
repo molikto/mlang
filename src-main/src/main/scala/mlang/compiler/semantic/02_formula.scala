@@ -34,8 +34,9 @@ object Formula {
       case None => this
     }
   }
-  object True extends Formula
-  object False extends Formula
+  sealed trait Constant extends Formula
+  object True extends Constant
+  object False extends Constant
   case class And(left: Formula, right: Formula) extends Formula
   case class Or(left: Formula, right: Formula) extends Formula
   object Or {
