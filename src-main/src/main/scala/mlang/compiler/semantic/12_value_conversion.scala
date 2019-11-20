@@ -44,6 +44,7 @@ trait ValueConversion {
     }
   }
 
+  // for how exactly subtyping rules behave, see comments in recType
   def subTypeOf(tm1: Value, tm2: Value): Boolean = {
     Phase {
       recType(tm1, tm2, mode = 1)
@@ -59,109 +60,7 @@ trait ValueConversion {
   }
 
   private implicit def optToBool[T](opt: Option[T]): Boolean = opt.isDefined
-
-
-  private def recClosureGraph(selfValue: Value, n1: ClosureGraph, n2: ClosureGraph, mode: Int = 0): Boolean = {
-    if (n1.size == n2.size && n1.dimSize == n2.dimSize) {
-      var gs = Seq.empty[Generic]
-      var g1 = n1
-      var g2 = n2
-      var eq = true
-      var i = 0
-      while (i < n1.size && eq) {
-        val g1i = g1(i)
-        val g2i = g2(i)
-        eq = g1i.implicitt == g2i.implicitt
-        if (eq) {
-          val t1 = g1(i).independent.typ
-          val t2 = g2(i).independent.typ
-          eq = recType(t1, t2, mode)
-          val g = Generic(gen(), choose(t1, t2, mode))
-          gs = gs :+ g
-          g1 = g1.reduce(i, g)
-          g2 = g2.reduce(i, g)
-          i += 1
-        }
-      }
-      if (eq) {
-        if (n1.dimSize == 0) {
-          true
-        } else {
-          val ds = (0 until n1.dimSize).map(_ => Formula.Generic(dgen()))
-          g1 = g1.reduce(ds)
-          g2 = g2.reduce(ds)
-          val phiEq = Formula.Or(g1.phi()).normalForm == Formula.Or(g2.phi()).normalForm
-          if (phiEq) {
-            recValueSystem(selfValue, g1.restrictions(), g2.restrictions())
-          } else {
-            unifyFailedFalse()
-          }
-        }
-      } else {
-        unifyFailedFalse()
-      }
-    } else {
-      unifyFailedFalse()
-    }
-  }
-
-
-
-  private def recConstructor(t: Value, c1: Constructor, c2: Constructor, mode: Int = 0): Boolean = {
-    c1.name == c2.name && recClosureGraph(t, c1.nodes, c2.nodes, mode)
-  }
-
-
-
-  private def recTypeClosure(t: Value, c1: Closure, c2: Closure, mode: Int = 0): Option[Value] = {
-    val c = Generic(gen(), t)
-    val tt = c1(c)
-    if (recType(tt, c2(c), mode)) {
-      Some(tt)
-    } else {
-      unifyFailed()
-    }
-  }
-
-
-  private def recTypeAbsClosure(t1: AbsClosure, t2: AbsClosure, mode: Int = 0): Boolean = {
-    val c = Formula.Generic(dgen())
-    recType(t1(c), t2(c), mode)
-  }
-
-
-  def recInd(dd1: Inductively, dd2: Inductively): Boolean = dd1.id == dd2.id && {
-     // if id is equal, then type is equal
-    assert(dd1.ps.size == dd2.ps.size)
-    dd1.ps.zip(dd2.ps).foldLeft(Some(dd1.typ): Option[Value]) { (tp, ds) =>
-      tp match {
-        case Some(v) =>
-          val func = v.whnf.asInstanceOf[Function]
-          val d = func.domain
-          if (recTerm(d, ds._1, ds._2)) {
-            Some(func.codomain(ds._1))
-          } else {
-            unifyFailed()
-          }
-        case _ => tp
-      }
-    }
-  }
-
-  def maybeNominal(id1: Option[Inductively], id2: Option[Inductively], el: => Boolean): Boolean = {
-    (id1, id2) match {
-      case (None, None) =>
-        // structural
-        el
-      case (Some(dd1), Some(dd2)) => recInd(dd1, dd2) // nominal
-      case _ => unifyFailedFalse()
-    }
-
-  }
-
-  // FIXME is this handling of subtyping sound?
-  def choose(d1: Value, d2: Value, mode: Int): Value = if (mode >= 0) d1 else d2
-
+  
   def forCompatibleAssignments[T](t: System[T], r1: System[T], r2: System[T])(handle: (Assignments, T, T, T) => Boolean): Boolean = {
     val pht = t.phi
     val ph1 = r1.phi
@@ -232,6 +131,114 @@ trait ValueConversion {
 
 
   /**
+
+
+  type part: mode is 3 mode of subtyping: <, =, >
+
+  **/
+
+  // FIXME is this handling of subtyping sound?
+  def choose[T](d1: T, d2: T, mode: Int): T = if (mode >= 0) d1 else d2
+
+
+  private def recConstructor(t: Value, c1: Constructor, c2: Constructor, mode: Int = 0): Boolean = {
+    c1.name == c2.name && recClosureGraph(t, c1.nodes, c2.nodes, mode)
+  }
+
+
+  private def recTypeClosure(t: Value, c1: Closure, c2: Closure, mode: Int = 0): Option[Value] = {
+    val c = Generic(gen(), t)
+    val tt = c1(c)
+    if (recType(tt, c2(c), mode)) {
+      Some(tt)
+    } else {
+      unifyFailed()
+    }
+  }
+
+  private def recTypeAbsClosure(t1: AbsClosure, t2: AbsClosure, mode: Int = 0): Boolean = {
+    val c = Formula.Generic(dgen())
+    recType(t1(c), t2(c), mode)
+  }
+
+  def maybeNominal(id1: Option[Inductively], id2: Option[Inductively], el: => Boolean): Boolean = {
+    (id1, id2) match {
+      case (None, None) =>
+        // structural
+        el
+      case (Some(dd1), Some(dd2)) => recInd(dd1, dd2) // nominal
+      case _ => unifyFailedFalse()
+    }
+  }
+
+
+  private def recClosureGraph(selfValue: Value, n1: ClosureGraph, n2: ClosureGraph, mode: Int = 0): Boolean = {
+    if (n1.size == n2.size && n1.dimSize == n2.dimSize) {
+      assert(n1.dimSize == 0 || mode == 0) // only support invarant for hit for now
+      var g1 = n1
+      var g2 = n2
+      var eq = true
+      var i = 0
+      while (i < n1.size && eq) {
+        val g1i = g1(i)
+        val g2i = g2(i)
+        eq = g1i.implicitt == g2i.implicitt
+        if (eq) {
+          val t1 = g1(i).independent.typ
+          val t2 = g2(i).independent.typ
+          eq = recType(t1, t2, mode)
+          val g = Generic(gen(), choose(t1, t2, mode))
+          g1 = g1.reduce(i, g)
+          g2 = g2.reduce(i, g)
+          i += 1
+        }
+      }
+      if (eq) {
+        if (n1.dimSize == 0) {
+          true
+        } else {
+          val ds = (0 until n1.dimSize).map(_ => Formula.Generic(dgen()))
+          g1 = g1.reduce(ds)
+          g2 = g2.reduce(ds)
+          val phiEq = Formula.Or(g1.phi()).normalForm == Formula.Or(g2.phi()).normalForm
+          if (phiEq) {
+            recValueSystem(selfValue, g1.restrictions(), g2.restrictions())
+          } else {
+            unifyFailedFalse()
+          }
+        }
+      } else {
+        unifyFailedFalse()
+      }
+    } else {
+      unifyFailedFalse()
+    }
+  }
+
+
+  // currently for inductively defined data types, we always use invarient
+  // this means   type < ^type   but    list(type) !< list(^type)
+  // in the future, we might want to mark some parameter as covarient or contravarient in the language
+  def recInd(dd1: Inductively, dd2: Inductively): Boolean = dd1.id == dd2.id && {
+     // if id is equal, then type is equal
+    assert(dd1.ps.size == dd2.ps.size)
+    dd1.ps.zip(dd2.ps).foldLeft(Some(dd1.typ): Option[Value]) { (tp, ds) =>
+      tp match {
+        case Some(v) =>
+          val func = v.whnf.asInstanceOf[Function]
+          val d = func.domain
+          if (recTerm(d, ds._1, ds._2)) {
+            Some(func.codomain(ds._1))
+          } else {
+            unifyFailed()
+          }
+        case _ => tp
+      }
+    }
+  }
+
+
+  /**
     * mode = 1 left =<subtype< right
     * mode = 0 left == right
     * mode =-1 right =< left
@@ -242,6 +249,7 @@ trait ValueConversion {
     } else {
       (tm1.whnf, tm2.whnf) match {
         case (Function(d1, i1, c1), Function(d2, i2, c2)) =>
+          // for function type, we use contravariant in domain and covarient in codomain
           i1 == i2 && recType(d1, d2, -mode) && recTypeClosure(choose(d1, d2, -mode), c1, c2, mode)
         case (Universe(l1), Universe(l2)) =>
           mode match {
@@ -250,17 +258,27 @@ trait ValueConversion {
             case 1 => l1 <= l2
           }
         case (Record(id1, i1, n1), Record(id2, i2, n2)) =>
-          // need to check level because of up operator
+          // for inductively defined we use invarent for now, see comments on maybeNominal
+          // for structuraly defined data types, we try to do subtyping
           maybeNominal(id1, id2, i1 == i2 && recClosureGraph(null, n1, n2, mode))
         case (s1@Sum(id1, h1, c1), s2@Sum(id2, h2, c2)) =>
-          maybeNominal(id1, id2, h1 == h2 && c1.size == c2.size && c1.zip(c2).forall(p => recConstructor(choose(s1, s2, mode), p._1, p._2, mode)))
+          // see above
+          maybeNominal(id1, id2, h1 == h2 && c1.size == c2.size && {
+            val mode0 = if (h1) 0 else mode
+            // for structural hits, we only use invarant, don't know how to handle it otherwise
+            // in case of a hit, the parameter s1 is used that only the part checked to be invarant is used in its usage
+            // so it seems to be ok
+            c1.zip(c2).forall(p => recConstructor(s1, p._1, p._2, mode0))
+          })
         case (PathType(t1, l1, r1), PathType(t2, l2, r2)) =>
-          recTypeAbsClosure(t1, t2, mode) &&
+          // for path type and glue type, we currently use invarient rules, NOT sure if this makes sense
+          // the reason being these rules type annotation will guide term equality later on, so better to be equal?
+          recTypeAbsClosure(t1, t2) &&
             recTerm(t1(Formula.False), l1, l2) &&
-            recTerm(t1(Formula.True), r1, r2)
+            recTerm(t2(Formula.True), r1, r2)
         case (GlueType(a1, r1), GlueType(a2, r2)) =>
-          // FIXME is this treatment of glue + subtype correct?
-          recType(a1, a2, mode) && recGlueFaces(choose(a1, a2, mode), r1, r2)
+          // see above
+          recType(a1, a2) && recGlueFaces(a1, r1, r2)
         case (t1, t2) =>
           recNeutral(t1, t2).map(_.whnf match {
             case Universe(_) => true

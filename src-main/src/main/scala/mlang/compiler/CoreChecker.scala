@@ -49,16 +49,10 @@ trait CoreChecker extends ElaboratorContextBuilder
       case Abstract.Universe(i) =>
         Value.Universe.suc(i)
       case Abstract.Function(d, i, co) =>
-        cinfer(d) match {
-          case Value.Universe(u1) =>
-            val (ctx, gen) = newParameterLayer(Name.empty, eval(d))
-            ctx.newMetas(co.metas).cinfer(co.term) match {
-              case Value.Universe(u2) =>
-                Value.Universe(u1 max u2)
-              case _ => logicError()
-            }
-          case _ => logicError()
-        }
+        val u1 = cinferLevel(d)
+        val (ctx, gen) = newParameterLayer(Name.empty, eval(d))
+        val u2 = ctx.newMetas(co.metas).cinferLevel(co.term)
+        Value.Universe(u1 max u2)
       case Abstract.Record(ind, ns, gs) =>
         ???
       case Abstract.Sum(ind, ht, cs) =>
