@@ -129,6 +129,8 @@ sealed trait Value {
     case _ => logicError()
   }
 
+  // only used by inferEndpoint, in general we cannot infer types, this might be inconsistent with subtyping
+  // but endpoints is subtyping invarient
   private def inferHelper: Value = {
     whnf match {
       case g: Generic =>
@@ -402,10 +404,10 @@ object Value {
   case class Universe(level: Int) extends StableCanonical
 
   object Universe {
-    val TypeInType = true
-    def suc(i: Int) = Universe(if (TypeInType) 0 else i)
+    val TYPE_IN_TYPE = true
+    def suc(i: Int) = Universe(if (TYPE_IN_TYPE) 0 else i)
     def level0 = Universe(0)
-    def level1 = Universe(if (TypeInType) 0 else 1)
+    def level1 = Universe(if (TYPE_IN_TYPE) 0 else 1)
   }
 
   case class Function(domain: Value, impict: Boolean, codomain: Closure) extends StableCanonical
@@ -560,7 +562,6 @@ object Value {
         c(dimension).whnf
       case canonical: StableCanonical => logicError()
       case a =>
-        // I think both yacctt use open variables with types, and an `inferType` thing
         dimension.normalForm match {
           case NormalForm.True =>
             a.inferEndpoint(true).whnf

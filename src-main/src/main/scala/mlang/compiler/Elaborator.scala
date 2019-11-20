@@ -321,7 +321,7 @@ class Elaborator private(protected override val layers: Layers)
             // @syntax_creation
             infer(Concrete.Up(c, b + d))
           case Concrete.Type =>
-            (Value.Universe.suc(b + 1), Abstract.Universe(if (Value.Universe.TypeInType) 0 else b))
+            (Value.Universe.suc(b + 1), Abstract.Universe(if (Value.Universe.TYPE_IN_TYPE) 0 else b))
           case Concrete.Reference(ref) =>
             lookupTerm(ref) match {
               case NameLookupResult.Typed(typ, abs) =>
