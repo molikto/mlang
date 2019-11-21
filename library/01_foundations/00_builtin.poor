@@ -21,7 +21,7 @@ define test1 = run {
 
     define no_imp(x: nat, a: type, c: a ⇒ a, d: a): a = x(c, d)
 
-    define res1 = n10M(x → x, unit.make)
+    define res1 = n1M(x → x, unit.make)
     define res: no_imp(n1M) ≡ no_imp(n1Mb) = ─ → no_imp(n1M)
     res
 }
@@ -45,16 +45,15 @@ define test2 = run {
     define n10M :nat = mul(n1M,n10)
     define n10Mb:nat = mul(n10,n1M)
 
-    define res1 = n1M(x → x, a.make)
+    define res1 = n10M(x → x, a.make)
     define res: n10M ≡ n10Mb = x → n10M
     res
 }
 
-
 define abort = ???
 
-*/
 
+*/
 
 define is_contr(A: type): type = record {
   field center: A

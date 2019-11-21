@@ -71,8 +71,26 @@ object Main extends Parser {
     Benchmark.reportAndReset()
   }
 
+  /*
+  type Nat = (Boolean => Boolean) => (Boolean => Boolean)
+  def n2: Nat = (f: Boolean => Boolean) => (b: Boolean) => f(b)
+  def n5: Nat = (f: Boolean => Boolean) => (b: Boolean) => f(f(f(f(f(b)))))
+  def mul(a: Nat, b: Nat) = (s: Boolean => Boolean) => (z: Boolean) => a(b(s))(z)
+  def n10 = mul(n2,n5)
+  def n100 = mul(n10,n10)
+  def n10k = mul(n100,n100)
+  def n10kb = mul(n100,mul(n10,n10))
+  def n1M = mul(n10k,n100)
+  def n1Mb = mul(n100,n10k)
+  def n10M = mul(n1M,n10)
+  def n10Mb = mul(n10,n1M)
+  val t = System.currentTimeMillis()
+  val a = n10M(x => x)(true)
+  println(System.currentTimeMillis()- t)
+  */
+
   def main(args0: Array[String]): Unit = {
-    val args = args0.filter(a => a == "library" || a == "tests")
+  val args = args0.filter(a => a == "library" || a == "tests")
     val runLibrary = args.isEmpty || args.contains("library")
     val runTests = args.isEmpty || args.contains("tests")
     if (args.isEmpty) debug("Usage: pass argument library or/and tests to only run library or only run tests")
