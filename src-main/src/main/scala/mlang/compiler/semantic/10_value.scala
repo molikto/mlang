@@ -568,7 +568,7 @@ object Value {
               // non-dependent codomain
               val d = LocalGeneric(gen(), null)
               val ret = lambda.typ(d)
-              // TODO cubicaltt doesn't have this actually, it seems not that necessary
+              // RULES cubicaltt doesn't have this actually, it seems not that necessary
               if (ret.support().generic.contains(d)) {
                 res = Comp(
                   AbsClosure(i => lambda.typ(hfill(ty, base, faces)(i))),
