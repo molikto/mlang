@@ -29,7 +29,7 @@ the concrete and core syntax have a lot of differences, e.g.:
    * term application and path application have the same form `a(b)`, but they will be elaborated to different core syntax (`App` and `PathApp`) in a type directed way
    * the same syntax form `a.b` is used as projection `pair0.first` and constructor selection `nat.zero` (for record types, `pair.make` where `make` is the single constructor for record types). they have completely different form in core syntax
 
-as we can see, elaboration process is type directed. this has the consequence that if you want some cool elaboration feature, the information needed must exists in the types. this has the unfortunate result to make the core calculus bloated with information not needed by the core calculus, but only needed by the elaboration process. for exmaple Agda and mlang (currently) all save information about if a function is implicit in core syntax, but this is not needed outside of elaboration.
+as we can see, elaboration process is type directed. this has the consequence that if you want some cool elaboration feature, the information needed must exists in the types. this has the unfortunate result to make the core calculus bloated with information not needed by the core calculus, but only needed by the elaboration process. for exmaple Agda and mlang (currently) all save information about if a function is implicit in core syntax, but this is not needed outside of elaboration. this is a mismatch with between implementation and theory (presented in papers).
 
 so I propose a idea of something like this:
 
