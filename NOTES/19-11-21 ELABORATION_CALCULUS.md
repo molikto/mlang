@@ -51,7 +51,7 @@ i think `etype` has a simpler dynamic, for example, we can say that after large 
 
 ### example 1
 
-here is another example: you can cast a value of type function to a type of implicit function: because you are not changing the type, but only the etype
+you can cast a value of type function to a type of implicit function: because you are not changing the type, but only the etype
 
 
 ### example 2
