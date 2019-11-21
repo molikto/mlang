@@ -6,9 +6,7 @@ here are some issues that are easy to do, and they are a good way to familiarize
 
 if you need more background on a issue, plz go to gitter and ask.
     
-there are other kind of TODOs in the project, they are `LATER`, `TODO`, and `FIXME`, use IntelliJ IDEA to browse them.
-
-the one marked `FIXME` in code is important problems needs expert to figure out.
+there are other kind of TODOs in the project, they are `LATER`, `TODO`, `RULES` and `FIXME`, use IntelliJ IDEA to browse them.
 
 
 ## pretty print

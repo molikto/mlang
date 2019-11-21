@@ -108,7 +108,6 @@ trait CoreChecker extends ElaboratorContextBuilder
     }
   }
   def check(abs: Abstract, to: Value): Unit = Benchmark.CoreChecker {
-    // FIXME(CORE_CHECK) we cannot enable this now because meta issues
     ccheck(abs, to)
   }
 

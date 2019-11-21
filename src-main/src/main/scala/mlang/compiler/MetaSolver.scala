@@ -63,7 +63,7 @@ trait MetaSolver extends ValueConversion with Reifier with ElaboratorContextRebi
     }
     var abs: Abstract = null
     try {
-      val t2 = t20.bestReifyValue // FIXME is this sound??
+      val t2 = t20.bestReifyValue // RULES is this sound??
       if (!t2.support().openMetas.contains(m)) {
         abs = ctx.reify(t2)
       }

@@ -58,9 +58,6 @@ define mult_two_tilde_aux: (t: S2_groupoid2_trunc) ⇒ x_refl_type(x_refl(t)) =
      k, l, m, n
    )
 
-
-
-// FIXME moving this inside will cause some logic error when getting support mixed with restrition, when compGraph is enabled
 define mult_two_equiv_aux_common = is_prop_is_equiv(id(@S2_groupoid2_trunc), id_is_equiv(S2_groupoid2_trunc), id_is_equiv(S2_groupoid2_trunc))
 
 define mult_two_equiv_aux: x_refl_type(x_refl(id_equiv(S2_groupoid2_trunc))) = run {

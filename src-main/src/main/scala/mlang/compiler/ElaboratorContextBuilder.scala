@@ -96,7 +96,7 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
           case _ =>
             val g = newDeclaredGeneric(typ)
             val r = newReference(code)
-            (Layer.Defines(metas, defines :+ DefineItem(ParameterBinder(name, g), r, code)) +: layers.tail, defines.size, g)
+            (Layer.Defines(metas, defines :+ DefineItem(ParameterBinder(name, g), typ, r, code)) +: layers.tail, defines.size, g)
         }
       case _ => logicError()
     }
@@ -118,7 +118,7 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
             } else {
               Value.LocalReference(g)
             }
-            (Layer.Defines(metas, defines :+ DefineItem(p, r, null, isAxiom)) +: layers.tail, defines.size, g)
+            (Layer.Defines(metas, defines :+ DefineItem(p, typ, r, null, isAxiom)) +: layers.tail, defines.size, g)
         }
       case _ => logicError()
     }
@@ -128,7 +128,7 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
     layers.head match {
       case Layer.Defines(metas, defines) =>
         defines(index) match {
-          case DefineItem(typ0, r, c, ia) =>
+          case DefineItem(typ0, typCode, r, c, ia) =>
             assert(typ0.name == name)
             assert(r.value == typ0.value)
             assert(null == c)
@@ -137,7 +137,7 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
             if (r.isInstanceOf[Value.GlobalReference]) {
               r.asInstanceOf[Value.GlobalReference].lifter = (i: Int) => evalHack(code.lup(0, i))
             }
-            (Layer.Defines(metas, defines.updated(index, DefineItem(typ0, r, code))) +: layers.tail, r)
+            (Layer.Defines(metas, defines.updated(index, DefineItem(typ0, typCode, r, code))) +: layers.tail, r)
         }
       case _ => logicError()
     }

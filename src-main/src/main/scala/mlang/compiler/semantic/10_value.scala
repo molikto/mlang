@@ -568,7 +568,7 @@ object Value {
               // non-dependent codomain
               val d = LocalGeneric(gen(), null)
               val ret = lambda.typ(d)
-              // FIXME cubicaltt doesn't have this actually
+              // TODO cubicaltt doesn't have this actually, it seems not that necessary
               if (ret.support().generic.contains(d)) {
                 res = Comp(
                   AbsClosure(i => lambda.typ(hfill(ty, base, faces)(i))),
@@ -683,7 +683,7 @@ object Value {
     }
   }
 
-  // FIXME when we have a syntax for partial values, these should be removed (or what? because Agda cannot compute the problem?)
+  // TODO when we have a syntax for partial values, these should be removed? or this should stay as primitive because we need it?
   case class Comp(@stuck_pos tp: AbsClosure, base: Value, faces: AbsClosureSystem) extends Redux {
     override protected def getWhnf(): Value = comp(tp, base, faces).whnf
   }

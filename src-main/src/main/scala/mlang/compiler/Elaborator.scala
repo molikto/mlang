@@ -857,8 +857,7 @@ class Elaborator private(protected override val layers: Layers)
             }
             info(s"check defined $name")
             if (ps.nonEmpty || t0.nonEmpty) throw ElaboratorException.SeparateDefinitionCannotHaveTypesNow()
-            // FIXME it is an example why define layers should also save all code, this way the reify bellow is not necessary
-            val va = check(v, item.typ, Seq.empty, rememberInductivelyBy(reify(item.typ), item.ref))
+            val va = check(v, item.typ, Seq.empty, rememberInductivelyBy(item.typCode, item.ref))
             // info("body:"); print(va)
             freeze()
             val (ctx, _) = newDefinitionChecked(index, name, va)
@@ -938,7 +937,7 @@ class Elaborator private(protected override val layers: Layers)
       Value.NORMAL_FORM_MODEL = true
       val a = ret.layers.head.asInstanceOf[Layer.Defines].terms.find(_.name == s.name).get.ref.value
       val time  = System.currentTimeMillis()
-      println(reify(a.whnf))
+      println(reify(a.nf))
       // val nf = a.whnf.asInstanceOf[PathLambda].body(semantic.Formula.Generic(-1)).whnf
       // val fs = nf.asInstanceOf[Value.Hcomp].faces
       // val pair = fs.toSeq.head

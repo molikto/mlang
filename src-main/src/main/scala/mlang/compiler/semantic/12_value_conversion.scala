@@ -78,7 +78,7 @@ trait ValueConversion {
                 for (a2 <- as2) {
                   val a = at ++ a1 ++ a2
                   if (a.satisfiable) {
-                    // FIXME before we create a new layer, but now we don't, because we simply don't allow restriction on meta, think again if this is proper
+                    // RULES before we create a new layer, but now we don't, because we simply don't allow restriction on meta, think again if this is proper
                     // same bellow
                     // newSyntaxDirectedRestrictionLayer(a) 
                     if (handle(a, ft._2, f1._2, f2._2)) {
@@ -137,7 +137,6 @@ trait ValueConversion {
 
   **/
 
-  // FIXME is this handling of subtyping sound?
   def choose[T](d1: T, d2: T, mode: Int): T = if (mode >= 0) d1 else d2
 
 
@@ -300,7 +299,7 @@ trait ValueConversion {
 
 
 
-  // FIXME this is potentially non-terminating now, if the domain/codomain changes each time, this can happens for indexed types I think
+  // RULES this is potentially non-terminating now, if the domain/codomain changes each time, this can happens for indexed types I think
   private val patternAssumptions = mutable.ArrayBuffer[Assumption]()
 
   private def sameTypePatternLambdaWithAssumptions(domain: Value, l1: PatternLambda, l2: PatternLambda): Boolean = {
@@ -470,7 +469,7 @@ trait ValueConversion {
 
   /**
     * it is REQUIRED that t1 and t2 indeed has that type!!!!
-    * FIXME what impact will there be if unification is not type directed?
+    * RULES what impact will there be if unification is not type directed?
     */
   private def recTerm(typ: Value, t1: Value, t2: Value): Boolean = {
     if (t1 == t2) {
@@ -506,7 +505,7 @@ trait ValueConversion {
               }
             case _ => g
           }
-          // FIXME is this correct? what about eta for glue?
+          // RULES is this correct? what about eta for glue?
           (deunglue(t1), deunglue(t2)) match {
             case (g1: Glue, g2: Glue) => baseCase(g1, g2)
             case (a, b) => recNeutral(a, b)

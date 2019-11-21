@@ -53,7 +53,7 @@ case class DimensionBinder(name: Name, value: semantic.Formula.Generic) extends 
 // a defined term acts like a reference to parameter when it doesn't have a body
 // the parameter will read back to the reference again
 // so afterwards, we change the body of the reference and all is good silently
-case class DefineItem(typ0: ParameterBinder, ref: Value.Reference, code: dbi.Abstract, isAxiom: Boolean = false) {
+case class DefineItem(typ0: ParameterBinder, typCode: dbi.Abstract, ref: Value.Reference, code: dbi.Abstract, isAxiom: Boolean = false) {
   def typ: Value = typ0.value.typ
   def id: Long = typ0.id
   def name: Name = typ0.name
