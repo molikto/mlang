@@ -49,9 +49,9 @@
     * error reporting
         * disallow or warn naming shadowing
         * better error reporting
-    * modules and compile unit
     * structural editor
         * editor diractives and name sortcuts
+    * modules and compile unit (when it got slow, currently not worth the trouble)
     * compilation
 * TESTING
     * translate to Agda to do correctness checking
