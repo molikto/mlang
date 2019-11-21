@@ -7,6 +7,7 @@
         * inductive(nominal)/structural record/sum type
         * mutually recursive definitions
     * bidirectional elaborating type checker
+    * evaluation/HOAS by generating JVM bytecode dynamically
     * conversion check and whnf with eta and recursive references
 * **DONE** overlapping and order independent patterns, see `plus_tests` in library for detail
 * **DONE** locally scoped meta; very simple unification; implicit arguments syntax
