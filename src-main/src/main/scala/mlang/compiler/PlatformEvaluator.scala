@@ -919,7 +919,10 @@ trait PlatformEvaluator extends Evaluator {
     }
     val args = new Array[Object](ds.size)
     for (i <- 0 until ds.size) {
-      args(i) = getDependency(ds(i))
+      args(i) = getDependency(ds(i)) match {
+        case r: Value.Reference => r.referenced
+        case a => a
+      }
     }
     val ret = hd.value(args)
     ret
