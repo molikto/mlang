@@ -1,52 +1,63 @@
 
 
-// by value (branch full-reduction): polymorphic version fails to stop, non-polymorphic version uses 196 secs
-// by need (branch master): 
+// by value (branch full-reduction): polymorphic version: 5s, non-polymorphic version uses 79ms
+// by need (branch master):
 
 // [info] Make(ArraySeq())
 // [info] DEBUG used time: 196266
 
 /*
 
-define unit = record {
+
+define test1 = run {
+
+    define unit = record {
+    }
+
+    define nat = (#a: type) ⇒ (a ⇒ a) ⇒ a ⇒ a
+    define n2: nat = #─ → f → z → f(f(z))
+    define n5: nat = #─ → f → z → f(f(f(f(f(z)))))
+    define mul(a b: nat): nat = #─ → s → z → a(b(s))(z)
+
+    define n10: nat = mul(n2,n5)
+    define n100: nat = mul(n10,n10)
+    define n10k: nat = mul(n100,n100)
+    define n10kb:nat = mul(n100,mul(n10,n10))
+    define n1M:nat   = mul(n10k,n100)
+    define n1Mb:nat  = mul(n100,n10k)
+    define n10M :nat = mul(n1M,n10)
+    define n10Mb:nat = mul(n10,n1M)
+
+    define __debug res = n1Mb(x → x, unit.make)
+    res
 }
-define nat = (#a: type) ⇒ (a ⇒ a) ⇒ a ⇒ a
-define n2: nat = #─ → f → z → f(f(z))
-define n5: nat = #─ → f → z → f(f(f(f(f(z)))))
-define mul(a b: nat): nat = #─ → s → z → a(b(s))(z)
-
-define n10: nat = mul(n2,n5)
-define n100: nat = mul(n10,n10)
-define n10k: nat = mul(n100,n100)
-define n10kb:nat = mul(n100,mul(n10,n10))
-define n1M:nat   = mul(n10k,n100)
-define n1Mb:nat  = mul(n100,n10k)
-define n10M :nat = mul(n1M,n10)
-define n10Mb:nat = mul(n10,n1M)
-
-define __debug res = n10M(x → x, unit.make)
 
 
-define a = record {
+define test2 = run {
+
+    define a = record {
+    }
+    define nat = (a ⇒ a) ⇒ a ⇒ a
+    define n2: nat = f → z → f(f(z))
+    define n5: nat = f → z → f(f(f(f(f(z)))))
+    define mul(a b: nat): nat = s → z → a(b(s))(z)
+
+    define n10: nat = mul(n2,n5)
+    define n100: nat = mul(n10,n10)
+    define n10k: nat = mul(n100,n100)
+    define n10kb:nat = mul(n100,mul(n10,n10))
+    define n1M:nat   = mul(n10k,n100)
+    define n1Mb:nat  = mul(n100,n10k)
+    define n10M :nat = mul(n1M,n10)
+    define n10Mb:nat = mul(n10,n1M)
+
+    define __debug res = n1Mb(x → x, a.make)
+    res
 }
-define nat = (a ⇒ a) ⇒ a ⇒ a
-define n2: nat = f → z → f(f(z))
-define n5: nat = f → z → f(f(f(f(f(z)))))
-define mul(a b: nat): nat = s → z → a(b(s))(z)
 
-define n10: nat = mul(n2,n5)
-define n100: nat = mul(n10,n10)
-define n10k: nat = mul(n100,n100)
-define n10kb:nat = mul(n100,mul(n10,n10))
-define n1M:nat   = mul(n10k,n100)
-define n1Mb:nat  = mul(n100,n10k)
-define n10M :nat = mul(n1M,n10)
-define n10Mb:nat = mul(n10,n1M)
-
-define __debug res = n10M(x → x, a.make)
+define abort = ???
 
 */
-
 
 define is_contr(A: type): type = record {
   field center: A
