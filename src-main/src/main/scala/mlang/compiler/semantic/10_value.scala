@@ -507,6 +507,16 @@ object Value {
 
   case class Function(domain: Value, impict: Boolean, codomain: Closure) extends StableCanonical
 
+
+  object App {
+    def eager(lambda: Value, argument: Value): Value = {
+        lambda match {
+          case Lambda(closure) =>
+            closure(argument)
+          case _ => App(lambda, argument)
+        }
+    }
+  }
   /**
     * whnf: lambda is whnf and is not a canonical
     */

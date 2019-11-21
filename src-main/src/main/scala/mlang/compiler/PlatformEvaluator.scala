@@ -803,7 +803,7 @@ class ByteCodeGeneratorRun(val root: Abstract) {
       case Abstract.App(left, right) =>
         mv.emit(left)
         mv.emit(right)
-        mv.create("App")
+        mv.create("App", "eager")
       case Abstract.Record(id, names, nodes) =>
         mv.createOption(id, a => mv.emit(a))
         val i = tunnel(names)
