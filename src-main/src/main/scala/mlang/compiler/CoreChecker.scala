@@ -66,14 +66,12 @@ trait CoreChecker extends ElaboratorContextBuilder
         ctx.newLocalMetas(tp.metas).cinfer(tp.term)
       case Abstract.PathApp(a, b) =>
         cinfer(a).whnf match {
-          case Value.PathType(ty, _, _) =>
-            ty(eval(b))
+          case Value.PathType(ty, _, _) => ty(eval(b))
           case _ => logicError()
         }
       case Abstract.Projection(a, b) =>
         cinfer(a).whnf match {
-          case s: Value.Record =>
-            s.projectedType(eval(a), b)
+          case s: Value.Record => s.projectedType(eval(a), b)
           case _ => logicError()
         }
       case Abstract.Let(ms, ds, in) =>
