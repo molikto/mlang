@@ -75,7 +75,7 @@ first: how to make sense of `g: G`, in Agda it makes no sense, [in Coq](https://
 
 then if we use the Coq approach, we have trouble with the two `*` bellow: intuitively we want to use the mulplication in group `G` and `K` respectively, but they have the same type, there is no way we can select a single typeclass!
 
-I'd like it to means `g: A` and `g: A` have same type, but **different `etype`**, and information in `etype` is used in resolving what `*` is used.
+I'd like it to means `g: A` and `k: A` have same type, but **different `etype`**, and information in `etype` is used in resolving what `*` is used.
 
 *hint: the elaborated result should be `pair.make(G.*(g, g), K.*(k, k))`*
 
