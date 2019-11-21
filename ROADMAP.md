@@ -10,13 +10,12 @@
     * conversion check and whnf with eta and recursive references
 * **DONE** overlapping and order independent patterns, see `plus_tests` in library for detail
 * **DONE** locally scoped meta; very simple unification; implicit arguments syntax
-    * *problem: the meta solution is not type checked, and other cases metas is not solved see FIXMEs in code*
 * **DONE** cubical features
     * path type
     * composition structure (hcomp, transp)
     * glue type and univalence, fibrant universe
     * sum type's composition structure, higher inductive types
-* **DONE** cumulative universe with "lift" operator for global definitions (see [here](https://mazzo.li/epilogue/index.html%3Fp=857&cpage=1.html)) and subtyping
+* **DONE** cumulative universe with "lift" operator for global definitions (see [here](https://mazzo.li/epilogue/index.html%3Fp=857&cpage=1.html)) and universe/function subtyping
 * SOUNDNESS *to reject codes, not actually providing new features!*
     * complete core checker (currently it is only a partial implementation)
     * positivity checker
