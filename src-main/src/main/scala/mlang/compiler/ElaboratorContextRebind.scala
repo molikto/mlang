@@ -21,9 +21,9 @@ trait ElaboratorContextRebind extends ElaboratorContextBase {
           var ll = d.terms
           while (ll.nonEmpty && binder == null) {
             lookupMatched(ll.head.ref, v, up) match {
-              case Some(asgs) =>
+              case Some(lv) =>
                 index = i
-                binder = Abstract.Reference(up, index)
+                binder = Abstract.Reference(up, index, lv)
               case _ =>
             }
             i += 1
@@ -107,9 +107,9 @@ trait ElaboratorContextRebind extends ElaboratorContextBase {
     def tryBind(a: Value.Generic, up: Int, i: Int): Unit = {
       if (g.id == a.id) {
         lookupMatched(a, g, up) match {
-          case Some(asgs) =>
+          case Some(lv) =>
             index = i
-            binder = Abstract.Reference(up, index)
+            binder = Abstract.Reference(up, index, lv)
           case _ => logicError() // you should always bind a generic if id is equal
         }
       }

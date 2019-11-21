@@ -96,14 +96,14 @@ declare without_define is_groupoid_set: ^is_groupoid(set)
 
 define code_S2(s: S2): groupoid = groupoid_trunc_groupoid(S2_hopf(s))
 
-define code_trunc_S2: groupoid2_trunc(S2) ⇒ groupoid = rec_groupoid2_trunc(is_groupoid2_groupoid, code_S2)
+define code_trunc_S2: groupoid2_trunc(S2) ⇒ groupoid = ^rec_groupoid2_trunc(is_groupoid2_groupoid, code_S2)
 
 define encode_trunc_S2(p: loop_space(pointed_groupoid2_trunc(S2_pointed)).A): groupoid_trunc(S1) =
   transp(i → code_trunc_S2(p(i)).ty, 0, _.in(S1.base)) // this projection syntax "_.in" means we don't want to specifiy the type, it is inferred
 
 define code_S1(s: S1): set = set_trunc_set(S1_helix(s))
 
-define code_trunc_S1: groupoid_trunc(S1) ⇒ set = rec_groupoid_trunc(is_groupoid_set, code_S1)
+define code_trunc_S1: groupoid_trunc(S1) ⇒ set = ^rec_groupoid_trunc(is_groupoid_set, code_S1)
 
 define encode_trunc_S1(p: loop_space(pointed_groupoid_trunc(S1_pointed)).A): set_trunc(int) =
   transp(i → code_trunc_S1(p(i)).ty, 0, _.in(i0))

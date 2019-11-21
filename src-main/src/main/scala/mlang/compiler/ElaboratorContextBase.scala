@@ -116,13 +116,18 @@ object Layer {
 trait ElaboratorContextBase {
   protected def layers: Layers
 
-  protected def lookupMatched(ref: Referential, a: Referential, up: Int) = {
-    ref.lookupChildren(a) match {
-      case a@Some(asgs) =>
-        if (getAllRestrictions(ref.support().names, up) == asgs) a
-        else logicError()
-      case _ =>
-        None
+  protected def lookupMatched(ref: Referential, a: Referential, up: Int): Option[Int] = {
+    ref match {
+      case l: Value.LocalReferential =>
+        l.lookupChildren(a) match {
+          case a@Some(asgs) =>
+            if (getAllRestrictions(ref.support().names, up) == asgs) Some(0)
+            else logicError()
+          case _ =>
+            None
+        }
+      case g: Value.GlobalReferential =>
+        g.lookupChildren(a)
     }
   }
 

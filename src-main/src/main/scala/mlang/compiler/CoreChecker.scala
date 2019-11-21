@@ -27,10 +27,10 @@ trait CoreChecker extends ElaboratorContextBuilder
   type Self  <: CoreChecker
   // FIXME(META) the trait system seems to make core check solving metas in it's way, consider if it is ok
 
-  def newMetas(abs: Seq[Abstract]): Self = {
+  def newLocalMetas(abs: Seq[Abstract]): Self = {
     abs.foreach(a => {
       val t = cinfer(a)
-      solvedMeta(Value.Meta.solved(eval(a)), t, a)
+      solvedMeta(Value.LocalMeta.solved(eval(a)), t, a)
     })
     this.asInstanceOf[Self]
   }
@@ -44,14 +44,16 @@ trait CoreChecker extends ElaboratorContextBuilder
 
   def cinfer(abs: Abstract): Value = {
     abs match {
-      case Abstract.Reference(up, index) =>
-        getReferenceType(up, index)
+      case Abstract.Reference(up, index, lvl) =>
+        getReferenceType(up, index, lvl)
+      case Abstract.MetaReference(up, index, lvl) =>
+         getMetaReferenceType(up, index, lvl)
       case Abstract.Universe(i) =>
         Value.Universe.suc(i)
       case Abstract.Function(d, i, co) =>
         val u1 = cinferLevel(d)
         val (ctx, gen) = newParameterLayer(Name.empty, eval(d))
-        val u2 = ctx.newMetas(co.metas).cinferLevel(co.term)
+        val u2 = ctx.newLocalMetas(co.metas).cinferLevel(co.term)
         Value.Universe(u1 max u2)
       case Abstract.Record(ind, ns, gs) =>
         ???
@@ -61,7 +63,7 @@ trait CoreChecker extends ElaboratorContextBuilder
         ???
       case Abstract.PathType(tp, left, right) =>
         val (ctx, gen) = newDimensionLayer(Name.empty)
-        ctx.newMetas(tp.metas).cinfer(tp.term)
+        ctx.newLocalMetas(tp.metas).cinfer(tp.term)
       case Abstract.PathApp(a, b) =>
         cinfer(a).whnf match {
           case Value.PathType(ty, _, _) =>
@@ -76,7 +78,7 @@ trait CoreChecker extends ElaboratorContextBuilder
         }
       case Abstract.Let(ms, ds, in) =>
         if (ds.isEmpty) {
-          newParametersLayer().newMetas(ms).cinfer(in)
+          newParametersLayer().newLocalMetas(ms).cinfer(in)
         } else {
           ???
         }
@@ -86,8 +88,6 @@ trait CoreChecker extends ElaboratorContextBuilder
             co(eval(b))
           case _ => logicError()
         }
-      case Abstract.MetaReference(up, index) =>
-         getMetaReferenceType(up, index)
       case _ =>
         ???
     }
@@ -118,7 +118,7 @@ trait CoreChecker extends ElaboratorContextBuilder
     abs match {
       case Abstract.Let(ms, ds, in) =>
         if (ds.isEmpty) {
-          newParametersLayer().newMetas(ms).ccheck(in, to)
+          newParametersLayer().newLocalMetas(ms).ccheck(in, to)
         } else {
           ???
         }
@@ -126,7 +126,7 @@ trait CoreChecker extends ElaboratorContextBuilder
         to.whnf match {
           case Value.Function(d, _, co) =>
             val (ctx, gen) = newParameterLayer(Name.empty, d)
-            ctx.newMetas(closure.metas).ccheck(closure.term, co(gen))
+            ctx.newLocalMetas(closure.metas).ccheck(closure.term, co(gen))
           case _ => logicError()
         }
       case Abstract.Make(vs) =>
@@ -145,8 +145,9 @@ trait CoreChecker extends ElaboratorContextBuilder
             }
           case _ => logicError()
         }
-      case _ => 
-        if (!CoreCheckerConversion.subTypeOf(cinfer(abs), to)) {
+      case _ =>
+        val left = cinfer(abs)
+        if (!CoreCheckerConversion.subTypeOf(left, to)) {
           throw CoreCheckFailedException()
         }
     }

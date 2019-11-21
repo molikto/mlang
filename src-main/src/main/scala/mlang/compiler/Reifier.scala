@@ -213,7 +213,7 @@ private class ReifierContextBottom(layersBefore: Layers) extends ReifierContext 
   def saveOutOfScopeValue(r: Value.Reference): Unit = {
     val index = terms.size
     debug(s"out of scope value saved??", 2)
-    terms.append(DefineItem(ParameterBinder(Name.empty, Value.Generic(GenLong.Negative.gen(), null)), r, null))
+    terms.append(DefineItem(ParameterBinder(Name.empty, Value.LocalGeneric(GenLong.Negative.gen(), null)), r, null))
     val abs = if (r.value == self) {
       None : Option[Abstract]
     } else {
@@ -231,7 +231,7 @@ private class ReifierContextBottom(layersBefore: Layers) extends ReifierContext 
     val abs = data.sortBy(_._1).map(_._2.getOrElse(body))
     val ms = reifyMetas()
     if (c == 1) {
-      Let(ms, abs, Reference(0, data.find(_._2.isEmpty).get._1))
+      Let(ms, abs, Reference(0, data.find(_._2.isEmpty).get._1, 0))
     } else {
       if (ms.isEmpty && abs.isEmpty) {
         body.diff(0, -1)

@@ -3,6 +3,7 @@ package mlang.compiler
 import mlang.compiler.Layer.{AlternativeGraph, HitDefinition, Layers}
 import mlang.utils._
 import mlang.compiler.semantic.Value
+import mlang.compiler.dbi.given
 
 import scala.collection.mutable
 
@@ -10,10 +11,7 @@ import scala.collection.mutable
 
 sealed trait ElaboratorContextBuilderException extends CompilerException
 
-object ElaboratorContextBuilderException {
-
-  
-}
+object ElaboratorContextBuilderException
 
 
 
@@ -54,13 +52,8 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
     (ctx, v)
   }
 
-  private def newReference(v: Value = null, name: Name = null): Value.Reference =
-    if (layers.size == 1) {
-      val g = Value.GlobalReference(v)
-      g.name = name
-      g
-    }
-    else Value.LocalReference(v)
+  def newDefinesLayer(): Self = Layer.Defines(createMetas(), Seq.empty) +: layers
+
 
   def lookupDefined(a: Name): Option[(Int, DefineItem)] = layers.head match {
     case Layer.Defines(_, defines) =>
@@ -74,18 +67,35 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
     case _ => logicError()
   }
 
+  private def newDeclaredGeneric(typ: dbi.Abstract): Value.Generic = {
+    if (layers.size == 1) {
+      val g = Value.GlobalGeneric(gen(), evalHack(typ))
+      g.lifter = (i: Int) => evalHack(typ.lup(0, i))
+      g
+    } else {
+      Value.LocalGeneric(gen(), evalHack(typ))
+    }
+  }
 
-  def newDefinesLayer(): Self = Layer.Defines(createMetas(), Seq.empty) +: layers
+  private def newReference(v: dbi.Abstract, name: Name = null): Value.Reference = {
+    if (layers.size == 1) {
+      val g = Value.GlobalReference(evalHack(v), name)
+      g.lifter = (i: Int) => evalHack(v.lup(0, i))
+      g
+    } else {
+      Value.LocalReference(evalHack(v))
+    }
+  }
 
   // give a definition with body
-  def newDefinition(name: Name, typ: Value, v: Value, code: dbi.Abstract) : (Self, Int, Value.Generic) = {
+  def newDefinition(name: Name, typ: dbi.Abstract, code: dbi.Abstract) : (Self, Int, Value.Generic) = {
     layers.head match {
       case Layer.Defines(metas, defines) =>
         defines.find(_.name.intersect(name)) match {
           case Some(_) => logicError()
           case _ =>
-            val g = Value.Generic(gen(), typ)
-            val r = newReference(v)
+            val g = newDeclaredGeneric(typ)
+            val r = newReference(code)
             (Layer.Defines(metas, defines :+ DefineItem(ParameterBinder(name, g), r, code)) +: layers.tail, defines.size, g)
         }
       case _ => logicError()
@@ -93,23 +103,28 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
   }
 
   // declare first, used possiblely by a recursive definition, or declaration only, which then used by other recursive definitions
-  def newDeclaration(name: Name, typ: Value, isAxiom: Boolean = false) : (Self, Int, Value.Generic) = {
+  def newDeclaration(name: Name, typ: dbi.Abstract, isAxiom: Boolean = false) : (Self, Int, Value.Generic) = {
     layers.head match {
       case Layer.Defines(metas, defines) =>
         defines.find(_.name.intersect(name)) match {
           case Some(_) => logicError()
           case _ =>
             if (isAxiom && layers.size != 1) logicError()
-            val g = Value.Generic(gen(), typ)
+            val g = newDeclaredGeneric(typ)
             val p = ParameterBinder(name, g)
-            val r = newReference(g)
+            val r = if (layers.size == 1) {
+              // cannot be lifted until has definition
+              Value.GlobalReference(g, name)
+            } else {
+              Value.LocalReference(g)
+            }
             (Layer.Defines(metas, defines :+ DefineItem(p, r, null, isAxiom)) +: layers.tail, defines.size, g)
         }
       case _ => logicError()
     }
   }
 
-  def newDefinitionChecked(index: Int, name: Name, v: Value, code: dbi.Abstract) : (Self, Value.Reference) = {
+  def newDefinitionChecked(index: Int, name: Name, code: dbi.Abstract) : (Self, Value.Reference) = {
     layers.head match {
       case Layer.Defines(metas, defines) =>
         defines(index) match {
@@ -118,7 +133,10 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
             assert(r.value == typ0.value)
             assert(null == c)
             assert(!ia)
-            r.value = v
+            r.value = evalHack(code)
+            if (r.isInstanceOf[Value.GlobalReference]) {
+              r.asInstanceOf[Value.GlobalReference].lifter = (i: Int) => evalHack(code.lup(0, i))
+            }
             (Layer.Defines(metas, defines.updated(index, DefineItem(typ0, r, code))) +: layers.tail, r)
         }
       case _ => logicError()
@@ -129,7 +147,7 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
 
 
   def newParameterLayer(name: Name, typ: Value): (Self, Value) = {
-    val g = Value.Generic(gen(), typ)
+    val g = Value.LocalGeneric(gen(), typ)
     (Layer.Parameter(ParameterBinder(name, g), createMetas()) +: layers, g)
   }
 
@@ -166,8 +184,7 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
         binders.find(_.name.intersect(name)) match {
           case Some(_) => logicError()
           case _ =>
-            val g = gen()
-            val v = Value.Generic(g, typ)
+            val v = Value.LocalGeneric(gen(), typ)
             if (!metas.debug_allFrozen) {
               logicError()
             }
@@ -227,7 +244,7 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
             case _ =>
           }
           if (ret == null) {
-            val open = ParameterBinder(name, Value.Generic(gen(), t))
+            val open = ParameterBinder(name, Value.LocalGeneric(gen(), t))
             vvv.append(open)
             ret = (open.value, Pattern.GenericValue)
           }

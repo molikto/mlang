@@ -11,7 +11,7 @@ define flat2: type = sum {
 }
 
 // non-recursive record and sum has structural equality, their case/field name/order needs to be exactly the same
-define flat_is_ok: flat ≡ flat2 = refl
+define flat_is_ok: flat ≡ flat2 = ^refl
 
 define r1: ^type = record {
   field a b: type
@@ -21,4 +21,4 @@ define r2: ^type = record {
   field a b: type
 }
 
-define r_is_ok: r1 ≡ r2 = ^refl
+define r_is_ok: r1 ≡ r2 = ^^refl

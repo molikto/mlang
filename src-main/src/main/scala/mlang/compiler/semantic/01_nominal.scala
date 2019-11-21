@@ -1,6 +1,6 @@
 package mlang.compiler.semantic
 
-import Value.{Meta, Referential, Generic, GlobalReference, LocalReferential}
+import Value.{Meta, Referential, Generic, GlobalReferential, LocalReferential}
 import scala.collection.mutable
 import mlang.utils._
 
@@ -38,7 +38,7 @@ private def Nominal_support[T](a: T)(given Nominal[T]): Support = {
       val candidate = toTest.head
       toTest.remove(candidate)
       candidate match {
-        case GlobalReference(value) => // skip global reference
+        case _: GlobalReferential => // skip global reference
         case Generic(id, _typ) if id == 0 => // skip hack generic
         case r: LocalReferential =>
           tested.add(r)

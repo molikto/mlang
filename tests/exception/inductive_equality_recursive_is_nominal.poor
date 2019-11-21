@@ -17,4 +17,4 @@ define inductively nat2: type = sum {
 
 
 // this fails because we have nominal equality for recursive types!
-define fails: nat ≡ nat2 = refl
+define fails: nat ≡ nat2 = ^refl

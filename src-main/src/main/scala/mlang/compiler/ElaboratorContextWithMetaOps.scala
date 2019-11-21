@@ -4,6 +4,7 @@ import scala.collection.mutable
 import mlang.compiler.semantic.Value
 import mlang.utils._
 import mlang.compiler.dbi.Abstract
+import mlang.compiler.dbi.given
 
 sealed trait ContextWithMetaOpsException extends CompilerException
 
@@ -22,7 +23,10 @@ trait ElaboratorContextWithMetaOps extends ElaboratorContextBase {
 
   def debug_metasSize = layers.head.metas.size
 
+
   protected def createMetas(): MetasState = new MetasState(mutable.ArrayBuffer.empty, 0)
+
+  def evalHack(a: Abstract): Value = this.asInstanceOf[Evaluator].eval(a)
 
   protected def solveMeta(index: Int, body: Value, code: dbi.Abstract) = {
     val ms = layers.head.metas
@@ -30,6 +34,11 @@ trait ElaboratorContextWithMetaOps extends ElaboratorContextBase {
     val mb = ms.metas(index)
     assert(!mb.value.isSolved)
     mb.value.state = semantic.MetaState.Closed(body)
+    mb.value match {
+      case g: Value.GlobalMeta =>
+        g.lifter = (i: Int) => evalHack(code.lup(0, i))
+      case _ =>
+    }
     mb.code = code
   }
 
@@ -39,7 +48,7 @@ trait ElaboratorContextWithMetaOps extends ElaboratorContextBase {
     if (ms.debug_final) logicError()
     val index = ms.size
     ms.append(meta, typ, code)
-    Abstract.MetaReference(0, index)
+    Abstract.MetaReference(0, index, 0)
   }
 
   def clearMetas() = {
@@ -52,12 +61,12 @@ trait ElaboratorContextWithMetaOps extends ElaboratorContextBase {
 
   protected def newMeta(typ: Value): (Value.Meta, Abstract.MetaReference) = {
     val id = mgen()
-    val v = Value.Meta(semantic.MetaState.Open(id, typ))
+    val v = Value.Meta(layers.size == 1, semantic.MetaState.Open(id, typ))
     val ms = layers.head.metas
     if (ms.debug_final) logicError()
     val index = ms.size
     ms.append(v, typ, null)
-    (v, Abstract.MetaReference(0, index))
+    (v, Abstract.MetaReference(0, index, 0))
   }
 
   protected def rebindMeta(meta: Value.Meta): Abstract.MetaReference = {
@@ -82,11 +91,21 @@ trait ElaboratorContextWithMetaOps extends ElaboratorContextBase {
       var i = 0
       var ll = ls.head.metas.metas
       while (ll.nonEmpty && binder == null) {
-        ll.head._2.lookupChildren(meta) match {
-          case Some(asgn) =>
-            index = i
-            binder = Abstract.MetaReference(up, index)
-          case None =>
+        ll.head._2 match {
+          case l: Value.LocalMeta =>
+            l.lookupChildren(meta) match {
+              case Some(asgn) =>
+                index = i
+                binder = Abstract.MetaReference(up, index, 0)
+              case None =>
+            }
+          case g: Value.GlobalMeta =>
+            g.lookupChildren(meta) match {
+              case Some(l) => 
+                index = i
+                binder = Abstract.MetaReference(up, index, l)
+              case None =>
+            }
         }
         i += 1
         ll = ll.tail

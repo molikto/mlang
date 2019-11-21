@@ -66,7 +66,7 @@ object ByteCodeGeneratorRun {
     Type.getType("(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;")
   )
 
-  val metaInitilizeSig = mlang.utils.Runtime.getMethodDescriptor(classOf[Value.Meta].getMethods.find(_.getName == "initialize").get)
+  val metaInitilizeSig = mlang.utils.Runtime.getMethodDescriptor(classOf[Value.LocalMeta].getMethods.find(_.getName == "initialize").get)
 
   val localReferenceInitilizeSig = mlang.utils.Runtime.getMethodDescriptor(classOf[Value.LocalReference].getMethods.find(_.getName == "initialize").get)
 
@@ -89,7 +89,8 @@ class ByteCodeGeneratorRun(val root: Abstract) {
   private val rootClzName = s"mlang_generated_${clzgen()}"
   cw.visit(V1_8, ACC_SUPER, rootClzName, null, "java/lang/Object", Array("mlang/compiler/Holder"))
   cw.visitInnerClass("java/lang/invoke/MethodHandles$Lookup", "java/lang/invoke/MethodHandles", "Lookup", ACC_PUBLIC | ACC_FINAL | ACC_STATIC)
-  cw.visitInnerClass("mlang/compiler/semantic/Value$Meta", "mlang/compiler/semantic/Value", "Meta", ACC_PUBLIC | ACC_STATIC)
+  cw.visitInnerClass("mlang/compiler/semantic/Value$GlobalMeta", "mlang/compiler/semantic/Value", "GlobalMeta", ACC_PUBLIC | ACC_STATIC)
+  cw.visitInnerClass("mlang/compiler/semantic/Value$LocalMeta", "mlang/compiler/semantic/Value", "LocalMeta", ACC_PUBLIC | ACC_STATIC)
   cw.visitInnerClass("scala/collection/immutable/ArraySeq$ofRef", "scala/collection/immutable/ArraySeq", "ofRef", ACC_PUBLIC | ACC_FINAL | ACC_STATIC);
 
   cw.visitInnerClass("mlang/compiler/semantic/Formula$And", "mlang/compiler/semantic/Formula", "And", ACC_PUBLIC | ACC_STATIC);
@@ -130,7 +131,7 @@ class ByteCodeGeneratorRun(val root: Abstract) {
     val mv = visitMainMethod("value", "([Ljava/lang/Object;)Lmlang/compiler/semantic/Value;")
     mv.visitCode()
     // println("root deps: " + " --- "  + deps)
-    // frame 0: this, 1: args
+    // frame 0: this 1: args, 
     for (i <- 0 until deps.size) {
       mv.visitVarInsn(ALOAD, 1) // args
       mv.emit(i)
@@ -228,7 +229,7 @@ class ByteCodeGeneratorRun(val root: Abstract) {
     for (i <- 0 until locals.size) {
       mn.create("LocalReference", "uninitalized")
       mn.visitVarInsn(ASTORE, frontSize + i)
-      mn.lookup.put(Dependency(0, i, DependencyType.Value), frontSize + i)
+      mn.lookup.put(Dependency(0, i, 0, DependencyType.Value), frontSize + i)
     }
     for ((m, i) <- locals.zipWithIndex) {
       mn.visitVarInsn(ALOAD, frontSize + i)
@@ -240,9 +241,9 @@ class ByteCodeGeneratorRun(val root: Abstract) {
 
   private def (mn: MethodRun) declareMetas(metas: Seq[Abstract], frontSize: Int, base: Int = 0): Unit = {
     for (i <- 0 until metas.size) {
-      mn.create("Meta", "uninitalized")
+      mn.create("LocalMeta", "uninitalized")
       mn.visitVarInsn(ASTORE, frontSize + i)
-      mn.lookup.put(Dependency(0, base + i, DependencyType.Meta), frontSize + i)
+      mn.lookup.put(Dependency(0, base + i, 0, DependencyType.Meta), frontSize + i)
     }
   }
   
@@ -250,7 +251,7 @@ class ByteCodeGeneratorRun(val root: Abstract) {
     for ((m, i) <- metas.zipWithIndex) {
       mn.visitVarInsn(ALOAD, frontSize + i)
       mn.emit(m)
-      mn.visitMethodInsn(INVOKEVIRTUAL, "mlang/compiler/semantic/Value$Meta", "initialize", metaInitilizeSig)
+      mn.visitMethodInsn(INVOKEVIRTUAL, "mlang/compiler/semantic/Value$LocalMeta", "initialize", metaInitilizeSig)
     }
   }
 
@@ -290,7 +291,7 @@ class ByteCodeGeneratorRun(val root: Abstract) {
     // captured
     for ((c, i) <- captured.zipWithIndex) mn.lookup.put(c.diff(1), i)
     // arguments
-    mn.lookup.put(Dependency(0, -1, DependencyType.Value), captured.size)
+    mn.lookup.put(Dependency(0, -1, 0, DependencyType.Value), captured.size)
     mn.emitClosureBody(closure, captured.size + argsSize)
     for (c <- captured) mv.visitVarInsn(ALOAD, mv.lookup(c))
     mv.visitInvokeDynamic(
@@ -327,7 +328,7 @@ class ByteCodeGeneratorRun(val root: Abstract) {
     // captured
     for ((c, i) <- captured.zipWithIndex) mn.lookup.put(c.diff(1), i)
     // arguments
-    mn.lookup.put(Dependency(0, -1, DependencyType.Formula), captured.size)
+    mn.lookup.put(Dependency(0, -1, 0, DependencyType.Formula), captured.size)
     // println(mn.name + mn.lookup)
     mn.emitClosureBody(closure, captured.size + argsSize)
     for (c <- captured) mv.visitVarInsn(ALOAD, mv.lookup(c))
@@ -412,7 +413,7 @@ class ByteCodeGeneratorRun(val root: Abstract) {
       mn.visitTypeInsn(CHECKCAST, "mlang/compiler/semantic/Value");
       val pos = captured.size + i
       mn.visitVarInsn(ASTORE, pos)
-      mn.lookup.put(Dependency(0, i, DependencyType.Value), pos)
+      mn.lookup.put(Dependency(0, i, 0, DependencyType.Value), pos)
     }
     mn.visitInsn(POP)
     for (i <- 0 until size._2) {
@@ -422,7 +423,7 @@ class ByteCodeGeneratorRun(val root: Abstract) {
       mn.visitTypeInsn(CHECKCAST, "mlang/compiler/semantic/Formula");
       val pos = captured.size + i + size._1
       mn.visitVarInsn(ASTORE, pos)
-      mn.lookup.put(Dependency(0, i, DependencyType.Formula), pos)
+      mn.lookup.put(Dependency(0, i, 0, DependencyType.Formula), pos)
     }
     mn.visitInsn(POP)
 
@@ -476,7 +477,7 @@ class ByteCodeGeneratorRun(val root: Abstract) {
       mn.visitTypeInsn(CHECKCAST, "mlang/compiler/semantic/Value");
       val pos = captured.size + i
       mn.visitVarInsn(ASTORE, pos)
-      mn.lookup.put(Dependency(0, i, DependencyType.Value), pos)
+      mn.lookup.put(Dependency(0, i, 0, DependencyType.Value), pos)
     }
     mn.visitInsn(POP)
     for (i <- 0 until size._2) {
@@ -486,7 +487,7 @@ class ByteCodeGeneratorRun(val root: Abstract) {
       mn.visitTypeInsn(CHECKCAST, "mlang/compiler/semantic/Value");
       val pos = captured.size + i + size._1
       mn.visitVarInsn(ASTORE, pos)
-      mn.lookup.put(Dependency(0, i, DependencyType.Meta), pos)
+      mn.lookup.put(Dependency(0, i, 0, DependencyType.Meta), pos)
     }
     mn.visitInsn(POP)
 
@@ -555,7 +556,7 @@ class ByteCodeGeneratorRun(val root: Abstract) {
       mn.visitTypeInsn(CHECKCAST, "mlang/compiler/semantic/Formula");
       val pos = captured.size + i
       mn.visitVarInsn(ASTORE, pos)
-      mn.lookup.put(Dependency(0, i, DependencyType.Formula), pos)
+      mn.lookup.put(Dependency(0, i, 0, DependencyType.Formula), pos)
     }
     mn.visitInsn(POP)
 
@@ -571,7 +572,7 @@ class ByteCodeGeneratorRun(val root: Abstract) {
       val innerName = s"clsoure_graph_inner_${mtdgen()}"
       val mm = visitMethod(innerName, innerMthDesp)
       for ((cc, ii) <- innerCaptured.zipWithIndex) mm.lookup.put(cc.diff(2), ii)
-      for (i <- 0 until dsize) mm.lookup.put(Dependency(1, i, DependencyType.Formula), innerCaptured.size + i)
+      for (i <- 0 until dsize) mm.lookup.put(Dependency(1, i, 0, DependencyType.Formula), innerCaptured.size + i)
       mm.visitCode()
       val capturedTotalSize = innerCaptured.size + dsize
       // process arguments -- flatten values from the array to local variables
@@ -584,7 +585,7 @@ class ByteCodeGeneratorRun(val root: Abstract) {
         mm.visitTypeInsn(CHECKCAST, "mlang/compiler/semantic/Value");
         val pos = capturedTotalSize + i
         mm.visitVarInsn(ASTORE, pos)
-        mm.lookup.put(Dependency(1, i, DependencyType.Value), pos)
+        mm.lookup.put(Dependency(1, i, 0, DependencyType.Value), pos)
       }
       mm.visitInsn(POP)
       for (i <- 0 until msize) {
@@ -594,7 +595,7 @@ class ByteCodeGeneratorRun(val root: Abstract) {
         mm.visitTypeInsn(CHECKCAST, "mlang/compiler/semantic/Value");
         val pos = capturedTotalSize + i + vsize
         mm.visitVarInsn(ASTORE, pos)
-        mm.lookup.put(Dependency(1, i, DependencyType.Meta), pos)
+        mm.lookup.put(Dependency(1, i, 0, DependencyType.Meta), pos)
       }
       mm.visitInsn(POP)
 
@@ -605,7 +606,7 @@ class ByteCodeGeneratorRun(val root: Abstract) {
       mm.visitEnd()
 
       for (c <- innerCaptured) mn.visitVarInsn(ALOAD, mn.lookup(c))
-      for (i <- 0 until dsize) mn.visitVarInsn(ALOAD, mn.lookup(Dependency(0, i, DependencyType.Formula)))
+      for (i <- 0 until dsize) mn.visitVarInsn(ALOAD, mn.lookup(Dependency(0, i, 0, DependencyType.Formula)))
       val p = s"($innerSelfDesCompressed)Lmlang/compiler/semantic/Value;"
       //println(p)
       mn.visitInvokeDynamic(
@@ -692,7 +693,7 @@ class ByteCodeGeneratorRun(val root: Abstract) {
     term match {
       case dbi.Formula.Reference(up, index) =>
         // println(mv.name + " " + mv.lookup)
-        mv.visitVarInsn(ALOAD, mv.lookup(Dependency(up, index, DependencyType.Formula)))
+        mv.visitVarInsn(ALOAD, mv.lookup(Dependency(up, index, 0, DependencyType.Formula)))
       case dbi.Formula.True =>
         mv.visitFieldInsn(GETSTATIC, "mlang/compiler/semantic/Formula$True$", "MODULE$", "Lmlang/compiler/semantic/Formula$True$;")
       case dbi.Formula.False =>
@@ -714,7 +715,7 @@ class ByteCodeGeneratorRun(val root: Abstract) {
     } 
   }
 
-  private def (mv: MethodRun) createOption[T](v: Option[T], emit: T => Unit): Unit = {
+  private def [T] (mv: MethodRun) createOption(v: Option[T], emit: T => Unit): Unit = {
     v match {
       case None =>
         mv.visitFieldInsn(GETSTATIC, "scala/None$", "MODULE$", "Lscala/None$;")
@@ -748,7 +749,7 @@ class ByteCodeGeneratorRun(val root: Abstract) {
     }
   }
 
-  inline private def (mv: MethodRun) createSeq[T](vs: Seq[T], typ: String, emit: T => Unit): Unit = {
+  inline private def [T] (mv: MethodRun) createSeq(vs: Seq[T], typ: String, emit: T => Unit): Unit = {
     if (vs.size == 0) {
       mv.visitFieldInsn(GETSTATIC, "scala/collection/immutable/ArraySeq$", "MODULE$", "Lscala/collection/immutable/ArraySeq$;");
       mv.visitFieldInsn(GETSTATIC, "scala/reflect/ClassTag$", "MODULE$", "Lscala/reflect/ClassTag$;");
@@ -785,10 +786,10 @@ class ByteCodeGeneratorRun(val root: Abstract) {
       case Abstract.Universe(l) =>
         mv.emit(l)
         mv.create("Universe")
-      case Abstract.Reference(x, i) =>
-        mv.visitVarInsn(ALOAD, mv.lookup(Dependency(x, i, DependencyType.Value)))
-      case Abstract.MetaReference(x, i) =>
-        mv.visitVarInsn(ALOAD, mv.lookup(Dependency(x, i, DependencyType.Meta)))
+      case Abstract.Reference(x, i, lvl) =>
+        mv.visitVarInsn(ALOAD, mv.lookup(Dependency(x, i, lvl, DependencyType.Value)))
+      case Abstract.MetaReference(x, i, lvl) =>
+        mv.visitVarInsn(ALOAD, mv.lookup(Dependency(x, i, lvl, DependencyType.Meta)))
       case l@Abstract.Let(metas, definitions, in) =>
         mv.createLet(l)
       case Abstract.Function(domain, impl, codomain) =>
@@ -903,9 +904,12 @@ trait PlatformEvaluator extends Evaluator {
     val (rootClzName, cw, ds) = Benchmark.HoasBytecodeVisit { new ByteCodeGeneratorRun(term).visit() }
     val bytecode = Benchmark.HoasBytecodeEmit { cw.toByteArray }
     if (false) {
-      val fos = new java.io.FileOutputStream(new java.io.File(rootClzName + ".class"))
+      val f = new java.io.File(rootClzName + ".class")
+      val fos = new java.io.FileOutputStream(f)
       fos.write(bytecode)
       fos.close()
+      org.objectweb.asm.util.ASMifier.main(Array(f.getPath))
+      f.delete()
     }
     val hd = Benchmark.HoasBytecodeCompile {
         val clz = PlatformEvaluatorHelpers.loadClass(rootClzName, bytecode).asInstanceOf[Class[Holder]]

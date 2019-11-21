@@ -2,7 +2,7 @@ package mlang.compiler
 
 import mlang.compiler.dbi.{Formula, Abstract}
 import mlang.compiler.semantic.Value
-import mlang.utils.{Benchmark, Name, debug}
+import mlang.utils._
 
 import scala.collection.mutable
 
@@ -11,7 +11,6 @@ case class PlatformEvaluatorException(src: String, cause: Throwable)
 
 
 trait Evaluator extends EvaluatorContext {
-
 
   protected def platformEval(value: Abstract): Value
 
@@ -46,8 +45,8 @@ trait Evaluator extends EvaluatorContext {
   def eval(term: Abstract): Value = {
     Benchmark.Eval {
       term match {
-        case Abstract.Reference(up, index) => getReference(up, index)
-        case Abstract.MetaReference(up, index) => getMetaReference(up, index)
+        case Abstract.Reference(up, index, lvl) => getReference(up, index, lvl)
+        case Abstract.MetaReference(up, index, lvl) => getMetaReference(up, index, lvl)
         case Abstract.Universe(i) => Value.Universe(i)
         case _ =>
           val ret = platformEval(term)

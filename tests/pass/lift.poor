@@ -1,0 +1,5 @@
+
+
+define id(#A: type, a: A): A = a
+
+define id2(#A: type, a: ^id(A)) = id(@^id(A), a)

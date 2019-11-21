@@ -6,7 +6,7 @@ define ua(#A #B: type, e: equiv(A, B)): A ≡ B =
   i → glue_type(B |~i: make(A, e) |i: make(B, id_equiv(B)))
 
 
-define ua_id_equiv(#A: type): ua(id_equiv(A)) ≡ x_refl(A) =
+define ua_id_equiv(#A: type): ua(id_equiv(A)) ≡ ^x_refl(A) =
   i → j → glue_type(A | i: make(A, id_equiv(A))
                       | j: make(A, id_equiv(A))
                       |~j: make(A, id_equiv(A))

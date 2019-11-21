@@ -16,14 +16,14 @@
     * composition structure (hcomp, transp)
     * glue type and univalence, fibrant universe
     * sum type's composition structure, higher inductive types
+* **DONE** cumulative universe with "lift" operator for global definitions (see [here](https://mazzo.li/epilogue/index.html%3Fp=857&cpage=1.html)) and subtyping
 * SOUNDNESS *to reject codes, not actually providing new features!*
     * core checker, so we check meta solutions. also as a double check of elaboration
     * positivity checker
     * coverage & confluence checker for overlapping patterns and for hits
     * termination checking: currently you don't need modifier `inductively` to write a recursive type, with termination checking, you should not be able to do this
 * CORE THEORY EXTENSIONS
-    * **RESEARCH** cumulative universe with "lift" operator for global definitions (see [here](https://mazzo.li/epilogue/index.html%3Fp=857&cpage=1.html)) and subtyping
-        * how we can incorporate XTT or/and two level system, or Arend style, or even both
+    * **RESEARCH** how we can incorporate XTT or/and two level system, or Arend style, or even both
     * **RESEARCH** think how we can have a theory/syntax for partial elements and dimension
     * **RESEARCH** efficient computation for Brunerie's number
     * more recursive types

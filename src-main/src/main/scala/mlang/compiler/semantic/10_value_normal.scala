@@ -74,6 +74,6 @@ given Normal[Value] {
     case Unglue(tp, base, iu, faces) =>
       Unglue(tp.nf, base.nf, iu, normalFaceV(faces))
     case g: Generic => g
-    case _ => logicError()
+    case a => logicError()
   }
 }

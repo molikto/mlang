@@ -147,7 +147,7 @@ trait ValueConversion {
 
 
   private def recTypeClosure(t: Value, c1: Closure, c2: Closure, mode: Int = 0): Option[Value] = {
-    val c = Generic(gen(), t)
+    val c = LocalGeneric(gen(), t)
     val tt = c1(c)
     if (recType(tt, c2(c), mode)) {
       Some(tt)
@@ -187,7 +187,7 @@ trait ValueConversion {
           val t1 = g1(i).independent.typ
           val t2 = g2(i).independent.typ
           eq = recType(t1, t2, mode)
-          val g = Generic(gen(), choose(t1, t2, mode))
+          val g = LocalGeneric(gen(), choose(t1, t2, mode))
           g1 = g1.reduce(i, g)
           g2 = g2.reduce(i, g)
           i += 1
@@ -478,7 +478,7 @@ trait ValueConversion {
     } else {
       (typ.whnf, t1.whnf, t2.whnf) match {
         case (Function(d, _, cd), s1, s2) =>
-          val c = Generic(gen(), d)
+          val c = LocalGeneric(gen(), d)
           recTerm(cd(c), App(s1, c), App(s2, c))
         case (PathType(ty, _, _), s1, s2) =>
           val c = Formula.Generic(dgen())
@@ -540,7 +540,7 @@ trait ValueConversion {
     def rec(p: Pattern, t: Value): Value = {
       p match {
         case Pattern.GenericValue =>
-          val ret = Generic(gen(), t)
+          val ret = LocalGeneric(gen(), t)
           vs.append(ret)
           ret
         case Pattern.GenericDimension => logicError()

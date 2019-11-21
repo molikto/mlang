@@ -12,34 +12,46 @@ import scala.collection.mutable
 
 trait ElaboratorContextForEvaluator extends EvaluatorContext with ElaboratorContextBase  {
 
-  def getMetaReference(depth: Int, index: Int): Value = {
-    getRestricted(layers(depth).metas(index), depth)
+  def getMetaReference(depth: Int, index: Int, lvl: Int): Value = {
+    if (lvl != 0) ???
+    else getRestricted(layers(depth).metas(index), depth)
   }
 
-  def getMetaReferenceType(depth: Int, index: Int): Value = {
-    getRestricted(layers(depth).metas.metas(index).typ, depth)
+  def getMetaReferenceType(depth: Int, index: Int, lvl: Int): Value = {
+    if (lvl != 0) ???
+    else getRestricted(layers(depth).metas.metas(index).typ, depth)
   }
 
-  def getReferenceType(depth: Int, index: Int): Value = getRestricted(layers(depth) match {
-    case Layer.Parameter(binder, _) if index == -1 => binder.typ
-    case ps: Layer.Parameters if index >= 0  => ps.termBinders(index).typ
-    case Layer.Defines(_, terms) => terms(index).typ
+  def getReferenceType(depth: Int, index: Int, lvl: Int): Value = getRestricted(layers(depth) match {
+    case Layer.Parameter(binder, _) if index == -1 =>
+      assert(lvl == 0)
+      binder.typ
+    case ps: Layer.Parameters if index >= 0  =>
+      assert(lvl == 0)
+      ps.termBinders(index).typ
+    case Layer.Defines(_, terms) =>
+      terms(index).typ0.value match {
+        case v: Value.GlobalGeneric => v.lift(lvl).typ
+        case a => 
+          assert(lvl == 0)
+          a.typ
+      }
     case _ => logicError()
   }, depth)
 
   // get value directly without resolving faces
-  def getReference(depth: Int, index: Int): Value = getRestricted(layers(depth) match {
+  def getReference(depth: Int, index: Int, lvl: Int): Value = getRestricted(layers(depth) match {
     case Layer.Parameter(binder, _) if index == -1 => binder.value
     case ps: Layer.Parameters if index >= 0  => ps.termBinders(index).value
-    case Layer.Defines(_, terms) => terms(index).ref
+    case Layer.Defines(_, terms) => terms(index).ref.lift(lvl)
     case _ => logicError()
   }, depth)
 
   def getDependency(d: Dependency): Object = {
     // println("getting dependency " + d)
     d.typ match {
-      case DependencyType.Value => getReference(d.x, d.i)
-      case DependencyType.Meta => getMetaReference(d.x, d.i)
+      case DependencyType.Value => getReference(d.x, d.i, d.l)
+      case DependencyType.Meta => getMetaReference(d.x, d.i, d.l)
       case DependencyType.Formula => getDimension(d.x, d.i)
     }
   }

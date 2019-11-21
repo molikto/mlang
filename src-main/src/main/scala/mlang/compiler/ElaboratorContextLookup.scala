@@ -24,8 +24,8 @@ object NameLookupResult {
 
 trait ElaboratorContextLookup extends ElaboratorContextBase {
 
-  def lookupTerm(name: Text): NameLookupResult.Term = {
-    lookup0(name) match {
+  def lookupTerm(name: Text, lvl: Int): NameLookupResult.Term = {
+    lookup0(name, lvl) match {
       case t: NameLookupResult.Term => t
       case _ => throw ElaboratorContextLookupException.ReferenceSortWrong(name)
     }
@@ -33,17 +33,17 @@ trait ElaboratorContextLookup extends ElaboratorContextBase {
 
 
   def lookupDimension(name: Text): NameLookupResult.Dimension = {
-    lookup0(name) match {
+    lookup0(name, 0) match {
       case name: NameLookupResult.Dimension => name
       case _ => throw ElaboratorContextLookupException.ReferenceSortWrong(name)
     }
   }
 
-  private def lookup0(name: Text): NameLookupResult =  {
+  private def lookup0(name: Text, lvl: Int): NameLookupResult =  {
     var up = 0
     var ls = layers
     var binder: NameLookupResult = null
-    def mkTyped(gn: Value.Generic, abs: Abstract.Reference): NameLookupResult.Typed = {
+    def mkTyped(gn: Value.Referential, abs: Abstract.Reference): NameLookupResult.Typed = {
       // we use generic here because it is cached
       NameLookupResult.Typed(getRestricted(gn, up).asInstanceOf[Value.Generic].typ, abs)
     }
@@ -59,7 +59,7 @@ trait ElaboratorContextLookup extends ElaboratorContextBase {
               index = i
               hd match {
                 case p: ParameterBinder =>
-                  binder = mkTyped(p.value, Abstract.Reference(up, ly.typedIndex(index)))
+                  binder = mkTyped(p.value, Abstract.Reference(up, ly.typedIndex(index), 0))
                 case d: DimensionBinder =>
                   binder = NameLookupResult.Dimension(dbi.Formula.Reference(up, ly.typedIndex(index)))
               }
@@ -84,15 +84,15 @@ trait ElaboratorContextLookup extends ElaboratorContextBase {
           while (ll.nonEmpty && binder == null) {
             if (ll.head.name.by(name)) {
               index = i
-              binder = mkTyped(ll.head.typ0.value,
-                  Abstract.Reference(up, index))
+              binder = mkTyped(ll.head.typ0.value.lift(lvl),
+                  Abstract.Reference(up, index, lvl))
             }
             i += 1
             ll = ll.tail
           }
         case p:Layer.Parameter =>
           if (p.binder.name.by(name)) {
-            binder = mkTyped(p.binder.value, Abstract.Reference(up, -1))
+            binder = mkTyped(p.binder.value, Abstract.Reference(up, -1, 0))
           }
         case d: Layer.Dimension =>
           if (d.binder.name.by(name)) {

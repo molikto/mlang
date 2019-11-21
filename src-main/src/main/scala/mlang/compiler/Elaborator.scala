@@ -25,7 +25,7 @@ private class IndState(val id: Long, typ: Abstract, var stop: Boolean, var top: 
     if (stop) {
       None
     } else {
-      val ret = dbi.Inductively(id, typ, (0 until apps.size).map(i => Abstract.Reference(i, -1)).reverse)
+      val ret = dbi.Inductively(id, typ, (0 until apps.size).map(i => Abstract.Reference(i, -1, 0)).reverse)
       stop = true
       Some((Value.apps(top, apps), ret))
     }
@@ -200,7 +200,7 @@ class Elaborator private(protected override val layers: Layers)
       }
     }
     val selfValue = tps.map(pair => {
-      pair._2.map(_._1).getOrElse(Value.Generic(ElaboratorContextBuilder.gen(), pair._1))
+      pair._2.map(_._1).getOrElse(Value.LocalGeneric(ElaboratorContextBuilder.gen(), pair._1))
     })
     var ctx = newParametersLayer(selfValue)
     var isHit = false
@@ -321,13 +321,13 @@ class Elaborator private(protected override val layers: Layers)
             // @syntax_creation
             infer(Concrete.Up(c, b + d))
           case Concrete.Type =>
-            (Value.Universe.suc(b + 1), Abstract.Universe(if (Value.Universe.TYPE_IN_TYPE) 0 else b))
+            (Value.Universe.suc(b), Abstract.Universe(if (Value.Universe.TYPE_IN_TYPE) 0 else b))
           case Concrete.Reference(ref) =>
-            lookupTerm(ref) match {
+            lookupTerm(ref, b) match {
               case NameLookupResult.Typed(typ, abs) =>
                 abs match {
-                  case Abstract.Reference(up, _) if up == layers.size - 1 =>
-                    reduceMore(typ, abs)
+                  case r: Abstract.Reference if r.up == layers.size - 1 =>
+                    reduceMore(typ, r)
                   //reduceMore(binder.up(b), Abstract.Up(abs, b))
                   case _ => throw ElaboratorException.UpCanOnlyBeUsedOnTopLevelDefinitionOrUniverse()
                 }
@@ -338,7 +338,7 @@ class Elaborator private(protected override val layers: Layers)
         }
       case Concrete.Reference(name) =>
         // should lookup always return a value? like a open reference?
-        lookupTerm(name) match {
+        lookupTerm(name, 0) match {
           case NameLookupResult.Typed(binder, abs) =>
             reduceMore(binder, abs)
           case NameLookupResult.Construct(self, index, closure) =>
@@ -454,7 +454,7 @@ class Elaborator private(protected override val layers: Layers)
           case Concrete.Projection(left, right) =>
             inferProjectionApp(left, right, arguments)
           case Concrete.Reference(name) =>
-            lookupTerm(name) match {
+            lookupTerm(name, 0) match {
               case NameLookupResult.Typed(typ, ref) => defaultCase(typ, ref)
               case NameLookupResult.Construct(self, index, closure) =>
                 (self, checkConstructApp(self, index, closure, arguments))
@@ -861,7 +861,7 @@ class Elaborator private(protected override val layers: Layers)
             val va = check(v, item.typ, Seq.empty, rememberInductivelyBy(reify(item.typ), item.ref))
             // info("body:"); print(va)
             freeze()
-            val (ctx, _) = newDefinitionChecked(index, name, eval(va), va)
+            val (ctx, _) = newDefinitionChecked(index, name, va)
             // reevalStuff(ctx, Dependency(index, 0, DependencyType.Value))
             info(s"checked $name")
             ctx
@@ -873,17 +873,16 @@ class Elaborator private(protected override val layers: Layers)
               val (_, ta) = inferTelescope(pps, t)
               // info("type:"); print(ta)
               freeze()
-              val tv = eval(ta)
-              val (ctx, index, generic) = newDeclaration(name, tv) // allows recursive definitions
+              val (ctx, index, generic) = newDeclaration(name, ta) // allows recursive definitions
               val lambdaNameHints = pps.map(_._2) ++ (t match {
                 case Concrete.Function(d, _) =>
                   NameType.flatten(d).map(_._2)
                 case _ => Seq.empty
               })
-              val va = ctx.check(wrapBody(v, pps.map(_._1)), tv, lambdaNameHints, rememberInductivelyBy(ta, generic))
+              val va = ctx.check(wrapBody(v, pps.map(_._1)), generic.typ, lambdaNameHints, rememberInductivelyBy(ta, generic))
               // info("body:"); print(va)
               ctx.freeze()
-              val (ctx2, ref) = ctx.newDefinitionChecked(index, name, ctx.eval(va), va)
+              val (ctx2, ref) = ctx.newDefinitionChecked(index, name, va)
               // some definition is specially treated, they are defined in code, but we need to reference them in evaluator.
               // these definition should not have re-eval behaviour.
               // TODO add a primitive modifier so that no error happens with this
@@ -909,7 +908,7 @@ class Elaborator private(protected override val layers: Layers)
               // info("type:" + ta)
               // info("body:"); print(va)
               freeze()
-              val (ctx, index, generic) = newDefinition(name, eval(ta), eval(va), va)
+              val (ctx, index, generic) = newDefinition(name, ta, va)
               info(s"inferred $name")
               ctx
           }
@@ -930,8 +929,7 @@ class Elaborator private(protected override val layers: Layers)
             val (_, ta) = inferTelescope(NameType.flatten(ps), t)
             // info("type:"); print(ta)
             freeze()
-            val tv = eval(ta)
-            val (ctx, index, generic) = newDeclaration(name, tv, isAxiom)
+            val (ctx, index, generic) = newDeclaration(name, ta, isAxiom)
             info(s"declared ${if (isAxiom) "axiom " else ""}$name")
             ctx
         }

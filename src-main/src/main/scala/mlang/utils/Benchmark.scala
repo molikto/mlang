@@ -43,7 +43,8 @@ object Benchmark {
              instance._t += (System.currentTimeMillis() - t0)
              res
            case None =>
-             logicError()
+             // FIXME evalHack
+             a
          }
        } finally {
          _current = p

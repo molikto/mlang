@@ -8,7 +8,7 @@ import scala.annotation.Annotation
 import scala.collection.mutable
 import ValueFibrant._
 
-case class ImplementationLimitationCannotRestrictOpenMeta() extends Exception
+case class ImplementationLimitationCannotTransformOpenMeta() extends Exception
 
 
 import Value._
@@ -191,24 +191,36 @@ object Value {
   }
 
 
+  // meta, reference, and generic
+  // global and local
+  // global ones can be lifted, has a root for lookup
+  // local ones, can be restricted, has a roof for lookup
   sealed trait Referential extends Value {
     _from = this
     type Self <: Referential
+    def global: Boolean
+    def referenced: Value
+
+    def lift(a: Int): Referential = if (a == 0) this else logicError()
+
     private[semantic] def getRestrict(asgs: Assignments): Self
     private[semantic] def getFswap(w: Long, z: Formula): Self
-    def lookupChildren(v: Referential): Option[Assignments]
-    def referenced: Value
-  }
-
-  sealed trait Reference extends Referential {
-    override def toString: String = "Reference"
-    var value: Value
-    def referenced = value
-    override protected def getWhnf(): Value = referenced.whnf
   }
 
   sealed trait LocalReferential extends Referential {
     type Self <: LocalReferential
+    override def global: Boolean = false
+
+    def lookupChildren(v: Referential): Option[Assignments] = {
+      if (this == v) {
+        Some(Set.empty)
+      } else {
+        assert(childRestricted == null) // you can only lookup children from root
+        if (restrictedCache != null) restrictedCache.find(_._2 == v).map(_._1)
+        else None
+      }
+    }
+
     private var supportCache: Support = null
 
     private[semantic] def supportCached() : Support = {
@@ -244,7 +256,7 @@ object Value {
     private[semantic] def getFswap(w: Long, z: Formula): Self = {
       val spt = support()
       if (spt.openMetas.nonEmpty) {
-        throw ImplementationLimitationCannotRestrictOpenMeta()
+        throw ImplementationLimitationCannotTransformOpenMeta()
       }
       if (!spt.names.contains(w)) {
         this.asInstanceOf[Self]
@@ -268,7 +280,7 @@ object Value {
       } else {
         val spt = support() // this will re-calculate the support if metas changed
         if (spt.openMetas.nonEmpty) {
-          throw ImplementationLimitationCannotRestrictOpenMeta()
+          throw ImplementationLimitationCannotTransformOpenMeta()
         }
         val asgg = assigments.filter(a => spt.names.contains(a._1))
         if (asgg.isEmpty) {
@@ -289,31 +301,63 @@ object Value {
         }
       }
     }
+  }
 
-    def lookupChildren(v: Referential): Option[Assignments] = {
-      if (this == v) {
-        Some(Set.empty)
+  // FIXME this impelmentation of lift is ugly, it should be done in elaborator layer
+  sealed trait GlobalReferential extends Referential {
+    override type Self <: GlobalReferential
+    override def global: Boolean = true
+    override private[semantic] def getRestrict(asgs: Assignments): Self = this.asInstanceOf[Self]
+    private[semantic] def getFswap(w: Long, z: Formula): Self = this.asInstanceOf[Self]
+    override def support(): Support = Support.empty
+
+    def lookupChildren(a: Referential): Option[Int] = if (a == this) Some(0) else None
+
+    var lifter: Int => Value = null
+    private var liftedCache: mutable.ArrayBuffer[GlobalReferential] = null
+    // only not null for children
+    private var childLifted: (GlobalReferential, Int) = null
+
+    protected def createNewEmpty(): Self
+    protected def updateLifted(s: Self, lv: Value): Unit
+
+    protected def clearSavedAfterValueChange(): Unit = {
+      if (childLifted != null) logicError() // you don't want to do this
+      if (liftedCache != null) logicError() // also this
+      lifter = null
+    }
+
+    override def lift(lv: Int): Self = if (lv == 0) this.asInstanceOf[Self] else {
+      if (childLifted != null) { // direct to parent
+        childLifted._1.asInstanceOf[GlobalReferential].lift(lv + childLifted._2).asInstanceOf[Self]
       } else {
-        assert(childRestricted == null) // you can only lookup children from root
-        if (restrictedCache != null) restrictedCache.find(_._2 == v).map(_._1)
-        else None
+        if (liftedCache == null) liftedCache = mutable.ArrayBuffer[GlobalReferential]()
+        while (liftedCache.size <= lv) liftedCache.append(null)
+        liftedCache(lv) match {
+          case null =>
+            val n = createNewEmpty()
+            n.childLifted = (this, lv)
+            liftedCache(lv) = n
+            updateLifted(n, lifter(lv))
+            n
+          case r => r.asInstanceOf[Self]
+        }
       }
     }
   }
 
-  object Meta {
-    def uninitalized(): Meta = Meta(null)
-    def solved(a: Value) = Meta(MetaState.Closed(a))
-  }
 
-  case class Meta(private var _state: MetaState) extends LocalReferential {
-    def initialize(a: Value) = {
-      assert(_state == null)
-      _state = MetaState.Closed(a)
-    }
+  object Meta {
+    def unapply(a: Meta): Option[MetaState] = Some(a._state)
+    def apply(global: Boolean, v: MetaState) = if (global) GlobalMeta(v) else LocalMeta(v)
+  }
+  sealed trait Meta extends Referential {
+    override type Self <: Meta
+    private[Value] var _state: MetaState
 
     def solved: Value = state.asInstanceOf[MetaState.Closed].v
     def isSolved: Boolean = state.isInstanceOf[MetaState.Closed]
+    protected def clearSavedAfterValueChange(): Unit
 
     def state_=(a: MetaState) = {
       clearSavedAfterValueChange()
@@ -321,17 +365,6 @@ object Value {
       if (debug.enabled) assert(isSolved)
     }
     def state = _state
-
-    override type Self = Meta
-    override protected def createNewEmpty(): Meta = Meta(null)
-    override protected def restrictAndInitContent(s: Meta, assignments: Assignments): Unit = state match {
-      case MetaState.Closed(v) => s._state = MetaState.Closed(v.restrict(assignments))
-      case _: MetaState.Open => throw ImplementationLimitationCannotRestrictOpenMeta()
-    }
-    override protected def fswapAndInitContent(s: Meta, w: Long, z: Formula): Unit = state match {
-      case MetaState.Closed(v) => s._state = MetaState.Closed(v.fswap(w, z))
-      case _: MetaState.Open => throw ImplementationLimitationCannotRestrictOpenMeta()
-    }
 
     override def referenced: Value = state match {
       case MetaState.Closed(v) => v
@@ -344,18 +377,68 @@ object Value {
     }
   }
 
-  case class GlobalReference(@lateinit var value: Value) extends Reference {
+  case class GlobalMeta(override private[Value] var _state: MetaState) extends Meta with GlobalReferential {
+    override type Self = GlobalMeta
+
+    protected def createNewEmpty():GlobalMeta = GlobalMeta(null)
+    protected def updateLifted(s: GlobalMeta, lv: Value): Unit = state match {
+      case MetaState.Closed(v) => s._state = MetaState.Closed(lv)
+      case _: MetaState.Open => throw ImplementationLimitationCannotTransformOpenMeta()
+    }
+  }
+
+  object LocalMeta {
+    def uninitalized(): LocalMeta = LocalMeta(null)
+    def solved(a: Value) = LocalMeta(MetaState.Closed(a))
+  }
+  case class LocalMeta(override private[Value] var _state: MetaState) extends Meta with LocalReferential {
+    override type Self = LocalMeta
+    def initialize(a: Value): Unit = {
+      assert(_state == null)
+      _state = MetaState.Closed(a)
+    }
+    override protected def createNewEmpty(): LocalMeta = LocalMeta(null)
+    override protected def restrictAndInitContent(s: LocalMeta, assignments: Assignments): Unit = state match {
+      case MetaState.Closed(v) => s._state = MetaState.Closed(v.restrict(assignments))
+      case _: MetaState.Open => throw ImplementationLimitationCannotTransformOpenMeta()
+    }
+    override protected def fswapAndInitContent(s: LocalMeta, w: Long, z: Formula): Unit = state match {
+      case MetaState.Closed(v) => s._state = MetaState.Closed(v.fswap(w, z))
+      case _: MetaState.Open => throw ImplementationLimitationCannotTransformOpenMeta()
+    }
+  }
+
+  
+  sealed trait Reference extends Referential {
+    override def toString: String = "Reference"
+    var value: Value
+    def referenced = value
+    override protected def getWhnf(): Value = referenced.whnf
+  }
+
+  object GlobalReference {
+    def apply(to: Value, name: Name = null): GlobalReference = {
+      val g = GlobalReference(to)
+      g.name = name
+      g
+    }
+  }
+  case class GlobalReference(@lateinit var value: Value) extends Reference with GlobalReferential {
     var name: Name = null
     override type Self = GlobalReference
-    override private[semantic] def getRestrict(asgs: Assignments): GlobalReference = this
-    private[semantic] def getFswap(w: Long, z: Formula): Self = this
-    def lookupChildren(v: Referential): Option[Assignments] = if (this == v) Some(Set.empty) else None
+
+    protected def createNewEmpty():GlobalReference = {
+      val g = GlobalReference(null)
+      g.name = name
+      g
+    }
+    protected def updateLifted(s: GlobalReference, lv: Value): Unit = s.value = lv
   }
 
   object LocalReference {
     def uninitalized(): LocalReference = LocalReference(null)
   }
-  case class LocalReference(@lateinit private var _value: Value) extends LocalReferential with Reference {
+  case class LocalReference(@lateinit private var _value: Value) extends Reference with LocalReferential {
     def initialize(v: Value): Unit = {
       assert(_value == null)
       _value = v
@@ -377,35 +460,47 @@ object Value {
   }
 
   object Generic {
-    private[semantic] val HACK = Generic(0, null)
+    private[semantic] val HACK = LocalGeneric(0, null)
     private[semantic] val HACKS = (0 until 20).map(_ => HACK)
+    def unapply(g: Generic): Option[(Long, Value)] = Some((g.id, g.typ))
   }
-  case class Generic(id: Long, @type_annotation @lateinit private var _typ: Value) extends LocalReferential {
-
+  sealed trait Generic extends Referential {
+    override type Self <: Generic
+    val id: Long
+    protected var _typ: Value
     def typ_=(a: Value) = {
       clearSavedAfterValueChange()
       _typ = a
     }
     def typ = _typ
 
-    override type Self = Generic
-    override protected def createNewEmpty(): Generic = Generic(id, null)
-    override protected def restrictAndInitContent(s: Generic, assignments: Assignments) =
+    protected def clearSavedAfterValueChange(): Unit
+    override def referenced: Value = _typ
+    override protected def getWhnf() = this
+  }
+
+  case class GlobalGeneric(override val id: Long, @type_annotation @lateinit override protected var _typ: Value) extends Generic with GlobalReferential {
+    override type Self = GlobalGeneric
+
+    protected def createNewEmpty():GlobalGeneric = GlobalGeneric(id, null)
+    protected def updateLifted(s: GlobalGeneric, lv: Value): Unit = s._typ = lv
+  }
+
+  case class LocalGeneric(override val id: Long, @type_annotation @lateinit override protected var _typ: Value) extends Generic with LocalReferential {
+    override type Self = LocalGeneric
+    override protected def createNewEmpty(): LocalGeneric = LocalGeneric(id, null)
+    override protected def restrictAndInitContent(s: LocalGeneric, assignments: Assignments) =
       s._typ = typ.restrict(assignments)
 
-    override protected def fswapAndInitContent(s: Generic, w: Long, z: Formula) =
+    override protected def fswapAndInitContent(s: LocalGeneric, w: Long, z: Formula) =
       logicError() // currently we only use fresh variable, and fresh variable should not generate new generic supported
-
-    override def referenced: Value = _typ
-
-    override protected def getWhnf() = this
   }
 
   case class Universe(level: Int) extends StableCanonical
 
   object Universe {
-    val TYPE_IN_TYPE = true
-    def suc(i: Int) = Universe(if (TYPE_IN_TYPE) 0 else i)
+    val TYPE_IN_TYPE = false
+    def suc(i: Int) = Universe(if (TYPE_IN_TYPE) 0 else i + 1)
     def level0 = Universe(0)
     def level1 = Universe(if (TYPE_IN_TYPE) 0 else 1)
   }
@@ -471,7 +566,7 @@ object Value {
           stuck.whnf match {
             case Hcomp(ty, base, faces) =>
               // non-dependent codomain
-              val d = Generic(gen(), null)
+              val d = LocalGeneric(gen(), null)
               val ret = lambda.typ(d)
               // FIXME cubicaltt doesn't have this actually
               if (ret.support().generic.contains(d)) {
