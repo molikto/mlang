@@ -29,7 +29,7 @@ the concrete and core syntax have a lot of differences, e.g.:
    * term application and path application have the same form `a(b)`, but they will be elaborated to different core syntax (`App` and `PathApp`) in a type directed way
    * the same syntax form `a.b` is used as projection `pair0.first` and constructor selection `nat.zero` (for record types, `pair.make` where `make` is the single constructor for record types). they have completely different form in core syntax
 
-as we can see, elaboration process is type directed. this has the consequence that if you want some cool elaboration feature, the information needed should in the types. this has the unfortunate result to make the core calculus bloated with information not needed by the core calculus, but only needed by the elaboration process. for exmaple Agda and mlang (currently) all save information about if a function is implicit, and this is not needed outside of elaboration.
+as we can see, elaboration process is type directed. this has the consequence that if you want some cool elaboration feature, the information needed must exists in the types. this has the unfortunate result to make the core calculus bloated with information not needed by the core calculus, but only needed by the elaboration process. for exmaple Agda and mlang (currently) all save information about if a function is implicit, and this is not needed outside of elaboration.
 
 so I propose a idea of something like this:
 
@@ -42,17 +42,23 @@ def infer(unchecked: concrete_term):
   { type: value, etype: evalue, elaborated: core_term }
 ```
 
-so what is this `etype: evalue` thing? it is a parallel calculation that contains *additional* information about the related type, that is only used by the elaboration process.
+so what is this `etype: evalue` thing? it is a parallel calculation that contains *additional* information about the related type, that is only used by the elaboration process and not present in the core theory, so leaving a clean core calculus.
+
+i think `etype` has a simpler dynamic, for example, we can say that after large elimination, `etype` is lost. this is ok because `etype` only provides additional information, the elaboration process can still continue in a type-directed way (rather than type-and-etype-directed)
 
 
-the goal is to implement this thing. 
+## thought examples
 
-i think `etype` has a simpler dynamic, for example, we can say that after large elimination, `etype` is lost, this is ok because `etype` only provides additional information, the elaboration process can still continue in a type-directed way (rather than type-and-etype-directed)
+### example 1
+
+here is another example: you can cast a value of type function to a type of implicit function: because you are not changing the type, but only the etype
 
 
-------
+### example 2
 
-here is one example I found it might be useful:
+we can give a record with different field names, as concrete names only affect elaboration process, in core theory, everything can be just natural numbers. this way we can define additive group and multive group as different etype, but they are of the same type! so you can `cast` between them! this problem is mentioned [here](https://jiggerwit.wordpress.com/2018/09/18/a-review-of-the-lean-theorem-prover/) and I think this is a very clean solution.
+
+### a bigger example
 
 the code bellow makes no sense in any proof assistant now, but read it and see if you can make it precise what it means: 
 
@@ -72,5 +78,8 @@ then if we use the Coq approach, we have trouble with the two `*` bellow: intuit
 I'd like it to means `g: A` and `g: A` have same type, but **different `etype`**, and information in `etype` is used in resolving what `*` is used.
 
 *hint: the elaborated result should be `pair.make(G.*(g, g), K.*(k, k))`*
+
+
+---
 
 TBC.
