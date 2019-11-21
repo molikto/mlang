@@ -56,7 +56,7 @@ you can cast a value of type function to a type of implicit function: because yo
 
 ### example 2
 
-we can give a record with different field names, as concrete names only affect elaboration process, in core theory, everything can be just natural numbers. this way we can define additive group and multive group as different etype, but they are of the same type! so you can `cast` between them! this problem is mentioned [here](https://jiggerwit.wordpress.com/2018/09/18/a-review-of-the-lean-theorem-prover/) and I think this is a very clean solution.
+we can give a record with different field names, as concrete names only affect elaboration process, in core theory, everything can be just natural numbers. this way we can define additive group and multiplicative group as different etype, but they are of the same type! so you can `cast` between them! this problem is mentioned [here](https://jiggerwit.wordpress.com/2018/09/18/a-review-of-the-lean-theorem-prover/) and I think this is a very clean solution.
 
 ### a bigger example
 
