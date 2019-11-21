@@ -1,5 +1,32 @@
 
 /*
+define test1 = run {
+
+    define unit = record {
+    }
+
+    define nat = (#a: type) ⇒ (a ⇒ a) ⇒ a ⇒ a
+    define n2: nat = #─ → f → z → f(f(z))
+    define n5: nat = #─ → f → z → f(f(f(f(f(z)))))
+    define mul(a b: nat): nat = #─ → s → z → a(b(s))(z)
+
+    define n10: nat = mul(n2,n5)
+    define n100: nat = mul(n10,n10)
+    define n10k: nat = mul(n100,n100)
+    define n10kb:nat = mul(n100,mul(n10,n10))
+    define n1M:nat   = mul(n10k,n100)
+    define n1Mb:nat  = mul(n100,n10k)
+    define n10M :nat = mul(n1M,n10)
+    define n10Mb:nat = mul(n10,n1M)
+
+    define no_imp(x: nat, a: type, c: a ⇒ a, d: a): a = x(c, d)
+
+    define res1 = n10M(x → x, unit.make)
+    define res: no_imp(n1M) ≡ no_imp(n1Mb) = ─ → no_imp(n1M)
+    res
+}
+
+
 define test2 = run {
 
     define a = record {
@@ -23,31 +50,6 @@ define test2 = run {
     res
 }
 
-define test1 = run {
-
-    define unit = record {
-    }
-
-    define nat = (#a: type) ⇒ (a ⇒ a) ⇒ a ⇒ a
-    define n2: nat = #─ → f → z → f(f(z))
-    define n5: nat = #─ → f → z → f(f(f(f(f(z)))))
-    define mul(a b: nat): nat = #─ → s → z → a(b(s))(z)
-
-    define n10: nat = mul(n2,n5)
-    define n100: nat = mul(n10,n10)
-    define n10k: nat = mul(n100,n100)
-    define n10kb:nat = mul(n100,mul(n10,n10))
-    define n1M:nat   = mul(n10k,n100)
-    define n1Mb:nat  = mul(n100,n10k)
-    define n10M :nat = mul(n1M,n10)
-    define n10Mb:nat = mul(n10,n1M)
-
-    define no_imp(x: nat, a: type, c: a ⇒ a, d: a): a = x(c, d)
-
-    define res1 = n1M(x → x, unit.make)
-    define res: no_imp(n1M) ≡ no_imp(n1Mb) = ─ → no_imp(n1M)
-    res
-}
 
 define abort = ???
 
