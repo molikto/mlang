@@ -674,8 +674,8 @@ class Elaborator private(protected override val layers: Layers)
       case head +: tl => (head, tl)
       case _ => (Name.empty, Seq.empty)
     }
-    def fallback(): Abstract = {
-      val (tt, ta) = infer(term)
+    def fallback(noReduceMore: Boolean = false): Abstract = {
+      val (tt, ta) = infer(term, noReduceMore)
       if (subTypeOf(tt, cp)) ta
       else {
         info(term.toString)
@@ -709,13 +709,7 @@ class Elaborator private(protected override val layers: Layers)
                 })
                 Abstract.PatternLambda(Elaborator.pgen(), reify(domain.bestReifyValue), reify(codomain), res)
               case _ =>
-                if (fimp) {
-                  val (ctx, v) = newParameterLayer(Name.empty, domain)
-                  val ba = ctx.check(term, codomain(v), tail)
-                  Abstract.Lambda(dbi.Closure(ctx.finish(), ba))
-                } else {
-                  fallback()
-                }
+                fallback(fimp)
             }
           case v@Value.Universe(l) =>
             term match {
