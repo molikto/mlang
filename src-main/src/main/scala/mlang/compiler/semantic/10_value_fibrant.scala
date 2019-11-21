@@ -170,7 +170,7 @@ object ValueFibrant {
         })
         (pair._1, abs)
       }).updated(si, AbsClosure(_ => v0)))
-    val sys = t1s.updated(si, u0).filterKeys(!_.nfFalse)
+    val sys = t1s.updated(si, u0).view.filterKeys(!_.nfFalse).toMap
     val fibersys_ = es1.map((pair: (Formula, AbsClosure)) => {
       val eq = pair._2
       val b = v1
