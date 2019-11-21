@@ -18,7 +18,7 @@
     * sum type's composition structure, higher inductive types
 * **DONE** cumulative universe with "lift" operator for global definitions (see [here](https://mazzo.li/epilogue/index.html%3Fp=857&cpage=1.html)) and subtyping
 * SOUNDNESS *to reject codes, not actually providing new features!*
-    * core checker, so we check meta solutions. also as a double check of elaboration
+    * complete core checker (currently it is only a partial implementation)
     * positivity checker
     * coverage & confluence checker for overlapping patterns and for hits
     * termination checking: currently you don't need modifier `inductively` to write a recursive type, with termination checking, you should not be able to do this
