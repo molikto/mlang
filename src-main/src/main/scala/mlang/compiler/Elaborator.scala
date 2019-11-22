@@ -862,6 +862,7 @@ class Elaborator private(protected override val layers: Layers)
             case Some(t) if !ps.exists(_.ty == Concrete.I) =>
               // term with type
               info(s"define $name")
+              var time = System.currentTimeMillis()
               val pps = NameType.flatten(ps)
               val (_, ta) = inferTelescope(pps, t)
               // info("type:"); print(ta)
@@ -892,7 +893,10 @@ class Elaborator private(protected override val layers: Layers)
                 assert(BuiltIn.path_to_equiv == null)
                 BuiltIn.path_to_equiv = ref
               }
-              info(s"defined $name")
+
+              time = System.currentTimeMillis() - time
+              val timeStr = if (time > 10) s" in ${time}" else ""
+              info(s"defined $name" + timeStr)
               ctx2
             case _ =>
               // term without type
