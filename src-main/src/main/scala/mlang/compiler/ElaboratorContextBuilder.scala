@@ -183,7 +183,7 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
   def newParametersLayer(hit: Option[Value] = None): Self =
     Layer.ParameterGraph(hit.map(a => HitDefinition(a, Seq.empty)), Seq.empty, Seq.empty, createMetas()) +: layers
 
-  def newConstructor(name: Name, ps: semantic.ClosureGraph): Self =
+  def newConstructor(name: Name, ims: Seq[Boolean], ps: semantic.ClosureGraph): Self =
     layers.head match {
       case Layer.ParameterGraph(alters,_, _, metas) =>
         alters match {
@@ -193,7 +193,7 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
               case Some(_) => logicError()
               case None =>
                 assert(metas.debug_allFrozen)
-                val n = AlternativeGraph(name, ps)
+                val n = AlternativeGraph(name, ims, ps)
                 Layer.ParameterGraph(Some(HitDefinition(value.self, value.branches :+ n)),  Seq.empty, Seq.empty, createMetas()) +: layers.tail
             }
         }
@@ -255,9 +255,9 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
           name.asRef match { // we make it as a reference here
             case Some(ref) =>
               t.whnf match {
-                case sum: Value.Sum if { index = sum.constructors.indexWhere(c => c.name.by(ref)); index >= 0 } =>
+                case sum: Value.Sum if { index = sum.etype.names.indexWhere(c => c.by(ref)); index >= 0 } =>
                   val c = sum.constructors(index)
-                  if (c.nodes.isEmpty && c.nodes.dimSize == 0) {
+                  if (c.isEmpty && c.dimSize == 0) {
                     ret = (Value.Construct(index, Seq.empty, Seq.empty, Map.empty), Pattern.Construct(index, Seq.empty))
                   } else {
                     throw PatternExtractException.ConstructWrongSize()
@@ -289,12 +289,12 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
           t.whnf match {
             case sum: Value.Sum =>
               if (!isRoot && sum.hit) throw PatternExtractException.HitPatternMatchingShouldBeAtRoot()
-              val index = sum.constructors.indexWhere(_.name.by(name))
+              val index = sum.etype.names.indexWhere(_.by(name))
               if (index >= 0) {
                 val c = sum.constructors(index)
-                if (c.nodes.size + c.nodes.dimSize == maps.size) {
-                  val vs = recs(maps.take(c.nodes.size), c.nodes)
-                  val dPs = maps.drop(c.nodes.size)
+                if (c.size + c.dimSize == maps.size) {
+                  val vs = recs(maps.take(c.size), c)
+                  val dPs = maps.drop(c.size)
                   if (!dPs.forall(_.isInstanceOf[Concrete.Pattern.Atom])) {
                     throw PatternExtractException.NonAtomicPatternForDimension()
                   }
@@ -303,7 +303,7 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
                   vvv.appendAll(ds)
                   val vvs = vs.map(_._1)
                    val dds = ds.map(_.value)
-                  (Value.Construct(index, vvs, dds, if (dds.isEmpty) Map.empty else c.nodes.reduceAll(vvs).reduce(dds).restrictions()),
+                  (Value.Construct(index, vvs, dds, if (dds.isEmpty) Map.empty else c.reduceAll(vvs).reduce(dds).restrictions()),
                     Pattern.Construct(index, vs.map(_._2) ++ ds.map(_ => Pattern.GenericDimension)))
                 } else {
                   throw PatternExtractException.ConstructWrongSize()

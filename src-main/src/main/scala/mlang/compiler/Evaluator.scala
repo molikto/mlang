@@ -27,7 +27,7 @@ trait Evaluator extends EvaluatorContext {
     if (a.nodes.isEmpty && a.dims == 0) {
       semantic.ClosureGraph.empty
     } else {
-      eval(Abstract.Record(None, a.nodes.map(_ => Name.empty), a)).asInstanceOf[Value.Record].nodes
+      eval(Abstract.Record(EType.Record(a.nodes.map(_ => Name.empty), a.nodes.map(_ => false)), None, a)).asInstanceOf[Value.Record].nodes
     }
   }
 

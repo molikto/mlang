@@ -140,9 +140,6 @@ trait ValueConversion {
   def choose[T](d1: T, d2: T, mode: Int): T = if (mode >= 0) d1 else d2
 
 
-  private def recConstructor(t: Value, c1: Constructor, c2: Constructor, mode: Int = 0): Boolean = {
-    c1.name == c2.name && recClosureGraph(t, c1.nodes, c2.nodes, mode)
-  }
 
 
   private def recTypeClosure(t: Value, c1: Closure, c2: Closure, mode: Int = 0): Option[Value] = {
@@ -181,16 +178,13 @@ trait ValueConversion {
       while (i < n1.size && eq) {
         val g1i = g1(i)
         val g2i = g2(i)
-        eq = g1i.implicitt == g2i.implicitt
-        if (eq) {
-          val t1 = g1(i).independent.typ
-          val t2 = g2(i).independent.typ
-          eq = recType(t1, t2, mode)
-          val g = Generic(gen(), choose(t1, t2, mode))
-          g1 = g1.reduce(i, g)
-          g2 = g2.reduce(i, g)
-          i += 1
-        }
+        val t1 = g1(i).independent.typ
+        val t2 = g2(i).independent.typ
+        eq = recType(t1, t2, mode)
+        val g = Generic(gen(), choose(t1, t2, mode))
+        g1 = g1.reduce(i, g)
+        g2 = g2.reduce(i, g)
+        i += 1
       }
       if (eq) {
         if (n1.dimSize == 0) {
@@ -247,27 +241,27 @@ trait ValueConversion {
       true
     } else {
       (tm1.whnf, tm2.whnf) match {
-        case (Function(d1, i1, c1), Function(d2, i2, c2)) =>
+        case (Function(_, d1, c1), Function(_, d2, c2)) =>
           // for function type, we use contravariant in domain and covarient in codomain
-          i1 == i2 && recType(d1, d2, -mode) && recTypeClosure(choose(d1, d2, -mode), c1, c2, mode)
+          recType(d1, d2, -mode) && recTypeClosure(choose(d1, d2, -mode), c1, c2, mode)
         case (Universe(l1), Universe(l2)) =>
           mode match {
             case -1 => l2 <= l1
             case 0 => l1 == l2
             case 1 => l1 <= l2
           }
-        case (Record(id1, i1, n1), Record(id2, i2, n2)) =>
+        case (Record(_, id1, n1), Record(_, id2, n2)) =>
           // for inductively defined we use invarent for now, see comments on maybeNominal
           // for structuraly defined data types, we try to do subtyping
-          maybeNominal(id1, id2, i1 == i2 && recClosureGraph(null, n1, n2, mode))
-        case (s1@Sum(id1, h1, c1), s2@Sum(id2, h2, c2)) =>
+          maybeNominal(id1, id2, recClosureGraph(null, n1, n2, mode))
+        case (s1@Sum(_, id1, h1, c1), s2@Sum(_, id2, h2, c2)) =>
           // see above
           maybeNominal(id1, id2, h1 == h2 && c1.size == c2.size && {
             val mode0 = if (h1) 0 else mode
             // for structural hits, we only use invarant, don't know how to handle it otherwise
             // in case of a hit, the parameter s1 is used that only the part checked to be invarant is used in its usage
             // so it seems to be ok
-            c1.zip(c2).forall(p => recConstructor(s1, p._1, p._2, mode0))
+            c1.zip(c2).forall(p => recClosureGraph(s1, p._1, p._2, mode0))
           })
         case (PathType(t1, l1, r1), PathType(t2, l2, r2)) =>
           // for path type and glue type, we currently use invarient rules, NOT sure if this makes sense
@@ -337,7 +331,7 @@ trait ValueConversion {
         }
       case (App(l1, a1), App(l2, a2)) =>
         recNeutral(l1, l2).flatMap(_.whnf match {
-          case Function(d, _, c) =>
+          case Function(_, d, c) =>
             if (recTerm(d, a1, a2)) {
               Some(c(a1))
             } else {
@@ -476,7 +470,7 @@ trait ValueConversion {
       true
     } else {
       (typ.whnf, t1.whnf, t2.whnf) match {
-        case (Function(d, _, cd), s1, s2) =>
+        case (Function(_, d, cd), s1, s2) =>
           val c = Generic(gen(), d)
           recTerm(cd(c), App(s1, c), App(s2, c))
         case (PathType(ty, _, _), s1, s2) =>
@@ -486,8 +480,8 @@ trait ValueConversion {
           recGraphValuePart(r.nodes, i => Projection(m1, i), i => Projection(m2, i))
         case (s: Sum, Construct(n1, v1, d1, _), Construct(n2, v2, d2, _)) =>
           n1 == n2 && { val c = s.constructors(n1) ;
-            assert(c.nodes.size == v1.size && c.nodes.dimSize == d1.size && v2.size == v1.size && d1.size == d2.size)
-            recGraphValuePart(c.nodes, v1, v2) && d1.zip(d2).forall(p => p._1.normalForm == p._2.normalForm)
+            assert(c.size == v1.size && c.dimSize == d1.size && v2.size == v1.size && d1.size == d2.size)
+            recGraphValuePart(c, v1, v2) && d1.zip(d2).forall(p => p._1.normalForm == p._2.normalForm)
           }
         case (g: GlueType, t1, t2) =>
           def baseCase(a: Glue, b: Glue): Boolean = {
@@ -557,10 +551,10 @@ trait ValueConversion {
           t.whnf match {
             case sum: Sum =>
               val c = sum.constructors(name)
-              if (c.nodes.dimSize + c.nodes.size == maps.size) {
-                val ret = (0 until c.nodes.dimSize).map(_ => Formula.Generic(dgen()))
+              if (c.dimSize + c.size == maps.size) {
+                val ret = (0 until c.dimSize).map(_ => Formula.Generic(dgen()))
                 ds.appendAll(ret)
-                val (vs, cl) = recs(maps.take(c.nodes.size), c.nodes)
+                val (vs, cl) = recs(maps.take(c.size), c)
                 Construct(name, vs, ret, if (ret.isEmpty) Map.empty else cl.reduce(ret).restrictions())
               } else {
                 logicError()

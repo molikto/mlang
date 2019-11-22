@@ -36,16 +36,17 @@ class TestScala extends mlang.compiler.Holder {
     // val a: scala.Function0[Value] = () => Value.Universe(0)
     // a()
 
-    val a = Value.Record(null, null, ClosureGraph.apply(
-      Seq(
-        ClosureGraphArguments(false, ArraySeq.empty, 1, (a, b) => (Seq(Value.Meta(null), Value.Meta(null)), Value.Universe(7))),
-        ClosureGraphArguments(false, new ArraySeq.ofInt(Array[Int](0, 1,2)), 1, (a, b) => (Seq(Value.Meta(null), Value.Meta(null)), Value.Universe(7)))
-      ),
-      5,
-      fs => Seq(
-        (Formula.True, (vs: Seq[Value], ms: Seq[Value]) => vs(0))
-      ).toMap
-    ))
-    a
+    // val a = Value.Record(null, null, ClosureGraph.apply(
+    //   Seq(
+    //     ClosureGraphArguments(false, ArraySeq.empty, 1, (a, b) => (Seq(Value.Meta(null), Value.Meta(null)), Value.Universe(7))),
+    //     ClosureGraphArguments(false, new ArraySeq.ofInt(Array[Int](0, 1,2)), 1, (a, b) => (Seq(Value.Meta(null), Value.Meta(null)), Value.Universe(7)))
+    //   ),
+    //   5,
+    //   fs => Seq(
+    //     (Formula.True, (vs: Seq[Value], ms: Seq[Value]) => vs(0))
+    //   ).toMap
+    // ))
+    // a
+    null
   }
 }

@@ -18,7 +18,7 @@ sealed trait NameLookupResult
 object NameLookupResult {
   sealed trait Term extends NameLookupResult
   case class Typed(typ: Value, ref: Abstract) extends Term
-  case class Construct(self: Value, index: Int, closure: semantic.ClosureGraph) extends Term
+  case class Construct(self: Value, index: Int, ims: Seq[Boolean], closure: semantic.ClosureGraph) extends Term
   case class Dimension(ref: dbi.Formula) extends NameLookupResult
 }
 
@@ -72,7 +72,7 @@ trait ElaboratorContextLookup extends ElaboratorContextBase {
               case l: Layer.ParameterGraph =>
                 l.hit.foreach(hit => {
                   hit.branches.zipWithIndex.find(_._1.name.by(name)).foreach(f => {
-                    binder = NameLookupResult.Construct(hit.self, f._2, f._1.ps)
+                    binder = NameLookupResult.Construct(hit.self, f._2, f._1.ims, f._1.ps)
                   })
                 })
               case _ =>

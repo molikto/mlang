@@ -45,7 +45,7 @@ private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorCon
       val n = graph(i)
       val it = n.independent.typ
       val ttt = ctx.reify(it)
-      val pair = ClosureGraph.Node(n.implicitt, n.dependencies, Closure(ctx.reifyMetas(), ttt))
+      val pair = ClosureGraph.Node(n.dependencies, Closure(ctx.reifyMetas(), ttt))
       as = as :+ pair
       val (ctx0, tm) = ctx.newParameter(Name.empty, null)
       ctx = ctx0
@@ -129,13 +129,13 @@ private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorCon
     v match {
       case Value.Universe(level) =>
         Universe(level)
-      case Value.Function(domain, i, codomain) =>
-        Function(reify(domain), i, reify(codomain))
-      case Value.Record(id, names, nodes) =>
-        Record(reify(id), names, reify(nodes))
-      case Value.Sum(id, hit, constructors) =>
+      case Value.Function(etype, domain, codomain) =>
+        Function(etype, reify(domain), reify(codomain))
+      case Value.Record(etype, id, nodes) =>
+        Record(etype, reify(id), reify(nodes))
+      case Value.Sum(etype, id, hit, constructors) =>
         // TODO, you should be able to read the code directly from context
-        Sum(reify(id), hit, constructors.map(c => Constructor(c.name, reify(c.nodes))))
+        Sum(etype, reify(id), hit, constructors.map(c => reify(c)))
       case Value.PathType(ty, left, right) =>
         PathType(reifyAbs(ty), reify(left), reify(right))
       case Value.Lambda(closure) =>

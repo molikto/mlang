@@ -50,14 +50,14 @@ trait CoreChecker extends ElaboratorContextBuilder
          getMetaReferenceType(up, index, lvl)
       case Abstract.Universe(i) =>
         Value.Universe.suc(i)
-      case Abstract.Function(d, i, co) =>
+      case Abstract.Function(etype, d, co) =>
         val u1 = cinferLevel(d)
         val (ctx, gen) = newParameterLayer(Name.empty, eval(d))
         val u2 = ctx.newMetas(co.metas).cinferLevel(co.term)
         Value.Universe(u1 max u2)
-      case Abstract.Record(ind, ns, gs) =>
+      case Abstract.Record(etype, ind, gs) =>
         ???
-      case Abstract.Sum(ind, ht, cs) =>
+      case Abstract.Sum(etype, ind, ht, cs) =>
         ???
       case Abstract.GlueType(tp, pos) =>
         ???
@@ -121,22 +121,22 @@ trait CoreChecker extends ElaboratorContextBuilder
         }
       case Abstract.Lambda(closure) =>
         to.whnf match {
-          case Value.Function(d, _, co) =>
+          case Value.Function(_, d, co) =>
             val (ctx, gen) = newParameterLayer(Name.empty, d)
             ctx.newMetas(closure.metas).ccheck(closure.term, co(gen))
           case _ => logicError()
         }
       case Abstract.Make(vs) =>
         to.whnf match {
-          case Value.Record(ind, _, nodes) =>
+          case Value.Record(etype, ind, nodes) =>
             ccheck(vs, Seq.empty, Map.empty, nodes)
           case _ => logicError()
         }
       case Abstract.Construct(f, vs, ds, ty) =>
         to.whnf match {
-          case Value.Sum(ind, hit, cons) =>
+          case Value.Sum(eytpe, ind, hit, cons) =>
             if (f < cons.size) {
-              ccheck(vs, ds, ty, cons(f).nodes)
+              ccheck(vs, ds, ty, cons(f))
             } else {
               logicError()
             }

@@ -162,7 +162,7 @@ class Elaborator private(protected override val layers: Layers)
   @scala.annotation.tailrec
   private def finishOffImplicits(v: Value, abs: Abstract): (Value, Abstract) = {
     v.whnf match {
-      case Value.Function(d, i, c) if i =>
+      case Value.Function(etype, d, c) if etype.implicitt =>
         val (mv, ma) = newMeta(d)
         finishOffImplicits(c(mv), Abstract.App(abs, ma))
       case _ => (v, abs)
@@ -184,10 +184,11 @@ class Elaborator private(protected override val layers: Layers)
     }
     val ctx = newParametersLayer()
     val (fl, fs, _) = ctx.inferFlatLevel(NameType.flatten(fields))
+    val etype = EType.Record(fs.map(_._1), fs.map(_._2))
     (Value.Universe(fl), Abstract.Record(
+      etype,
       ind,
-      fs.map(_._1),
-      dbi.ClosureGraph(fs.map(a => dbi.ClosureGraph.Node(a._2, a._3.term.dependencies(0).filter(a => a.x == 0 && a.typ == DependencyType.Value).map(_.i).toSeq.sorted, a._3)))))
+      dbi.ClosureGraph(fs.map(a => dbi.ClosureGraph.Node(a._3.term.dependencies(0).filter(a => a.x == 0 && a.typ == DependencyType.Value).map(_.i).toSeq.sorted, a._3)))))
   }
 
   def checkSum(tps: Option[(Value, Option[(Value, dbi.Inductively)], Int)], sum: Concrete.Sum): (Value, Abstract) = {
@@ -212,7 +213,7 @@ class Elaborator private(protected override val layers: Layers)
       val iss = is.map(_._2)
       val (ll, tt, ctx0) = ctx.inferFlatLevel(tpd)
       ctx = ctx0
-      val valueGraph = tt.zipWithIndex.map(kk => dbi.ClosureGraph.Node(kk._1._2, 0 until kk._2, kk._1._3))
+      val valueGraph = tt.zipWithIndex.map(kk => dbi.ClosureGraph.Node(0 until kk._2, kk._1._3))
       // FIXME check restrictions is compatible
       def checkRestrictions(sv: Value): Seq[(dbi.Formula, dbi.Closure)] = {
         // NOW: check extensions
@@ -242,23 +243,23 @@ class Elaborator private(protected override val layers: Layers)
         else Map.empty
       }
       val closureGraph = dbi.ClosureGraph(valueGraph, iss.size, es)
+      val ims = tt.map(_._2)
       selfValue match {
         case Some(_) =>
-          ctx = ctx.newConstructor(c.name, eval(closureGraph))
+          ctx = ctx.newConstructor(c.name, ims, eval(closureGraph))
         case None =>
           ctx = newParametersLayer(None) // here we don't use ctx anymore, because we are not remembering the previous constructors
       }
-      (c.name, ll, closureGraph)
+      (c.name, ims, ll, closureGraph)
     })
     val fl = tps.map(_._3).getOrElse(
-      if (fs.isEmpty) throw ElaboratorException.EmptySumMustHaveTypeAnnotation() else fs.map(_._2).max)
-    (Value.Universe(fl), Abstract.Sum(tps.flatMap(_._2.map(_._2)), isHit, fs.map(a =>
-      dbi.Constructor(a._1, a._3))))
+      if (fs.isEmpty) throw ElaboratorException.EmptySumMustHaveTypeAnnotation() else fs.map(_._3).max)
+    (Value.Universe(fl), Abstract.Sum(EType.Sum(fs.map(_._1), fs.map(_._2)), tps.flatMap(_._2.map(_._2)), isHit, fs.map(_._4)))
   }
 
-  def checkConstructApp(sumValue: Value, index: Int, nodes: semantic.ClosureGraph, arguments: Seq[(Boolean, Concrete)]): Abstract = {
+  def checkConstructApp(sumValue: Value, index: Int, ims: Seq[Boolean], nodes: semantic.ClosureGraph, arguments: Seq[(Boolean, Concrete)]): Abstract = {
     val ns = arguments.take(nodes.size)
-    val res1 = inferGraphValuesPart(nodes, ns)
+    val res1 = inferGraphValuesPart(ims, nodes, ns)
     val ds = arguments.drop(nodes.size)
     if (ds.size != nodes.dimSize) throw ElaboratorException.NotFullyAppliedConstructorNotSupportedYet()
     if (ds.exists(_._1)) throw ElaboratorException.DimensionLambdaCannotBeImplicit()
@@ -267,7 +268,7 @@ class Elaborator private(protected override val layers: Layers)
   }
 
   def checkSumConstructApp(sum: Value.Sum, index: Int, arguments: Seq[(Boolean, Concrete)]) =
-    checkConstructApp(sum, index, sum.constructors(index).nodes, arguments)
+    checkConstructApp(sum, index, sum.etype.implicits(index), sum.constructors(index), arguments)
 
   private def infer(
                      term: Concrete,
@@ -296,7 +297,7 @@ class Elaborator private(protected override val layers: Layers)
         index >= 0
       }
       lt.whnf match {
-        case m: Value.Record if calIndex(t => ltr.names.indexWhere(_.by(t))) =>
+        case m: Value.Record if calIndex(t => ltr.etype.names.indexWhere(_.by(t))) =>
           val (a,b) = inferApp(m.projectedType(lv, index), Abstract.Projection(la, index), arguments)
           reduceMore(a, b)
         case _ =>
@@ -304,8 +305,8 @@ class Elaborator private(protected override val layers: Layers)
             // TODO user defined projections for a type, i.e.
             // TODO [issue 7] implement const_projections syntax
             case r: Value.Record if right == Concrete.Make =>
-              (lv, Abstract.Make(inferGraphValuesPart(r.nodes, arguments).map(_._1)))
-            case r: Value.Sum if calIndex(t => r.constructors.indexWhere(_.name.by(t))) =>
+              (lv, Abstract.Make(inferGraphValuesPart(r.etype.implicits, r.nodes, arguments).map(_._1)))
+            case r: Value.Sum if calIndex(t => r.etype.names.indexWhere(_.by(t))) =>
               (r, checkSumConstructApp(r, index, arguments))
             case _ =>
               error()
@@ -341,8 +342,8 @@ class Elaborator private(protected override val layers: Layers)
         lookupTerm(name, 0) match {
           case NameLookupResult.Typed(binder, abs) =>
             reduceMore(binder, abs)
-          case NameLookupResult.Construct(self, index, closure) =>
-            if (closure.size != 0 || closure.dimSize != 0) {
+          case NameLookupResult.Construct(self, index, ims, closure) =>
+            if (closure.size != 0 || closure.dimSize != 0 || ims.size != 0) {
               throw ElaboratorException.NotFullyAppliedConstructorNotSupportedYet()
             } else {
               (self, Abstract.Construct(index, Seq.empty, Seq.empty, Map.empty))
@@ -416,6 +417,7 @@ class Elaborator private(protected override val layers: Layers)
             // FIXME(META) instead of inferring two side, infer one side then check another; or if we have meta with levels... can we just write a max level? it seems not that easy... because you run into the same kind of problems
             val (lt, la) = infer(left)
             val (rt, ra) = infer(right)
+            // FIXME again, this is a source of trouble, because we choose etype arbitraryly (subTyppeOf will not check etype equality)
             val ttt = if (subTypeOf(lt, rt)) {
               Some(rt)
             } else if (subTypeOf(rt, lt)) {
@@ -456,8 +458,8 @@ class Elaborator private(protected override val layers: Layers)
           case Concrete.Reference(name) =>
             lookupTerm(name, 0) match {
               case NameLookupResult.Typed(typ, ref) => defaultCase(typ, ref)
-              case NameLookupResult.Construct(self, index, closure) =>
-                (self, checkConstructApp(self, index, closure, arguments))
+              case NameLookupResult.Construct(self, index, ims, closure) =>
+                (self, checkConstructApp(self, index, ims, closure, arguments))
             }
           case _ =>
             val (lt, la) = infer(lambda, true)
@@ -560,7 +562,7 @@ class Elaborator private(protected override val layers: Layers)
             val ctx = newParameterLayer(head._2, eval(da))._1
             val (ta, va) = ctx.inferTelescope(tail, codomain, body)
             val ms = ctx.finish()
-            (Abstract.Function(da, head._1, dbi.Closure(ms, ta)), Abstract.Lambda(dbi.Closure(ms, va)))
+            (Abstract.Function(EType.Function.get(head._1), da, dbi.Closure(ms, ta)), Abstract.Lambda(dbi.Closure(ms, va)))
         }
       case Seq() =>
         codomain match {
@@ -586,7 +588,7 @@ class Elaborator private(protected override val layers: Layers)
             val (dl, da) = inferLevel(head._3)
             val ctx = newParameterLayer(head._2, eval(da))._1
             val (cl, ca) = ctx.inferTelescope(tail, codomain)
-            (dl max cl, Abstract.Function(da, head._1, dbi.Closure(ctx.finish(), ca)))
+            (dl max cl, Abstract.Function(EType.Function.get(head._1), da, dbi.Closure(ctx.finish(), ca)))
         }
       case Seq() =>
         val (l, a) = inferLevel(codomain)
@@ -594,24 +596,24 @@ class Elaborator private(protected override val layers: Layers)
     }
   }
 
-  private def inferGraphValuesPart(nodes: semantic.ClosureGraph, arguments: Seq[(Boolean, Concrete)], accumulator: Seq[(Abstract, Value)] = Seq.empty): Seq[(Abstract, Value)] = {
+  private def inferGraphValuesPart(ims: Seq[Boolean], nodes: semantic.ClosureGraph, arguments: Seq[(Boolean, Concrete)], accumulator: Seq[(Abstract, Value)] = Seq.empty): Seq[(Abstract, Value)] = {
     val i = accumulator.size
     def implicitCase() = {
       val (mv, ma) = newMeta(nodes(i).independent.typ)
       val ns = nodes.reduce(i, mv)
-      inferGraphValuesPart(ns, arguments, accumulator.:+((ma, mv)))
+      inferGraphValuesPart(ims, ns, arguments, accumulator.:+((ma, mv)))
     }
     arguments match {
       case head +: tail => // more arguments
         if (i >= nodes.size) {
           throw ElaboratorException.ConstructorWithMoreArguments()
         } else {
-          val imp = nodes(i).implicitt
+          val imp = ims(i)
           if (imp == head._1) { // this is a given argument
             val aa = check(head._2, nodes(i).independent.typ)
             val av = eval(aa)
             val ns = nodes.reduce(i, av)
-            inferGraphValuesPart(ns, tail, accumulator.:+((aa, av)))
+            inferGraphValuesPart(ims, ns, tail, accumulator.:+((aa, av)))
           } else if (imp) { // this is a implicit argument not given
             implicitCase()
           } else {
@@ -622,7 +624,7 @@ class Elaborator private(protected override val layers: Layers)
         if (i == nodes.size) { // no argument and no field, perfect!
           accumulator
         } else {
-          if (nodes(i).implicitt) { // more implicits, finish off
+          if (ims(i)) { // more implicits, finish off
             implicitCase()
           } else { // no more implicits, we want to wrap the thing in lambda
             throw ElaboratorException.NotFullyAppliedConstructorNotSupportedYet()
@@ -635,14 +637,14 @@ class Elaborator private(protected override val layers: Layers)
     arguments match {
       case head +: tail =>
         lt.whnf match {
-          case f@Value.Function(domain, fimp, codomain) =>
-            if (fimp == head._1) {
+          case f@Value.Function(etype, domain, codomain) =>
+            if (etype.implicitt == head._1) {
               val aa = check(head._2, domain)
               val av = eval(aa)
               val lt1 = codomain(av)
               val la1 = Abstract.App(la, aa)
               inferApp(lt1, la1, tail)
-            } else if (fimp) {
+            } else if (etype.implicitt) {
               val (lt1, la1) = finishOffImplicits(f, la)
               inferApp(lt1, la1, arguments)
             } else {
@@ -694,14 +696,14 @@ class Elaborator private(protected override val layers: Layers)
         Abstract.Let(ms ++ ms0, da, ba)
       case _ =>
         cp.whnf match {
-          case Value.Function(domain, fimp, codomain) =>
+          case Value.Function(etype, domain, codomain) =>
             term match {
-              case Concrete.Lambda(n, limp, ensuredPath, body) if fimp == limp =>
+              case Concrete.Lambda(n, limp, ensuredPath, body) if etype.implicitt == limp =>
                 assert(!ensuredPath)
                 val (ctx, v) = newParameterLayer(n.nonEmptyOrElse(hint), domain)
                 val ba = ctx.check(body, codomain(v), tail, indState.app(v))
                 Abstract.Lambda(dbi.Closure(ctx.finish(), ba))
-              case Concrete.PatternLambda(limp, cases) if fimp == limp =>
+              case Concrete.PatternLambda(limp, cases) if etype.implicitt == limp =>
                 val res = cases.map(c => {
                   val (ctx, v, pat) = newPatternLayer(c.pattern, domain)
                   val ba = ctx.check(c.body, codomain(v), tail)
@@ -709,7 +711,7 @@ class Elaborator private(protected override val layers: Layers)
                 })
                 Abstract.PatternLambda(Elaborator.pgen(), reify(domain.bestReifyValue), reify(codomain), res)
               case _ =>
-                fallback(fimp)
+                fallback(etype.implicitt)
             }
           case v@Value.Universe(l) =>
             term match {
@@ -786,19 +788,19 @@ class Elaborator private(protected override val layers: Layers)
           case r: Value.Record =>
             term match {
               case Concrete.App(Concrete.Make, vs) =>
-                Abstract.Make(inferGraphValuesPart(r.nodes, vs).map(_._1))
+                Abstract.Make(inferGraphValuesPart(r.etype.implicits, r.nodes, vs).map(_._1))
               case _ =>
                 fallback()
             }
           case r: Value.Sum =>
             term match {
               case Concrete.Projection(Concrete.Hole, Concrete.Reference(name)) =>
-                r.constructors.indexWhere(_.name.by(name)) match {
+                r.etype.names.indexWhere(_.by(name)) match {
                   case -1 => fallback()
                   case a => checkSumConstructApp(r, a, Seq.empty)
                 }
               case Concrete.App(Concrete.Projection(Concrete.Hole, Concrete.Reference(name)), as) =>
-                r.constructors.indexWhere(_.name.by(name)) match {
+                r.etype.names.indexWhere(_.by(name)) match {
                   case -1 => fallback()
                   case a => checkSumConstructApp(r, a, as)
                 }
@@ -849,6 +851,7 @@ class Elaborator private(protected override val layers: Layers)
             } else if (item.isAxiom) {
               throw ElaboratorException.TryingToDefineAxiom()
             }
+
             info(s"check defined $name")
             if (ps.nonEmpty || t0.nonEmpty) throw ElaboratorException.SeparateDefinitionCannotHaveTypesNow()
             val va = check(v, item.baseType, Seq.empty, rememberInductivelyBy(item.typCode, item.ref.base))

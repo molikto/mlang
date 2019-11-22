@@ -2,7 +2,7 @@ package mlang.compiler.semantic
 
 import mlang.compiler.GenLong.Negative.{dgen, gen}
 import mlang.utils._
-import mlang.compiler.Pattern
+import mlang.compiler.{Pattern, EType}
 import mlang.compiler.semantic.Formula
 import scala.annotation.Annotation
 import scala.collection.mutable
@@ -62,11 +62,6 @@ case class Case(pattern: Pattern, closure: MultiClosure) {
 sealed trait Recursively
 case class Inductively(@nominal_equality id: Long, @type_annotation typ: Value, ps: Seq[Value]) extends Recursively {
   def typFinal: Value = ps.foldLeft(typ) { (t, p) => t.whnf.asInstanceOf[Function].codomain(p) }
-}
-
-case class Constructor(name: Name, nodes: ClosureGraph) {
-  def restrict(lv: Assignments): Constructor = Constructor(name, nodes.restrict(lv))
-  def fswap(w: Long, z: Formula): Constructor = Constructor(name, nodes.fswap(w, z))
 }
 
 
@@ -443,7 +438,7 @@ object Value {
     def level1 = Universe(if (TYPE_IN_TYPE) 0 else 1)
   }
 
-  case class Function(domain: Value, impict: Boolean, codomain: Closure) extends StableCanonical
+  case class Function(etype: EType.Function, domain: Value, codomain: Closure) extends StableCanonical
 
   /**
     * whnf: lambda is whnf and is not a canonical
@@ -534,10 +529,10 @@ object Value {
 
 
   case class Record(
+    etype: EType.Record,
     inductively: Option[Inductively],
-    names: Seq[Name],
     nodes: ClosureGraph) extends StableCanonical {
-    assert(names.size == nodes.size)
+    assert(etype.names.size == nodes.size)
     def projectedType(values: Value, name: Int): Value =
       nodes.get(name, i => Projection(values, i))
   }
@@ -579,7 +574,7 @@ object Value {
   }
 
 
-  case class Sum(inductively: Option[Inductively], hit: Boolean, constructors: Seq[Constructor]) extends StableCanonical {
+  case class Sum(etype: EType.Sum, inductively: Option[Inductively], hit: Boolean, constructors: Seq[ClosureGraph]) extends StableCanonical {
     def noArgs = inductively.forall(_.ps.isEmpty)
   }
 

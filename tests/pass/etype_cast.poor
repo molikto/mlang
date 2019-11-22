@@ -1,0 +1,19 @@
+
+
+
+
+
+
+
+
+define test1(a: (X: type, #A: type) ⇒ type): type ⇒ type ⇒ type = a
+
+define test2(a: record { field a b: type} ): record { field c d: type } = a
+
+
+define test3 = run {
+  define a(x #a: type): type = x
+  define b(x b: type): type = x
+  define test: a ≡ b = ─ → a // here it is inferred as a implicit function type, because the left side is implicit function type...
+  test
+}

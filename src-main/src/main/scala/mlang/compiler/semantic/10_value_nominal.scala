@@ -20,19 +20,19 @@ given Nominal[Value] {
 
   def (t: Value) supportShallow(): SupportShallow = t match {
     case Universe(level) => SupportShallow.empty
-    case Function(domain, impict, codomain) => domain.supportShallow() ++ codomain.supportShallow()
+    case Function(etype, domain, codomain) => domain.supportShallow() ++ codomain.supportShallow()
     case Lambda(closure) => closure.supportShallow()
     case PatternLambda(id, domain, typ, cases) =>
       domain.supportShallow() ++ typ.supportShallow() ++ cases.map(_.closure.supportShallow()).merge
-    case Record(inductively, names, nodes) =>
+    case Record(etype, inductively, nodes) =>
       inductively.map(_.supportShallow()).orEmpty ++ nodes.supportShallow()
     case Make(values) => values.map(_.supportShallow()).merge
     case SimpleConstruct(name, vs) =>
       vs.map(_.supportShallow()).merge
     case HitConstruct(name, vs, ds, ty) =>
       (vs.map(_.supportShallow()) ++ ds.map(_.supportShallow())).merge ++ ty.supportShallow()
-    case Sum(inductively, _, constructors) =>
-      inductively.map(_.supportShallow()).orEmpty ++ constructors.map(a => a.nodes.supportShallow()).merge
+    case Sum(_, inductively, _, constructors) =>
+      inductively.map(_.supportShallow()).orEmpty ++ constructors.map(a => a.supportShallow()).merge
     case PathType(typ, left, right) =>
       typ.supportShallow() ++ left.supportShallow() ++ right.supportShallow()
     case PathLambda(body) => body.supportShallow()
@@ -54,14 +54,14 @@ given Nominal[Value] {
     */
   def (t: Value) fswap(w: Long, z: Formula): Value = t match {
     case u: Universe => u
-    case Function(domain, im, codomain) => Function(domain.fswap(w, z), im, codomain.fswap(w, z))
-    case Record(inductively, ns, nodes) =>
-      Record(inductively.map(_.fswap(w, z)), ns, nodes.fswap(w, z))
+    case Function(etype, domain, codomain) => Function(etype, domain.fswap(w, z), codomain.fswap(w, z))
+    case Record(etype, inductively, nodes) =>
+      Record(etype, inductively.map(_.fswap(w, z)), nodes.fswap(w, z))
     case Make(values) => Make(values.map(_.fswap(w, z)))
     case SimpleConstruct(name, vs) => SimpleConstruct(name, vs.map(_.fswap(w, z)))
     case HitConstruct(name, vs, ds, ty) => HitConstruct(name, vs.map(_.fswap(w, z)), ds.map(_.fswap(w, z)), ty.fswap(w, z))
-    case Sum(inductively, hit, constructors) =>
-      Sum(inductively.map(_.fswap(w, z)), hit, constructors.map(_.fswap(w, z)))
+    case Sum(etype, inductively, hit, constructors) =>
+      Sum(etype, inductively.map(_.fswap(w, z)), hit, constructors.map(_.fswap(w, z)))
     case Lambda(closure) => Lambda(closure.fswap(w, z))
     case PatternLambda(id, dom, typ, cases) =>
       PatternLambda(id, dom.fswap(w, z), typ.fswap(w, z), cases.map(a => Case(a.pattern, a.closure.fswap(w, z))))
@@ -84,18 +84,18 @@ given Nominal[Value] {
 
   def (t: Value) restrict(lv: Assignments): Value = if (lv.isEmpty) t else t match {
     case u: Universe => u
-    case Function(domain, im, codomain) =>
-      Function(domain.restrict(lv), im, codomain.restrict(lv))
-    case Record(inductively, ns, nodes) =>
-      Record(inductively.map(_.restrict(lv)), ns, nodes.restrict(lv))
+    case Function(etype, domain, codomain) =>
+      Function(etype, domain.restrict(lv), codomain.restrict(lv))
+    case Record(etype, inductively, nodes) =>
+      Record(etype, inductively.map(_.restrict(lv)), nodes.restrict(lv))
     case Make(values) =>
       Make(values.map(_.restrict(lv)))
     case SimpleConstruct(name, vs) =>
       SimpleConstruct(name, vs.map(_.restrict(lv)))
     case HitConstruct(name, vs, ds, ty) =>
       HitConstruct(name, vs.map(_.restrict(lv)), ds.map(_.restrict(lv)), ty.restrict(lv))
-    case Sum(inductively, hit, constructors) =>
-      Sum(inductively.map(_.restrict(lv)), hit, constructors.map(_.restrict(lv)))
+    case Sum(etype, inductively, hit, constructors) =>
+      Sum(etype, inductively.map(_.restrict(lv)), hit, constructors.map(_.restrict(lv)))
     case Lambda(closure) =>
       Lambda(closure.restrict(lv))
     case PatternLambda(id, dom, typ, cases) =>
