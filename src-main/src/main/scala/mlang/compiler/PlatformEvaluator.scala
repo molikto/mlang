@@ -920,11 +920,16 @@ trait PlatformEvaluator extends Evaluator {
     val args = new Array[Object](ds.size)
     for (i <- 0 until ds.size) {
       args(i) = getDependency(ds(i)) match {
-        case r: Value.Reference => r.referenced
+        case r: Value.Reference => r.referenced match {
+          case _: Value.Generic => r
+          case a => a
+        }
         case a => a
       }
     }
+    val t = System.currentTimeMillis()
     val ret = hd.value(args)
+    println("evaluation on JVM takes " + (System.currentTimeMillis() - t))
     ret
   }
 }

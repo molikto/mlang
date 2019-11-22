@@ -931,13 +931,23 @@ class Elaborator private(protected override val layers: Layers)
       Value.NORMAL_FORM_MODEL = true
       val a = ret.layers.head.asInstanceOf[Layer.Defines].terms.find(_.name == s.name).get.ref.value
       val time  = System.currentTimeMillis()
-      println(reify(a.nf))
+      val nf = a
+      println(s"DEBUG used time: ${System.currentTimeMillis() - time}")
+      var i = 0
+      var ts: Value = nf
+      while (ts.isInstanceOf[Value.SimpleConstruct] && ts.asInstanceOf[Value.SimpleConstruct].vs.size == 1) {
+        i += 1
+        ts = ts.asInstanceOf[Value.SimpleConstruct].vs(0)
+      }
+      println(s"count simple construct $i")
+      if (i < 100) {
+        println(reify(nf))
+      }
       // val nf = a.whnf.asInstanceOf[PathLambda].body(semantic.Formula.Generic(-1)).whnf
       // val fs = nf.asInstanceOf[Value.Hcomp].faces
       // val pair = fs.toSeq.head
       // val res = pair._2(semantic.Formula.Generic(-2)).restrict(pair._1.normalForm.head).whnf
       // println(res)
-      println(s"DEBUG used time: ${System.currentTimeMillis() - time}")
       Value.NORMAL_FORM_MODEL = false
     }
     ret

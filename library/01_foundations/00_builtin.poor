@@ -1,7 +1,10 @@
 
-/*
+define test0 = run {
 
-define test1 = run {
+    define nt: type = sum {
+      case zero
+      case suc(: nt)
+    }
 
     define unit = record {
     }
@@ -20,12 +23,21 @@ define test1 = run {
     define n10M :nat = mul(n1M,n10)
     define n10Mb:nat = mul(n10,n1M)
 
-    define no_imp(x: nat, a: type, c: a ⇒ a, d: a): a = x(c, d)
-
-    define __debug res1 = n10M(x → x, unit.make)
-    define res: no_imp(n10M) ≡ no_imp(n10Mb) = ─ → no_imp(n10M)
+    define no_imp(x: nat, a: type, c: a ⇒ a, d: a): a = x(@a, c, d)
+    // forcing by nt
+    define __debug res1 = n10M(@nt, a → nt.suc(a), nt.zero)
+    // forcing by unit
+    define __debug res2 = n10M(@unit, a → a, unit.make)
+    // conversion checking
+    define res: no_imp(n100) ≡ no_imp(n100) = ─ → no_imp(n100)
     res
 }
+
+define abort = ???
+
+/*
+
+
 
 
 
@@ -52,7 +64,6 @@ define test2 = run {
     res
 }
 
-define abort = ???
 */
 
 define is_contr(A: type): type = record {
