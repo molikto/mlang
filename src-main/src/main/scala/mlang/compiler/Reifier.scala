@@ -3,7 +3,7 @@ package mlang.compiler
 import mlang.compiler.Layer.Layers
 import mlang.compiler.semantic.Value
 import semantic.{MetaState}
-import mlang.utils.{Benchmark, Name, debug}
+import mlang.utils._
 import mlang.compiler.dbi.{given, _}
 import Abstract._
 
@@ -28,7 +28,11 @@ private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorCon
       case Some(t) => t
       case None =>
         base.saveOutOfScopeValue(r)
-        rebindReference(r).get
+        val a = rebindReference(r)
+        if (a.isEmpty) {
+          logicError()
+        }
+        a.get
     }
   }
 
@@ -213,7 +217,11 @@ private class ReifierContextBottom(layersBefore: Layers) extends ReifierContext 
   def saveOutOfScopeValue(r: Value.Reference): Unit = {
     val index = terms.size
     debug(s"out of scope value saved??", 2)
-    terms.append(DefineItem(ParameterBinder(Name.empty, Value.LocalGeneric(GenLong.Negative.gen(), null)), null, r, null))
+    terms.append(DefineItem(
+      ParameterBinder(Name.empty, Leveled.Fix(Value.Generic(GenLong.Negative.gen(), null))),
+      null,
+      Leveled.Fix(r),
+      null))
     val abs = if (r.value == self) {
       None : Option[Abstract]
     } else {

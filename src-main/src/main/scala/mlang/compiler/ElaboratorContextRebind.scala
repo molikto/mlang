@@ -20,7 +20,7 @@ trait ElaboratorContextRebind extends ElaboratorContextBase {
         case d: Layer.Defines =>
           var ll = d.terms
           while (ll.nonEmpty && binder == null) {
-            lookupMatched(ll.head.ref, v, up) match {
+            lookupMatched(ll.head.ref.asInstanceOf[Leveled[Value.Referential]], v, up) match {
               case Some(lv) =>
                 index = i
                 binder = Abstract.Reference(up, index, lv)
@@ -104,9 +104,9 @@ trait ElaboratorContextRebind extends ElaboratorContextBase {
     var index = -1
     var ls = layers
     var binder: Abstract.Reference = null
-    def tryBind(a: Value.Generic, up: Int, i: Int): Unit = {
-      if (g.id == a.id) {
-        lookupMatched(a, g, up) match {
+    def tryBind(a: Leveled[Value.Generic], up: Int, i: Int): Unit = {
+      if (g.id == a.base.id) {
+        lookupMatched(a.asInstanceOf[Leveled[Value.Referential]], g, up) match {
           case Some(lv) =>
             index = i
             binder = Abstract.Reference(up, index, lv)

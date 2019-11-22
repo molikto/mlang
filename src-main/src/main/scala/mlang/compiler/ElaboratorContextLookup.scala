@@ -59,7 +59,7 @@ trait ElaboratorContextLookup extends ElaboratorContextBase {
               index = i
               hd match {
                 case p: ParameterBinder =>
-                  binder = mkTyped(p.value, Abstract.Reference(up, ly.typedIndex(index), 0))
+                  binder = mkTyped(p.value.get(evalHack, lvl), Abstract.Reference(up, ly.typedIndex(index), 0))
                 case d: DimensionBinder =>
                   binder = NameLookupResult.Dimension(dbi.Formula.Reference(up, ly.typedIndex(index)))
               }
@@ -84,7 +84,7 @@ trait ElaboratorContextLookup extends ElaboratorContextBase {
           while (ll.nonEmpty && binder == null) {
             if (ll.head.name.by(name)) {
               index = i
-              binder = mkTyped(ll.head.typ0.value.lift(lvl),
+              binder = mkTyped(ll.head.typ0.value.get(evalHack, lvl),
                   Abstract.Reference(up, index, lvl))
             }
             i += 1
@@ -92,7 +92,7 @@ trait ElaboratorContextLookup extends ElaboratorContextBase {
           }
         case p:Layer.Parameter =>
           if (p.binder.name.by(name)) {
-            binder = mkTyped(p.binder.value, Abstract.Reference(up, -1, 0))
+            binder = mkTyped(p.binder.value.get(evalHack, lvl), Abstract.Reference(up, -1, 0))
           }
         case d: Layer.Dimension =>
           if (d.binder.name.by(name)) {

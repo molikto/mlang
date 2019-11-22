@@ -67,23 +67,36 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
     case _ => logicError()
   }
 
-  private def newDeclaredGeneric(typ: dbi.Abstract): Value.Generic = {
-    if (layers.size == 1) {
-      val g = Value.GlobalGeneric(gen(), evalHack(typ))
-      g.lifter = (i: Int) => evalHack(typ.lup(0, i))
-      g
+
+  def isGlobal = layers.size == 1
+  private def newDeclaredGeneric(typ: dbi.Abstract): Leveled[Value.Generic] = {
+    val id = gen()
+    if (isGlobal) {
+      Leveled.Floating(
+        Value.Generic(id, evalHack.eval(typ)),
+        () => Value.Generic(id, null),
+        (ev, i) => ev.eval(typ.lup(0, i)),
+        (g, a) => g.initialize(a)
+      )
     } else {
-      Value.LocalGeneric(gen(), evalHack(typ))
+      Leveled.Fix(Value.Generic(id, evalHack.eval(typ)))
     }
   }
 
-  private def newReference(v: dbi.Abstract, name: Name = null): Value.Reference = {
+  private def createGlobalFloating(base: Value.Reference, code: dbi.Abstract): Leveled[Value.Reference] = {
+    Leveled.Floating(
+      base,
+      () => Value.GlobalReference(null),
+      (ev, i) => ev.eval(code.lup(0, i)),
+      (g, a) => g.value = a
+    )
+  }
+
+  private def newReference(code: dbi.Abstract, name: Name = null): Leveled[Value.Reference] = {
     if (layers.size == 1) {
-      val g = Value.GlobalReference(evalHack(v), name)
-      g.lifter = (i: Int) => evalHack(v.lup(0, i))
-      g
+      createGlobalFloating(Value.GlobalReference(evalHack.eval(code)), code)
     } else {
-      Value.LocalReference(evalHack(v))
+      Leveled.Fix(Value.LocalReference(evalHack.eval(code)))
     }
   }
 
@@ -96,7 +109,7 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
           case _ =>
             val g = newDeclaredGeneric(typ)
             val r = newReference(code)
-            (Layer.Defines(metas, defines :+ DefineItem(ParameterBinder(name, g), typ, r, code)) +: layers.tail, defines.size, g)
+            (Layer.Defines(metas, defines :+ DefineItem(ParameterBinder(name, g), typ, r, code)) +: layers.tail, defines.size, g.base)
         }
       case _ => logicError()
     }
@@ -112,13 +125,14 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
             if (isAxiom && layers.size != 1) logicError()
             val g = newDeclaredGeneric(typ)
             val p = ParameterBinder(name, g)
-            val r = if (layers.size == 1) {
-              // cannot be lifted until has definition
-              Value.GlobalReference(g, name)
+            // cannot be lifted until has definition
+            val r0 = if (layers.size == 1) {
+              Value.GlobalReference(g.base, name)
             } else {
-              Value.LocalReference(g)
+              Value.LocalReference(g.base)
             }
-            (Layer.Defines(metas, defines :+ DefineItem(p, typ, r, null, isAxiom)) +: layers.tail, defines.size, g)
+            val r: Leveled[Value.Reference] = Leveled.Fix(r0)
+            (Layer.Defines(metas, defines :+ DefineItem(p, typ, r, null, isAxiom)) +: layers.tail, defines.size, g.base)
         }
       case _ => logicError()
     }
@@ -130,14 +144,20 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
         defines(index) match {
           case DefineItem(typ0, typCode, r, c, ia) =>
             assert(typ0.name == name)
-            assert(r.value == typ0.value)
+            assert(r.base.value == typ0.value.base)
             assert(null == c)
             assert(!ia)
-            r.value = evalHack(code)
-            if (r.isInstanceOf[Value.GlobalReference]) {
-              r.asInstanceOf[Value.GlobalReference].lifter = (i: Int) => evalHack(code.lup(0, i))
+            val nr = r match {
+              case _: Leveled.Fix[Value.Reference] =>
+                r.base.value = evalHack.eval(code)
+                if (isGlobal) {
+                  createGlobalFloating(r.base, code)
+                } else {
+                  r
+                }
+              case _ => logicError()
             }
-            (Layer.Defines(metas, defines.updated(index, DefineItem(typ0, typCode, r, code))) +: layers.tail, r)
+            (Layer.Defines(metas, defines.updated(index, DefineItem(typ0, typCode, nr, code))) +: layers.tail, r.base)
         }
       case _ => logicError()
     }
@@ -147,12 +167,14 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
 
 
   def newParameterLayer(name: Name, typ: Value): (Self, Value) = {
-    val g = Value.LocalGeneric(gen(), typ)
-    (Layer.Parameter(ParameterBinder(name, g), createMetas()) +: layers, g)
+    val g = Value.Generic(gen(), typ)
+    val fix: Leveled[Value.Generic] = Leveled.Fix(g)
+    (Layer.Parameter(ParameterBinder(name, fix), createMetas()) +: layers, g)
   }
 
   def newParameterLayerProvided(name: Name, g: Value.Generic): Self = {
-    Layer.Parameter(ParameterBinder(name, g), createMetas()) +: layers
+    val fix = Leveled.Fix(g)
+    Layer.Parameter(ParameterBinder(name, fix), createMetas()) +: layers
   }
 
 
@@ -184,11 +206,12 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
         binders.find(_.name.intersect(name)) match {
           case Some(_) => logicError()
           case _ =>
-            val v = Value.LocalGeneric(gen(), typ)
+            val v = Value.Generic(gen(), typ)
             if (!metas.debug_allFrozen) {
               logicError()
             }
-            (Layer.ParameterGraph(alters, binders :+ ParameterBinder(name, v), ds, metas) +: layers.tail, v)
+            val fix: Leveled[Value.Generic] = Leveled.Fix(v)
+            (Layer.ParameterGraph(alters, binders :+ ParameterBinder(name, fix), ds, metas) +: layers.tail, v)
         }
       case _ => logicError()
     }
@@ -244,9 +267,11 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
             case _ =>
           }
           if (ret == null) {
-            val open = ParameterBinder(name, Value.LocalGeneric(gen(), t))
+            val ggg = Value.Generic(gen(), t)
+            val fix: Leveled.Fix[Value.Generic] = Leveled.Fix(ggg)
+            val open = ParameterBinder(name, fix)
             vvv.append(open)
-            ret = (open.value, Pattern.GenericValue)
+            ret = (ggg, Pattern.GenericValue)
           }
           ret
         case Concrete.Pattern.Group(maps) =>

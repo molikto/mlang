@@ -38,8 +38,8 @@ class TestScala extends mlang.compiler.Holder {
 
     val a = Value.Record(null, null, ClosureGraph.apply(
       Seq(
-        ClosureGraphArguments(false, ArraySeq.empty, 1, (a, b) => (Seq(Value.LocalMeta(null), Value.LocalMeta(null)), Value.Universe(7))),
-        ClosureGraphArguments(false, new ArraySeq.ofInt(Array[Int](0, 1,2)), 1, (a, b) => (Seq(Value.LocalMeta(null), Value.LocalMeta(null)), Value.Universe(7)))
+        ClosureGraphArguments(false, ArraySeq.empty, 1, (a, b) => (Seq(Value.Meta(null), Value.Meta(null)), Value.Universe(7))),
+        ClosureGraphArguments(false, new ArraySeq.ofInt(Array[Int](0, 1,2)), 1, (a, b) => (Seq(Value.Meta(null), Value.Meta(null)), Value.Universe(7)))
       ),
       5,
       fs => Seq(

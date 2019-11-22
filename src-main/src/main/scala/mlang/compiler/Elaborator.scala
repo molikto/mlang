@@ -200,7 +200,7 @@ class Elaborator private(protected override val layers: Layers)
       }
     }
     val selfValue = tps.map(pair => {
-      pair._2.map(_._1).getOrElse(Value.LocalGeneric(ElaboratorContextBuilder.gen(), pair._1))
+      pair._2.map(_._1).getOrElse(Value.Generic(ElaboratorContextBuilder.gen(), pair._1))
     })
     var ctx = newParametersLayer(selfValue)
     var isHit = false
@@ -851,7 +851,7 @@ class Elaborator private(protected override val layers: Layers)
             }
             info(s"check defined $name")
             if (ps.nonEmpty || t0.nonEmpty) throw ElaboratorException.SeparateDefinitionCannotHaveTypesNow()
-            val va = check(v, item.typ, Seq.empty, rememberInductivelyBy(item.typCode, item.ref))
+            val va = check(v, item.baseType, Seq.empty, rememberInductivelyBy(item.typCode, item.ref.base))
             // info("body:"); print(va)
             freeze()
             val (ctx, _) = newDefinitionChecked(index, name, va)
@@ -933,7 +933,7 @@ class Elaborator private(protected override val layers: Layers)
     }
     if (s.modifiers.contains(Declaration.Modifier.__Debug)) {
       Value.NORMAL_FORM_MODEL = true
-      val a = ret.layers.head.asInstanceOf[Layer.Defines].terms.find(_.name == s.name).get.ref.value
+      val a = ret.layers.head.asInstanceOf[Layer.Defines].terms.find(_.name == s.name).get.ref.base.value
       val time  = System.currentTimeMillis()
       println(reify(a.nf))
       // val nf = a.whnf.asInstanceOf[PathLambda].body(semantic.Formula.Generic(-1)).whnf

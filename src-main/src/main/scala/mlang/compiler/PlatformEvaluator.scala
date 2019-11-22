@@ -66,7 +66,7 @@ object ByteCodeGeneratorRun {
     Type.getType("(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;")
   )
 
-  val metaInitilizeSig = mlang.utils.Runtime.getMethodDescriptor(classOf[Value.LocalMeta].getMethods.find(_.getName == "initialize").get)
+  val metaInitilizeSig = mlang.utils.Runtime.getMethodDescriptor(classOf[Value.Meta].getMethods.find(_.getName == "initialize").get)
 
   val localReferenceInitilizeSig = mlang.utils.Runtime.getMethodDescriptor(classOf[Value.LocalReference].getMethods.find(_.getName == "initialize").get)
 
@@ -89,8 +89,8 @@ class ByteCodeGeneratorRun(val root: Abstract) {
   private val rootClzName = s"mlang_generated_${clzgen()}"
   cw.visit(V1_8, ACC_SUPER, rootClzName, null, "java/lang/Object", Array("mlang/compiler/Holder"))
   cw.visitInnerClass("java/lang/invoke/MethodHandles$Lookup", "java/lang/invoke/MethodHandles", "Lookup", ACC_PUBLIC | ACC_FINAL | ACC_STATIC)
-  cw.visitInnerClass("mlang/compiler/semantic/Value$GlobalMeta", "mlang/compiler/semantic/Value", "GlobalMeta", ACC_PUBLIC | ACC_STATIC)
-  cw.visitInnerClass("mlang/compiler/semantic/Value$LocalMeta", "mlang/compiler/semantic/Value", "LocalMeta", ACC_PUBLIC | ACC_STATIC)
+  cw.visitInnerClass("mlang/compiler/semantic/Value$Meta", "mlang/compiler/semantic/Value", "Meta", ACC_PUBLIC | ACC_STATIC)
+  cw.visitInnerClass("mlang/compiler/semantic/Value$Meta", "mlang/compiler/semantic/Value", "Meta", ACC_PUBLIC | ACC_STATIC)
   cw.visitInnerClass("scala/collection/immutable/ArraySeq$ofRef", "scala/collection/immutable/ArraySeq", "ofRef", ACC_PUBLIC | ACC_FINAL | ACC_STATIC);
 
   cw.visitInnerClass("mlang/compiler/semantic/Formula$And", "mlang/compiler/semantic/Formula", "And", ACC_PUBLIC | ACC_STATIC);
@@ -241,7 +241,7 @@ class ByteCodeGeneratorRun(val root: Abstract) {
 
   private def (mn: MethodRun) declareMetas(metas: Seq[Abstract], frontSize: Int, base: Int = 0): Unit = {
     for (i <- 0 until metas.size) {
-      mn.create("LocalMeta", "uninitalized")
+      mn.create("Meta", "uninitalized")
       mn.visitVarInsn(ASTORE, frontSize + i)
       mn.lookup.put(Dependency(0, base + i, 0, DependencyType.Meta), frontSize + i)
     }
@@ -251,7 +251,7 @@ class ByteCodeGeneratorRun(val root: Abstract) {
     for ((m, i) <- metas.zipWithIndex) {
       mn.visitVarInsn(ALOAD, frontSize + i)
       mn.emit(m)
-      mn.visitMethodInsn(INVOKEVIRTUAL, "mlang/compiler/semantic/Value$LocalMeta", "initialize", metaInitilizeSig)
+      mn.visitMethodInsn(INVOKEVIRTUAL, "mlang/compiler/semantic/Value$Meta", "initialize", metaInitilizeSig)
     }
   }
 

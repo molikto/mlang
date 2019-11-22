@@ -26,7 +26,6 @@ trait ElaboratorContextWithMetaOps extends ElaboratorContextBase {
 
   protected def createMetas(): MetasState = new MetasState(mutable.ArrayBuffer.empty, 0)
 
-  def evalHack(a: Abstract): Value = this.asInstanceOf[Evaluator].eval(a)
 
   protected def solveMeta(index: Int, body: Value, code: dbi.Abstract) = {
     val ms = layers.head.metas
@@ -34,11 +33,6 @@ trait ElaboratorContextWithMetaOps extends ElaboratorContextBase {
     val mb = ms.metas(index)
     assert(!mb.value.isSolved)
     mb.value.state = semantic.MetaState.Closed(body)
-    mb.value match {
-      case g: Value.GlobalMeta =>
-        g.lifter = (i: Int) => evalHack(code.lup(0, i))
-      case _ =>
-    }
     mb.code = code
   }
 
@@ -61,7 +55,7 @@ trait ElaboratorContextWithMetaOps extends ElaboratorContextBase {
 
   protected def newMeta(typ: Value): (Value.Meta, Abstract.MetaReference) = {
     val id = mgen()
-    val v = Value.Meta(layers.size == 1, semantic.MetaState.Open(id, typ))
+    val v = Value.Meta(semantic.MetaState.Open(id, typ))
     val ms = layers.head.metas
     if (ms.debug_final) logicError()
     val index = ms.size
@@ -92,18 +86,11 @@ trait ElaboratorContextWithMetaOps extends ElaboratorContextBase {
       var ll = ls.head.metas.metas
       while (ll.nonEmpty && binder == null) {
         ll.head._2 match {
-          case l: Value.LocalMeta =>
+          case l: Value.Meta =>
             l.lookupChildren(meta) match {
               case Some(asgn) =>
                 index = i
                 binder = Abstract.MetaReference(up, index, 0)
-              case None =>
-            }
-          case g: Value.GlobalMeta =>
-            g.lookupChildren(meta) match {
-              case Some(l) => 
-                index = i
-                binder = Abstract.MetaReference(up, index, l)
               case None =>
             }
         }
