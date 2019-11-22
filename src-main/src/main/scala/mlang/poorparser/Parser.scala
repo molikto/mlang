@@ -94,7 +94,7 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
         transp | com | hcom | hfill | fill | glueType | glue | unglue |
         universe | make |
         delimited("(", term, ")") |
-        absDimension | reference
+        number | reference
 
   lazy val reference = ident ^^ {a => Reference(Text(a)) }
   lazy val make: PackratParser[Concrete] = keyword("make") ^^ { _ => Make }
@@ -112,7 +112,7 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
     PathType(a._2._1, a._1, a._2._2)
   }
 
-  lazy val absDimension: PackratParser[Concrete] = numericLit  ^^ { i => if (i == "0") Concrete.False else if (i == "1") Concrete.True else throw new Exception("...") }
+  lazy val number: PackratParser[Concrete] = (numericLit ^^ { a => Concrete.Number(a) })
 
   // kan
   lazy val transp: PackratParser[Concrete] = keyword("transp") ~> delimited("(", (term <~ ",") ~ term ~ ("," ~> term), ")")  ^^ { a => {

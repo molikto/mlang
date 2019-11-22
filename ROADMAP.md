@@ -36,7 +36,6 @@
     * record calculus (one problem is dependency graph introduces syntax stuff in equality)
     * `match` expressions
     * **RESEARCH** calculus of elaboration
-        * refactor implicit arguments
         * implicit projection *for example group has inverse defined as a record of element with properties, `g.inverse`, `g.inverse::left`, `g.inverse::`*
         * default parameter value
         * constant projection `square.constant`

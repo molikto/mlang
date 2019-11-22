@@ -19,6 +19,10 @@ import scala.util.Random
 
 class syntax_creation extends Annotation
 
+object ElaboratorBuiltIn {
+  var nat: Value.Sum = null
+}
+
 private class IndState(val id: Long, typ: Abstract, var stop: Boolean, var top: Value, var apps: Seq[Value] = Seq.empty) {
   // returns a value is self
   def consume(level: Int): Option[(Value, dbi.Inductively)] = {
@@ -351,10 +355,8 @@ class Elaborator private(protected override val layers: Layers)
         }
       case Concrete.Hole =>
         throw ElaboratorException.CannotInferMeta()
-      case Concrete.True =>
-        throw ElaboratorException.TermSortWrong()
-      case Concrete.False =>
-        throw ElaboratorException.TermSortWrong()
+      case Concrete.Number =>
+        throw ElaboratorException.CannotInferNumberWithoutType()
       case _: Concrete.And =>
         throw ElaboratorException.TermSortWrong()
       case _: Concrete.Or =>
@@ -518,9 +520,9 @@ class Elaborator private(protected override val layers: Layers)
       case Concrete.Neg(a) =>
         val r = checkFormula(a)
         dbi.Formula.Neg(r)
-      case Concrete.True =>
+      case Concrete.Number("1") =>
         dbi.Formula.True
-      case Concrete.False =>
+      case Concrete.Number("0") =>
         dbi.Formula.False
       case _ => throw ElaboratorException.ExpectingFormula()
     }
@@ -694,6 +696,22 @@ class Elaborator private(protected override val layers: Layers)
         val ba = ctx.check(bd, cp)
         val ms0 = ctx.freeze()
         Abstract.Let(ms ++ ms0, da, ba)
+      case Concrete.Number(a) =>
+        cp.whnf match {
+          case Value.Sum(_, Some(i), _, _)  =>
+            if (i.id == ElaboratorBuiltIn.nat.inductively.get.id) {
+              var d = BigInt(a)
+              var i: Abstract = Abstract.Construct(0, Seq.empty, Seq.empty, Map.empty)
+              while (d > 0) {
+                i = Abstract.Construct(1, Seq(i), Seq.empty, Map.empty)
+                d = d - 1
+              }
+              i
+            } else {
+              fallback()
+            }
+          case _ => fallback()
+        }
       case _ =>
         cp.whnf match {
           case Value.Function(etype, domain, codomain) =>
@@ -883,20 +901,23 @@ class Elaborator private(protected override val layers: Layers)
               // some definition is specially treated, they are defined in code, but we need to reference them in evaluator.
               // these definition should not have re-eval behaviour.
               // TODO add a primitive modifier so that no error happens with this
-              if (name == Name(Text("fiber_at"))) {
-                assert(BuiltIn.fiber_at == null)
-                BuiltIn.fiber_at = ref
-              } else if (name == Name(Text("equiv"))) {
-                assert(BuiltIn.equiv == null)
-                BuiltIn.equiv = ref
-              } else if (name == Name(Text("equiv_of"))) {
-                assert(BuiltIn.equiv_of == null)
-                BuiltIn.equiv_of = ref
-              } else if (name == Name(Text("path_to_equiv"))) {
-                assert(BuiltIn.path_to_equiv == null)
-                BuiltIn.path_to_equiv = ref
+              if (isGlobal) {
+                if (name == Name(Text("fiber_at"))) {
+                  assert(BuiltIn.fiber_at == null)
+                  BuiltIn.fiber_at = ref
+                } else if (name == Name(Text("equiv"))) {
+                  assert(BuiltIn.equiv == null)
+                  BuiltIn.equiv = ref
+                } else if (name == Name(Text("equiv_of"))) {
+                  assert(BuiltIn.equiv_of == null)
+                  BuiltIn.equiv_of = ref
+                } else if (name == Name(Text("path_to_equiv"))) {
+                  assert(BuiltIn.path_to_equiv == null)
+                  BuiltIn.path_to_equiv = ref
+                } else if (name == Name(Text("nat"))) {
+                  if (ElaboratorBuiltIn.nat == null) ElaboratorBuiltIn.nat = ref.value.asInstanceOf[Value.Sum]
+                }
               }
-
               time = System.currentTimeMillis() - time
               val timeStr = if (time > 10) s" in ${time}" else ""
               info(s"defined $name" + timeStr)
