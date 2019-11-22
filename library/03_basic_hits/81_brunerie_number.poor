@@ -45,7 +45,7 @@ define mult_two_aux: (x: S2) ⇒ x_refl_type(x_refl(S2_groupoid2_trunc.in(x))) =
 
 define mult_two_tilde_aux: (t: S2_groupoid2_trunc) ⇒ x_refl_type(x_refl(t)) =
 ┌ in(x) → mult_two_aux(x)
-└ squash(x, y, p, q, r, s, t, u, k, l, m, n) → i → j →
+└ squash(#x, #y, #p, #q, #r, #s, t, u, k, l, m, n) → i → j →
    S2_groupoid2_trunc.squash(
      @ mult_two_tilde_aux(x, i, j),
      @ mult_two_tilde_aux(y, i, j),

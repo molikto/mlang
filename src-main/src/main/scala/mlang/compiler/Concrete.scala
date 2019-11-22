@@ -27,9 +27,9 @@ object Concrete {
 
   object Pattern {
     case class Atom(id: Name) extends Pattern
-    case class Group(names: Seq[Pattern]) extends Pattern
+    case class Group(names: Seq[(Boolean, Pattern)]) extends Pattern
     // TODO user defined named patterns
-    case class NamedGroup(name: Text, pattern: Seq[Pattern]) extends Pattern
+    case class NamedGroup(name: Text, pattern: Seq[(Boolean, Pattern)]) extends Pattern
   }
 
   case class Constructor(name: Name, term: Seq[NameType], restrictions: Seq[Face])

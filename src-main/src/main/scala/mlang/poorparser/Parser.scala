@@ -205,10 +205,10 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
   lazy val lambda: PackratParser[Lambda] =
     implicitPattern ~ ("→" ~> term) ^^ {a => Lambda(a._1._2, a._1._1, false, a._2) }
 
-  lazy val groupPattern: PackratParser[Pattern] =  delimited("(", rep1sep(pattern, ","),")") ^^ { a => Pattern.Group(a) }
+  lazy val groupPattern: PackratParser[Pattern] =  delimited("(", rep1sep((opt("#") ~ pattern) ^^ {a => (a._1.isDefined, a._2)}, ","),")") ^^ { a => Pattern.Group(a) }
 
   lazy val namedPattern: PackratParser[Pattern] =
-    ident ~ delimited("(", rep1sep(pattern, ","),")") ^^ { a => Pattern.NamedGroup(Text(a._1), a._2) }
+    ident ~ delimited("(", rep1sep((opt("#") ~ pattern) ^^ {a => (a._1.isDefined, a._2)}, ","),")") ^^ { a => Pattern.NamedGroup(Text(a._1), a._2) }
 
   lazy val pattern: PackratParser[Pattern] = namedPattern | atomicPattern ^^ { a => Pattern.Atom(a) } | groupPattern
 

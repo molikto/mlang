@@ -236,15 +236,39 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
 
   def newPatternLayer(pattern: Concrete.Pattern, typ: Value): (Self, Value, Pattern) = {
     val vvv = mutable.ArrayBuffer[Binder]()
-    def recs(maps: Seq[Concrete.Pattern], nodes: semantic.ClosureGraph): Seq[(Value, Pattern)] = {
+    def recs(maps: Seq[(Boolean, Concrete.Pattern)], imps: Seq[Boolean], nodes: semantic.ClosureGraph): (Seq[Value], Seq[Pattern], Seq[Name]) = {
+      var ms = maps
       var vs =  Seq.empty[(Value, Pattern)]
       var graph = nodes
-      for (i <- maps.indices) {
-        val tv = rec(maps(i), graph(i).independent.typ, false)
-        graph = graph.reduce(vs.size, tv._1)
-        vs = vs :+ tv
+      for (i <- imps.indices) {
+        if (maps.isEmpty) {
+          if (!imps(i)) {
+            throw PatternExtractException.WrongSize()
+          }
+        } else {
+          if (imps(i) == ms.head._1) { // same implicit type
+            val tv = rec(ms.head._2, graph(i).independent.typ, false)
+            graph = graph.reduce(vs.size, tv._1)
+            ms = ms.tail
+            vs = vs :+ tv
+          } else if (!imps(i)) {
+            throw PatternExtractException.NotExpectingImplicit()
+          } else {
+            // it is a implicit which not introduced in concrete pattern
+            val tv = rec(Concrete.Pattern.Atom(Name.empty), graph(i).independent.typ, false)
+            graph = graph.reduce(vs.size, tv._1)
+            vs = vs :+ tv
+          }
+        }
       }
-      vs
+      if (ms.exists(_._1)) {
+        throw PatternExtractException.ImplicitPatternForDimension()
+      } else if (ms.size != nodes.dimSize) {
+        throw PatternExtractException.WrongSize()
+      } else if (!ms.forall(_._2.isInstanceOf[Concrete.Pattern.Atom])) {
+        throw PatternExtractException.NonAtomicPatternForDimension()
+      }
+      (vs.map(_._1), vs.map(_._2), ms.map(_._2.asInstanceOf[Concrete.Pattern.Atom].id))
     }
 
     def rec(p: Concrete.Pattern, t: Value, isRoot: Boolean): (Value, Pattern) = {
@@ -256,11 +280,12 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
             case Some(ref) =>
               t.whnf match {
                 case sum: Value.Sum if { index = sum.etype.names.indexWhere(c => c.by(ref)); index >= 0 } =>
+                  // TODO this handling is not that ok actually, if the sum has only implicit fields, but what's the use of this?
                   val c = sum.constructors(index)
                   if (c.isEmpty && c.dimSize == 0) {
                     ret = (Value.Construct(index, Seq.empty, Seq.empty, Map.empty), Pattern.Construct(index, Seq.empty))
                   } else {
-                    throw PatternExtractException.ConstructWrongSize()
+                    throw PatternExtractException.WrongSize()
                   }
                 case _ =>
               }
@@ -277,12 +302,8 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
         case Concrete.Pattern.Group(maps) =>
           t.whnf match {
             case r: Value.Record =>
-              if (maps.size == r.nodes.size) {
-                val vs = recs(maps, r.nodes)
-                (Value.Make(vs.map(_._1)), Pattern.Make(vs.map(_._2)))
-              } else {
-                throw PatternExtractException.MakeWrongSize()
-              }
+              val (ms, ds, _) = recs(maps, r.etype.implicits, r.nodes)
+              (Value.Make(ms), Pattern.Make(ds))
             case _ => throw PatternExtractException.MakeIsNotRecordType()
           }
         case Concrete.Pattern.NamedGroup(name, maps) =>
@@ -292,22 +313,12 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
               val index = sum.etype.names.indexWhere(_.by(name))
               if (index >= 0) {
                 val c = sum.constructors(index)
-                if (c.size + c.dimSize == maps.size) {
-                  val vs = recs(maps.take(c.size), c)
-                  val dPs = maps.drop(c.size)
-                  if (!dPs.forall(_.isInstanceOf[Concrete.Pattern.Atom])) {
-                    throw PatternExtractException.NonAtomicPatternForDimension()
-                  }
-                  val names = dPs.map(_.asInstanceOf[Concrete.Pattern.Atom].id)
-                  val ds = names.map(n => DimensionBinder(n, semantic.Formula.Generic(dgen())))
-                  vvv.appendAll(ds)
-                  val vvs = vs.map(_._1)
-                   val dds = ds.map(_.value)
-                  (Value.Construct(index, vvs, dds, if (dds.isEmpty) Map.empty else c.reduceAll(vvs).reduce(dds).restrictions()),
-                    Pattern.Construct(index, vs.map(_._2) ++ ds.map(_ => Pattern.GenericDimension)))
-                } else {
-                  throw PatternExtractException.ConstructWrongSize()
-                }
+                val (ms, vs, names) = recs(maps, sum.etype.implicits(index), c)
+                val ds = names.map(n => DimensionBinder(n, semantic.Formula.Generic(dgen())))
+                vvv.appendAll(ds)
+                val dds = ds.map(_.value)
+                (Value.Construct(index, ms, dds, if (dds.isEmpty) Map.empty else c.reduceAll(ms).reduce(dds).restrictions()),
+                  Pattern.Construct(index, vs ++ ds.map(_ => Pattern.GenericDimension)))
               } else {
                 throw PatternExtractException.ConstructUnknownName()
               }

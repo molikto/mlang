@@ -11,31 +11,29 @@ define inductively nat: type = sum {
 define zero = nat.zero
 define suc(a: nat): nat = nat.suc(a)
 
-// alternative definitions, which we don't use
-define plus_alt_1:
- (a       b: nat) ⇒ nat =
-  ─     ┌ zero    → a
-        └ suc(m)  → suc(plus_alt_1(a, m))
 
-define plus_alt_2:
- (a       b: nat) ⇒ nat =
-  ─     ┌ zero    → a
-        └ suc(m)  → plus_alt_2(suc(a), m)
-
-
-
-// this definition allows more definitional equality, but the definition body needs to be confluent, we haven't implemented the check yet.
+// this definition allows more definitional equality
 define plus(a b: nat): nat = run {
   define rec:
     pair(nat, nat) ⇒ nat =
-  ┌ (zero, a) → a
-  ├ (a, zero) → a
-  └ (x, suc(y)) → suc(rec(make(x, y)))
+  ┌ (zero, a)      → a
+  ├ (a, zero)      → a
+  └ (x, suc(y))    → suc(rec(make(x, y)))
   rec(make(a, b))
 }
 
 // currently we use `_test_xxx` to write test codes
 define _test_plus = run {
+  // alternative definitions, which we don't use
+  define plus_alt_1:
+  (a       b: nat) ⇒ nat =
+    ─     ┌ zero → a
+          └ suc(m) → suc(plus_alt_1(a, m))
+  define plus_alt_2:
+  (a       b: nat) ⇒ nat =
+    ─     ┌ zero    → a
+          └ suc(m)  → plus_alt_2(suc(a), m)
+
   define left_zero(a: nat): plus(a, zero) ≡ a = refl
   define right_zero(a: nat): plus(zero, a) ≡ a = refl
   define ttt1(a: nat): nat = plus(2, 4)
@@ -47,8 +45,6 @@ define _test_plus = run {
   define ttt(a b: nat, c: nat ⇒ type, d: type ⇒ type): type = d(c(plus(a, b)))
   unit.make
 }
-
-
 
 
 /*

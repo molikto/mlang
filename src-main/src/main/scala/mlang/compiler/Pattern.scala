@@ -5,12 +5,13 @@ package mlang.compiler
 sealed trait PatternExtractException extends CompilerException
 
 object PatternExtractException {
-  case class MakeWrongSize() extends PatternExtractException
+  case class WrongSize() extends PatternExtractException
+  case class NotExpectingImplicit() extends PatternExtractException
   case class MakeIsNotRecordType() extends PatternExtractException
   case class ConstructUnknownName() extends PatternExtractException
-  case class ConstructWrongSize() extends PatternExtractException
   case class ConstructNotSumType() extends PatternExtractException
   case class NonAtomicPatternForDimension() extends PatternExtractException
+  case class ImplicitPatternForDimension() extends PatternExtractException
   case class HitPatternMatchingShouldBeAtRoot() extends PatternExtractException
 }
 
