@@ -79,6 +79,7 @@ I'd like it to means `g: A` and `k: A` have same type, but **different `etype`**
 
 *hint: the elaborated result should be `pair.make(G.*(g, g), K.*(k, k))`*
 
+this also shows that adding a "irrelevant" part to every type constructor doesn't work enough compared to a seperate etype, in this case, the type `A` is generic
 
 ---
 

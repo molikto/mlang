@@ -3,7 +3,7 @@ package mlang.compiler
 import mlang.compiler.Layer.Layers
 import mlang.compiler.semantic.Value
 import semantic.{MetaState}
-import mlang.utils.{Benchmark, Name, debug}
+import mlang.utils._
 import mlang.compiler.dbi.{given, _}
 import Abstract._
 
@@ -28,7 +28,11 @@ private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorCon
       case Some(t) => t
       case None =>
         base.saveOutOfScopeValue(r)
-        rebindReference(r).get
+        val a = rebindReference(r)
+        if (a.isEmpty) {
+          logicError()
+        }
+        a.get
     }
   }
 
@@ -41,7 +45,7 @@ private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorCon
       val n = graph(i)
       val it = n.independent.typ
       val ttt = ctx.reify(it)
-      val pair = ClosureGraph.Node(n.implicitt, n.dependencies, Closure(ctx.reifyMetas(), ttt))
+      val pair = ClosureGraph.Node(n.dependencies, Closure(ctx.reifyMetas(), ttt))
       as = as :+ pair
       val (ctx0, tm) = ctx.newParameter(Name.empty, null)
       ctx = ctx0
@@ -125,13 +129,13 @@ private trait ReifierContext extends ElaboratorContextBuilder with ElaboratorCon
     v match {
       case Value.Universe(level) =>
         Universe(level)
-      case Value.Function(domain, i, codomain) =>
-        Function(reify(domain), i, reify(codomain))
-      case Value.Record(id, names, nodes) =>
-        Record(reify(id), names, reify(nodes))
-      case Value.Sum(id, hit, constructors) =>
+      case Value.Function(etype, domain, codomain) =>
+        Function(etype, reify(domain), reify(codomain))
+      case Value.Record(etype, id, nodes) =>
+        Record(etype, reify(id), reify(nodes))
+      case Value.Sum(etype, id, hit, constructors) =>
         // TODO, you should be able to read the code directly from context
-        Sum(reify(id), hit, constructors.map(c => Constructor(c.name, reify(c.nodes))))
+        Sum(etype, reify(id), hit, constructors.map(c => reify(c)))
       case Value.PathType(ty, left, right) =>
         PathType(reifyAbs(ty), reify(left), reify(right))
       case Value.Lambda(closure) =>
@@ -213,7 +217,11 @@ private class ReifierContextBottom(layersBefore: Layers) extends ReifierContext 
   def saveOutOfScopeValue(r: Value.Reference): Unit = {
     val index = terms.size
     debug(s"out of scope value saved??", 2)
-    terms.append(DefineItem(ParameterBinder(Name.empty, Value.LocalGeneric(GenLong.Negative.gen(), null)), null, r, null))
+    terms.append(DefineItem(
+      ParameterBinder(Name.empty, Leveled.Fix(Value.Generic(GenLong.Negative.gen(), null))),
+      null,
+      Leveled.Fix(r),
+      null))
     val abs = if (r.value == self) {
       None : Option[Abstract]
     } else {

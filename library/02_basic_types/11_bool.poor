@@ -23,6 +23,10 @@ define not_involutive
 └ false → refl
 
 
+define if(#A: type):
+ (b: bool, t f: A) ⇒ A =
+┌ true → t → f → t
+└ false → t → f → f
 
 define bool_path_to_neg_bool: bool ≡ bool = ua(iso_to_equiv(make(not, not, not_involutive, not_involutive)))
 

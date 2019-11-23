@@ -35,8 +35,8 @@ given Normal[Value] {
   // TODO(NORMAL) we are skipping record and sum
   def (v: Value) nf: Value = v.whnf match {
     case u: Universe => u
-    case Function(domain, impict, codomain) =>
-      Function(domain.nf, impict, codomain.nf)
+    case Function(et, domain, codomain) =>
+      Function(et, domain.nf, codomain.nf)
     case Lambda(closure) =>
       Lambda(closure.nf)
     case PatternLambda(id, domain, typ, cases) =>
@@ -49,7 +49,7 @@ given Normal[Value] {
       SimpleConstruct(name, vs.map(_.nf))
     case HitConstruct(name, vs, ds, ty) =>
       HitConstruct(name, vs.map(_.nf), ds, normalFaceV(ty))
-    case s@Sum(inductively, _, constructors) =>
+    case s@Sum(_, inductively, _, constructors) =>
       s
     case PathType(typ, left, right) =>
       PathType(typ.nf, left.nf, right.nf)

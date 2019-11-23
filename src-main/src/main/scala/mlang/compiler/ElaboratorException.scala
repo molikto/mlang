@@ -83,6 +83,8 @@ object ElaboratorException {
 
   case class TermSortWrong() extends ElaboratorException
 
+  case class CannotInferNumberWithoutType() extends ElaboratorException
+
   case class HitContainingExternalDimension() extends ElaboratorException
   case class CannotInferTypeOfHit() extends ElaboratorException
   case class EmptySumMustHaveTypeAnnotation() extends ElaboratorException

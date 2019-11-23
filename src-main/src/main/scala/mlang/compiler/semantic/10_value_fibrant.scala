@@ -53,7 +53,7 @@ object ValueFibrant {
                 case Construct(c, vs, rs, d) =>
                   inline def tpr(i: Formula) = tp(i).whnf.asInstanceOf[Sum].constructors(c)
                   val cc = s.constructors(c)
-                  val theta = transpFill(cc.nodes, i => tpr(i).nodes, phi, vs)
+                  val theta = transpFill(cc, i => tpr(i), phi, vs)
                   val tele = theta.map(_.apply(Formula.True))
                   val res = if (rs.isEmpty) {
                     Construct(c, tele, rs, d)
@@ -69,7 +69,7 @@ object ValueFibrant {
                     // }).toMap.updated(item1._1, item1._2)
                     // Hcomp(tp(Formula.True), w1p, items)
                     // with this rule changed, it goes from ~10s to , both without hcomp_universe
-                    Construct(c, tele, rs, tp(Formula.True).whnf.asInstanceOf[Sum].constructors(c).nodes.reduceAll(tele).reduce(rs).restrictions())
+                    Construct(c, tele, rs, tp(Formula.True).whnf.asInstanceOf[Sum].constructors(c).reduceAll(tele).reduce(rs).restrictions())
                   }
                   res.whnf
                 case Hcomp(hty, hbase, faces) =>
@@ -111,14 +111,14 @@ object ValueFibrant {
                 Lambda(Closure(v => Hcomp( b(v), App(base, v), faces.view.mapValues(_.map(j => App(j, v))).toMap)))
               case Record(_, _, cs) =>
                 Make(hcompGraph(cs, faces, base, (v, i) => Projection(v, i)))
-              case s@Sum(i, hit, cs) =>
+              case s@Sum(_, i, hit, cs) =>
                 if (!hit) {
                   base.whnf match {
                     case cc@SimpleConstruct(c, vs) =>
                       if (s.noArgs) { // FIXME this doesn't seems to be correct!!! how to judge if the term is open or not
                         base
                       } else {
-                        SimpleConstruct(c, hcompGraph(cs(c).nodes, faces, cc, (b, i) => b.whnf.asInstanceOf[SimpleConstruct].vs(i)))
+                        SimpleConstruct(c, hcompGraph(cs(c), faces, cc, (b, i) => b.whnf.asInstanceOf[SimpleConstruct].vs(i)))
                       }
                     case _: StableCanonical => logicError()
                     case a => if (a == base && s == tp) t else Hcomp(s, a, faces)

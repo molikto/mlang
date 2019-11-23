@@ -67,23 +67,36 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
     case _ => logicError()
   }
 
-  private def newDeclaredGeneric(typ: dbi.Abstract): Value.Generic = {
-    if (layers.size == 1) {
-      val g = Value.GlobalGeneric(gen(), evalHack(typ))
-      g.lifter = (i: Int) => evalHack(typ.lup(0, i))
-      g
+
+  def isGlobal = layers.size == 1
+  private def newDeclaredGeneric(typ: dbi.Abstract): Leveled[Value.Generic] = {
+    val id = gen()
+    if (isGlobal) {
+      Leveled.Floating(
+        Value.Generic(id, evalHack.eval(typ)),
+        () => Value.Generic(id, null),
+        (ev, i) => ev.eval(typ.lup(0, i)),
+        (g, a) => g.initialize(a)
+      )
     } else {
-      Value.LocalGeneric(gen(), evalHack(typ))
+      Leveled.Fix(Value.Generic(id, evalHack.eval(typ)))
     }
   }
 
-  private def newReference(v: dbi.Abstract, name: Name = null): Value.Reference = {
+  private def createGlobalFloating(base: Value.Reference, code: dbi.Abstract): Leveled[Value.Reference] = {
+    Leveled.Floating(
+      base,
+      () => Value.GlobalReference(null),
+      (ev, i) => ev.eval(code.lup(0, i)),
+      (g, a) => g.value = a
+    )
+  }
+
+  private def newReference(code: dbi.Abstract, name: Name = null): Leveled[Value.Reference] = {
     if (layers.size == 1) {
-      val g = Value.GlobalReference(evalHack(v), name)
-      g.lifter = (i: Int) => evalHack(v.lup(0, i))
-      g
+      createGlobalFloating(Value.GlobalReference(evalHack.eval(code)), code)
     } else {
-      Value.LocalReference(evalHack(v))
+      Leveled.Fix(Value.LocalReference(evalHack.eval(code)))
     }
   }
 
@@ -96,7 +109,7 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
           case _ =>
             val g = newDeclaredGeneric(typ)
             val r = newReference(code)
-            (Layer.Defines(metas, defines :+ DefineItem(ParameterBinder(name, g), typ, r, code)) +: layers.tail, defines.size, g)
+            (Layer.Defines(metas, defines :+ DefineItem(ParameterBinder(name, g), typ, r, code)) +: layers.tail, defines.size, g.base)
         }
       case _ => logicError()
     }
@@ -112,13 +125,14 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
             if (isAxiom && layers.size != 1) logicError()
             val g = newDeclaredGeneric(typ)
             val p = ParameterBinder(name, g)
-            val r = if (layers.size == 1) {
-              // cannot be lifted until has definition
-              Value.GlobalReference(g, name)
+            // cannot be lifted until has definition
+            val r0 = if (layers.size == 1) {
+              Value.GlobalReference(g.base, name)
             } else {
-              Value.LocalReference(g)
+              Value.LocalReference(g.base)
             }
-            (Layer.Defines(metas, defines :+ DefineItem(p, typ, r, null, isAxiom)) +: layers.tail, defines.size, g)
+            val r: Leveled[Value.Reference] = Leveled.Fix(r0)
+            (Layer.Defines(metas, defines :+ DefineItem(p, typ, r, null, isAxiom)) +: layers.tail, defines.size, g.base)
         }
       case _ => logicError()
     }
@@ -130,14 +144,20 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
         defines(index) match {
           case DefineItem(typ0, typCode, r, c, ia) =>
             assert(typ0.name == name)
-            assert(r.value == typ0.value)
+            assert(r.base.value == typ0.value.base)
             assert(null == c)
             assert(!ia)
-            r.value = evalHack(code)
-            if (r.isInstanceOf[Value.GlobalReference]) {
-              r.asInstanceOf[Value.GlobalReference].lifter = (i: Int) => evalHack(code.lup(0, i))
+            val nr = r match {
+              case _: Leveled.Fix[Value.Reference] =>
+                r.base.value = evalHack.eval(code)
+                if (isGlobal) {
+                  createGlobalFloating(r.base, code)
+                } else {
+                  r
+                }
+              case _ => logicError()
             }
-            (Layer.Defines(metas, defines.updated(index, DefineItem(typ0, typCode, r, code))) +: layers.tail, r)
+            (Layer.Defines(metas, defines.updated(index, DefineItem(typ0, typCode, nr, code))) +: layers.tail, r.base)
         }
       case _ => logicError()
     }
@@ -147,12 +167,14 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
 
 
   def newParameterLayer(name: Name, typ: Value): (Self, Value) = {
-    val g = Value.LocalGeneric(gen(), typ)
-    (Layer.Parameter(ParameterBinder(name, g), createMetas()) +: layers, g)
+    val g = Value.Generic(gen(), typ)
+    val fix: Leveled[Value.Generic] = Leveled.Fix(g)
+    (Layer.Parameter(ParameterBinder(name, fix), createMetas()) +: layers, g)
   }
 
   def newParameterLayerProvided(name: Name, g: Value.Generic): Self = {
-    Layer.Parameter(ParameterBinder(name, g), createMetas()) +: layers
+    val fix = Leveled.Fix(g)
+    Layer.Parameter(ParameterBinder(name, fix), createMetas()) +: layers
   }
 
 
@@ -161,7 +183,7 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
   def newParametersLayer(hit: Option[Value] = None): Self =
     Layer.ParameterGraph(hit.map(a => HitDefinition(a, Seq.empty)), Seq.empty, Seq.empty, createMetas()) +: layers
 
-  def newConstructor(name: Name, ps: semantic.ClosureGraph): Self =
+  def newConstructor(name: Name, ims: Seq[Boolean], ps: semantic.ClosureGraph): Self =
     layers.head match {
       case Layer.ParameterGraph(alters,_, _, metas) =>
         alters match {
@@ -171,7 +193,7 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
               case Some(_) => logicError()
               case None =>
                 assert(metas.debug_allFrozen)
-                val n = AlternativeGraph(name, ps)
+                val n = AlternativeGraph(name, ims, ps)
                 Layer.ParameterGraph(Some(HitDefinition(value.self, value.branches :+ n)),  Seq.empty, Seq.empty, createMetas()) +: layers.tail
             }
         }
@@ -184,11 +206,12 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
         binders.find(_.name.intersect(name)) match {
           case Some(_) => logicError()
           case _ =>
-            val v = Value.LocalGeneric(gen(), typ)
+            val v = Value.Generic(gen(), typ)
             if (!metas.debug_allFrozen) {
               logicError()
             }
-            (Layer.ParameterGraph(alters, binders :+ ParameterBinder(name, v), ds, metas) +: layers.tail, v)
+            val fix: Leveled[Value.Generic] = Leveled.Fix(v)
+            (Layer.ParameterGraph(alters, binders :+ ParameterBinder(name, fix), ds, metas) +: layers.tail, v)
         }
       case _ => logicError()
     }
@@ -213,15 +236,39 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
 
   def newPatternLayer(pattern: Concrete.Pattern, typ: Value): (Self, Value, Pattern) = {
     val vvv = mutable.ArrayBuffer[Binder]()
-    def recs(maps: Seq[Concrete.Pattern], nodes: semantic.ClosureGraph): Seq[(Value, Pattern)] = {
+    def recs(maps: Seq[(Boolean, Concrete.Pattern)], imps: Seq[Boolean], nodes: semantic.ClosureGraph): (Seq[Value], Seq[Pattern], Seq[Name]) = {
+      var ms = maps
       var vs =  Seq.empty[(Value, Pattern)]
       var graph = nodes
-      for (i <- maps.indices) {
-        val tv = rec(maps(i), graph(i).independent.typ, false)
-        graph = graph.reduce(vs.size, tv._1)
-        vs = vs :+ tv
+      for (i <- imps.indices) {
+        if (maps.isEmpty) {
+          if (!imps(i)) {
+            throw PatternExtractException.WrongSize()
+          }
+        } else {
+          if (imps(i) == ms.head._1) { // same implicit type
+            val tv = rec(ms.head._2, graph(i).independent.typ, false)
+            graph = graph.reduce(vs.size, tv._1)
+            ms = ms.tail
+            vs = vs :+ tv
+          } else if (!imps(i)) {
+            throw PatternExtractException.NotExpectingImplicit()
+          } else {
+            // it is a implicit which not introduced in concrete pattern
+            val tv = rec(Concrete.Pattern.Atom(Name.empty), graph(i).independent.typ, false)
+            graph = graph.reduce(vs.size, tv._1)
+            vs = vs :+ tv
+          }
+        }
       }
-      vs
+      if (ms.exists(_._1)) {
+        throw PatternExtractException.ImplicitPatternForDimension()
+      } else if (ms.size != nodes.dimSize) {
+        throw PatternExtractException.WrongSize()
+      } else if (!ms.forall(_._2.isInstanceOf[Concrete.Pattern.Atom])) {
+        throw PatternExtractException.NonAtomicPatternForDimension()
+      }
+      (vs.map(_._1), vs.map(_._2), ms.map(_._2.asInstanceOf[Concrete.Pattern.Atom].id))
     }
 
     def rec(p: Concrete.Pattern, t: Value, isRoot: Boolean): (Value, Pattern) = {
@@ -232,57 +279,46 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
           name.asRef match { // we make it as a reference here
             case Some(ref) =>
               t.whnf match {
-                case sum: Value.Sum if { index = sum.constructors.indexWhere(c => c.name.by(ref)); index >= 0 } =>
+                case sum: Value.Sum if { index = sum.etype.names.indexWhere(c => c.by(ref)); index >= 0 } =>
+                  // TODO this handling is not that ok actually, if the sum has only implicit fields, but what's the use of this?
                   val c = sum.constructors(index)
-                  if (c.nodes.isEmpty && c.nodes.dimSize == 0) {
+                  if (c.isEmpty && c.dimSize == 0) {
                     ret = (Value.Construct(index, Seq.empty, Seq.empty, Map.empty), Pattern.Construct(index, Seq.empty))
                   } else {
-                    throw PatternExtractException.ConstructWrongSize()
+                    throw PatternExtractException.WrongSize()
                   }
                 case _ =>
               }
             case _ =>
           }
           if (ret == null) {
-            val open = ParameterBinder(name, Value.LocalGeneric(gen(), t))
+            val ggg = Value.Generic(gen(), t)
+            val fix: Leveled.Fix[Value.Generic] = Leveled.Fix(ggg)
+            val open = ParameterBinder(name, fix)
             vvv.append(open)
-            ret = (open.value, Pattern.GenericValue)
+            ret = (ggg, Pattern.GenericValue)
           }
           ret
         case Concrete.Pattern.Group(maps) =>
           t.whnf match {
             case r: Value.Record =>
-              if (maps.size == r.nodes.size) {
-                val vs = recs(maps, r.nodes)
-                (Value.Make(vs.map(_._1)), Pattern.Make(vs.map(_._2)))
-              } else {
-                throw PatternExtractException.MakeWrongSize()
-              }
+              val (ms, ds, _) = recs(maps, r.etype.implicits, r.nodes)
+              (Value.Make(ms), Pattern.Make(ds))
             case _ => throw PatternExtractException.MakeIsNotRecordType()
           }
         case Concrete.Pattern.NamedGroup(name, maps) =>
           t.whnf match {
             case sum: Value.Sum =>
               if (!isRoot && sum.hit) throw PatternExtractException.HitPatternMatchingShouldBeAtRoot()
-              val index = sum.constructors.indexWhere(_.name.by(name))
+              val index = sum.etype.names.indexWhere(_.by(name))
               if (index >= 0) {
                 val c = sum.constructors(index)
-                if (c.nodes.size + c.nodes.dimSize == maps.size) {
-                  val vs = recs(maps.take(c.nodes.size), c.nodes)
-                  val dPs = maps.drop(c.nodes.size)
-                  if (!dPs.forall(_.isInstanceOf[Concrete.Pattern.Atom])) {
-                    throw PatternExtractException.NonAtomicPatternForDimension()
-                  }
-                  val names = dPs.map(_.asInstanceOf[Concrete.Pattern.Atom].id)
-                  val ds = names.map(n => DimensionBinder(n, semantic.Formula.Generic(dgen())))
-                  vvv.appendAll(ds)
-                  val vvs = vs.map(_._1)
-                   val dds = ds.map(_.value)
-                  (Value.Construct(index, vvs, dds, if (dds.isEmpty) Map.empty else c.nodes.reduceAll(vvs).reduce(dds).restrictions()),
-                    Pattern.Construct(index, vs.map(_._2) ++ ds.map(_ => Pattern.GenericDimension)))
-                } else {
-                  throw PatternExtractException.ConstructWrongSize()
-                }
+                val (ms, vs, names) = recs(maps, sum.etype.implicits(index), c)
+                val ds = names.map(n => DimensionBinder(n, semantic.Formula.Generic(dgen())))
+                vvv.appendAll(ds)
+                val dds = ds.map(_.value)
+                (Value.Construct(index, ms, dds, if (dds.isEmpty) Map.empty else c.reduceAll(ms).reduce(dds).restrictions()),
+                  Pattern.Construct(index, vs ++ ds.map(_ => Pattern.GenericDimension)))
               } else {
                 throw PatternExtractException.ConstructUnknownName()
               }

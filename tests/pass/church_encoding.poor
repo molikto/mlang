@@ -16,4 +16,5 @@ define n1Mb:nat  = mul(n100,n10k)
 define n10M :nat = mul(n1M,n10)
 define n10Mb:nat = mul(n10,n1M)
 
-define __debug res = n10M(x → x, unit.make)
+// currently stackoverflows
+define res = n10M(x → x, unit.make)

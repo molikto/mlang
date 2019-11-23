@@ -27,7 +27,7 @@ trait ClosureGraph {
 export ClosureGraph.isNominal
 
 
-case class ClosureGraphArguments(implict: Boolean, dependencies: Seq[Int], metaCount: Int, map: (Seq[Value], Seq[Value]) => (Seq[Meta], Value))
+case class ClosureGraphArguments(dependencies: Seq[Int], metaCount: Int, map: (Seq[Value], Seq[Value]) => (Seq[Meta], Value))
 
 object ClosureGraph {
 
@@ -35,7 +35,6 @@ object ClosureGraph {
   val empty: ClosureGraph = Impl(Seq.empty, 0, RestrictionsState.empty)
 
   sealed trait Node {
-    def implicitt: Boolean
     def dependencies: Seq[Int]
     def independent: Independent = this.asInstanceOf[Independent]
   }
@@ -51,9 +50,9 @@ object ClosureGraph {
     val value: Value
   }
 
-  private case class DependentWithMeta(implicitt: Boolean, dependencies: Seq[Int], metaCount: Int, closure: (Seq[Value], Seq[Value]) => (Seq[Meta], Value)) extends Dependent
-  private case class IndependentWithMeta(implicitt: Boolean, dependencies: Seq[Int], metas: Seq[Meta], typ: Value) extends Independent
-  private case class ValuedWithMeta(implicitt: Boolean, dependencies: Seq[Int], metas: Seq[Meta], typ: Value, value: Value) extends Valued
+  private case class DependentWithMeta(dependencies: Seq[Int], metaCount: Int, closure: (Seq[Value], Seq[Value]) => (Seq[Meta], Value)) extends Dependent
+  private case class IndependentWithMeta(dependencies: Seq[Int], metas: Seq[Meta], typ: Value) extends Independent
+  private case class ValuedWithMeta(dependencies: Seq[Int], metas: Seq[Meta], typ: Value, value: Value) extends Valued
 
   private sealed trait RestrictionsState
   private object RestrictionsState {
@@ -70,11 +69,11 @@ object ClosureGraph {
   def apply(nodes: Seq[ClosureGraphArguments],
                           dim: Int,
                           tm: Seq[Formula] => System[(Seq[Value], Seq[Value]) => Value]): ClosureGraph = {
-    val gs = nodes.map(a => if (a._2.isEmpty) {
+    val gs = nodes.map(a => if (a._1.isEmpty) {
       val t = a.map(nullValues, nullValues)
-      IndependentWithMeta(a.implict, a.dependencies, t._1, t._2)
+      IndependentWithMeta(a.dependencies, t._1, t._2)
     } else {
-      DependentWithMeta(a.implict, a.dependencies, a.metaCount, a.map)
+      DependentWithMeta(a.dependencies, a.metaCount, a.map)
     })
     ClosureGraph.Impl(gs, dim, if (dim == 0) RestrictionsState.empty else RestrictionsState.Abstract(tm))
   }
@@ -84,10 +83,10 @@ object ClosureGraph {
     def supportShallow(): SupportShallow = {
       val mss = mutable.ArrayBuffer[Meta]()
       val res = graph.map {
-        case IndependentWithMeta(ims, ds, ms, typ) =>
+        case IndependentWithMeta(ds, ms, typ) =>
           mss.appendAll(ms)
           typ.supportShallow() ++ (ms.toSet: Set[Value.Referential])
-        case DependentWithMeta(ims, ds, mc, c) =>
+        case DependentWithMeta(ds, mc, c) =>
           val res = c(Value.Generic.HACKS, mss.toSeq)
           mss.appendAll(res._1)
           res._2.supportShallow() ++ (res._1.toSet: Set[Value.Referential])
@@ -103,10 +102,10 @@ object ClosureGraph {
 
     def fswap(w: Long, z: Formula): ClosureGraph.Impl = {
       val gs = graph.map {
-        case IndependentWithMeta(ims, ds, ms, typ) =>
-          IndependentWithMeta(ims, ds, ms.map(_.fswap(w, z).asInstanceOf[Value.Meta]), typ.fswap(w, z))
-        case DependentWithMeta(ims, ds, mc, c) =>
-          DependentWithMeta(ims, ds, mc, (a, b) => {
+        case IndependentWithMeta(ds, ms, typ) =>
+          IndependentWithMeta(ds, ms.map(_.fswap(w, z).asInstanceOf[Value.Meta]), typ.fswap(w, z))
+        case DependentWithMeta(ds, mc, c) =>
+          DependentWithMeta(ds, mc, (a, b) => {
             val t = c(a, b); (t._1.map(_.fswap(w, z).asInstanceOf[Value.Meta]), t._2.fswap(w, z)) })
         case _ => logicError()
       }
@@ -119,10 +118,10 @@ object ClosureGraph {
 
     def restrict(lv: Assignments): ClosureGraph.Impl = {
       val gs = graph.map {
-        case IndependentWithMeta(ims, ds, ms, typ) =>
-          IndependentWithMeta(ims, ds, ms.map(_.restrict(lv).asInstanceOf[Value.Meta]), typ.restrict(lv))
-        case DependentWithMeta(ims, ds, mc, c) =>
-          DependentWithMeta(ims, ds, mc, (a, b) => {
+        case IndependentWithMeta(ds, ms, typ) =>
+          IndependentWithMeta(ds, ms.map(_.restrict(lv).asInstanceOf[Value.Meta]), typ.restrict(lv))
+        case DependentWithMeta(ds, mc, c) =>
+          DependentWithMeta(ds, mc, (a, b) => {
             val t = c(a.map(k => Value.Derestricted(k, lv)), b.map(k => Value.Derestricted(k, lv))); (t._1.map(_.restrict(lv).asInstanceOf[Value.Meta]), t._2.restrict(lv)) })
         case _ => logicError()
       }
@@ -174,21 +173,21 @@ object ClosureGraph {
     def reduce(i: Int, a: Value): ClosureGraph.Impl = {
       val from = graph
       from(i) match {
-        case IndependentWithMeta(ims, ds, mss, typ) =>
-          val ns = ValuedWithMeta(ims, ds, mss, typ, a)
+        case IndependentWithMeta(ds, mss, typ) =>
+          val ns = ValuedWithMeta(ds, mss, typ, a)
           val mms: Seq[Meta] = from.flatMap {
-            case DependentWithMeta(_, _, ms, _) => (0 until ms).map(_ => null)
-            case IndependentWithMeta(_, _, ms, _) => ms
-            case ValuedWithMeta(_, _, ms, _, _) => ms
+            case DependentWithMeta( _, ms, _) => (0 until ms).map(_ => null)
+            case IndependentWithMeta( _, ms, _) => ms
+            case ValuedWithMeta(_, ms, _, _) => ms
           }
           val vs = from.indices.map(j => if (j == i) a else from(j) match {
-            case ValuedWithMeta(_, _, _, _, v) => v
+            case ValuedWithMeta(_, _, _, v) => v
             case _ => null
           })
           val grapht = from.map {
-            case DependentWithMeta(ims, dss, _, c) if dss.forall(j => vs(j) != null) =>
+            case DependentWithMeta(dss, _, c) if dss.forall(j => vs(j) != null) =>
               val t = c(vs, mms)
-              IndependentWithMeta(ims, dss, t._1, t._2)
+              IndependentWithMeta(dss, t._1, t._2)
             case i =>
               i
           }.updated(i, ns)

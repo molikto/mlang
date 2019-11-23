@@ -23,27 +23,18 @@ trait ElaboratorContextForEvaluator extends EvaluatorContext with ElaboratorCont
   }
 
   def getReferenceType(depth: Int, index: Int, lvl: Int): Value = getRestricted(layers(depth) match {
-    case Layer.Parameter(binder, _) if index == -1 =>
-      assert(lvl == 0)
-      binder.typ
-    case ps: Layer.Parameters if index >= 0  =>
-      assert(lvl == 0)
-      ps.termBinders(index).typ
+    case Layer.Parameter(binder, _) if index == -1 => binder.typ(evalHack, lvl)
+    case ps: Layer.Parameters if index >= 0  => ps.termBinders(index).typ(evalHack, lvl)
     case Layer.Defines(_, terms) =>
-      terms(index).typ0.value match {
-        case v: Value.GlobalGeneric => v.lift(lvl).typ
-        case a => 
-          assert(lvl == 0)
-          a.typ
-      }
+      terms(index).typ(evalHack, lvl)
     case _ => logicError()
   }, depth)
 
   // get value directly without resolving faces
   def getReference(depth: Int, index: Int, lvl: Int): Value = getRestricted(layers(depth) match {
-    case Layer.Parameter(binder, _) if index == -1 => binder.value
-    case ps: Layer.Parameters if index >= 0  => ps.termBinders(index).value
-    case Layer.Defines(_, terms) => terms(index).ref.lift(lvl)
+    case Layer.Parameter(binder, _) if index == -1 => binder.value.get(evalHack, lvl)
+    case ps: Layer.Parameters if index >= 0  => ps.termBinders(index).value.get(evalHack, lvl)
+    case Layer.Defines(_, terms) => terms(index).ref.get(evalHack, lvl)
     case _ => logicError()
   }, depth)
 

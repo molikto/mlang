@@ -11,6 +11,32 @@ import scala.collection.mutable
 
 case class MetaBinder(name: Name, value: Value.Meta, typ: Value, var code: dbi.Abstract /* is null when value is open */)
 
+sealed trait Leveled[T <: Value] {
+  val base: T
+  def get(evl: Evaluator, i: Int): T
+}
+
+object Leveled {
+  case class Fix[T <: Value](override val base: T) extends Leveled[T] {
+    def get(evl: Evaluator, i: Int): T =
+      if (i == 0) base
+      else logicError()
+  }
+  class Floating[T <: Value](override val base: T, prepare: () => T, lifter: (Evaluator, Int) => Value, assgin: (a: T, a: Value) => Unit) extends Leveled[T] {
+    private val cache = mutable.ArrayBuffer[T]()
+    cache.append(base)
+    def get(evl: Evaluator, i: Int): T = {
+      while (cache.size <= i) {
+        val a = prepare()
+        cache.append(a)
+        assgin(a, lifter(evl, cache.size - 1))
+      }
+      cache(i)
+    }
+    def all: Seq[T] = cache.toSeq
+  }
+}
+
 class MetasState(val metas: mutable.ArrayBuffer[MetaBinder], var frozen: Int) {
   def debug_allFrozen: Boolean = metas.size == frozen
 
@@ -41,9 +67,10 @@ class MetasState(val metas: mutable.ArrayBuffer[MetaBinder], var frozen: Int) {
 sealed trait Binder {
   def name: Name
 }
-case class ParameterBinder(name: Name, value: Value.Generic) extends Binder {
-  def id: Long = value.id
-  def typ: Value= value.typ
+case class ParameterBinder(name: Name, value: Leveled[Value.Generic]) extends Binder {
+  def id: Long = value.base.id
+  def typ(evl: Evaluator, lvl: Int): Value = value.get(evl, lvl).typ
+  def baseType = typ(null, 0)
 }
 
 case class DimensionBinder(name: Name, value: semantic.Formula.Generic) extends Binder {
@@ -53,11 +80,12 @@ case class DimensionBinder(name: Name, value: semantic.Formula.Generic) extends 
 // a defined term acts like a reference to parameter when it doesn't have a body
 // the parameter will read back to the reference again
 // so afterwards, we change the body of the reference and all is good silently
-case class DefineItem(typ0: ParameterBinder, typCode: dbi.Abstract, ref: Value.Reference, code: dbi.Abstract, isAxiom: Boolean = false) {
-  def typ: Value = typ0.value.typ
+case class DefineItem(typ0: ParameterBinder, typCode: dbi.Abstract, ref: Leveled[Value.Reference], code: dbi.Abstract, isAxiom: Boolean = false) {
+  def typ(evl: Evaluator, lvl: Int) = typ0.typ(evl, lvl)
+  def baseType = typ(null, 0)
   def id: Long = typ0.id
   def name: Name = typ0.name
-  def isDefined = ref.value != typ0.value
+  def isDefined = ref.base.value != typ0.value.base
 }
 
 sealed trait Layer {
@@ -91,7 +119,7 @@ object Layer {
 
 
   case class HitDefinition(self: Value, branches: Seq[AlternativeGraph])
-  case class AlternativeGraph(name: Name, ps: semantic.ClosureGraph)
+  case class AlternativeGraph(name: Name, ims: Seq[Boolean], ps: semantic.ClosureGraph)
 
   case class ParameterGraph(
     hit: Option[HitDefinition],
@@ -116,18 +144,35 @@ object Layer {
 trait ElaboratorContextBase {
   protected def layers: Layers
 
-  protected def lookupMatched(ref: Referential, a: Referential, up: Int): Option[Int] = {
+  // FIXME remove this hack? how?
+  def evalHack: Evaluator = this.asInstanceOf[Evaluator]
+
+  protected def lookupMatched(ref: Leveled[Referential], a: Referential, up: Int): Option[Int] = {
     ref match {
-      case l: Value.LocalReferential =>
+      case fixed: Leveled.Fix[Referential] =>
+        val l = fixed.base
         l.lookupChildren(a) match {
           case a@Some(asgs) =>
-            if (getAllRestrictions(ref.support().names, up) == asgs) Some(0)
+            if (getAllRestrictions(l.support().names, up) == asgs) Some(0)
             else logicError()
           case _ =>
             None
         }
-      case g: Value.GlobalReferential =>
-        g.lookupChildren(a)
+      case floating: Leveled.Floating[Referential] =>
+        val all = floating.all
+        var res: Int = -1
+        var i = 0
+        while (i < all.size && res == -1) {
+          val l = all(i)
+          l.lookupChildren(a) match {
+            case a@Some(asgs) =>
+              if (getAllRestrictions(l.support().names, up) == asgs) res = i
+              else logicError()
+            case _ =>
+          }
+          i += 1
+        }
+        if (res == -1) None else Some(res)
     }
   }
 

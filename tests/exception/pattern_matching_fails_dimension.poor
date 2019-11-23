@@ -1,4 +1,4 @@
-// ConstructWrongSize
+// WrongSize
 
 define bool = sum { case true false }
 

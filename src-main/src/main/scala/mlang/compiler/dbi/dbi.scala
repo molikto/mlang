@@ -1,7 +1,7 @@
 package mlang.compiler.dbi
 
 import mlang.utils._
-import mlang.compiler.Pattern
+import mlang.compiler.{Pattern, EType}
 
 
 sealed trait DependencyType
@@ -71,12 +71,12 @@ given Dbi[System] {
 
 
 object ClosureGraph {
-  case class Node(implicitt: Boolean, deps: Seq[Int], typ: Closure)
+  case class Node(deps: Seq[Int], typ: Closure)
 }
 case class ClosureGraph(nodes:Seq[ClosureGraph.Node], dims: Int = 0, restrictions: System = Map.empty)
 given Dbi[ClosureGraph.Node] {
-    def (n: ClosureGraph.Node) diff(depth: Int, x: Int): ClosureGraph.Node = ClosureGraph.Node(n.implicitt, n.deps, n.typ.diff(depth, x))
-    def (n: ClosureGraph.Node) lup(depth: Int, x: Int): ClosureGraph.Node = ClosureGraph.Node(n.implicitt, n.deps, n.typ.lup(depth, x))
+    def (n: ClosureGraph.Node) diff(depth: Int, x: Int): ClosureGraph.Node = ClosureGraph.Node(n.deps, n.typ.diff(depth, x))
+    def (n: ClosureGraph.Node) lup(depth: Int, x: Int): ClosureGraph.Node = ClosureGraph.Node(n.deps, n.typ.lup(depth, x))
     def (n: ClosureGraph.Node) dependencies(i: Int): Set[Dependency]  = n.typ.dependencies(i)
 }
 object ClosureGraphRestrictionSystemDbi {
@@ -96,8 +96,6 @@ given Dbi[ClosureGraph] {
 sealed trait Recursively
 case class Inductively(id: Long, typ: Abstract, ps: Seq[Abstract]) extends Recursively
 
-// this restriction multi closure system lives 1 level bellow
-case class Constructor(name: Name, params: ClosureGraph)
 case class Case(pattern: Pattern, body: Closure)
 
 sealed trait Abstract
@@ -112,16 +110,16 @@ object Abstract {
   case class Let(metas: Seq[Abstract], definitions: Seq[Abstract], in: Abstract) extends Abstract
 
   // function types
-  case class Function(domain: Abstract, impict: Boolean, codomain: Closure) extends Abstract
+  case class Function(etype: EType.Function, domain: Abstract, codomain: Closure) extends Abstract
   case class Lambda(closure: Closure) extends Abstract
   case class App(left: Abstract, right: Abstract) extends Abstract
 
 
   // data types
-  case class Record(inductively: Option[Inductively], names: Seq[Name], graph: ClosureGraph) extends Abstract
+  case class Record(etype: EType.Record, inductively: Option[Inductively], graph: ClosureGraph) extends Abstract
   case class Make(vs: Seq[Abstract]) extends Abstract
-  case class Sum(inductively: Option[Inductively], hit: Boolean, constructors: Seq[Constructor]) extends Abstract {
-    override def toString = s"SUM(${constructors.map(_.name)})"
+  case class Sum(etype: EType.Sum, inductively: Option[Inductively], hit: Boolean, constructors: Seq[ClosureGraph]) extends Abstract {
+    override def toString = s"SUM(${etype.names})"
   }
   case class Construct(f: Int, vs: Seq[Abstract], ds: Seq[Formula], ty: System) extends Abstract
   case class Projection(left: Abstract, field: Int) extends Abstract
@@ -149,12 +147,6 @@ given Dbi[Inductively] {
     def (d: Inductively) lup(depth: Int, x: Int): Inductively = Inductively(d.id, d.typ.lup(depth, x), d.ps.map(_.diff(depth, x)))
 }
 
-given Dbi[Constructor] {
-    def (c: Constructor) dependencies(depth: Int): Set[Dependency] = c.params.dependencies(depth)
-    def (c: Constructor) diff(depth: Int, x: Int): Constructor = Constructor(c.name, c.params.diff(depth, x))
-    def (c: Constructor) lup(depth: Int, x: Int): Constructor = Constructor(c.name, c.params.lup(depth, x))
-}
-
 given Dbi[Abstract] {
 
   import Abstract._
@@ -167,12 +159,12 @@ given Dbi[Abstract] {
     case MetaReference(up, index, lvl) =>
       if (up >= depth) MetaReference(up, index, lvl + x) else a
     case Let(metas, definitions, in) => Let(metas.map(_.lup(depth + 1, x)), definitions.map(_.lup(depth + 1, x)), in.lup(depth + 1, x))
-    case Function(domain, impict, codomain) => Function(domain.lup(depth, x), impict, codomain.lup(depth, x))
+    case Function(etype, domain, codomain) => Function(etype, domain.lup(depth, x), codomain.lup(depth, x))
     case Lambda(closure) => Lambda(closure.lup(depth, x))
     case App(left, right) => App(left.lup(depth, x), right.lup(depth, x))
-    case Record(id, names, graph) => Record(id.map(_.lup(depth, x)), names, graph.lup(depth, x))
+    case Record(etype, id, graph) => Record(etype, id.map(_.lup(depth, x)), graph.lup(depth, x))
     case Projection(left, field) => Projection(left.lup(depth, x), field)
-    case Sum(id, hit, constructors) => Sum(id.map(_.lup(depth, x)), hit, constructors.map(_.lup(depth, x)))
+    case Sum(etype, id, hit, constructors) => Sum(etype, id.map(_.lup(depth, x)), hit, constructors.map(_.lup(depth, x)))
     case Make(vs) => Make(vs.map(_.lup(depth, x)))
     case Construct(f, vs, fs, ty) => Construct(f, vs.map(_.lup(depth, x)), fs.map(_.lup(depth, x)), ty.lup(depth, x))
     case PatternLambda(id, dom, typ, cases) => PatternLambda(id, dom.lup(depth, x), typ.lup(depth, x), cases.map(a => Case(a.pattern, a.body.lup(depth, x))))
@@ -194,12 +186,12 @@ given Dbi[Abstract] {
     case MetaReference(up, index, lvl) =>
       if (up >= depth) MetaReference(up + x, index, lvl) else a
     case Let(metas, definitions, in) => Let(metas.map(_.diff(depth + 1, x)), definitions.map(_.diff(depth + 1, x)), in.diff(depth + 1, x))
-    case Function(domain, impict, codomain) => Function(domain.diff(depth, x), impict, codomain.diff(depth, x))
+    case Function(etype, domain, codomain) => Function(etype, domain.diff(depth, x), codomain.diff(depth, x))
     case Lambda(closure) => Lambda(closure.diff(depth, x))
     case App(left, right) => App(left.diff(depth, x), right.diff(depth, x))
-    case Record(id, names, graph) => Record(id.map(_.diff(depth, x)), names, graph.diff(depth, x))
+    case Record(etype, id, graph) => Record(etype, id.map(_.diff(depth, x)), graph.diff(depth, x))
     case Projection(left, field) => Projection(left.diff(depth, x), field)
-    case Sum(id, hit, constructors) => Sum(id.map(_.diff(depth, x)), hit, constructors.map(_.diff(depth, x)))
+    case Sum(etype, id, hit, constructors) => Sum(etype, id.map(_.diff(depth, x)), hit, constructors.map(_.diff(depth, x)))
     case Make(vs) => Make(vs.map(_.diff(depth, x)))
     case Construct(f, vs, fs, ty) => Construct(f, vs.map(_.diff(depth, x)), fs.map(_.diff(depth, x)), ty.diff(depth, x))
     case PatternLambda(id, dom, typ, cases) => PatternLambda(id, dom.diff(depth, x), typ.diff(depth, x), cases.map(a => Case(a.pattern, a.body.diff(depth, x))))
@@ -222,12 +214,12 @@ given Dbi[Abstract] {
     case Let(metas, definitions, in) =>
       metas.flatMap(a => a.dependencies(i + 1)).toSet ++ definitions.flatMap(a => a.dependencies(i + 1)).toSet ++ in.dependencies(i + 1)
     case Universe(_) => Set.empty
-    case Function(domain, _, codomain) => domain.dependencies(i) ++ codomain.dependencies(i)
+    case Function(_, domain, codomain) => domain.dependencies(i) ++ codomain.dependencies(i)
     case Lambda(closure) => closure.dependencies(i)
     case App(left, right) => left.dependencies(i) ++ right.dependencies(i)
-    case Record(id, _, nodes) => id.map(_.dependencies(i)).getOrElse(Set.empty) ++ nodes.dependencies(i)
+    case Record(_, id, nodes) => id.map(_.dependencies(i)).getOrElse(Set.empty) ++ nodes.dependencies(i)
     case Projection(left, _) => left.dependencies(i)
-    case Sum(id, hit, constructors) =>  id.map(_.dependencies(i)).getOrElse(Set.empty) ++ constructors.flatMap(_.dependencies(i)).toSet
+    case Sum(_, id, hit, constructors) => id.map(_.dependencies(i)).getOrElse(Set.empty) ++ constructors.flatMap(_.dependencies(i)).toSet
     case Make(vs) => vs.flatMap(_.dependencies(i)).toSet
     case Construct(_, vs, fs, ty) => vs.flatMap(_.dependencies(i)).toSet ++ fs.flatMap(_.dependencies(i)) ++ ty.dependencies(i)
     case PatternLambda(_, dom, cd, cases) => dom.dependencies(i) ++ cd.dependencies(i) ++ cases.flatMap(_.body.dependencies(i)).toSet

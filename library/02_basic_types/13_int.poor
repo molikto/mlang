@@ -9,22 +9,16 @@ define inductively int: type = sum {
 define pos(a: nat): int = int.pos(a)
 define negsuc(a: nat): int = int.negsuc(a)
 
-define i0 = int.pos(n0)
-define i1 = int.pos(n1)
-define i2 = int.pos(n2)
-define i3 = int.pos(n3)
-define i4 = int.pos(n4)
-define i5 = int.pos(n5)
-define i6 = int.pos(n6)
-define i7 = int.pos(n7)
-define i8 = int.pos(n8)
-define i16 = int.pos(n16)
-define i32 = int.pos(n32)
-define i64 = int.pos(n64)
-define i128 = int.pos(n128)
-define i256 = int.pos(n256)
-define i512 = int.pos(n512)
-define i1024 = int.pos(n1024)
+// TODO integer literal
+define i0 = int.pos(0)
+define i1 = int.pos(1)
+define i2 = int.pos(2)
+define i3 = int.pos(3)
+define i4 = int.pos(4)
+define i5 = int.pos(5)
+define i6 = int.pos(6)
+define i7 = int.pos(7)
+define i8 = int.pos(8)
 
 define i1n = int.negsuc(zero)
 
@@ -76,14 +70,14 @@ define discrete_int: discrete(int) = a → b → run {
     define T: int ⇒ type =
     ┌ pos(─)  → nat
     └ negsuc(─) → empty
-    subst(T, c, n0)
+    subst(T, c, 0)
   }
 
   define negsuc_not_pos(a b: nat, c: int.negsuc(a) ≡ int.pos(b)): empty = run {
     define T: int ⇒ type =
     ┌ pos(─)  → empty
     └ negsuc(─) → nat
-    subst(T, c, n0)
+    subst(T, c, 0)
   }
 
   define map_pos(m n: nat):  decidable(m ≡ n) ⇒ decidable(int.pos(m) ≡ int.pos(n)) =
@@ -105,7 +99,7 @@ define int_suc_path: int ≡ int =
   ua(iso_to_equiv(make(int_suc, int_pred, int_suc_pred, int_pred_suc)))
 
 define __int_suc_path_tests = run {
-  define test1: transport(int_suc_path, i0) ≡ i1 = i → i1
+  define test1: transport(int_suc_path, i0) ≡ i1 = x → i1
   unit.make
 }
 

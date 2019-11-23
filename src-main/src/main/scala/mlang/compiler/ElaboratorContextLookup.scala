@@ -18,7 +18,7 @@ sealed trait NameLookupResult
 object NameLookupResult {
   sealed trait Term extends NameLookupResult
   case class Typed(typ: Value, ref: Abstract) extends Term
-  case class Construct(self: Value, index: Int, closure: semantic.ClosureGraph) extends Term
+  case class Construct(self: Value, index: Int, ims: Seq[Boolean], closure: semantic.ClosureGraph) extends Term
   case class Dimension(ref: dbi.Formula) extends NameLookupResult
 }
 
@@ -59,7 +59,7 @@ trait ElaboratorContextLookup extends ElaboratorContextBase {
               index = i
               hd match {
                 case p: ParameterBinder =>
-                  binder = mkTyped(p.value, Abstract.Reference(up, ly.typedIndex(index), 0))
+                  binder = mkTyped(p.value.get(evalHack, lvl), Abstract.Reference(up, ly.typedIndex(index), 0))
                 case d: DimensionBinder =>
                   binder = NameLookupResult.Dimension(dbi.Formula.Reference(up, ly.typedIndex(index)))
               }
@@ -72,7 +72,7 @@ trait ElaboratorContextLookup extends ElaboratorContextBase {
               case l: Layer.ParameterGraph =>
                 l.hit.foreach(hit => {
                   hit.branches.zipWithIndex.find(_._1.name.by(name)).foreach(f => {
-                    binder = NameLookupResult.Construct(hit.self, f._2, f._1.ps)
+                    binder = NameLookupResult.Construct(hit.self, f._2, f._1.ims, f._1.ps)
                   })
                 })
               case _ =>
@@ -84,7 +84,7 @@ trait ElaboratorContextLookup extends ElaboratorContextBase {
           while (ll.nonEmpty && binder == null) {
             if (ll.head.name.by(name)) {
               index = i
-              binder = mkTyped(ll.head.typ0.value.lift(lvl),
+              binder = mkTyped(ll.head.typ0.value.get(evalHack, lvl),
                   Abstract.Reference(up, index, lvl))
             }
             i += 1
@@ -92,7 +92,7 @@ trait ElaboratorContextLookup extends ElaboratorContextBase {
           }
         case p:Layer.Parameter =>
           if (p.binder.name.by(name)) {
-            binder = mkTyped(p.binder.value, Abstract.Reference(up, -1, 0))
+            binder = mkTyped(p.binder.value.get(evalHack, lvl), Abstract.Reference(up, -1, 0))
           }
         case d: Layer.Dimension =>
           if (d.binder.name.by(name)) {

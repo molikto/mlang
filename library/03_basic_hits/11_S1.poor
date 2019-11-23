@@ -97,7 +97,7 @@ define S1_winding_tests = run {
 
   define test_loop3: x_refl_type(i3) = x_refl(winding(path_compose(S1_loop, S1_loop2)))
 
-  define test_loopn1: x_refl_type(i1n) = x_refl(winding(S1_loop_inv))
+  define test_loopr1: x_refl_type(i1n) = x_refl(winding(S1_loop_inv))
 
   define test_loop_zero: x_refl_type(i0) = x_refl(winding(path_compose(S1_loop, S1_loop_inv)))
 
@@ -124,7 +124,7 @@ define S1_winding_tests = run {
   └ suc(n) → i → hcomp(S1_loop(i) |~i: j → loop_left(n)(~j) |i: j → S1.base)
 
   // DEBUG used time: 1481ms, compare cubicaltt: Time: 0m13.794s
-  define test_loop_left_1024 = winding(loop_left(n1024))
+  define test_loop_left_1024 = winding(loop_left(1024))
 
   define test_i4: x_refl_type(i4) = x_refl(winding(double_loop(S1_loop2)))
   define test_i6: x_refl_type(i6) = x_refl(winding(triple_loop(S1_loop2)))
