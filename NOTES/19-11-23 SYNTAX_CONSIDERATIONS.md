@@ -1,6 +1,7 @@
-# surface syntax considerations
+# concrete syntax considerations
 
-syntax maters, even if you have a structural editor, syntax still maters, just see how different the concrete syntax is from the abstract syntax.
+syntax maters, even if you have a structural editor, syntax still maters, just see how different the concrete syntax is from the abstract syntax. my plan of structural editor still need a concrete syntax, and maybe even still maintain a (less-than-structual-editor) readable text syntax.
+
 
 syntax also interact with semantics, people tend to create semantical values just for the seek of better syntax, for example `eq_reasoning` in Agda. a good syntax should make users acheive what they want **without semantical overhead**
 
