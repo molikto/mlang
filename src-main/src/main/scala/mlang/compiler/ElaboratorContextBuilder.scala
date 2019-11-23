@@ -93,7 +93,7 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
   }
 
   private def newReference(code: dbi.Abstract, name: Name = null): Leveled[Value.Reference] = {
-    if (layers.size == 1) {
+    if (isGlobal) {
       createGlobalFloating(Value.GlobalReference(evalHack.eval(code)), code)
     } else {
       Leveled.Fix(Value.LocalReference(evalHack.eval(code)))
@@ -126,7 +126,7 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
             val g = newDeclaredGeneric(typ)
             val p = ParameterBinder(name, g)
             // cannot be lifted until has definition
-            val r0 = if (layers.size == 1) {
+            val r0 = if (isGlobal) {
               Value.GlobalReference(g.base, name)
             } else {
               Value.LocalReference(g.base)

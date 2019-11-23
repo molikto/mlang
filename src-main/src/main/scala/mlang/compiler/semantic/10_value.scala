@@ -367,13 +367,6 @@ object Value {
       case b: Reference => if (b.value == value) Some(Set.empty) else None
       case _ => None
     }
-
-    protected def createNewEmpty():GlobalReference = {
-      val g = GlobalReference(null)
-      g.name = name
-      g
-    }
-    protected def updateLifted(s: GlobalReference, lv: Value): Unit = s.value = lv
   }
 
   object LocalReference {
@@ -428,6 +421,15 @@ object Value {
     override protected def fswapAndInitContent(s: Generic, w: Long, z: Formula) =
       logicError() // currently we only use fresh variable, and fresh variable should not generate new generic supported
   }
+
+
+  //
+  //
+  //
+  // 
+  //
+  //
+  //
 
   case class Universe(level: Int) extends StableCanonical
 

@@ -18,7 +18,7 @@ import scala.util.Random
 
 class syntax_creation extends Annotation
 
-object ElaboratorBuiltIn {
+private object ElaboratorBuiltIn {
   var nat: Value.Sum = null
 }
 
@@ -162,6 +162,14 @@ class Elaborator private(protected override val layers: Layers)
     }
   }
 
+    def reduceMore(v: Value, abs: Abstract, noReduceMore: Boolean): (Value, Abstract) = {
+      if (noReduceMore) {
+        (v, abs)
+      } else {
+        finishOffImplicits(v, abs)
+      }
+    }
+
   @scala.annotation.tailrec
   private def finishOffImplicits(v: Value, abs: Abstract): (Value, Abstract) = {
     v.whnf match {
@@ -273,49 +281,43 @@ class Elaborator private(protected override val layers: Layers)
   def checkSumConstructApp(sum: Value.Sum, index: Int, arguments: Seq[(Boolean, Concrete)]) =
     checkConstructApp(sum, index, sum.etype.implicits(index), sum.constructors(index), arguments)
 
+
+
+  def inferProjectionApp(left: Concrete, right: Concrete, arguments: Seq[(Boolean, Concrete)], noReduceMore: Boolean): (Value, Abstract) = {
+    val (lt, la) = infer(left)
+    val lv = eval(la)
+    lazy val ltr = lt.whnf.asInstanceOf[Value.Record]
+    def error() = throw ElaboratorException.UnknownProjection(right.toString)
+    var index = -1
+    def calIndex(a: Text => Int) = {
+      index = right match {
+        case Concrete.Reference(name) => a(name)
+        case _ => -1
+      }
+      index >= 0
+    }
+    lt.whnf match {
+      case m: Value.Record if calIndex(t => ltr.etype.names.indexWhere(_.by(t))) =>
+        val (a,b) = inferApp(m.projectedType(lv, index), Abstract.Projection(la, index), arguments)
+        reduceMore(a, b, noReduceMore)
+      case _ =>
+        lv.whnf match {
+          // TODO user defined projections for a type, i.e.
+          // TODO [issue 7] implement const_projections syntax
+          case r: Value.Record if right == Concrete.Make =>
+            (lv, Abstract.Make(inferGraphValuesPart(r.etype.implicits, r.nodes, arguments).map(_._1)))
+          case r: Value.Sum if calIndex(t => r.etype.names.indexWhere(_.by(t))) =>
+            (r, checkSumConstructApp(r, index, arguments))
+          case _ =>
+            error()
+        }
+    }
+  }
+
   private def infer(
                      term: Concrete,
                      noReduceMore: Boolean = false): (Value, Abstract) = {
     debug(s"infer $term")
-    def reduceMore(v: Value, abs: Abstract): (Value, Abstract) = {
-      if (noReduceMore) {
-        (v, abs)
-      } else {
-        finishOffImplicits(v, abs)
-      }
-    }
-
-
-    def inferProjectionApp(left: Concrete, right: Concrete, arguments: Seq[(Boolean, Concrete)]): (Value, Abstract) = {
-      val (lt, la) = infer(left)
-      val lv = eval(la)
-      lazy val ltr = lt.whnf.asInstanceOf[Value.Record]
-      def error() = throw ElaboratorException.UnknownProjection(right.toString)
-      var index = -1
-      def calIndex(a: Text => Int) = {
-        index = right match {
-          case Concrete.Reference(name) => a(name)
-          case _ => -1
-        }
-        index >= 0
-      }
-      lt.whnf match {
-        case m: Value.Record if calIndex(t => ltr.etype.names.indexWhere(_.by(t))) =>
-          val (a,b) = inferApp(m.projectedType(lv, index), Abstract.Projection(la, index), arguments)
-          reduceMore(a, b)
-        case _ =>
-          lv.whnf match {
-            // TODO user defined projections for a type, i.e.
-            // TODO [issue 7] implement const_projections syntax
-            case r: Value.Record if right == Concrete.Make =>
-              (lv, Abstract.Make(inferGraphValuesPart(r.etype.implicits, r.nodes, arguments).map(_._1)))
-            case r: Value.Sum if calIndex(t => r.etype.names.indexWhere(_.by(t))) =>
-              (r, checkSumConstructApp(r, index, arguments))
-            case _ =>
-              error()
-          }
-      }
-    }
     val res = term match {
       case Concrete.Type =>
         (Value.Universe.level1, Abstract.Universe(0))
@@ -331,7 +333,7 @@ class Elaborator private(protected override val layers: Layers)
               case NameLookupResult.Typed(typ, abs) =>
                 abs match {
                   case r: Abstract.Reference if r.up == layers.size - 1 =>
-                    reduceMore(typ, r)
+                    reduceMore(typ, r, noReduceMore)
                   //reduceMore(binder.up(b), Abstract.Up(abs, b))
                   case _ => throw ElaboratorException.UpCanOnlyBeUsedOnTopLevelDefinitionOrUniverse()
                 }
@@ -344,7 +346,7 @@ class Elaborator private(protected override val layers: Layers)
         // should lookup always return a value? like a open reference?
         lookupTerm(name, 0) match {
           case NameLookupResult.Typed(binder, abs) =>
-            reduceMore(binder, abs)
+            reduceMore(binder, abs, noReduceMore)
           case NameLookupResult.Construct(self, index, ims, closure) =>
             if (closure.size != 0 || closure.dimSize != 0 || ims.size != 0) {
               throw ElaboratorException.NotFullyAppliedConstructorNotSupportedYet()
@@ -354,7 +356,7 @@ class Elaborator private(protected override val layers: Layers)
         }
       case Concrete.Hole =>
         throw ElaboratorException.CannotInferMeta()
-      case Concrete.Number =>
+      case _: Concrete.Number =>
         throw ElaboratorException.CannotInferNumberWithoutType()
       case _: Concrete.And =>
         throw ElaboratorException.TermSortWrong()
@@ -448,14 +450,14 @@ class Elaborator private(protected override val layers: Layers)
       case Concrete.App(lambda, arguments) =>
         inline def defaultCase(lt: Value, la: Abstract) = {
           val (v1, v2) = inferApp(lt, la, arguments)
-          reduceMore(v1, v2) // because inferApp stops when arguments is finished
+          reduceMore(v1, v2, noReduceMore) // because inferApp stops when arguments is finished
         }
         lambda match {
           case Concrete.App(l2, a2) =>
             // @syntax_creation
             infer(Concrete.App(l2, a2 ++ arguments))
           case Concrete.Projection(left, right) =>
-            inferProjectionApp(left, right, arguments)
+            inferProjectionApp(left, right, arguments, noReduceMore)
           case Concrete.Reference(name) =>
             lookupTerm(name, 0) match {
               case NameLookupResult.Typed(typ, ref) => defaultCase(typ, ref)
@@ -467,7 +469,7 @@ class Elaborator private(protected override val layers: Layers)
             defaultCase(lt, la)
         }
       case Concrete.Projection(left, right) =>
-        inferProjectionApp(left, right, Seq.empty)
+        inferProjectionApp(left, right, Seq.empty, noReduceMore)
       case Concrete.GlueType(ty, faces) =>
         val (lv, ta) = inferLevel(ty)
         val tv = eval(ta)
@@ -490,7 +492,7 @@ class Elaborator private(protected override val layers: Layers)
           case _ => throw ElaboratorException.UnglueCannotInfer()
         }
       case Concrete.Let(declarations, in) =>
-        val (ctx, ms, da) = newDefinesLayer().checkDeclarations(declarations, false)
+        val (ctx, ms, da) = newDefinesLayer().checkDeclarations(declarations)
         val (it, ia) = ctx.infer(in)
         val ms0 = ctx.freeze()
         (it, Abstract.Let(ms ++ ms0, da, ia))
@@ -666,6 +668,16 @@ class Elaborator private(protected override val layers: Layers)
     }
   }
 
+  private def inferLevel(term: Concrete): (Int, Abstract) = {
+    val (tt, ta) = infer(term)
+    tt.whnf match {
+      case Value.Universe(l) => (l, ta)
+      // TODO user defined type coercion
+      case _ =>
+        throw ElaboratorException.UnknownAsType()
+    }
+  }
+
   private def check(
                      term: Concrete,
                      cp: Value,
@@ -691,7 +703,7 @@ class Elaborator private(protected override val layers: Layers)
       case Concrete.Hole =>
         newMeta(cp)._2
       case Concrete.Let(declarations, bd) =>
-        val (ctx, ms, da) = newDefinesLayer().checkDeclarations(declarations, false)
+        val (ctx, ms, da) = newDefinesLayer().checkDeclarations(declarations)
         val ba = ctx.check(bd, cp)
         val ms0 = ctx.freeze()
         Abstract.Let(ms ++ ms0, da, ba)
@@ -838,8 +850,7 @@ class Elaborator private(protected override val layers: Layers)
   // should we make sure type annotation is the minimal type?
   // ANS: we don't and we actually cannot
   private def checkDeclaration(
-      s: Declaration.Single,
-       topLevel: Boolean): Self = {
+      s: Declaration.Single): Self = {
     // @syntax_creation
     def wrapBody(t: Concrete, imp: Seq[Boolean]): Concrete = if (imp.isEmpty) t else wrapBody(Concrete.Lambda(Name.empty, imp.last, false, t), imp.dropRight(1))
     if (s.modifiers.contains(DeclarationModifier.__Debug)) {
@@ -857,7 +868,7 @@ class Elaborator private(protected override val layers: Layers)
         var inductively: IndState = IndState.stop
         def rememberInductivelyBy(ty: Abstract, self: Value) = {
           inductively = if (ms.contains(DeclarationModifier.Inductively)) {
-            if (topLevel) {
+            if (isGlobal) {
               new IndState(Elaborator.igen(),ty,  false, self)
             } else {
               throw ElaboratorException.RecursiveTypesMustBeDefinedAtTopLevel()
@@ -947,7 +958,7 @@ class Elaborator private(protected override val layers: Layers)
             info(s"declare $name")
             if (ms.exists(_ != DeclarationModifier.WithoutDefine)) throw ElaboratorException.ForbiddenModifier()
             val isAxiom = ms.contains(DeclarationModifier.WithoutDefine)
-            if (isAxiom && !topLevel) {
+            if (isAxiom && !isGlobal) {
               throw ElaboratorException.AxiomCanOnlyBeInTopLevel()
             }
             val (_, ta) = inferTelescope(NameType.flatten(ps), t)
@@ -976,7 +987,7 @@ class Elaborator private(protected override val layers: Layers)
 
 
 
-  private def checkDeclarations(seq0: Seq[Declaration], topLevel: Boolean): (Self, Seq[Abstract], Seq[Abstract]) = {
+  private def checkDeclarations(seq0: Seq[Declaration]): (Self, Seq[Abstract], Seq[Abstract]) = {
     // how to handle mutual recursive definitions, calculate strong components
     def flatten(d: Declaration, ps: Seq[NameType]): Seq[Declaration.Single] = d match {
       case d: Declaration.Define =>
@@ -989,13 +1000,11 @@ class Elaborator private(protected override val layers: Layers)
     val seq = seq0.flatMap(a => flatten(a, Seq.empty))
     var ctx = this
     for (s <- seq) {
-      val ctx0 = ctx.checkDeclaration(s, topLevel)
+      val ctx0 = ctx.checkDeclaration(s)
       ctx = ctx0
     }
     val layer = ctx.layers.head.asInstanceOf[Layer.Defines]
-    if (layer.metas.metas.exists(_.code == null)) {
-      logicError()
-    }
+    if (layer.metas.metas.exists(_.code == null)) logicError()
     if (layer.terms.exists(a => !a.isDefined && !a.isAxiom)) {
       throw ElaboratorException.DeclarationWithoutDefinition()
     }
@@ -1004,18 +1013,8 @@ class Elaborator private(protected override val layers: Layers)
 
 
 
-  private def inferLevel(term: Concrete): (Int, Abstract) = {
-    val (tt, ta) = infer(term)
-    tt.whnf match {
-      case Value.Universe(l) => (l, ta)
-      // TODO user defined type coercion
-      case _ =>
-        throw ElaboratorException.UnknownAsType()
-    }
-  }
-
 
   def check(m: concrete.Module): Elaborator = Benchmark.TypeChecking {
-    checkDeclarations(m.declarations, true)._1
+    checkDeclarations(m.declarations)._1
   }
 }
