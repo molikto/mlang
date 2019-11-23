@@ -57,9 +57,8 @@ object Main extends Parser {
             Seq((name, parseOrThrow(src(f))))
           } catch {
             case e: Exception =>
-              e.printStackTrace()
-              warn(s"Parsing error, ignoring file $name")
-              Seq.empty
+              warn(s"Parsing error file $name")
+              throw e
           }
         } else {
           Seq.empty

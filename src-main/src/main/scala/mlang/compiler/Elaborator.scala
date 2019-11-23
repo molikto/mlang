@@ -811,7 +811,7 @@ class Elaborator private(protected override val layers: Layers)
                 fallback()
             }
           case r: Value.Sum =>
-            def checkCons(ags: Seq[Concrete]) = {
+            def checkCons(name: Text, ags: Seq[(Boolean, Concrete)]) = {
               r.etype.names.indexWhere(_.by(name)) match {
                 case -1 => fallback()
                 case a => checkSumConstructApp(r, a, ags)
@@ -819,13 +819,13 @@ class Elaborator private(protected override val layers: Layers)
             }
             term match {
               case Concrete.Projection(Concrete.Hole, Concrete.Reference(name)) =>
-                checkCons(Seq.empty)
+                checkCons(name, Seq.empty)
               case Concrete.App(Concrete.Projection(Concrete.Hole, Concrete.Reference(name)), as) =>
-                checkCons(as)
+                checkCons(name, as)
               case Concrete.Reference(a) if r.etype.contextual =>
-                checkCons(Seq.empty)
+                checkCons(a, Seq.empty)
               case Concrete.App(Concrete.Reference(a), as) if r.etype.contextual =>
-                checkCons(as)
+                checkCons(a, as)
               case _ => fallback()
             }
           case _ => fallback()

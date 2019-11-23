@@ -1,7 +1,7 @@
 
 
 
-define inductively list(A: type): type = sum contextural_constructors {
+define inductively list(A: type): type = sum contextual_constructors {
   case nil
   case cons(head: A, tail: list(A))
 }
