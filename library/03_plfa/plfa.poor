@@ -1,0 +1,34 @@
+
+
+
+define inductively term: type = sum {
+  case var(i: nat)
+  case lambda(i: nat, body: term)
+  case app(left: term, right: term)
+  case zero
+  case suc(a: term)
+  case elim(ty: term, z: term, id: nat, body: term)
+  case fix(a: nat, t: term)
+}
+
+/*
+define value:
+ (a: term) ⇒ type =
+┌ zero → unit
+├ suc(v) → record { field vsuc: value(v) }
+└ lambda(i, ty, body) →
+*/
+
+
+define subs(t: term, n: nat) =  run {
+  define act:
+    term ⇒ term =
+  ┌ var(i) → if(nat_eq(i, n), t, _.var(i))
+  ├ lambda(i, body) →  _.lambda(i, if(nat_eq(i, n), body, act(body)))
+  ├ app(l, r) → _.app(act(l), act(r))
+  ├ zero → _.zero
+  ├ suc(m) → _.suc(act(m))
+  ├ elim(ty, z, id, body) → _.elim(act(ty), act(z), id, if (nat_eq(id, n), body, act(body)))
+  └ fix(i, body) →  _.fix(i, if(nat_eq(i, n), body, act(body)))
+  act
+}

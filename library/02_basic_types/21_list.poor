@@ -1,0 +1,41 @@
+
+
+
+define inductively list(A: type): type = sum {
+  case nil
+  case cons(head: A, tail: list(A))
+}
+
+define append(#A: type):
+ (xs           ys: list(A)) ⇒ list(A) =
+┌ nil        → ─            → ys
+└ cons(h, t) → ─            → _.cons(h, append(t, ys))
+
+
+define append_assoc(#A: type):
+ (xs ys zs: list(A)) ⇒ append(append(xs, ys), zs) ≡ append(xs, append(ys, zs)) =
+┌ nil → ─ → ─ → refl
+└ cons(h, t) → ─ → ─ → i → _.cons(h, append_assoc(t, ys, zs)(i))
+
+
+define length(#A: type): list(A) ⇒ nat =
+┌ nil → 0
+└ cons(h, t) → suc(length(t))
+
+define length_append_structural(#A: type):
+ (xs           ys: list(A)) ⇒ length(append(xs, ys)) ≡ plus(length(xs), length(ys)) =
+┌ nil → ─ → refl
+└ cons(h, t) → ─ → i → suc(length_append_structural(t, ys)(i))
+
+define reverse(#A: type):
+  list(A) ⇒ list(A) =
+┌ nil → _.nil
+└ cons(h, t) → append(reverse(t), _.cons(h, _.nil))
+
+
+/*
+define reverse_distrib(#A: type):
+ (xs ys: list(A)) ⇒ reverse(append(xs, ys)) ≡ append(reverse(ys), reverse(xs)) =
+┌ nil → ─ → refl
+└ cons(h, t) → ─ →
+*/

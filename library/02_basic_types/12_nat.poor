@@ -114,6 +114,16 @@ define nat_is_even =
 // FIXME(META) when use path_map, it results in a core type check error
 define inj_suc(#m #n: nat, p: nat.suc(m) ≡ nat.suc(n)): m ≡ n = i → nat_pred(p(i))
 
+define nat_eq(a b: nat): bool = run {
+  define rec:
+    pair(nat, nat)   ⇒ bool =
+  ┌ (zero, zero)     → bool.true
+  ├ (zero, suc(─))   → bool.false
+  ├ (suc(─), zero)   → bool.false
+  └ (suc(x), suc(y)) → rec(make(x, y))
+  rec(make(a, b))
+}
+
 define discrete_nat: discrete(nat) = a → b → run {
   define znots(n: nat): negate(nat.zero ≡ nat.suc(n)) = eq → run {
      define c: nat ⇒ type =
