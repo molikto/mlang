@@ -6,7 +6,7 @@
 A cubical type theory implementation. features you might not found in Coq, Agda, Lean:
 * structural record and sum types
 * overlapping patterns, so you don't need a lemma to proof nat_plus_commutative
-* lift operator and universe/pi subtyping
+* cumulative universe with lift operator and universe/pi subtyping
 
 see [roadmap](ROADMAP.md) for details.
 
