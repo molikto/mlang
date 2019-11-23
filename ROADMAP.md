@@ -42,7 +42,7 @@
         * coinductive types?
     * native nat and int, or even native `int32` etc.
 * MORE ELABORATION
-    * record calculus and subtyping (one problem is dependency graph introduces syntax stuff in equality)
+    * **a typeclass like mechanism: maybe record calculus and subtyping (one problem is dependency graph introduces syntax stuff in equality) + enriched type (a type with additional etype)**
     * `match` expressions: `a match ...`
     * implicit projection: gorup has inverse defined as a record of element with properties, `g.inverse`, `g.inverse::left`, `g.inverse::`
     * default parameter value (this requires `EType` to be compile instead of tunneled, also it will need to be nominal etc.? we can require them to be closed term... but???)
@@ -76,3 +76,7 @@
     * https://github.com/HoTT/HoTT
     * unimath
     * the big problems list
+
+*as programming language*
+
+* COMPILATION
