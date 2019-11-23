@@ -196,7 +196,7 @@ class Elaborator private(protected override val layers: Layers)
   }
 
   def checkSum(tps: Option[(Value, Option[(Value, dbi.Inductively)], Int)], sum: Concrete.Sum): (Value, Abstract) = {
-    val Concrete.Sum(constructors) = sum
+    val Concrete.Sum(contextural, constructors) = sum
     for (i <- constructors.indices) {
       for (j <- (i + 1) until constructors.size) {
         if (constructors(i).name.intersect(constructors(j).name)) {
@@ -258,7 +258,7 @@ class Elaborator private(protected override val layers: Layers)
     })
     val fl = tps.map(_._3).getOrElse(
       if (fs.isEmpty) throw ElaboratorException.EmptySumMustHaveTypeAnnotation() else fs.map(_._3).max)
-    (Value.Universe(fl), Abstract.Sum(EType.Sum(fs.map(_._1), fs.map(_._2)), tps.flatMap(_._2.map(_._2)), isHit, fs.map(_._4)))
+    (Value.Universe(fl), Abstract.Sum(EType.Sum(contextural, fs.map(_._1), fs.map(_._2)), tps.flatMap(_._2.map(_._2)), isHit, fs.map(_._4)))
   }
 
   def checkConstructApp(sumValue: Value, index: Int, ims: Seq[Boolean], nodes: semantic.ClosureGraph, arguments: Seq[(Boolean, Concrete)]): Abstract = {
@@ -811,17 +811,21 @@ class Elaborator private(protected override val layers: Layers)
                 fallback()
             }
           case r: Value.Sum =>
+            def checkCons(ags: Seq[Concrete]) = {
+              r.etype.names.indexWhere(_.by(name)) match {
+                case -1 => fallback()
+                case a => checkSumConstructApp(r, a, ags)
+              }
+            }
             term match {
               case Concrete.Projection(Concrete.Hole, Concrete.Reference(name)) =>
-                r.etype.names.indexWhere(_.by(name)) match {
-                  case -1 => fallback()
-                  case a => checkSumConstructApp(r, a, Seq.empty)
-                }
+                checkCons(Seq.empty)
               case Concrete.App(Concrete.Projection(Concrete.Hole, Concrete.Reference(name)), as) =>
-                r.etype.names.indexWhere(_.by(name)) match {
-                  case -1 => fallback()
-                  case a => checkSumConstructApp(r, a, as)
-                }
+                checkCons(as)
+              case Concrete.Reference(a) if r.etype.contextual =>
+                checkCons(Seq.empty)
+              case Concrete.App(Concrete.Reference(a), as) if r.etype.contextual =>
+                checkCons(as)
               case _ => fallback()
             }
           case _ => fallback()

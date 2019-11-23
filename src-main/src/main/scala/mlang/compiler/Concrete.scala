@@ -32,6 +32,7 @@ object Concrete {
     case class NamedGroup(name: Text, pattern: Seq[(Boolean, Pattern)]) extends Pattern
   }
 
+  case class Face(dimension: Concrete, term: Concrete)
   case class Constructor(name: Name, term: Seq[NameType], restrictions: Seq[Face])
   case class Case(pattern: Pattern, body: Concrete)
 
@@ -90,7 +91,7 @@ object Concrete {
   }
 
 
-  case class Sum(constructors: Seq[Constructor]) extends Concrete
+  case class Sum(contextural: Boolean, constructors: Seq[Constructor]) extends Concrete
 
   case class App(left: Concrete, right: Seq[(Boolean, Concrete)]) extends Concrete
   object App {
@@ -107,7 +108,6 @@ object Concrete {
   // TODO can you define a macro in a abstracted context?
   case class Let(declarations: Seq[Declaration], in: Concrete) extends Concrete
   case class PathType(typ: Option[Concrete], left: Concrete, right: Concrete) extends Concrete
-  case class Face(dimension: Concrete, term: Concrete)
   case class Transp(typ: Concrete, direction: Concrete, base: Concrete) extends Concrete
   case class Hcomp(base: Concrete, faces: Seq[Face]) extends Concrete
   case class Comp(typ: Concrete, base: Concrete, faces: Seq[Face]) extends Concrete

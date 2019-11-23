@@ -1,7 +1,15 @@
 # Roadmap
 
+* smaller TODO
+    * support `with_constructor`
+        * the current behaviour in mlang is constructor names is not exported as definitions, unlike in Agda. for example: `define bool = sum { case true false }`, you need to access the constructor like `bool.true`, in case of parameterized sum, it is even worse (`list(A).nil`).
+        * but we have a shortcut now: `_.nil` means infer the left side of `.`
+        * we want to freely write `true`, `false`, `zero` etc. if we have a syntax `define with_constructors bool = ...`, then we can export the identifiers as global constructor. but it is not well defined for parameterized sum, in case of `nil`, the parameter `A` of `list` must be explicitly given in case of `nil` and in case of `cons` it can be seen as implicit. we can only allow `with_constructors` for non-parameterized sum though. for `list` if user want something similar they can define themselves.
+        * so another choice is `define contextual_constructors list(A) = ...` in this kind of definitions, if we are checking `nil` against a `list(_)` type, we accpet it even we cannot found a identifier called `nil`
+    * elaboration for partial application of constructors
+    * support pasring int literal `7i` maybe? and support number literals in patterns
 
-bolded items are what we want to work on next
+**bolded items** are what we want to work on next
 
 * `DONE` totally unsafe MLTT basics
     * basic `.poor` syntax and parser
@@ -36,25 +44,26 @@ bolded items are what we want to work on next
         * inductive-recursive
         * is [this](https://arend.readthedocs.io/en/latest/language-reference/definitions/hits/#conditions) sound?
         * coinductive types?
+    * native nat and int
 * MORE ELABORATION
-    * record calculus (one problem is dependency graph introduces syntax stuff in equality)
-    * `match` expressions
-    * `RESEARCH` calculus of elaboration
-        * implicit projection *for example group has inverse defined as a record of element with properties, `g.inverse`, `g.inverse::left`, `g.inverse::`*
-        * default parameter value
-        * constant projection `square.constant`
-        * projection `1.is_even`
-        * user defined patterns (this might be simple!)
+    * record calculus and subtyping (one problem is dependency graph introduces syntax stuff in equality)
+    * `match` expressions: `a match ...`
+    * implicit projection: gorup has inverse defined as a record of element with properties, `g.inverse`, `g.inverse::left`, `g.inverse::`
+    * default parameter value (this requires `EType` to be compile instead of tunneled, also it will need to be nominal etc.? we can require them to be closed term... but???)
+    * constant projection: `square.constant`. like static fields in Java
+    * **projection: `1.is_even`. like extension functions in Dotty/Kotlin**
+    * user defined patterns
+    * implicit on the right: `a: #A`
         * user defined implicit right form
-        * `g: G` typing notation with context-association
+    * `g: G` typing notation with context-association
     * implicit conversions
 * USABILITY
+    * **structural editor**
+        * editor diractives and name sortcuts
     * HTML pretty print with inferred types, cross links, elaborated information, cross-linked core term
     * error reporting
         * disallow or warn naming shadowing
         * better error reporting
-    * structural editor
-        * editor diractives and name sortcuts
     * modules and compile unit (when it got slow, currently not worth the trouble)
     * compilation
 * TESTING
