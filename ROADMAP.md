@@ -1,11 +1,6 @@
 # Roadmap
 
 * smaller TODO
-    * support `with_constructor`
-        * the current behaviour in mlang is constructor names is not exported as definitions, unlike in Agda. for example: `define bool = sum { case true false }`, you need to access the constructor like `bool.true`, in case of parameterized sum, it is even worse (`list(A).nil`).
-        * but we have a shortcut now: `_.nil` means infer the left side of `.`
-        * we want to freely write `true`, `false`, `zero` etc. if we have a syntax `define with_constructors bool = ...`, then we can export the identifiers as global constructor. but it is not well defined for parameterized sum, in case of `nil`, the parameter `A` of `list` must be explicitly given in case of `nil` and in case of `cons` it can be seen as implicit. we can only allow `with_constructors` for non-parameterized sum though. for `list` if user want something similar they can define themselves.
-        * so another choice is `define contextual_constructors list(A) = ...` in this kind of definitions, if we are checking `nil` against a `list(_)` type, we accpet it even we cannot found a identifier called `nil`
     * elaboration for partial application of constructors
     * support pasring int literal `7i` maybe? and support number literals in patterns
 
