@@ -43,7 +43,7 @@ object Benchmark {
              instance._t += (System.currentTimeMillis() - t0)
              res
            case None =>
-             // FIXME evalHack
+             // FIXME evalHack makes benchmark class wrong. here should be logic error...
              a
          }
        } finally {

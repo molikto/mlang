@@ -18,7 +18,8 @@ define plus(a b: nat): nat = run {
     pair(nat, nat) ⇒ nat =
   ┌ (zero, a)      → a
   ├ (a, zero)      → a
-  └ (x, suc(y))    → suc(rec(make(x, y)))
+  ├  (x, suc(y))    → suc(rec(make(x, y)))
+  └ (suc(x), y)    → suc(rec(make(x, y)))
   rec(make(a, b))
 }
 
@@ -47,6 +48,16 @@ define _test_plus = run {
 }
 
 
+define plus_associ:
+ (a          b   c: nat) ⇒ plus(plus(a, b), c) ≡ plus(a, plus(b, c)) =
+┌ zero    →  b → c       → refl
+└ suc(a0) →  b → c       → i → suc(plus_associ(a0, b, c)(i))
+
+define plus_comm:
+ (a         b : nat) ⇒ plus(a, b) ≡ plus(b, a) =
+┌ zero →    b        → refl
+└ suc(a0) → b        → i → suc(plus_comm(a0, b)(i))
+
 /*
 
 define plus_pointwise_lemma:
@@ -73,7 +84,7 @@ define _test_multi = run {
   unit.make
 }
 
-define test_hcomp_nat: x_refl_type(hcomp(zero)) = x_refl(zero)
+define _test_hcomp_nat: x_refl_type(hcomp(zero)) = x_refl(zero)
 
 define fib:
 (: nat) ⇒ nat =
