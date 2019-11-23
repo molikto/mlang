@@ -47,7 +47,6 @@ define _test_plus = run {
   unit.make
 }
 
-
 define plus_associ:
  (a          b   c: nat) ⇒ plus(plus(a, b), c) ≡ plus(a, plus(b, c)) =
 ┌ zero    →  b → c       → refl
@@ -57,22 +56,6 @@ define plus_comm:
  (a         b : nat) ⇒ plus(a, b) ≡ plus(b, a) =
 ┌ zero →    b        → refl
 └ suc(a0) → b        → i → suc(plus_comm(a0, b)(i))
-
-/*
-
-define plus_pointwise_lemma:
- (a   m: nat) ⇒ plus2(suc(a), m) ≡ suc(plus2(a, m)) =
-  ─ ┌ zero    → ─ → suc(a)
-    └ suc(n)  → i → plus_pointwise_lemma(suc(a), n, i)
-
-define plus_pointwise:
- (a       b: nat) ⇒ plus(a, b) ≡ plus2(a, b) =
-  ─     ┌ zero    → ─ → b
-        └ suc(m)  → plus_pointwise() // suc(plus(a, m)) ≡ plus2(suc(a), m)
-
-define path_plus12: plus ≡ plus2 = fun_ext(nat, ─ → nat, plus, plus2,
-
-*/
 
 define multi:
  (a       b: nat) ⇒ nat =

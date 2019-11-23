@@ -3,6 +3,7 @@
 * smaller TODO
     * elaboration for partial application of constructors
     * support pasring int literal `7i` maybe? and support number literals in patterns
+    * fix the `parameters` keyword, it should be like Agda where the parameters is uniformly introduced
 
 **bolded items** are what we want to work on next
 
@@ -39,7 +40,7 @@
         * inductive-recursive
         * is [this](https://arend.readthedocs.io/en/latest/language-reference/definitions/hits/#conditions) sound?
         * coinductive types?
-    * native nat and int
+    * native nat and int, or even native `int32` etc.
 * MORE ELABORATION
     * record calculus and subtyping (one problem is dependency graph introduces syntax stuff in equality)
     * `match` expressions: `a match ...`
