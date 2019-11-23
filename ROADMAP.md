@@ -1,6 +1,9 @@
 # Roadmap
 
-* **DONE** totally unsafe MLTT basics
+
+bolded items are what we want to work on next
+
+* `DONE` totally unsafe MLTT basics
     * basic `.poor` syntax and parser
     * concrete syntax, core syntax, core semantics and reification
         * function type
@@ -9,25 +12,26 @@
     * bidirectional elaborating type checker
     * evaluation/HOAS by generating JVM bytecode dynamically
     * conversion check and whnf with eta and recursive references
-* **DONE** overlapping and order independent patterns, see `plus_tests` in library for detail
-* **DONE** locally scoped meta; very simple unification; implicit arguments syntax
-* **DONE** cubical features
+* `DONE` overlapping and order independent patterns, see `plus_tests` in library for detail
+* `DONE` locally scoped meta; very simple unification; implicit arguments syntax
+* `DONE` cubical features
     * path type
     * composition structure (hcomp, transp)
     * glue type and univalence, fibrant universe
     * sum type's composition structure, higher inductive types
-* **DONE** cumulative universe with "lift" operator for global definitions (see [here](https://mazzo.li/epilogue/index.html%3Fp=857&cpage=1.html)) and universe/function subtyping
+* `DONE` cumulative universe with "lift" operator for global definitions (see [here](https://mazzo.li/epilogue/index.html%3Fp=857&cpage=1.html)) and universe/function subtyping
 * SOUNDNESS *to reject codes, not actually providing new features!*
     * complete core checker (currently it is only a partial implementation)
     * positivity checker
     * coverage & confluence checker for overlapping patterns and for hits
     * termination checking: currently you don't need modifier `inductively` to write a recursive type, with termination checking, you should not be able to do this
 * CORE THEORY EXTENSIONS
-    * **RESEARCH** how we can incorporate XTT or/and two level system, or Arend style, or even both
-    * **RESEARCH** think how we can have a theory/syntax for partial elements and dimension
-    * **RESEARCH** efficient computation for Brunerie's number
+    * `RESEARCH` how we can incorporate XTT or/and two level system, or Arend style, or even both
+        * why? we want more and more definitional equality
+    * `RESEARCH` think how we can have a theory/syntax for partial elements and dimension
+    * `RESEARCH` efficient computation for Brunerie's number
+    * **inductive families of two flavor**
     * more recursive types
-        * inductive families of two flavor
         * inductive-inductive
         * inductive-recursive
         * is [this](https://arend.readthedocs.io/en/latest/language-reference/definitions/hits/#conditions) sound?
@@ -35,7 +39,7 @@
 * MORE ELABORATION
     * record calculus (one problem is dependency graph introduces syntax stuff in equality)
     * `match` expressions
-    * **RESEARCH** calculus of elaboration
+    * `RESEARCH` calculus of elaboration
         * refactor implicit arguments
         * implicit projection *for example group has inverse defined as a record of element with properties, `g.inverse`, `g.inverse::left`, `g.inverse::`*
         * default parameter value
