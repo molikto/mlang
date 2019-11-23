@@ -4,6 +4,7 @@
     * elaboration for partial application of constructors
     * support pasring int literal `7i` maybe? and support number literals in patterns
     * fix the `parameters` keyword, it should be like Agda where the parameters is uniformly introduced
+    * support boundry expression in faces, support non-
 
 **bolded items** are what we want to work on next
 
@@ -53,9 +54,10 @@
         * user defined implicit right form
     * `g: G` typing notation with context-association
     * implicit conversions
+* **STRUCTURAL EDITOR**
+    * editor diractives and name sortcuts
+* TACTIC
 * USABILITY
-    * **structural editor**
-        * editor diractives and name sortcuts
     * HTML pretty print with inferred types, cross links, elaborated information, cross-linked core term
     * error reporting
         * disallow or warn naming shadowing
