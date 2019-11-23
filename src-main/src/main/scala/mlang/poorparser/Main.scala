@@ -2,7 +2,7 @@ package mlang.poorparser
 
 import java.io.File
 
-import mlang.compiler.Concrete
+import mlang.compiler.concrete
 import mlang.compiler.Elaborator
 import mlang.utils.{Benchmark, debug, info, warn}
 
@@ -47,7 +47,7 @@ object Main extends Parser {
 
   def library(file: File): Unit = {
     val checker = Elaborator.topLevel()
-    def rec(prefix: String, file: File): Seq[(String, Concrete.Module)] = {
+    def rec(prefix: String, file: File): Seq[(String, concrete.Module)] = {
       file.listFiles().sortBy(_.getName).toSeq.flatMap(f => {
         val name = prefix + f.getName
         if (f.isDirectory) {
@@ -66,7 +66,7 @@ object Main extends Parser {
       })
     }
     val modules = rec("", file)
-    checker.check(Concrete.Module(modules.flatMap(_._2.declarations)))
+    checker.check(concrete.Module(modules.flatMap(_._2.declarations)))
     Benchmark.reportAndReset()
   }
 

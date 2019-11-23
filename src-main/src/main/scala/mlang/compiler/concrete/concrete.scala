@@ -1,73 +1,66 @@
-package mlang.compiler
+package mlang.compiler.concrete
 
 import mlang.utils.{Name, Text}
 
 sealed trait Concrete
 
-// TODO move to seperate package like dbi and semantic
+
+case class NameType(names: Seq[(Boolean, Name)], ty: Concrete)
+
+object NameType {
+  type Flat = (Boolean, Name, Concrete)
+  type FlatSeq = Seq[Flat]
+
+  def flatten(names: Seq[NameType]): NameType.FlatSeq = names.flatMap(n => {
+    if (n.names.isEmpty) {
+      Seq((false, Name.empty, n.ty))
+    } else {
+      n.names.map(m => (m._1, m._2, n.ty))
+    }
+  })
+}
+
+sealed trait Pattern
+
+object Pattern {
+  case class Atom(id: Name) extends Pattern
+  case class Group(names: Seq[(Boolean, Pattern)]) extends Pattern
+  // TODO user defined named patterns
+  case class NamedGroup(name: Text, pattern: Seq[(Boolean, Pattern)]) extends Pattern
+}
+
+case class Face(dimension: Concrete, term: Concrete)
+case class Constructor(name: Name, term: Seq[NameType], restrictions: Seq[Face])
+case class Case(pattern: Pattern, body: Concrete)
+
+case class Module(declarations: Seq[Declaration])
+
+
+sealed trait DeclarationModifier
+object DeclarationModifier {
+  case object WithConstructor extends DeclarationModifier
+  case object Inductively extends DeclarationModifier
+  case object __Debug extends DeclarationModifier
+  case object WithoutDefine extends DeclarationModifier
+}
+
+sealed trait Declaration
+
+object Declaration {
+
+  sealed trait Single extends Declaration  {
+    def modifiers: Seq[DeclarationModifier]
+    def name: Name
+  }
+  case class Define(modifiers: Seq[DeclarationModifier], name: Name, parameters: Seq[NameType], typ: Option[Concrete], term: Concrete) extends Single
+  // depending on our algorithm, recursive ones might not need to declare first
+  case class Declare(modifiers: Seq[DeclarationModifier], name: Name, parameters: Seq[NameType], typ: Concrete) extends Single
+
+  // FIXME(SYNTAX) this is kind of wired now, it only generalize the parameters but not the applications
+  case class Parameters(parameters: Seq[NameType], items: Seq[Declaration]) extends Declaration
+}
+
 object Concrete {
-
-  case class NameType(names: Seq[(Boolean, Name)], ty: Concrete)
-
-  object NameType {
-    type Flat = (Boolean, Name, Concrete)
-    type FlatSeq = Seq[Flat]
-
-    def flatten(names: Seq[NameType]): NameType.FlatSeq = names.flatMap(n => {
-      if (n.names.isEmpty) {
-        Seq((false, Name.empty, n.ty))
-      } else {
-        n.names.map(m => (m._1, m._2, n.ty))
-      }
-    })
-  }
-
-
-  sealed trait Pattern
-
-  object Pattern {
-    case class Atom(id: Name) extends Pattern
-    case class Group(names: Seq[(Boolean, Pattern)]) extends Pattern
-    // TODO user defined named patterns
-    case class NamedGroup(name: Text, pattern: Seq[(Boolean, Pattern)]) extends Pattern
-  }
-
-  case class Face(dimension: Concrete, term: Concrete)
-  case class Constructor(name: Name, term: Seq[NameType], restrictions: Seq[Face])
-  case class Case(pattern: Pattern, body: Concrete)
-
-
-
-  case class Module(declarations: Seq[Declaration])
-
-
-
-
-  sealed trait Declaration {
-  }
-
-  object Declaration {
-    sealed trait Modifier
-    object Modifier {
-      case object WithConstructor extends Modifier
-      case object Inductively extends Modifier
-      case object __Debug extends Modifier
-      case object WithoutDefine extends Modifier
-    }
-
-    sealed trait Single extends Declaration  {
-      def modifiers: Seq[Modifier]
-      def name: Name
-    }
-    case class Define(modifiers: Seq[Modifier], name: Name, parameters: Seq[NameType], typ: Option[Concrete], term: Concrete) extends Single
-    // depending on our algorithm, recursive ones might not need to declare first
-    case class Declare(modifiers: Seq[Modifier], name: Name, parameters: Seq[NameType], typ: Concrete) extends Single
-
-    // FIXME(SYNTAX) this is kind of wired now, it only generalize the parameters but not the applications
-    case class Parameters(parameters: Seq[NameType], items: Seq[Declaration]) extends Declaration
-  }
-
-
 
   case object Type extends Concrete
   case object I extends Concrete
@@ -100,7 +93,6 @@ object Concrete {
 
   case class Projection(left: Concrete, right: Concrete) extends Concrete
 
-
   case class PatternLambda(implt: Boolean, branches: Seq[Case]) extends Concrete
 
   case class Lambda(name: Name, imps: Boolean, ensuredPath: Boolean, body: Concrete) extends Concrete
@@ -117,8 +109,6 @@ object Concrete {
 
   case object Undefined extends Concrete
   case object Hole extends Concrete
-
-
 }
 
 

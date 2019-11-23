@@ -234,9 +234,9 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
 
 
 
-  def newPatternLayer(pattern: Concrete.Pattern, typ: Value): (Self, Value, Pattern) = {
+  def newPatternLayer(pattern: concrete.Pattern, typ: Value): (Self, Value, Pattern) = {
     val vvv = mutable.ArrayBuffer[Binder]()
-    def recs(maps: Seq[(Boolean, Concrete.Pattern)], imps: Seq[Boolean], nodes: semantic.ClosureGraph): (Seq[Value], Seq[Pattern], Seq[Name]) = {
+    def recs(maps: Seq[(Boolean, concrete.Pattern)], imps: Seq[Boolean], nodes: semantic.ClosureGraph): (Seq[Value], Seq[Pattern], Seq[Name]) = {
       var ms = maps
       var vs =  Seq.empty[(Value, Pattern)]
       var graph = nodes
@@ -255,7 +255,7 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
             throw PatternExtractException.NotExpectingImplicit()
           } else {
             // it is a implicit which not introduced in concrete pattern
-            val tv = rec(Concrete.Pattern.Atom(Name.empty), graph(i).independent.typ, false)
+            val tv = rec(concrete.Pattern.Atom(Name.empty), graph(i).independent.typ, false)
             graph = graph.reduce(vs.size, tv._1)
             vs = vs :+ tv
           }
@@ -265,15 +265,15 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
         throw PatternExtractException.ImplicitPatternForDimension()
       } else if (ms.size != nodes.dimSize) {
         throw PatternExtractException.WrongSize()
-      } else if (!ms.forall(_._2.isInstanceOf[Concrete.Pattern.Atom])) {
+      } else if (!ms.forall(_._2.isInstanceOf[concrete.Pattern.Atom])) {
         throw PatternExtractException.NonAtomicPatternForDimension()
       }
-      (vs.map(_._1), vs.map(_._2), ms.map(_._2.asInstanceOf[Concrete.Pattern.Atom].id))
+      (vs.map(_._1), vs.map(_._2), ms.map(_._2.asInstanceOf[concrete.Pattern.Atom].id))
     }
 
-    def rec(p: Concrete.Pattern, t: Value, isRoot: Boolean): (Value, Pattern) = {
+    def rec(p: concrete.Pattern, t: Value, isRoot: Boolean): (Value, Pattern) = {
       p match {
-        case Concrete.Pattern.Atom(name) =>
+        case concrete.Pattern.Atom(name) =>
           var ret: (Value, Pattern) = null
           var index = 0
           name.asRef match { // we make it as a reference here
@@ -299,14 +299,14 @@ trait ElaboratorContextBuilder extends ElaboratorContextWithMetaOps {
             ret = (ggg, Pattern.GenericValue)
           }
           ret
-        case Concrete.Pattern.Group(maps) =>
+        case concrete.Pattern.Group(maps) =>
           t.whnf match {
             case r: Value.Record =>
               val (ms, ds, _) = recs(maps, r.etype.implicits, r.nodes)
               (Value.Make(ms), Pattern.Make(ds))
             case _ => throw PatternExtractException.MakeIsNotRecordType()
           }
-        case Concrete.Pattern.NamedGroup(name, maps) =>
+        case concrete.Pattern.NamedGroup(name, maps) =>
           t.whnf match {
             case sum: Value.Sum =>
               if (!isRoot && sum.hit) throw PatternExtractException.HitPatternMatchingShouldBeAtRoot()

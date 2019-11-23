@@ -1,7 +1,6 @@
 package mlang.compiler
 
-import mlang.compiler.Concrete._
-import Declaration.Modifier
+import mlang.compiler.concrete.{Concrete, Declaration, DeclarationModifier, NameType}
 import mlang.compiler.dbi.given
 import mlang.compiler.dbi.{Abstract, Dependency, DependencyType}
 import mlang.compiler.Layer.Layers
@@ -80,7 +79,7 @@ class Elaborator private(protected override val layers: Layers)
   }
 
   private def checkCompatibleCapAndFaces(
-                                  faces: Seq[Concrete.Face],
+                                  faces: Seq[concrete.Face],
                                   bt: semantic.AbsClosure,
                                   bv: Value
   ): dbi.System = {
@@ -528,7 +527,7 @@ class Elaborator private(protected override val layers: Layers)
     }
   }
 
-  private def inferFlatLevel(fs: Concrete.NameType.FlatSeq): (Int, Seq[(Name, Boolean, dbi.Closure)], Self) = {
+  private def inferFlatLevel(fs: NameType.FlatSeq): (Int, Seq[(Name, Boolean, dbi.Closure)], Self) = {
     var ctx = this
     var l = 0
     // disallow name shadowing in same concrete flat seq
@@ -843,7 +842,7 @@ class Elaborator private(protected override val layers: Layers)
        topLevel: Boolean): Self = {
     // @syntax_creation
     def wrapBody(t: Concrete, imp: Seq[Boolean]): Concrete = if (imp.isEmpty) t else wrapBody(Concrete.Lambda(Name.empty, imp.last, false, t), imp.dropRight(1))
-    if (s.modifiers.contains(Declaration.Modifier.__Debug)) {
+    if (s.modifiers.contains(DeclarationModifier.__Debug)) {
       val a = 1
     }
     val ret: Elaborator = s match {
@@ -852,12 +851,12 @@ class Elaborator private(protected override val layers: Layers)
         //        if (ms.contains(Modifier.WithConstructor)) {
         //        }
         // a inductive type definition
-        if (ms.contains(Modifier.WithoutDefine)) {
+        if (ms.contains(DeclarationModifier.WithoutDefine)) {
           throw ElaboratorException.ForbiddenModifier()
         }
         var inductively: IndState = IndState.stop
         def rememberInductivelyBy(ty: Abstract, self: Value) = {
-          inductively = if (ms.contains(Modifier.Inductively)) {
+          inductively = if (ms.contains(DeclarationModifier.Inductively)) {
             if (topLevel) {
               new IndState(Elaborator.igen(),ty,  false, self)
             } else {
@@ -946,8 +945,8 @@ class Elaborator private(protected override val layers: Layers)
             throw ElaboratorException.AlreadyDeclared()
           case None =>
             info(s"declare $name")
-            if (ms.exists(_ != Modifier.WithoutDefine)) throw ElaboratorException.ForbiddenModifier()
-            val isAxiom = ms.contains(Modifier.WithoutDefine)
+            if (ms.exists(_ != DeclarationModifier.WithoutDefine)) throw ElaboratorException.ForbiddenModifier()
+            val isAxiom = ms.contains(DeclarationModifier.WithoutDefine)
             if (isAxiom && !topLevel) {
               throw ElaboratorException.AxiomCanOnlyBeInTopLevel()
             }
@@ -959,7 +958,7 @@ class Elaborator private(protected override val layers: Layers)
             ctx
         }
     }
-    if (s.modifiers.contains(Declaration.Modifier.__Debug)) {
+    if (s.modifiers.contains(DeclarationModifier.__Debug)) {
       Value.NORMAL_FORM_MODEL = true
       val a = ret.layers.head.asInstanceOf[Layer.Defines].terms.find(_.name == s.name).get.ref.base.value
       val time  = System.currentTimeMillis()
@@ -1016,7 +1015,7 @@ class Elaborator private(protected override val layers: Layers)
   }
 
 
-  def check(m: Module): Elaborator = Benchmark.TypeChecking {
+  def check(m: concrete.Module): Elaborator = Benchmark.TypeChecking {
     checkDeclarations(m.declarations, true)._1
   }
 }

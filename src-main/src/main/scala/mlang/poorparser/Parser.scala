@@ -4,13 +4,12 @@ package mlang.poorparser
 import java.io.File
 import java.util.concurrent.atomic.AtomicLong
 
-import mlang.compiler.Concrete
-import mlang.compiler.Concrete._
+import mlang.compiler.concrete._
+import mlang.compiler.concrete.Concrete._
 
 import scala.util.parsing.combinator.syntactical.StandardTokenParsers
 import scala.util.parsing.combinator.{ImplicitConversions, PackratParsers}
 import mlang.utils.{Name, _}
-import mlang.compiler.Concrete._
 
 import scala.util.parsing.combinator.lexical.StdLexical
 
@@ -41,12 +40,12 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
 
   lazy val declaration: PackratParser[Declaration] =  parameters | declare |  define
 
-  lazy val defineModifiers: PackratParser[Seq[Declaration.Modifier]] =
+  lazy val defineModifiers: PackratParser[Seq[DeclarationModifier]] =
     rep(
-      keyword("without_define") ^^ { _ => Declaration.Modifier.WithoutDefine : Declaration.Modifier } |
-      keyword("inductively") ^^ { _ => Declaration.Modifier.Inductively : Declaration.Modifier } |
-      keyword("with_constructor") ^^ { _ => Declaration.Modifier.WithConstructor} |
-      keyword("__debug") ^^ { _ => Declaration.Modifier.__Debug }
+      keyword("without_define") ^^ { _ => DeclarationModifier.WithoutDefine : DeclarationModifier } |
+      keyword("inductively") ^^ { _ => DeclarationModifier.Inductively : DeclarationModifier } |
+      keyword("with_constructor") ^^ { _ => DeclarationModifier.WithConstructor} |
+      keyword("__debug") ^^ { _ => DeclarationModifier.__Debug }
     )
 
   lazy val define: PackratParser[Declaration.Define] = (keyword("define") ~> defineModifiers ~ ident) ~ opt(tele) ~ opt(":" ~> term) ~ ("=" ~> term) ^^ { a =>
@@ -135,7 +134,7 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
 //    Unglue(a._1, a._2)
 //  }
 
-  lazy val face: PackratParser[Concrete.Face] = (("|" ~> term <~ ":") ~ term) ^^ { a => Face(a._1, a._2) }
+  lazy val face: PackratParser[Face] = (("|" ~> term <~ ":") ~ term) ^^ { a => Face(a._1, a._2) }
 
   lazy val hcom: PackratParser[Concrete] = keyword("hcomp") ~> ("(" ~> term) ~ (rep(face) <~ ")") ^^ { a =>
     Hcomp(a._1, a._2)
@@ -229,7 +228,7 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
   lazy val patternCases: PackratParser[PatternLambda] = opt("#") ~ (patternCaseEmpty | patternCaseSingle | patternMultiple) ^^ {
     a => PatternLambda(a._1.isDefined, a._2)
   }
-  lazy val patternLambda : PackratParser[Concrete] =  "─" ~> patternContinue ^^ { a => Concrete.Lambda(Name.empty, false, false, a) } |  patternCases
+  lazy val patternLambda : PackratParser[Concrete] =  "─" ~> patternContinue ^^ { a => Lambda(Name.empty, false, false, a) } |  patternCases
 
   lazy val app: PackratParser[App] = term ~ delimited("(", repsep(opt("@") ~ term, ","), ")") ^^ {a => App(a._1, a._2.map(k => (k._1.isDefined, k._2)))}
 
@@ -239,8 +238,8 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
 
   lazy val sum: PackratParser[Sum] =
     (keyword("sum") ~> opt(keyword("contextual_constructors")) ~ delimited("{", rep(
-      (keyword("case") ~> atomicPattern ~ delimited("(", teleInner ~ rep(face),")") ^^ { a => Seq(Concrete.Constructor(a._1, a._2._1, a._2._2)) }) |
-      (keyword("case") ~> rep1(atomicPattern) ^^ { _.map(i => Concrete.Constructor(i, Seq.empty, Seq.empty)) : Seq[Concrete.Constructor] })
+      (keyword("case") ~> atomicPattern ~ delimited("(", teleInner ~ rep(face),")") ^^ { a => Seq(Constructor(a._1, a._2._1, a._2._2)) }) |
+      (keyword("case") ~> rep1(atomicPattern) ^^ { _.map(i => Constructor(i, Seq.empty, Seq.empty)) : Seq[Constructor] })
     ),"}")) ^^ { a =>
       Sum(a._1.isDefined, a._2.flatten)
     }
