@@ -83,7 +83,8 @@ define nat_pred: nat ⇒ nat =
 // TODO wish we have `projection` syntax
 // then we can do
 // projection (n: nat) is_even: bool
-declare nat_is_even: nat ⇒ bool
+define nat_is_even: nat ⇒ bool = 
+  declare
 
 define nat_is_odd:
   nat ⇒ bool =

@@ -354,22 +354,6 @@ class Elaborator private(protected override val layers: Layers)
               (self, Abstract.Construct(index, Seq.empty, Seq.empty, Map.empty))
             }
         }
-      case Concrete.Hole =>
-        throw ElaboratorException.CannotInferMeta()
-      case _: Concrete.Number =>
-        throw ElaboratorException.CannotInferNumberWithoutType()
-      case _: Concrete.And =>
-        throw ElaboratorException.TermSortWrong()
-      case _: Concrete.Or =>
-        throw ElaboratorException.TermSortWrong()
-      case _: Concrete.Neg =>
-        throw ElaboratorException.TermSortWrong()
-      case Concrete.I =>
-        throw ElaboratorException.TermICanOnlyAppearInDomainOfFunction()
-      case Concrete.Make =>
-        throw ElaboratorException.CannotInferMakeExpression()
-      case _: Concrete.Glue =>
-        throw ElaboratorException.CannotInferVMakeExpression()
       case Concrete.Cast(v, t) =>
         val (_, ta) = inferLevel(t)
         val tv = eval(ta)
@@ -442,7 +426,7 @@ class Elaborator private(protected override val layers: Layers)
         if (l.ensuredPath) {
           assert(!l.imps)
           // @syntax_creation
-          val (ta, va) = inferTelescope(Seq((false, l.name, Concrete.I)), None, l.body)
+          val (ta, va) = inferTelescopeWithBody(Seq((false, l.name, Concrete.I)), None, l.body)
           (eval(ta), va)
         } else {
           throw ElaboratorException.CannotInferLambda()
@@ -496,6 +480,26 @@ class Elaborator private(protected override val layers: Layers)
         val (it, ia) = ctx.infer(in)
         val ms0 = ctx.freeze()
         (it, Abstract.Let(ms ++ ms0, da, ia))
+      case Concrete.Declare =>
+        throw ElaboratorException.CanOnlyAfterEqualSign()
+      case Concrete.Axiom =>
+        throw ElaboratorException.CanOnlyAfterEqualSign()
+      case Concrete.Hole =>
+        throw ElaboratorException.CannotInferMeta()
+      case _: Concrete.Number =>
+        throw ElaboratorException.CannotInferNumberWithoutType()
+      case _: Concrete.And =>
+        throw ElaboratorException.TermSortWrong()
+      case _: Concrete.Or =>
+        throw ElaboratorException.TermSortWrong()
+      case _: Concrete.Neg =>
+        throw ElaboratorException.TermSortWrong()
+      case Concrete.I =>
+        throw ElaboratorException.TermICanOnlyAppearInDomainOfFunction()
+      case Concrete.Make =>
+        throw ElaboratorException.CannotInferMakeExpression()
+      case _: Concrete.Glue =>
+        throw ElaboratorException.CannotInferVMakeExpression()
     }
     debug(s"infer result ${res._2}")
     res
@@ -546,14 +550,14 @@ class Elaborator private(protected override val layers: Layers)
   }
 
 
-  private def inferTelescope(domain: NameType.FlatSeq, codomain: Option[Concrete], body: Concrete): (Abstract, Abstract) = {
+  private def inferTelescopeWithBody(domain: NameType.FlatSeq, codomain: Option[Concrete], body: Concrete): (Abstract, Abstract) = {
     domain match {
       case head +: tail =>
         head._3 match {
           case Concrete.I =>
             if (head._1) throw ElaboratorException.DimensionLambdaCannotBeImplicit()
             val ctx = newDimensionLayer(head._2)._1
-            val (ta, va) = ctx.inferTelescope(tail, codomain, body)
+            val (ta, va) = ctx.inferTelescopeWithBody(tail, codomain, body)
             val ms = ctx.finish()
             val cloa = dbi.Closure(ms, va)
             val clov = evalAbsClosure(cloa)
@@ -563,7 +567,7 @@ class Elaborator private(protected override val layers: Layers)
           case _ =>
             val (_, da) = inferLevel(head._3)
             val ctx = newParameterLayer(head._2, eval(da))._1
-            val (ta, va) = ctx.inferTelescope(tail, codomain, body)
+            val (ta, va) = ctx.inferTelescopeWithBody(tail, codomain, body)
             val ms = ctx.finish()
             (Abstract.Function(EType.Function.get(head._1), da, dbi.Closure(ms, ta)), Abstract.Lambda(dbi.Closure(ms, va)))
         }
@@ -845,129 +849,145 @@ class Elaborator private(protected override val layers: Layers)
   }
 
 
+  // @syntax_creation
+  private def wrapBody(t: Concrete, imp: Seq[Boolean]): Concrete = if (imp.isEmpty) t else wrapBody(Concrete.Lambda(Name.empty, imp.last, false, t), imp.dropRight(1))
+
+  private def checkDefine(ms: Seq[DeclarationModifier], name: Name, ps: Seq[NameType], t0: Option[Concrete], v: Concrete): Self = {
+
+    // TODO implement with constructor
+    //        if (ms.contains(Modifier.WithConstructor)) {
+    //        }
+    // a inductive type definition
+    var inductively: IndState = IndState.stop
+    def rememberInductivelyBy(ty: Abstract, self: Value) = {
+      inductively = if (ms.contains(DeclarationModifier.Inductively)) {
+        if (isGlobal) {
+          new IndState(Elaborator.igen(),ty,  false, self)
+        } else {
+          throw ElaboratorException.RecursiveTypesMustBeDefinedAtTopLevel()
+        }
+      } else IndState.stop
+      inductively
+    }
+    def caseHasTypeDeclare(t: Concrete, isAxiom: Boolean): Elaborator = {
+      lookupDefined(name) match {
+        case Some(_) =>
+          throw ElaboratorException.AlreadyDeclared()
+        case None =>
+          info(s"declare $name")
+          if (ms.nonEmpty) throw ElaboratorException.ForbiddenModifier()
+          if (isAxiom && !isGlobal) {
+            throw ElaboratorException.AxiomCanOnlyBeInTopLevel()
+          }
+          val (_, ta) = inferTelescope(NameType.flatten(ps), t)
+          // info("type:"); print(ta)
+          freeze()
+          val (ctx, index, generic) = newDeclaration(name, ta, isAxiom)
+          info(s"declared ${if (isAxiom) "axiom " else ""}$name")
+          ctx
+      }
+    }
+    def caseHasTypeNormal(t: Concrete): Elaborator = {
+      // term with type
+      info(s"check define $name")
+      var time = System.currentTimeMillis()
+      val pps = NameType.flatten(ps)
+      val ctx = if (ps.exists(_.ty == Concrete.I)) {
+        // the case when telescope has I, we don't support recursive definition
+        val (ta, va) = inferTelescopeWithBody(NameType.flatten(ps), t0, v)
+        freeze()
+        val (ctx, index, generic) = newDefinition(name, ta, va)
+        ctx
+      } else {
+        // normal case, support recursive definition
+        val (_, ta) = inferTelescope(pps, t)
+        // info("type:"); print(ta)
+        freeze()
+        val (ctx, index, generic) = newDeclaration(name, ta) // allows recursive definitions
+        val lambdaNameHints = pps.map(_._2) ++ (t match {
+          case Concrete.Function(d, _) =>
+            NameType.flatten(d).map(_._2)
+          case _ => Seq.empty
+        })
+        val va = ctx.check(wrapBody(v, pps.map(_._1)), generic.typ, lambdaNameHints, rememberInductivelyBy(ta, generic))
+        ctx.freeze()
+        val (ctx2, ref) = ctx.newDefinitionChecked(index, name, va)
+        // info("body:"); print(va)
+        // some definition is specially treated, they are defined in code, but we need to reference them in evaluator.
+        // these definition should not have re-eval behaviour.
+        // TODO add a primitive modifier so that no error happens with this
+        if (isGlobal && !BuiltIn.trySave(name, ref.asInstanceOf[Value.GlobalReference])) {
+          if (name == Name(Text("nat"))) {
+            if (ElaboratorBuiltIn.nat == null) ElaboratorBuiltIn.nat = ref.value.asInstanceOf[Value.Sum]
+          }
+        }
+        ctx2
+      } 
+      time = System.currentTimeMillis() - time
+      val timeStr = if (time > 10) s" in ${time}" else ""
+      info(s"checked define $name" + timeStr)
+      ctx
+    }
+    val ret: Elaborator = lookupDefined(name) match {
+      case Some((index, item)) =>
+        if (item.isDefined) {
+          throw ElaboratorException.AlreadyDefined()
+        } else if (item.isAxiom) {
+          throw ElaboratorException.TryingToDefineAxiom()
+        }
+        info(s"check define declared $name")
+        if (ps.nonEmpty || t0.nonEmpty) throw ElaboratorException.SeparateDefinitionCannotHaveTypesNow()
+        val va = check(v, item.baseType, Seq.empty, rememberInductivelyBy(item.typCode, item.ref.base))
+        // info("body:"); print(va)
+        freeze()
+        val (ctx, _) = newDefinitionChecked(index, name, va)
+        // reevalStuff(ctx, Dependency(index, 0, DependencyType.Value))
+        info(s"checked define $name")
+        ctx
+      case None => t0 match {
+        case Some(t)  =>
+          v match {
+            case Concrete.Axiom => 
+              caseHasTypeDeclare(t, true)
+            case Concrete.Declare =>
+              caseHasTypeDeclare(t, false)
+            case _ =>
+              caseHasTypeNormal(t)
+          }
+        case _ =>
+          v match {
+            case Concrete.Axiom =>
+              throw ElaboratorException.AxiomWithoutType()
+            case Concrete.Declare =>
+              throw ElaboratorException.DeclareWithoutType()
+            case _ =>
+          }
+          // term without type
+          info(s"infer define $name")
+          val (ta, va) = inferTelescopeWithBody(NameType.flatten(ps), t0, v)
+          // info("type:" + ta)
+          // info("body:"); print(va)
+          freeze()
+          val (ctx, index, generic) = newDefinition(name, ta, va)
+          info(s"inferred define $name")
+          ctx
+      }
+    }
+    if (!inductively.stop) throw ElaboratorException.InductiveModifierNotApplyable()
+    ret
+  }
 
 
   // should we make sure type annotation is the minimal type?
   // ANS: we don't and we actually cannot
   private def checkDeclaration(
       s: Declaration.Single): Self = {
-    // @syntax_creation
-    def wrapBody(t: Concrete, imp: Seq[Boolean]): Concrete = if (imp.isEmpty) t else wrapBody(Concrete.Lambda(Name.empty, imp.last, false, t), imp.dropRight(1))
     if (s.modifiers.contains(DeclarationModifier.__Debug)) {
       val a = 1
     }
     val ret: Elaborator = s match {
       case Declaration.Define(ms, name, ps, t0, v) =>
-        // TODO implement with constructor
-        //        if (ms.contains(Modifier.WithConstructor)) {
-        //        }
-        // a inductive type definition
-        if (ms.contains(DeclarationModifier.WithoutDefine)) {
-          throw ElaboratorException.ForbiddenModifier()
-        }
-        var inductively: IndState = IndState.stop
-        def rememberInductivelyBy(ty: Abstract, self: Value) = {
-          inductively = if (ms.contains(DeclarationModifier.Inductively)) {
-            if (isGlobal) {
-              new IndState(Elaborator.igen(),ty,  false, self)
-            } else {
-              throw ElaboratorException.RecursiveTypesMustBeDefinedAtTopLevel()
-            }
-          } else IndState.stop
-          inductively
-        }
-        val ret: Elaborator = lookupDefined(name) match {
-          case Some((index, item)) =>
-            if (item.isDefined) {
-              throw ElaboratorException.AlreadyDefined()
-            } else if (item.isAxiom) {
-              throw ElaboratorException.TryingToDefineAxiom()
-            }
-
-            info(s"check defined $name")
-            if (ps.nonEmpty || t0.nonEmpty) throw ElaboratorException.SeparateDefinitionCannotHaveTypesNow()
-            val va = check(v, item.baseType, Seq.empty, rememberInductivelyBy(item.typCode, item.ref.base))
-            // info("body:"); print(va)
-            freeze()
-            val (ctx, _) = newDefinitionChecked(index, name, va)
-            // reevalStuff(ctx, Dependency(index, 0, DependencyType.Value))
-            info(s"checked $name")
-            ctx
-          case None => t0 match {
-            case Some(t) if !ps.exists(_.ty == Concrete.I) =>
-              // term with type
-              info(s"define $name")
-              var time = System.currentTimeMillis()
-              val pps = NameType.flatten(ps)
-              val (_, ta) = inferTelescope(pps, t)
-              // info("type:"); print(ta)
-              freeze()
-              val (ctx, index, generic) = newDeclaration(name, ta) // allows recursive definitions
-              val lambdaNameHints = pps.map(_._2) ++ (t match {
-                case Concrete.Function(d, _) =>
-                  NameType.flatten(d).map(_._2)
-                case _ => Seq.empty
-              })
-              val va = ctx.check(wrapBody(v, pps.map(_._1)), generic.typ, lambdaNameHints, rememberInductivelyBy(ta, generic))
-              // info("body:"); print(va)
-              ctx.freeze()
-              val (ctx2, ref) = ctx.newDefinitionChecked(index, name, va)
-              // some definition is specially treated, they are defined in code, but we need to reference them in evaluator.
-              // these definition should not have re-eval behaviour.
-              // TODO add a primitive modifier so that no error happens with this
-              if (isGlobal) {
-                if (name == Name(Text("fiber_at"))) {
-                  assert(BuiltIn.fiber_at == null)
-                  BuiltIn.fiber_at = ref
-                } else if (name == Name(Text("equiv"))) {
-                  assert(BuiltIn.equiv == null)
-                  BuiltIn.equiv = ref
-                } else if (name == Name(Text("equiv_of"))) {
-                  assert(BuiltIn.equiv_of == null)
-                  BuiltIn.equiv_of = ref
-                } else if (name == Name(Text("path_to_equiv"))) {
-                  assert(BuiltIn.path_to_equiv == null)
-                  BuiltIn.path_to_equiv = ref
-                } else if (name == Name(Text("nat"))) {
-                  if (ElaboratorBuiltIn.nat == null) ElaboratorBuiltIn.nat = ref.value.asInstanceOf[Value.Sum]
-                }
-              }
-              time = System.currentTimeMillis() - time
-              val timeStr = if (time > 10) s" in ${time}" else ""
-              info(s"defined $name" + timeStr)
-              ctx2
-            case _ =>
-              // term without type
-              info(s"infer $name")
-              val (ta, va) = inferTelescope(NameType.flatten(ps), t0, v)
-              // info("type:" + ta)
-              // info("body:"); print(va)
-              freeze()
-              val (ctx, index, generic) = newDefinition(name, ta, va)
-              info(s"inferred $name")
-              ctx
-          }
-        }
-        if (!inductively.stop) throw ElaboratorException.InductiveModifierNotApplyable()
-        ret
-      case Declaration.Declare(ms, name, ps, t) =>
-        lookupDefined(name) match {
-          case Some(_) =>
-            throw ElaboratorException.AlreadyDeclared()
-          case None =>
-            info(s"declare $name")
-            if (ms.exists(_ != DeclarationModifier.WithoutDefine)) throw ElaboratorException.ForbiddenModifier()
-            val isAxiom = ms.contains(DeclarationModifier.WithoutDefine)
-            if (isAxiom && !isGlobal) {
-              throw ElaboratorException.AxiomCanOnlyBeInTopLevel()
-            }
-            val (_, ta) = inferTelescope(NameType.flatten(ps), t)
-            // info("type:"); print(ta)
-            freeze()
-            val (ctx, index, generic) = newDeclaration(name, ta, isAxiom)
-            info(s"declared ${if (isAxiom) "axiom " else ""}$name")
-            ctx
-        }
+        checkDefine(ms, name, ps, t0, v)
     }
     if (s.modifiers.contains(DeclarationModifier.__Debug)) {
       Value.NORMAL_FORM_MODEL = true
@@ -991,8 +1011,6 @@ class Elaborator private(protected override val layers: Layers)
     // how to handle mutual recursive definitions, calculate strong components
     def flatten(d: Declaration, ps: Seq[NameType]): Seq[Declaration.Single] = d match {
       case d: Declaration.Define =>
-        Seq(d.copy(parameters = ps ++ d.parameters))
-      case d: Declaration.Declare =>
         Seq(d.copy(parameters = ps ++ d.parameters))
       case Declaration.Parameters(parameters, items) =>
         items.flatMap(a => flatten(a, ps ++ parameters))

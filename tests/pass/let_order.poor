@@ -3,9 +3,11 @@ define refl(#A: type, #x: A): x ≡ x = i → x
 
 define some_test = run { // these also passes in Agda
 
-  declare test : ^type
+  define test : ^type = 
+    declare
 
-  declare test2 : test ≡ type
+  define test2 : test ≡ type = 
+    declare
 
   define test = type
 
@@ -18,7 +20,8 @@ define some_test = run { // these also passes in Agda
 define some_test2 = run { // these also passes in Agda
   define test: ^type ⇒ ^type = ─ → type
 
-  declare test2: ^type
+  define test2: ^type = 
+    declare
 
   // here there is a reeval of meta value, because refl is solved to be left hand side
   define test3: test(test2) ≡ type = ^^refl

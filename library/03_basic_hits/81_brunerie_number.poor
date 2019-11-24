@@ -87,9 +87,11 @@ define t_hopf_3: S3 ⇒ type =
 define pi_3_S3(p: loop_space_3(S3_pointed).A): loop_space_2(pointed_groupoid2_trunc(S2_pointed)).A =
   i → j → transp(k → t_hopf_3(p(j, k, i)), 0, groupoid2_trunc(_).in(S2.base))
 
-declare without_define is_groupoid2_groupoid: ^is_groupoid2(groupoid)
+define is_groupoid2_groupoid: ^is_groupoid2(groupoid)
+ = axiom
 
-declare without_define is_groupoid_set: ^is_groupoid(set)
+define is_groupoid_set: ^is_groupoid(set)
+ = axiom
 
 define code_S2(s: S2): groupoid = groupoid_trunc_groupoid(S2_hopf(s))
 

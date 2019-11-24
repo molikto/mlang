@@ -5,7 +5,8 @@ define refl(#A: type, #x: A): x ≡ x = i → x
 define some_test2 = run {
   define test: type ⇒ type = a → a
 
-  declare test2: type
+  define test2: type = 
+    declare
 
   define test3: test(test2) ≡ type = ^^refl
 

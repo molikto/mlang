@@ -17,7 +17,6 @@ define append_assoc(#A: type):
 ┌ nil → ─ → ─ → refl
 └ cons(h, t) → ─ → ─ → i → cons(h, append_assoc(t, ys, zs)(i))
 
-
 define length(#A: type): list(A) ⇒ nat =
 ┌ nil → 0
 └ cons(h, t) → suc(length(t))

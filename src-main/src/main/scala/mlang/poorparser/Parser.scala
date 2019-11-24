@@ -32,17 +32,16 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
     override def whitespaceChar: Parser[Char] = elem("", _ == '│') | super.whitespaceChar
   }
 
-  lexical.reserved ++= List("contextual_constructors", "without_define", "define", "declare", "const_projections", "parameters", "case", "__debug", "as", "transp", "hcomp", "comp", "hfill", "fill", "field", "ignored", "match", "record", "type", "sum", "inductively", "run", "with_constructors", "I", "_", "make", "glue_type", "glue", "unglue")
+  lexical.reserved ++= List("contextual_constructors", "axiom", "define", "declare", "const_projections", "parameters", "case", "__debug", "as", "transp", "hcomp", "comp", "hfill", "fill", "field", "ignored", "match", "record", "type", "sum", "inductively", "run", "with_constructors", "I", "_", "make", "glue_type", "glue", "unglue")
   lexical.delimiters ++= List("{", "}", "[", "]", ":", ",", "(", ")", "#", "≡", "─", "???", "┬", "┌", "⊏", "└", "├", "⇒", "→", "+", "-", ";", "=", "@", "\\", ".", "|", "^", "∨", "∧", "~")
 
   def delimited[T](a: String, t: Parser[T], b: String): Parser[T] = a ~> t <~ b
 
 
-  lazy val declaration: PackratParser[Declaration] =  parameters | declare |  define
+  lazy val declaration: PackratParser[Declaration] =  parameters | define
 
   lazy val defineModifiers: PackratParser[Seq[DeclarationModifier]] =
     rep(
-      keyword("without_define") ^^ { _ => DeclarationModifier.WithoutDefine : DeclarationModifier } |
       keyword("inductively") ^^ { _ => DeclarationModifier.Inductively : DeclarationModifier } |
       keyword("with_constructor") ^^ { _ => DeclarationModifier.WithConstructor} |
       keyword("__debug") ^^ { _ => DeclarationModifier.__Debug }
@@ -54,10 +53,6 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
 
   lazy val parameters: PackratParser[Declaration] = (keyword("parameters") ~> tele ~ delimited("{", rep(declaration), "}")) ^^ { a =>
     Declaration.Parameters(a._1, a._2)
-  }
-
-  lazy val declare: PackratParser[Declaration.Declare] = (keyword("declare") ~> defineModifiers ~ ident) ~ opt(tele) ~ (":" ~> term) ^^ { a =>
-    Declaration.Declare( a._1._1._1, Name(Text(a._1._1._2)), a._1._2.getOrElse(Seq.empty), a._2)
   }
 
 
@@ -82,6 +77,8 @@ trait Parser extends StandardTokenParsers with PackratParsers with ImplicitConve
         ascription |
         lambda |
         patternLambda |
+        keyword("axiom") ^^ { _ => Axiom } |
+        keyword("declare") ^^ { _ => Declare } |
         app |
         pathType |
         and | or | neg |

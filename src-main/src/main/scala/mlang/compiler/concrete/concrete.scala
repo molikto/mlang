@@ -41,7 +41,6 @@ object DeclarationModifier {
   case object WithConstructor extends DeclarationModifier
   case object Inductively extends DeclarationModifier
   case object __Debug extends DeclarationModifier
-  case object WithoutDefine extends DeclarationModifier
 }
 
 sealed trait Declaration
@@ -53,21 +52,23 @@ object Declaration {
     def name: Name
   }
   case class Define(modifiers: Seq[DeclarationModifier], name: Name, parameters: Seq[NameType], typ: Option[Concrete], term: Concrete) extends Single
-  // depending on our algorithm, recursive ones might not need to declare first
-  case class Declare(modifiers: Seq[DeclarationModifier], name: Name, parameters: Seq[NameType], typ: Concrete) extends Single
 
   // FIXME(SYNTAX) this is kind of wired now, it only generalize the parameters but not the applications
   case class Parameters(parameters: Seq[NameType], items: Seq[Declaration]) extends Declaration
 }
 
 object Concrete {
-
+  case object Axiom extends Concrete 
+  case object Declare extends Concrete
+  case object Hole extends Concrete 
+  case object Undefined extends Concrete
   case object Type extends Concrete
   case object I extends Concrete
   case class Number(str: String) extends Concrete
   case class And(left: Concrete, right: Concrete) extends Concrete
   case class Or(left: Concrete, right: Concrete) extends Concrete
   case class Neg(a: Concrete) extends Concrete
+
 
   case object Make extends Concrete // special identifier for maker of a record type
 
@@ -107,8 +108,6 @@ object Concrete {
   case class Glue(m: Concrete, faces: Seq[Face]) extends Concrete
   case class Unglue(m: Concrete) extends Concrete
 
-  case object Undefined extends Concrete
-  case object Hole extends Concrete
 }
 
 
