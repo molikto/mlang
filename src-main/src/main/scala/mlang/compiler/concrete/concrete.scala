@@ -47,7 +47,7 @@ sealed trait Declaration
 
 object Declaration {
 
-  sealed trait Single extends Declaration  {
+  sealed trait Single extends Declaration {
     def modifiers: Seq[DeclarationModifier]
     def name: Name
   }
@@ -96,18 +96,21 @@ object Concrete {
 
   case class PatternLambda(implt: Boolean, branches: Seq[Case]) extends Concrete
 
+  case class PathType(typ: Option[Concrete], left: Concrete, right: Concrete) extends Concrete
+
   case class Lambda(name: Name, imps: Boolean, ensuredPath: Boolean, body: Concrete) extends Concrete
 
   // TODO can you define a macro in a abstracted context?
   case class Let(declarations: Seq[Declaration], in: Concrete) extends Concrete
-  case class PathType(typ: Option[Concrete], left: Concrete, right: Concrete) extends Concrete
+
+//  case class Faces(faces: Seq[Face]) extends Concrete
+
   case class Transp(typ: Concrete, direction: Concrete, base: Concrete) extends Concrete
   case class Hcomp(base: Concrete, faces: Seq[Face]) extends Concrete
   case class Comp(typ: Concrete, base: Concrete, faces: Seq[Face]) extends Concrete
   case class GlueType(x: Concrete, faces: Seq[Face]) extends Concrete
   case class Glue(m: Concrete, faces: Seq[Face]) extends Concrete
   case class Unglue(m: Concrete) extends Concrete
-
 }
 
 

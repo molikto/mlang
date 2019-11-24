@@ -5,6 +5,11 @@
     * support pasring int literal `7i` maybe? and support number literals in patterns
     * fix the `parameters` keyword, it should be like Agda where the parameters is uniformly introduced
     * support boundry expression in faces, support non-
+    * check etype when using subtypingOf, but allow change etype when cast
+    * seperate simple concrete sort error exceptions out
+
+* I am thinking to do structural editors!
+    * start with a simple syntax one sort of terms, and only do reference, app and projection
 
 **bolded items** are what we want to work on next
 
