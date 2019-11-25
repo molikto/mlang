@@ -83,3 +83,13 @@ but we have a shortcut now: `_.nil` means infer the left side of `.`
 we want to freely write `true`, `false`, `zero` etc. if we have a syntax `define with_constructors bool = ...`, then we can export the identifiers as global constructor. but it is not well defined for parameterized sum, in case of `nil`, the parameter `A` of `list` must be explicitly given in case of `nil` and in case of `cons` it can be seen as implicit. we can only allow `with_constructors` for non-parameterized sum though. for `list` if user want something similar they can define themselves.
 
 so what implemented now is `define list(A) = sum contextual_constructors { case ... }` in this kind of definitions, if we are checking `nil` against a `list(_)` type, we accpet it even there is no identifier called `nil`, because it is a constructor of the sum we are checking against and this sum has `contextual_constructors`. this is a good middle ground between `with_constructors` and can handle prameterized sums.
+
+
+## where structural editor can help
+
+* for example in cubical type theory `0` can means natual number or number 1, in Cubical Agda, because numbers is already used as numbers, endpoints needs to be written as `i1` or `i0`. it is good to have formula constants and number constants as seperated construct, but it is bad to give it a different input --- notice I say input, if user can input both of using same way `0`, and editor decide which one should be used --- or give user a choice in dropdown menu -- this requires the typechecker gives immediate feedback
+   * similar thing can be done for other type directed things
+* but in general you should have less sorts, as sort inconsistent is prevented
+* so we might have a presort check -- or not, in case it is better to hand it to elaborator, as the wrongly sorted expression might still provide some type information. like in hcomp where type is annotated
+* differnt presentation -- for example we can use LaTeX like way to input certain construct, but when rendering it is in
+* ease of syntax. the syntax can be designed more logical one example is introduced variables and non-introduced varibles, the idea is telescope introduce or pattern matches variables, then you need somekind of positional editing

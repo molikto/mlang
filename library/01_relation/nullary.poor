@@ -17,7 +17,8 @@ define stable(A: type): type = negate(negate(A)) ⇒ A
 define discrete(A: type): type = (x y: A) ⇒ decidable(x ≡ y)
 
 
-define decidable_then_stable(A: type): decidable(A) ⇒ stable(A) =
+define decidable_then_stable(A: type):
+ decidable(A) ⇒ stable(A) =
  ┌ yes(x) → ─ → x
  └ no(x) → f → empty_elim(f(x))
 
