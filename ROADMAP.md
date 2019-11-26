@@ -39,7 +39,7 @@
     * `RESEARCH` how we can incorporate XTT or/and two level system, or Arend style, or even both
         * why? we want more and more definitional equality
     * `RESEARCH` think how we can have a theory/syntax for partial elements and dimension
-    * `RESEARCH` efficient computation for Brunerie's number
+    * `RESEARCH` **efficient computation for Brunerie's number** (next thing to try: alternative full reduction mode)
     * **inductive families of two flavor**
     * more recursive types
         * inductive-inductive

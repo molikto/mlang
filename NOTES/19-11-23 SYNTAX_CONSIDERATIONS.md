@@ -93,3 +93,4 @@ so what implemented now is `define list(A) = sum contextual_constructors { case 
 * so we might have a presort check -- or not, in case it is better to hand it to elaborator, as the wrongly sorted expression might still provide some type information. like in hcomp where type is annotated
 * differnt presentation -- for example we can use LaTeX like way to input certain construct, but when rendering it is in
 * ease of syntax. the syntax can be designed more logical one example is introduced variables and non-introduced varibles, the idea is telescope introduce or pattern matches variables, then you need somekind of positional editing
+* automate layouting -- not exact a benefit, but it is a precondition...
