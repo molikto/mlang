@@ -4,6 +4,20 @@ import mlang.utils.{Name, Text}
 
 sealed trait Concrete
 
+sealed trait Declaration
+
+object Declaration {
+
+  sealed trait Single extends Declaration {
+    def modifiers: Seq[DeclarationModifier]
+    def name: Name
+  }
+  case class Define(modifiers: Seq[DeclarationModifier], name: Name, parameters: Seq[NameType], typ: Option[Concrete], term: Concrete) extends Single
+
+  // FIXME(SYNTAX) this is kind of wired now, it only generalize the parameters but not the applications
+  case class Parameters(parameters: Seq[NameType], items: Seq[Declaration]) extends Declaration
+}
+
 
 case class NameType(names: Seq[(Boolean, Name)], ty: Concrete)
 
@@ -43,19 +57,6 @@ object DeclarationModifier {
   case object __Debug extends DeclarationModifier
 }
 
-sealed trait Declaration
-
-object Declaration {
-
-  sealed trait Single extends Declaration {
-    def modifiers: Seq[DeclarationModifier]
-    def name: Name
-  }
-  case class Define(modifiers: Seq[DeclarationModifier], name: Name, parameters: Seq[NameType], typ: Option[Concrete], term: Concrete) extends Single
-
-  // FIXME(SYNTAX) this is kind of wired now, it only generalize the parameters but not the applications
-  case class Parameters(parameters: Seq[NameType], items: Seq[Declaration]) extends Declaration
-}
 
 object Concrete {
   case object Axiom extends Concrete 
