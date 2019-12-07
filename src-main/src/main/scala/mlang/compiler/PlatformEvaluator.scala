@@ -6,6 +6,7 @@ import mlang.compiler.dbi.{Abstract, DependencyType, Dependency}
 import mlang.compiler.dbi.given
 import mlang.utils._
 import scala.collection.mutable
+import mlang.utils.JavaRuntime
 
 // TODO it seems this is slower than before in terms of compiled bytecode performance, which goes though Scala compiler. wait when Dotty has self compiler and port that one to here!
 trait Holder {
@@ -74,9 +75,9 @@ object ByteCodeGeneratorRun {
     Type.getType("(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;")
   )
 
-  val metaInitilizeSig = mlang.utils.Runtime.getMethodDescriptor(classOf[Value.Meta].getMethods.find(_.getName == "initialize").get)
+  val metaInitilizeSig = JavaRuntime.getMethodDescriptor(classOf[Value.Meta].getMethods.find(_.getName == "initialize").get)
 
-  val localReferenceInitilizeSig = mlang.utils.Runtime.getMethodDescriptor(classOf[Value.LocalReference].getMethods.find(_.getName == "initialize").get)
+  val localReferenceInitilizeSig = JavaRuntime.getMethodDescriptor(classOf[Value.LocalReference].getMethods.find(_.getName == "initialize").get)
 
   // inline def (mv: MethodVisitor) create[T <: Value](args: Any*): Unit = {
   //}
@@ -177,7 +178,7 @@ class ByteCodeGeneratorRun(val root: Abstract) {
       case Some(a) => a
       case None =>
         val mtd = java.lang.Class.forName(clzName0).getMethods.find(_.getName == method).get
-        val a = mlang.utils.Runtime.getMethodDescriptor(mtd)
+        val a = JavaRuntime.getMethodDescriptor(mtd)
         ds.put(name, a)
         a
     }

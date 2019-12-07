@@ -2,7 +2,7 @@ package mlang.utils;
 
 import java.lang.reflect.*;
 
-public class Runtime {
+public class JavaRuntime {
   public static String getDescriptorForClass(Class c) {
     if(c.isPrimitive()) {
         if(c==byte.class)
