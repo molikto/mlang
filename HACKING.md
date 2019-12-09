@@ -32,6 +32,13 @@ so some improvements:
 * pretty print to HTML with clear AST delimitation/boundary, layout it properly, might print it like a tree (see Lamdu project)
 
 
+# Coding
+
+* Scala is a cross platform language, our only platform-dependency should be HOAS compiler
+* Scala being a "everything is object langauge", we need to have in mind what is data, and what is object & class
+    * our value class now use pointer equality, but in reality, it is only used for caching purposes, this usage is ok I think...
+    * in general data class doesn't use type tag in anyway except for ADT, and except for breaking out the type system to use type dependency
+
 # Internals
 
 * theory

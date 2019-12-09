@@ -15,6 +15,8 @@ then it doesn't deals with dynamic langauge features. so some aspect of rumtime 
 
 * order of computation -- this is what we need to do in a multi file system
 
+* higher order system doesn't have a good computational property (yet?)
+
 ## module dependencies
 
 opaque type and private publics -- what about a unified module dependency system -- each module can define what is visible & viewed as by other modules, even differently by other modules
