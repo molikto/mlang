@@ -5,9 +5,9 @@ lazy val `main` = project.in(file("src-main")).settings(
     //parsing
     "com.github.molikto" % "scala-parser-combinators-dotty" % "0.1",
     // platform
-    "org.ow2.asm" % "asm" % "7.2",
-    "org.ow2.asm" % "asm-util" % "7.2",
-    "org.ow2.asm" % "asm-tree" % "7.2",
+    "org.ow2.asm" % "asm" % "7.3.1",
+    "org.ow2.asm" % "asm-util" % "7.3.1",
+    "org.ow2.asm" % "asm-tree" % "7.3.1",
     // utils
     ("com.lihaoyi" %% "fansi" % "0.2.7").withDottyCompat(scalaVersion.value),
   ),
