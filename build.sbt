@@ -9,7 +9,7 @@ lazy val `main` = project.in(file("src-main")).settings(
     "org.ow2.asm" % "asm-util" % "7.3.1",
     "org.ow2.asm" % "asm-tree" % "7.3.1",
     // utils
-    ("com.lihaoyi" %% "fansi" % "0.2.7").withDottyCompat(scalaVersion.value),
+    ("com.lihaoyi" %% "fansi" % "0.2.8").withDottyCompat(scalaVersion.value),
   ),
   javaOptions += "-Xss1G",
   fork in run := true,
