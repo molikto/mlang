@@ -10,7 +10,7 @@ A cubical type theory implementation. features you might not found in Coq, Agda,
 
 see [roadmap](ROADMAP.md) for details.
 
-see [library](library) and [tests](tests) folder for sample code.
+see [library](library) and [tests](tests) folder for sample code. After [cubicaltt](https://github.com/mortberg/cubicaltt) and [Cubical Adga](https://github.com/agda/cubical), it is the third project that implemented [Brunerie's number](https://thehighergeometer.wordpress.com/2018/06/29/trying-to-compute-bruneries-number/), and after [cubicaltt](https://github.com/mortberg/cubicaltt) it is the second project that can compute "the problem"
 
 + [build & run & debug & editor setup](BUILD.md)
 + [roadmap](ROADMAP.md)
