@@ -980,8 +980,7 @@ class Elaborator private(protected override val layers: Layers)
 
   // should we make sure type annotation is the minimal type?
   // ANS: we don't and we actually cannot
-  private def checkDeclaration(
-      s: Declaration.Single): Self = {
+  private def checkDeclaration(s: Declaration.Single): Self = {
     if (s.modifiers.contains(DeclarationModifier.__Debug)) {
       val a = 1
     }
@@ -993,7 +992,7 @@ class Elaborator private(protected override val layers: Layers)
       Value.NORMAL_FORM_MODEL = true
       val a = ret.layers.head.asInstanceOf[Layer.Defines].terms.find(_.name == s.name).get.ref.base.value
       val time  = System.currentTimeMillis()
-      val nf = a.nf
+      val nf = semantic.nf0(a)
       val time1 = System.currentTimeMillis()
       println(s"DEBUG nf time ${time1 - time}")
       println(reify(nf))

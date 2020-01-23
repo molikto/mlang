@@ -1,6 +1,7 @@
 package mlang.compiler.semantic
 
 import mlang.compiler.GenLong.Negative.{dgen, gen}
+import mlang.compiler.semantic.given
 import mlang.utils._
 import mlang.compiler.{Pattern, EType}
 import mlang.compiler.semantic.Formula
@@ -452,7 +453,11 @@ object Value {
           if (lam == lambda) this else App(lam, argument)
       lam match {
         case Lambda(closure) =>
-          closure(argument).whnf
+          if (NORMAL_FORM_MODEL) {
+            closure(argument.whnf).whnf
+          } else {
+            closure(argument).whnf
+          }
         case p : PatternLambda =>
           PatternRedux(p, argument).whnf
         case Hcomp(tp, base, faces) =>

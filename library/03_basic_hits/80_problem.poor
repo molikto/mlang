@@ -89,7 +89,7 @@ define problempath(j: I) =
   S1_helix(transp(k → S2_hopf(problempath000_nf(j, k)), 0, S1.base))
 
 // put _debug after define to normalize it
-define problem: int.pos(zero) ≡ int.pos(zero) =
+define __debug problem: int.pos(zero) ≡ int.pos(zero) =
   i → transp(j → S1_helix(innerpath(i ,j)), 0, int.pos(zero))
 
 

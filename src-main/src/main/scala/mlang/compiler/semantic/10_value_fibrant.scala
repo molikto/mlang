@@ -153,14 +153,14 @@ object ValueFibrant {
     val A1 = A.fswap(dim.id, Formula.True)
     val es0 = es.fswap(dim.id, Formula.False)
     val es1 = es.fswap(dim.id, Formula.True)
-    val v0 = Unglue(A0, u0, true, es0.view.mapValues(a => () => PathLambda(a)).toMap)
+    val v0 = LocalReference(Unglue(A0, u0, true, es0.view.mapValues(a => () => PathLambda(a)).toMap))
 
     val faces_elim_dim = es.toSeq.map(a => (a._1.elim(dim.id), a._2)).filter(!_._1.nfFalse).toMap
     val t1s = faces_elim_dim.view.mapValues(p => {
       val tp = p(Formula.True)
       Transp(AbsClosure(i => tp.fswap(dim.id, i)), si, u0)
     }).toMap
-    val v1 = gcomp(AbsClosure(i => A.fswap(dim.id, i)), v0,
+    val v1 = LocalReference(gcomp(AbsClosure(i => A.fswap(dim.id, i)), v0,
       faces_elim_dim.map((pair: (Formula, AbsClosure)) => {
         val els = pair._2
         val abs = AbsClosure(i => { // this i binds in the system
@@ -169,7 +169,7 @@ object ValueFibrant {
           )
         })
         (pair._1, abs)
-      }).updated(si, AbsClosure(_ => v0)))
+      }).updated(si, AbsClosure(_ => v0))))
     val sys = t1s.updated(si, u0).view.filterKeys(!_.nfFalse).toMap
     val fibersys_ = es1.map((pair: (Formula, AbsClosure)) => {
       val eq = pair._2
@@ -211,8 +211,8 @@ object ValueFibrant {
       (pair._1, res)
     }).toMap
     val t1s_ = fibersys_.view.mapValues(_._1).toMap
-    val v1_ = Hcomp(A1, v1, fibersys_.view.mapValues(_._2).toMap.updated(si, AbsClosure(_ => v1)))
-    Glue(v1_, t1s_)
+    val v1_ = LocalReference(Hcomp(A1, v1, fibersys_.view.mapValues(_._2).toMap.updated(si, AbsClosure(_ => v1))))
+    LocalReference(Glue(v1_, t1s_))
   }
 
   def hcompHcompUniverse(b: Value, es: AbsClosureSystem, u: Value, us: AbsClosureSystem): Value = {
@@ -227,14 +227,14 @@ object ValueFibrant {
       (pair._1, () => Hcomp(els(Formula.True), u, us))
     })
     val esmap = es.view.mapValues(a => () => PathLambda(a)).toMap
-    val v = Unglue(b, u, true, esmap)
+    val v = LocalReference(Unglue(b, u, true, esmap))
     val vs = us.map((pair: (Formula, AbsClosure)) => {
       (pair._1, pair._2.map(v => {
         Unglue(b, v, true, esmap)
       }))
     })
-    val v1 = Hcomp(b, v, vs ++ wts)
-    Glue(v1, t1s)
+    val v1 = LocalReference(Hcomp(b, v, vs ++ wts))
+    LocalReference(Glue(v1, t1s))
   }
 
   def transpGlue(B: GlueType, dim: Formula.Generic, si: Formula, u0: Value): Value = {
@@ -245,7 +245,7 @@ object ValueFibrant {
     val A1 = B1.ty
     val A0 = B0.ty
     // a0: A(i/0)
-    val a0 = Unglue(A0, u0, false, B0.faces)
+    val a0 = LocalReference(Unglue(A0, u0, false, B0.faces))
     // defined in phi_elim_i
     def t_tide(trueFace: Value, i: Formula) = {
       transpFill(i, si, AbsClosure(i => {
@@ -254,9 +254,9 @@ object ValueFibrant {
     }
     val faces_elim_dim = B.faces.toSeq.map(a => (a._1.elim(dim.id), a._2)).filter(!_._1.nfFalse).toMap
     val B1_faces = B1.faces.filter(_._1.normalForm != NormalForm.False)
-    def t1(trueFace: Value) = t_tide(trueFace, Formula.True)
+    def t1(trueFace: Value) = LocalReference(t_tide(trueFace, Formula.True))
     // a1: A(i/1) and is defined on both si and elim(i, phi)
-    val a1 = gcomp(
+    val a1 = LocalReference(gcomp(
       AbsClosure(i => A_swap(i)),
       a0,
       faces_elim_dim.view.mapValues(tf => {
@@ -267,7 +267,7 @@ object ValueFibrant {
           App(Projection(w, 0), t_tide(tf0, i))
         })
       }).toMap.updated(si, AbsClosure(_ => a0))
-    )
+    ))
     // ..., phi(i/1) |- (t1`, alpha) // true face must have (i/1)
     def pair(trueFace: Value) = {
       val w = Projection(trueFace, 1)
@@ -284,12 +284,12 @@ object ValueFibrant {
         }))
       )
     }
-    val a1p = Hcomp(A1, a1,
+    val a1p = LocalReference(Hcomp(A1, a1,
         B1_faces.view.mapValues(bd => {
           // alpha is of type f(t1p) == a1
           AbsClosure(j => PathApp(Projection(pair(bd()), 1), Formula.Neg(j)) )
-        }).toMap.updated(si, AbsClosure(_ => a1)))
-    Glue(a1p, B1_faces.view.mapValues(bd => () => Projection(pair(bd()), 0)).toMap)
+        }).toMap.updated(si, AbsClosure(_ => a1))))
+    LocalReference(Glue(a1p, B1_faces.view.mapValues(bd => () => Projection(pair(bd()), 0)).toMap))
   }
 
   def hcompGlue(B: GlueType, u0: Value, faces: AbsClosureSystem): Value = {
@@ -297,7 +297,7 @@ object ValueFibrant {
       hfill(Projection(trueFace, 0), u0, faces)
     }
     def t1(trueFace: Value) = t_tide(trueFace)(Formula.True)
-    val a1 = Hcomp(B.ty, Unglue(B.ty, u0, false, B.faces),
+    val a1 = LocalReference(Hcomp(B.ty, Unglue(B.ty, u0, false, B.faces),
       faces.view.mapValues(_.map(u => {
         Unglue(B.ty, u, false, B.faces)
       })).toMap ++
@@ -307,8 +307,8 @@ object ValueFibrant {
         val f = Projection(w, 0)
         App(f, t_tide(pair)(i))
       })).toMap
-    )
-    Glue(a1, B.faces.view.mapValues(bd => () => t1(bd())).toMap)
+    ))
+    LocalReference(Glue(a1, B.faces.view.mapValues(bd => () => t1(bd())).toMap))
   }
 
   def ghcomp(@stuck_pos tp: Value, base: Value, faces: AbsClosureSystem) = {

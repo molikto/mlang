@@ -125,8 +125,5 @@ define g9: loop_space(pointed_groupoid_trunc(S1_pointed)).A ⇒ set_trunc(int) =
 
 define g10: set_trunc(int) ⇒ int = elim_set_trunc(is_set_int, id(@int))
 
-
-define __debug brunerie0 = f5(f4(f3(i → j → k → S3.surf(i, j, k))))
-
-define brunerie : int = g10(g9(g8(f7(f6(f5(f4(f3(i → j → k → S3.surf(i, j, k)))))))))
+define __debug brunerie : int = g10(g9(g8(f7(f6(f5(f4(f3(i → j → k → S3.surf(i, j, k)))))))))
 

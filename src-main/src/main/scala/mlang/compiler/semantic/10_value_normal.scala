@@ -13,26 +13,38 @@ import Value._
 
 
 def normalFaceV(sys: ValueSystem): ValueSystem = {
-  sys.toSeq.flatMap(pair => pair._1.normalForm.map(a => (a, pair._2))).map(pair => {
-    val a = pair._1
-    val formula = Formula(Set(pair._1))
-    val bd = pair._2.restrict(pair._1)
-    (formula, bd.nf)
-  }).toMap
+  sys
+  // sys.toSeq.flatMap(pair => pair._1.normalForm.map(a => (a, pair._2))).map(pair => {
+  //   val a = pair._1
+  //   val formula = Formula(Set(pair._1))
+  //   val bd = pair._2.restrict(pair._1)
+  //   (formula, bd.nf)
+  // }).toMap
 }
 
 def normalFace(sys: AbsClosureSystem): AbsClosureSystem = {
-  sys.toSeq.flatMap(pair => pair._1.normalForm.map(a => (a, pair._2))).map(pair => {
-    val a = pair._1
-    val formula = Formula(Set(pair._1))
-    val bd = pair._2.restrict(pair._1)
-    (formula, bd.nf)
-  }).toMap
+  sys
+  // sys.toSeq.flatMap(pair => pair._1.normalForm.map(a => (a, pair._2))).map(pair => {
+  //   val a = pair._1
+  //   val formula = Formula(Set(pair._1))
+  //   val bd = pair._2.restrict(pair._1)
+  //   (formula, bd.nf)
+  // }).toMap
+}
+
+def nf0(v: Value, level: Int = 0): Value = v match {
+  case App(left, right) =>
+    val res = App(left, nf0(right, level + 1))
+    println(s"doing at level $level")
+    res.whnf
+  case a => a.whnf
 }
 
 given Normal[Value] {
   // LATER seems faces.nf will error
   // TODO(NORMAL) we are skipping record and sum
+
+
   def (v: Value) nf: Value = v.whnf match {
     case u: Universe => u
     case Function(et, domain, codomain) =>
