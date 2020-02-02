@@ -3,7 +3,7 @@ lazy val `main` = project.in(file("src-main")).settings(
   sharedSettings,
   libraryDependencies ++= Seq(
     //parsing
-    "com.github.molikto" % "scala-parser-combinators-dotty" % "0.2",
+    "com.github.molikto" % "scala-parser-combinators-dotty" % "0.1",
     // platform
     "org.ow2.asm" % "asm" % "7.3.1",
     "org.ow2.asm" % "asm-util" % "7.3.1",
