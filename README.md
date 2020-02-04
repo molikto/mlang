@@ -10,7 +10,7 @@ A cubical type theory implementation. features you might not found in Coq, Agda,
 
 see [roadmap](ROADMAP.md) for details.
 
-see [library](library) and [tests](tests) folder for sample code.
+see [library](library) and [tests](tests) folder for sample code. for example [Brunerie Number](https://github.com/molikto/mlang/blob/master/library/03_basic_hits/81_brunerie_number.poor)
 
 + [build & run & debug & editor setup](BUILD.md)
 + [roadmap](ROADMAP.md)
