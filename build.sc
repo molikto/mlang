@@ -25,6 +25,6 @@ object main extends MlangModule {
     ivy"org.ow2.asm:asm:7.3.1",
     ivy"org.ow2.asm:asm-util:7.3.1",
     ivy"org.ow2.asm:asm-tree:7.3.1",
-    ivy"com.lihaoyi::fansi:0.2.8".withDottyCompat(scalaVersion())
+    ivy"com.lihaoyi::fansi:0.2.9".withDottyCompat(scalaVersion())
   )
 }
