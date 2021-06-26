@@ -22,9 +22,9 @@ object main extends MlangModule {
   def ivyDeps = Agg(
     ivy"com.github.molikto::scala-parser-combinators-dotty:0.2",
     // platform
-    ivy"org.ow2.asm:asm:9.1",
-    ivy"org.ow2.asm:asm-util:9.1",
-    ivy"org.ow2.asm:asm-tree:9.1",
+    ivy"org.ow2.asm:asm:9.2",
+    ivy"org.ow2.asm:asm-util:9.2",
+    ivy"org.ow2.asm:asm-tree:9.2",
     ivy"com.lihaoyi::fansi:0.2.14".withDottyCompat(scalaVersion())
   )
 }
